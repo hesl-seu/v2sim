@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2024-02-18 09:39:56 by Eclipse SUMO netedit Version 1.18.0
+-->
+
+<additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">
+    <!-- TAZs -->
+    <taz id="TAZ1" shape="-80.00,36.61 -80.00,164.80 140.00,164.80 140.00,36.61 -80.00,36.61" color="red">
+        <tazSource id="gneE1" weight="1.00"/>
+        <tazSink id="gneE1" weight="1.00"/>
+        <tazSource id="gneE22" weight="1.00"/>
+        <tazSink id="gneE22" weight="1.00"/>
+        <tazSource id="gneE24" weight="1.00"/>
+        <tazSink id="gneE24" weight="1.00"/>
+    </taz>
+    <taz id="TAZ10" shape="20.00,-40.00 20.00,160.00 240.00,160.00 240.00,-40.00 20.00,-40.00" color="red">
+        <tazSource id="gneE17" weight="1.00"/>
+        <tazSink id="gneE17" weight="1.00"/>
+        <tazSource id="gneE26" weight="1.00"/>
+        <tazSink id="gneE26" weight="1.00"/>
+        <tazSource id="gneE3" weight="1.00"/>
+        <tazSink id="gneE3" weight="1.00"/>
+        <tazSource id="gneE34" weight="1.00"/>
+        <tazSink id="gneE34" weight="1.00"/>
+    </taz>
+    <taz id="TAZ11" shape="20.00,-140.00 20.00,60.00 240.00,60.00 240.00,-140.00 20.00,-140.00" color="red">
+        <tazSource id="gneE14" weight="1.00"/>
+        <tazSink id="gneE14" weight="1.00"/>
+        <tazSource id="gneE27" weight="1.00"/>
+        <tazSink id="gneE27" weight="1.00"/>
+        <tazSource id="gneE31" weight="1.00"/>
+        <tazSink id="gneE31" weight="1.00"/>
+        <tazSource id="gneE6" weight="1.00"/>
+        <tazSink id="gneE6" weight="1.00"/>
+    </taz>
+    <taz id="TAZ12" shape="116.61,-40.00 116.61,160.00 244.80,160.00 244.80,-40.00 116.61,-40.00" color="red">
+        <tazSource id="gneE16" weight="1.00"/>
+        <tazSink id="gneE16" weight="1.00"/>
+        <tazSource id="gneE37" weight="1.00"/>
+        <tazSink id="gneE37" weight="1.00"/>
+        <tazSource id="gneE4" weight="1.00"/>
+        <tazSink id="gneE4" weight="1.00"/>
+    </taz>
+    <taz id="TAZ2" shape="20.00,40.00 20.00,163.39 243.39,163.39 243.39,40.00 20.00,40.00" color="red">
+        <tazSource id="gneE0" weight="1.00"/>
+        <tazSink id="gneE0" weight="1.00"/>
+        <tazSource id="gneE33" weight="1.00"/>
+        <tazSink id="gneE33" weight="1.00"/>
+        <tazSource id="gneE38" weight="1.00"/>
+        <tazSink id="gneE38" weight="1.00"/>
+    </taz>
+    <taz id="TAZ3" shape="-83.39,-40.00 -83.39,163.39 40.00,163.39 40.00,-40.00 -83.39,-40.00" color="red">
+        <tazSource id="gneE21" weight="1.00"/>
+        <tazSink id="gneE21" weight="1.00"/>
+        <tazSource id="gneE23" weight="1.00"/>
+        <tazSink id="gneE23" weight="1.00"/>
+        <tazSource id="gneE40" weight="1.00"/>
+        <tazSink id="gneE40" weight="1.00"/>
+    </taz>
+    <taz id="TAZ4" shape="-83.39,-143.39 -83.39,-20.00 140.00,-20.00 140.00,-143.39 -83.39,-143.39" color="red">
+        <tazSource id="gneE19" weight="1.00"/>
+        <tazSink id="gneE19" weight="1.00"/>
+        <tazSource id="gneE35" weight="1.00"/>
+        <tazSink id="gneE35" weight="1.00"/>
+        <tazSource id="gneE9" weight="1.00"/>
+        <tazSink id="gneE9" weight="1.00"/>
+    </taz>
+    <taz id="TAZ5" shape="20.00,-144.80 20.00,-16.61 240.00,-16.61 240.00,-144.80 20.00,-144.80" color="red">
+        <tazSource id="gneE10" weight="1.00"/>
+        <tazSink id="gneE10" weight="1.00"/>
+        <tazSource id="gneE20" weight="1.00"/>
+        <tazSink id="gneE20" weight="1.00"/>
+        <tazSource id="gneE32" weight="1.00"/>
+        <tazSink id="gneE32" weight="1.00"/>
+    </taz>
+    <taz id="TAZ6" shape="120.00,-143.39 120.00,60.00 243.39,60.00 243.39,-143.39 120.00,-143.39" color="red">
+        <tazSource id="gneE11" weight="1.00"/>
+        <tazSink id="gneE11" weight="1.00"/>
+        <tazSource id="gneE36" weight="1.00"/>
+        <tazSink id="gneE36" weight="1.00"/>
+        <tazSource id="gneE5" weight="1.00"/>
+        <tazSink id="gneE5" weight="1.00"/>
+    </taz>
+    <taz id="TAZ7" shape="-84.80,-140.00 -84.80,60.00 43.39,60.00 43.39,-140.00 -84.80,-140.00" color="red">
+        <tazSource id="gneE12" weight="1.00"/>
+        <tazSink id="gneE12" weight="1.00"/>
+        <tazSource id="gneE28" weight="1.00"/>
+        <tazSink id="gneE28" weight="1.00"/>
+        <tazSource id="gneE8" weight="1.00"/>
+        <tazSink id="gneE8" weight="1.00"/>
+    </taz>
+    <taz id="TAZ8" shape="-80.00,-140.00 -80.00,60.00 140.00,60.00 140.00,-140.00 -80.00,-140.00" color="red">
+        <tazSource id="gneE29" weight="1.00"/>
+        <tazSink id="gneE29" weight="1.00"/>
+        <tazSource id="gneE39" weight="1.00"/>
+        <tazSink id="gneE39" weight="1.00"/>
+        <tazSource id="gneE42" weight="1.00"/>
+        <tazSink id="gneE42" weight="1.00"/>
+        <tazSource id="gneE7" weight="1.00"/>
+        <tazSink id="gneE7" weight="1.00"/>
+    </taz>
+    <taz id="TAZ9" shape="-80.00,-40.00 -80.00,160.00 140.00,160.00 140.00,-40.00 -80.00,-40.00" color="red">
+        <tazSource id="gneE13" weight="1.00"/>
+        <tazSink id="gneE13" weight="1.00"/>
+        <tazSource id="gneE18" weight="1.00"/>
+        <tazSink id="gneE18" weight="1.00"/>
+        <tazSource id="gneE2" weight="1.00"/>
+        <tazSink id="gneE2" weight="1.00"/>
+        <tazSource id="gneE25" weight="1.00"/>
+        <tazSink id="gneE25" weight="1.00"/>
+    </taz>
+</additional>

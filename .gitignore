@@ -1,0 +1,27 @@
+# Compiled source
+__pycache__
+.idea
+.vscode
+.venv
+
+# Temporary files
+_sim_temp
+temp
+*.old.*
+
+# Sensitive files
+amap_key.txt
+flocale/lang.txt
+
+# Logs
+*.log
+*results*
+profiling
+
+# Cases
+*.veh.xml*
+*.bat
+*.bak
+deploy
+cases/*
+!cases/std_*

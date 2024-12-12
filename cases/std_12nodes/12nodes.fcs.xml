@@ -1,0 +1,66 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+<fcs name="CS1" edge="CS1" slots="10" bus="B1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+<offline>
+<item btime="0" etime="3600" />
+</offline>
+</fcs>
+<fcs name="CS10" edge="CS10" slots="10" bus="B1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+<fcs name="CS11" edge="CS11" slots="10" bus="B0" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+<fcs name="CS12" edge="CS12" slots="10" bus="B1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+<fcs name="CS2" edge="CS2" slots="10" bus="B2" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+<fcs name="CS3" edge="CS3" slots="10" bus="B1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+<fcs name="CS4" edge="CS4" slots="10" bus="B1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+<fcs name="CS5" edge="CS5" slots="10" bus="B1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+<fcs name="CS6" edge="CS6" slots="10" bus="B1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+<fcs name="CS7" edge="CS7" slots="10" bus="B1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+<fcs name="CS8" edge="CS8" slots="10" bus="B2" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+<fcs name="CS9" edge="CS9" slots="10" bus="B0" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</fcs>
+</root>

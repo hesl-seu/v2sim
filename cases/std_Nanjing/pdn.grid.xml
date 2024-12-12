@@ -1,0 +1,1 @@
+<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="30" load-repeat="8" />

@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2024-02-18 21:20:05 by Eclipse SUMO netedit Version 1.18.0
+-->
+
+<additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">
+    <!-- TAZs -->
+    <taz id="TAZ1" shape="-21.18,11282.99 -21.18,26344.05 6721.49,26344.05 6721.49,11282.99 -21.18,11282.99" color="red">
+        <tazSource id="edge1_10" weight="1.00"/>
+        <tazSink id="edge1_10" weight="1.00"/>
+        <tazSource id="edge1_2" weight="1.00"/>
+        <tazSink id="edge1_2" weight="1.00"/>
+        <tazSource id="edge1_5" weight="1.00"/>
+        <tazSink id="edge1_5" weight="1.00"/>
+    </taz>
+    <taz id="TAZ10" shape="-10.00,12058.70 -10.00,21052.69 7051.42,21052.69 7051.42,12058.70 -10.00,12058.70" color="red">
+        <tazSource id="edge10_1" weight="1.00"/>
+        <tazSink id="edge10_1" weight="1.00"/>
+        <tazSource id="edge10_6" weight="1.00"/>
+        <tazSink id="edge10_6" weight="1.00"/>
+        <tazSource id="edge10_7" weight="1.00"/>
+        <tazSink id="edge10_7" weight="1.00"/>
+    </taz>
+    <taz id="TAZ11" shape="10300.53,18739.96 10300.53,26054.08 17573.09,26054.08 17573.09,18739.96 10300.53,18739.96" color="red">
+        <tazSource id="edge11_12" weight="1.00"/>
+        <tazSink id="edge11_12" weight="1.00"/>
+        <tazSource id="edge11_3" weight="1.00"/>
+        <tazSink id="edge11_3" weight="1.00"/>
+        <tazSource id="edge11_8" weight="1.00"/>
+        <tazSink id="edge11_8" weight="1.00"/>
+    </taz>
+    <taz id="TAZ12" shape="13614.57,15052.01 13614.57,24000.61 23397.05,24000.61 23397.05,15052.01 13614.57,15052.01" color="red">
+        <tazSource id="edge12_11" weight="1.00"/>
+        <tazSink id="edge12_11" weight="1.00"/>
+        <tazSource id="edge12_13" weight="1.00"/>
+        <tazSink id="edge12_13" weight="1.00"/>
+        <tazSource id="edge12_17" weight="1.00"/>
+        <tazSink id="edge12_17" weight="1.00"/>
+        <tazSource id="edge12_35" weight="1.00"/>
+        <tazSink id="edge12_35" weight="1.00"/>
+    </taz>
+    <taz id="TAZ13" shape="10309.61,10328.81 10309.61,19431.58 17685.45,19431.58 17685.45,10328.81 10309.61,10328.81" color="red">
+        <tazSource id="edge13_12" weight="1.00"/>
+        <tazSink id="edge13_12" weight="1.00"/>
+        <tazSource id="edge13_14" weight="1.00"/>
+        <tazSink id="edge13_14" weight="1.00"/>
+        <tazSource id="edge13_21" weight="1.00"/>
+        <tazSink id="edge13_21" weight="1.00"/>
+        <tazSource id="edge13_8" weight="1.00"/>
+        <tazSink id="edge13_8" weight="1.00"/>
+    </taz>
+    <taz id="TAZ14" shape="16002.25,12588.99 16002.25,16663.10 22267.75,16663.10 22267.75,12588.99 16002.25,12588.99" color="red">
+        <tazSource id="edge14_13" weight="1.00"/>
+        <tazSink id="edge14_13" weight="1.00"/>
+        <tazSource id="edge14_15" weight="1.00"/>
+        <tazSink id="edge14_15" weight="1.00"/>
+        <tazSource id="edge14_17" weight="1.00"/>
+        <tazSink id="edge14_17" weight="1.00"/>
+    </taz>
+    <taz id="TAZ15" shape="17660.46,9439.33 17660.46,15896.75 22151.08,15896.75 22151.08,9439.33 17660.46,9439.33" color="red">
+        <tazSource id="edge15_14" weight="1.00"/>
+        <tazSink id="edge15_14" weight="1.00"/>
+        <tazSource id="edge15_16" weight="1.00"/>
+        <tazSink id="edge15_16" weight="1.00"/>
+        <tazSource id="edge15_20" weight="1.00"/>
+        <tazSink id="edge15_20" weight="1.00"/>
+    </taz>
+    <taz id="TAZ16" shape="18488.58,8628.65 18488.58,16663.10 30813.16,16663.10 30813.16,8628.65 18488.58,8628.65" color="red">
+        <tazSource id="edge16_15" weight="1.00"/>
+        <tazSink id="edge16_15" weight="1.00"/>
+        <tazSource id="edge16_17" weight="1.00"/>
+        <tazSink id="edge16_17" weight="1.00"/>
+        <tazSource id="edge16_19" weight="1.00"/>
+        <tazSink id="edge16_19" weight="1.00"/>
+        <tazSource id="edge16_31" weight="1.00"/>
+        <tazSink id="edge16_31" weight="1.00"/>
+    </taz>
+    <taz id="TAZ17" shape="17553.09,12511.29 17553.09,21152.50 28943.19,21152.50 28943.19,12511.29 17553.09,12511.29" color="red">
+        <tazSource id="edge17_12" weight="1.00"/>
+        <tazSink id="edge17_12" weight="1.00"/>
+        <tazSource id="edge17_14" weight="1.00"/>
+        <tazSink id="edge17_14" weight="1.00"/>
+        <tazSource id="edge17_16" weight="1.00"/>
+        <tazSink id="edge17_16" weight="1.00"/>
+        <tazSource id="edge17_32" weight="1.00"/>
+        <tazSink id="edge17_32" weight="1.00"/>
+        <tazSource id="edge17_35" weight="1.00"/>
+        <tazSink id="edge17_35" weight="1.00"/>
+    </taz>
+    <taz id="TAZ18" shape="21459.81,8033.98 21459.81,10723.53 28709.06,10723.53 28709.06,8033.98 21459.81,8033.98" color="red">
+        <tazSource id="edge18_19" weight="1.00"/>
+        <tazSink id="edge18_19" weight="1.00"/>
+        <tazSource id="edge18_29" weight="1.00"/>
+        <tazSink id="edge18_29" weight="1.00"/>
+        <tazSource id="edge18_37" weight="1.00"/>
+        <tazSink id="edge18_37" weight="1.00"/>
+    </taz>
+    <taz id="TAZ19" shape="18443.90,4946.15 18443.90,12531.29 22886.47,12531.29 22886.47,4946.15 18443.90,4946.15" color="red">
+        <tazSource id="edge19_16" weight="1.00"/>
+        <tazSink id="edge19_16" weight="1.00"/>
+        <tazSource id="edge19_18" weight="1.00"/>
+        <tazSink id="edge19_18" weight="1.00"/>
+        <tazSource id="edge19_20" weight="1.00"/>
+        <tazSink id="edge19_20" weight="1.00"/>
+        <tazSource id="edge19_25" weight="1.00"/>
+        <tazSink id="edge19_25" weight="1.00"/>
+    </taz>
+    <taz id="TAZ2" shape="-16.94,19397.49 -16.94,26352.84 13612.94,26352.84 13612.94,19397.49 -16.94,19397.49" color="red">
+        <tazSource id="edge2_1" weight="1.00"/>
+        <tazSink id="edge2_1" weight="1.00"/>
+        <tazSource id="edge2_3" weight="1.00"/>
+        <tazSink id="edge2_3" weight="1.00"/>
+        <tazSource id="edge2_8" weight="1.00"/>
+        <tazSink id="edge2_8" weight="1.00"/>
+    </taz>
+    <taz id="TAZ20" shape="16074.14,4941.78 16074.14,12611.73 21481.93,12611.73 21481.93,4941.78 16074.14,4941.78" color="red">
+        <tazSource id="edge20_15" weight="1.00"/>
+        <tazSink id="edge20_15" weight="1.00"/>
+        <tazSource id="edge20_19" weight="1.00"/>
+        <tazSink id="edge20_19" weight="1.00"/>
+        <tazSource id="edge20_21" weight="1.00"/>
+        <tazSink id="edge20_21" weight="1.00"/>
+        <tazSource id="edge20_25" weight="1.00"/>
+        <tazSink id="edge20_25" weight="1.00"/>
+    </taz>
+    <taz id="TAZ21" shape="14038.72,5141.54 14038.72,15072.17 18463.90,15072.17 18463.90,5141.54 14038.72,5141.54" color="red">
+        <tazSource id="edge21_13" weight="1.00"/>
+        <tazSink id="edge21_13" weight="1.00"/>
+        <tazSource id="edge21_20" weight="1.00"/>
+        <tazSink id="edge21_20" weight="1.00"/>
+        <tazSource id="edge21_22" weight="1.00"/>
+        <tazSink id="edge21_22" weight="1.00"/>
+        <tazSource id="edge21_24" weight="1.00"/>
+        <tazSink id="edge21_24" weight="1.00"/>
+    </taz>
+    <taz id="TAZ22" shape="7031.42,7005.48 7031.42,15566.73 16094.14,15566.73 16094.14,7005.48 7031.42,7005.48" color="red">
+        <tazSource id="edge22_21" weight="1.00"/>
+        <tazSink id="edge22_21" weight="1.00"/>
+        <tazSource id="edge22_23" weight="1.00"/>
+        <tazSink id="edge22_23" weight="1.00"/>
+        <tazSource id="edge22_7" weight="1.00"/>
+        <tazSink id="edge22_7" weight="1.00"/>
+    </taz>
+    <taz id="TAZ23" shape="3952.72,3526.14 3952.72,12088.46 15417.01,12088.46 15417.01,3526.14 3952.72,3526.14" color="red">
+        <tazSource id="edge23_22" weight="1.00"/>
+        <tazSink id="edge23_22" weight="1.00"/>
+        <tazSource id="edge23_24" weight="1.00"/>
+        <tazSink id="edge23_24" weight="1.00"/>
+        <tazSource id="edge23_28" weight="1.00"/>
+        <tazSink id="edge23_28" weight="1.00"/>
+        <tazSource id="edge23_6" weight="1.00"/>
+        <tazSink id="edge23_6" weight="1.00"/>
+    </taz>
+    <taz id="TAZ24" shape="10443.16,1512.59 10443.16,10348.97 20370.26,10348.97 20370.26,1512.59 10443.16,1512.59" color="red">
+        <tazSource id="edge24_21" weight="1.00"/>
+        <tazSink id="edge24_21" weight="1.00"/>
+        <tazSource id="edge24_23" weight="1.00"/>
+        <tazSink id="edge24_23" weight="1.00"/>
+        <tazSource id="edge24_25" weight="1.00"/>
+        <tazSink id="edge24_25" weight="1.00"/>
+        <tazSource id="edge24_27" weight="1.00"/>
+        <tazSink id="edge24_27" weight="1.00"/>
+    </taz>
+    <taz id="TAZ25" shape="15397.01,-12.76 15397.01,9463.70 26050.86,9463.70 26050.86,-12.76 15397.01,-12.76" color="red">
+        <tazSource id="edge25_19" weight="1.00"/>
+        <tazSink id="edge25_19" weight="1.00"/>
+        <tazSource id="edge25_20" weight="1.00"/>
+        <tazSink id="edge25_20" weight="1.00"/>
+        <tazSource id="edge25_24" weight="1.00"/>
+        <tazSink id="edge25_24" weight="1.00"/>
+        <tazSource id="edge25_26" weight="1.00"/>
+        <tazSink id="edge25_26" weight="1.00"/>
+        <tazSource id="edge25_29" weight="1.00"/>
+        <tazSink id="edge25_29" weight="1.00"/>
+    </taz>
+    <taz id="TAZ26" shape="10449.78,-20.76 10449.78,4968.91 30438.55,4968.91 30438.55,-20.76 10449.78,-20.76" color="red">
+        <tazSource id="edge26_25" weight="1.00"/>
+        <tazSink id="edge26_25" weight="1.00"/>
+        <tazSource id="edge26_27" weight="1.00"/>
+        <tazSink id="edge26_27" weight="1.00"/>
+        <tazSource id="edge26_30" weight="1.00"/>
+        <tazSink id="edge26_30" weight="1.00"/>
+    </taz>
+    <taz id="TAZ27" shape="8428.61,-21.10 8428.61,5161.54 21628.64,5161.54 21628.64,-21.10 8428.61,-21.10" color="red">
+        <tazSource id="edge27_24" weight="1.00"/>
+        <tazSink id="edge27_24" weight="1.00"/>
+        <tazSource id="edge27_26" weight="1.00"/>
+        <tazSink id="edge27_26" weight="1.00"/>
+        <tazSource id="edge27_28" weight="1.00"/>
+        <tazSink id="edge27_28" weight="1.00"/>
+    </taz>
+    <taz id="TAZ28" shape="504.51,1504.66 504.51,11311.58 12909.55,11311.58 12909.55,1504.66 504.51,1504.66" color="red">
+        <tazSource id="edge28_23" weight="1.00"/>
+        <tazSink id="edge28_23" weight="1.00"/>
+        <tazSource id="edge28_27" weight="1.00"/>
+        <tazSink id="edge28_27" weight="1.00"/>
+        <tazSource id="edge28_5" weight="1.00"/>
+        <tazSink id="edge28_5" weight="1.00"/>
+    </taz>
+    <taz id="TAZ29" shape="20344.89,2513.30 20344.89,10723.53 30435.46,10723.53 30435.46,2513.30 20344.89,2513.30" color="red">
+        <tazSource id="edge29_18" weight="1.00"/>
+        <tazSink id="edge29_18" weight="1.00"/>
+        <tazSource id="edge29_25" weight="1.00"/>
+        <tazSink id="edge29_25" weight="1.00"/>
+        <tazSource id="edge29_30" weight="1.00"/>
+        <tazSink id="edge29_30" weight="1.00"/>
+        <tazSource id="edge29_37" weight="1.00"/>
+        <tazSink id="edge29_37" weight="1.00"/>
+    </taz>
+    <taz id="TAZ3" shape="6694.55,23973.75 6694.55,29181.70 23261.09,29181.70 23261.09,23973.75 6694.55,23973.75" color="red">
+        <tazSource id="edge3_11" weight="1.00"/>
+        <tazSink id="edge3_11" weight="1.00"/>
+        <tazSource id="edge3_2" weight="1.00"/>
+        <tazSink id="edge3_2" weight="1.00"/>
+        <tazSource id="edge3_4" weight="1.00"/>
+        <tazSink id="edge3_4" weight="1.00"/>
+    </taz>
+    <taz id="TAZ30" shape="21605.55,-10.00 21605.55,15673.73 36107.11,15673.73 36107.11,-10.00 21605.55,-10.00" color="red">
+        <tazSource id="edge30_26" weight="1.00"/>
+        <tazSink id="edge30_26" weight="1.00"/>
+        <tazSource id="edge30_29" weight="1.00"/>
+        <tazSink id="edge30_29" weight="1.00"/>
+        <tazSource id="edge30_9" weight="1.00"/>
+        <tazSink id="edge30_9" weight="1.00"/>
+    </taz>
+    <taz id="TAZ31" shape="22127.76,10703.53 22127.76,18695.81 36097.77,18695.81 36097.77,10703.53 22127.76,10703.53" color="red">
+        <tazSource id="edge31_16" weight="1.00"/>
+        <tazSink id="edge31_16" weight="1.00"/>
+        <tazSource id="edge31_32" weight="1.00"/>
+        <tazSink id="edge31_32" weight="1.00"/>
+        <tazSource id="edge31_37" weight="1.00"/>
+        <tazSink id="edge31_37" weight="1.00"/>
+        <tazSource id="edge31_9" weight="1.00"/>
+        <tazSink id="edge31_9" weight="1.00"/>
+    </taz>
+    <taz id="TAZ32" shape="22242.64,15197.83 22242.64,22174.75 31668.26,22174.75 31668.26,15197.83 22242.64,15197.83" color="red">
+        <tazSource id="edge32_17" weight="1.00"/>
+        <tazSink id="edge32_17" weight="1.00"/>
+        <tazSource id="edge32_31" weight="1.00"/>
+        <tazSink id="edge32_31" weight="1.00"/>
+        <tazSource id="edge32_33" weight="1.00"/>
+        <tazSink id="edge32_33" weight="1.00"/>
+        <tazSource id="edge32_34" weight="1.00"/>
+        <tazSink id="edge32_34" weight="1.00"/>
+    </taz>
+    <taz id="TAZ33" shape="23237.64,18665.22 23237.64,29187.07 31660.50,29187.07 31660.50,18665.22 23237.64,18665.22" color="red">
+        <tazSource id="edge33_32" weight="1.00"/>
+        <tazSink id="edge33_32" weight="1.00"/>
+        <tazSource id="edge33_34" weight="1.00"/>
+        <tazSink id="edge33_34" weight="1.00"/>
+        <tazSource id="edge33_35" weight="1.00"/>
+        <tazSink id="edge33_35" weight="1.00"/>
+        <tazSource id="edge33_4" weight="1.00"/>
+        <tazSink id="edge33_4" weight="1.00"/>
+    </taz>
+    <taz id="TAZ34" shape="27066.12,18670.49 27066.12,23244.31 36157.18,23244.31 36157.18,18670.49 27066.12,18670.49" color="red">
+        <tazSource id="edge34_32" weight="1.00"/>
+        <tazSink id="edge34_32" weight="1.00"/>
+        <tazSource id="edge34_33" weight="1.00"/>
+        <tazSink id="edge34_33" weight="1.00"/>
+        <tazSource id="edge34_36" weight="1.00"/>
+        <tazSink id="edge34_36" weight="1.00"/>
+    </taz>
+    <taz id="TAZ35" shape="17548.84,16643.10 17548.84,29181.89 27089.09,29181.89 27089.09,16643.10 17548.84,16643.10" color="red">
+        <tazSource id="edge35_12" weight="1.00"/>
+        <tazSink id="edge35_12" weight="1.00"/>
+        <tazSource id="edge35_17" weight="1.00"/>
+        <tazSink id="edge35_17" weight="1.00"/>
+        <tazSource id="edge35_33" weight="1.00"/>
+        <tazSink id="edge35_33" weight="1.00"/>
+        <tazSource id="edge35_4" weight="1.00"/>
+        <tazSink id="edge35_4" weight="1.00"/>
+    </taz>
+    <taz id="TAZ36" shape="31636.06,15653.73 31636.06,23254.59 36152.74,23254.59 36152.74,15653.73 31636.06,15653.73" color="red">
+        <tazSource id="edge36_34" weight="1.00"/>
+        <tazSink id="edge36_34" weight="1.00"/>
+        <tazSource id="edge36_9" weight="1.00"/>
+        <tazSink id="edge36_9" weight="1.00"/>
+    </taz>
+    <taz id="TAZ37" shape="22861.03,8044.79 22861.03,15223.15 30819.99,15223.15 30819.99,8044.79 22861.03,8044.79" color="red">
+        <tazSource id="edge37_18" weight="1.00"/>
+        <tazSink id="edge37_18" weight="1.00"/>
+        <tazSource id="edge37_29" weight="1.00"/>
+        <tazSink id="edge37_29" weight="1.00"/>
+        <tazSource id="edge37_31" weight="1.00"/>
+        <tazSink id="edge37_31" weight="1.00"/>
+    </taz>
+    <taz id="TAZ4" shape="13589.49,21132.31 13589.49,29192.35 27086.12,29192.35 27086.12,21132.31 13589.49,21132.31" color="red">
+        <tazSource id="edge4_3" weight="1.00"/>
+        <tazSink id="edge4_3" weight="1.00"/>
+        <tazSource id="edge4_33" weight="1.00"/>
+        <tazSink id="edge4_33" weight="1.00"/>
+        <tazSource id="edge4_35" weight="1.00"/>
+        <tazSink id="edge4_35" weight="1.00"/>
+    </taz>
+    <taz id="TAZ5" shape="-10.00,3518.14 -10.00,21045.74 8448.61,21045.74 8448.61,3518.14 -10.00,3518.14" color="red">
+        <tazSource id="edge5_1" weight="1.00"/>
+        <tazSink id="edge5_1" weight="1.00"/>
+        <tazSource id="edge5_28" weight="1.00"/>
+        <tazSink id="edge5_28" weight="1.00"/>
+        <tazSource id="edge5_6" weight="1.00"/>
+        <tazSink id="edge5_6" weight="1.00"/>
+    </taz>
+    <taz id="TAZ6" shape="502.05,6995.73 502.05,16694.94 12902.66,16694.94 12902.66,6995.73 502.05,6995.73" color="red">
+        <tazSource id="edge6_10" weight="1.00"/>
+        <tazSink id="edge6_10" weight="1.00"/>
+        <tazSource id="edge6_23" weight="1.00"/>
+        <tazSink id="edge6_23" weight="1.00"/>
+        <tazSource id="edge6_5" weight="1.00"/>
+        <tazSink id="edge6_5" weight="1.00"/>
+        <tazSource id="edge6_7" weight="1.00"/>
+        <tazSink id="edge6_7" weight="1.00"/>
+    </taz>
+    <taz id="TAZ7" shape="3944.33,11004.36 3944.33,19422.68 14058.72,19422.68 14058.72,11004.36 3944.33,11004.36" color="red">
+        <tazSource id="edge7_10" weight="1.00"/>
+        <tazSink id="edge7_10" weight="1.00"/>
+        <tazSource id="edge7_22" weight="1.00"/>
+        <tazSink id="edge7_22" weight="1.00"/>
+        <tazSource id="edge7_6" weight="1.00"/>
+        <tazSink id="edge7_6" weight="1.00"/>
+        <tazSource id="edge7_8" weight="1.00"/>
+        <tazSink id="edge7_8" weight="1.00"/>
+    </taz>
+    <taz id="TAZ8" shape="6694.55,15043.11 6694.55,26349.24 16027.24,26349.24 16027.24,15043.11 6694.55,15043.11" color="red">
+        <tazSource id="edge8_11" weight="1.00"/>
+        <tazSink id="edge8_11" weight="1.00"/>
+        <tazSource id="edge8_13" weight="1.00"/>
+        <tazSink id="edge8_13" weight="1.00"/>
+        <tazSource id="edge8_2" weight="1.00"/>
+        <tazSink id="edge8_2" weight="1.00"/>
+        <tazSource id="edge8_7" weight="1.00"/>
+        <tazSink id="edge8_7" weight="1.00"/>
+    </taz>
+    <taz id="TAZ9" shape="30405.17,2520.27 30405.17,23244.31 36163.94,23244.31 36163.94,2520.27 30405.17,2520.27" color="red">
+        <tazSource id="edge9_30" weight="1.00"/>
+        <tazSink id="edge9_30" weight="1.00"/>
+        <tazSource id="edge9_31" weight="1.00"/>
+        <tazSink id="edge9_31" weight="1.00"/>
+        <tazSource id="edge9_36" weight="1.00"/>
+        <tazSink id="edge9_36" weight="1.00"/>
+    </taz>
+</additional>

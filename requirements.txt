@@ -1,0 +1,10 @@
+libsumo
+numpy
+matplotlib
+gurobipy
+feasytools>=0.0.18
+fpowerkit>=0.0.11
+pyproj
+requests
+pillow
+ordered-set

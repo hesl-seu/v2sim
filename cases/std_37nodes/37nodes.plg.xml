@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+<pdn interval="300" enabled="YES" srcbus="B1" srcVpu="1.07" maxVpu="1.07" minVpu="0.93" maxIkA="0.866" diableSmartCharge="YES" loadReductionBus="B2,B3,B4,B5,B6,B7,B8,B9,B10,B11,B12,B13,B14,B15,B16,B18,B19,B20,B21,B22,B23,B24,B25,B26,B27,B28,B29,B30,B31,B32,B33" maxLoadReductionProp="0.5" />
+<v2g interval="300" enabled="NO">
+<online>
+<item btime="28800" etime="36000" />
+<item btime="46800" etime="57600" />
+<item btime="115200" etime="122400" />
+<item btime="133200" etime="144000" />
+<item btime="201600" etime="208800" />
+<item btime="219600" etime="230400" />
+<item btime="288000" etime="295200" />
+<item btime="306000" etime="316800" />
+<item btime="374400" etime="381600" />
+<item btime="392400" etime="403200" />
+<item btime="460800" etime="468000" />
+<item btime="478800" etime="489600" />
+<item btime="547200" etime="554400" />
+<item btime="565200" etime="576000" />
+<item btime="633600" etime="640800" />
+<item btime="651600" etime="662400" />
+</online>
+</v2g>
+</root>
