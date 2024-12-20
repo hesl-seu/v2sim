@@ -1,12 +1,12 @@
 from abc import abstractmethod
 import enum
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
-import xml.etree.ElementTree as ET
-from ftraffic import TrafficInst
-from flocale import Lang
 from feasytools import RangeList
 from fpowerkit import Grid
+from ..traffic import TrafficInst
+from ..locale import Lang
 
 class PluginStatus(enum.IntEnum):
     '''Plugin status'''

@@ -1,5 +1,5 @@
 from itertools import chain
-from ftraffic import VehStatus
+from ..traffic import VehStatus
 from .base import *
 try:
     import libsumo as traci

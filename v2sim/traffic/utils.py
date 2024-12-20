@@ -1,10 +1,9 @@
 from dataclasses import dataclass
-import gzip
 from pathlib import Path
-import random, string
+import random, string, gzip
 from typing import Optional
 from xml.etree import ElementTree as ET
-from flocale import Lang
+from ..locale import Lang
 
 TWeights = tuple[float, float, float]
 _letters = string.ascii_letters + string.digits
@@ -90,6 +89,7 @@ def _checkFile(file: str):
                 break
         Path(file).rename(str(p))
 
+CheckFile = _checkFile
 
 def _clearBakFiles(dir: str):
     for x in Path(dir).iterdir():
@@ -97,6 +97,8 @@ def _clearBakFiles(dir: str):
             continue
         if x.suffix == ".bak":
             x.unlink()   
+
+ClearBakFiles = _clearBakFiles
 
 @dataclass
 class FileDetectResult:

@@ -1,7 +1,6 @@
 import sys
 from feasytools import ArgChecker
-from flocale import Lang
-from ftrafficgen import TrafficGenerator
+from v2sim import Lang, TrafficGenerator
 
 
 def print_help(err:str = ""):

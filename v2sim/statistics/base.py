@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from typing import Any, Iterable
-from fplugins import *
+from ..plugins import *
 
 def cross_list(a:Iterable[str],b:Iterable[str])->list[str]:
     '''Generate cross table header'''

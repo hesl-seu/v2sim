@@ -6,8 +6,7 @@ from matplotlib import pyplot as plt
 from queue import Queue
 import threading
 from tkinter import filedialog, messagebox
-from flocale import CustomLocaleLib
-from ftraffic.cproc import CprocReader, MetaData
+from v2sim import CustomLocaleLib, TripsReader, TripLogItem
 from .view import *
 from .controls import ScrollableTreeView
 
@@ -92,7 +91,7 @@ class TripsFrame(Frame):
 
         self._type_var = StringVar()
         self.TYPES = [_loc["GUI_EVANA_ALL"]]
-        self.TYPES.extend(f"{k}:{v}" for k,v in MetaData.OP_NAMEs.items())
+        self.TYPES.extend(f"{k}:{v}" for k,v in TripLogItem.OP_NAMEs.items())
         self._optionType = OptionMenu(self._fr, self._type_var, self.TYPES[0], *self.TYPES)
         self._optionType.pack(side=LEFT)
 
@@ -142,7 +141,7 @@ class TripsFrame(Frame):
         self._btnStatPlot=Button(self._fr2,text=_loc["GUI_EVANA_PARAMSPLOT"],command=self.params_plot)
         self._btnStatPlot.pack(side=LEFT)
 
-        self._disp:list[MetaData] = []
+        self._disp:list[TripLogItem] = []
         self._Q = Queue()
         
         self.after(100,self._upd)
@@ -153,8 +152,8 @@ class TripsFrame(Frame):
             op,val = self._Q.get()
             cnt += 1
             if op=='L':
-                assert isinstance(val, CprocReader)
-                self._data:CprocReader = val
+                assert isinstance(val, TripsReader)
+                self._data:TripsReader = val
                 self._disp = [m for _,m,_ in self._data.filter()]
                 self._Q.put(('S', None))
             elif op=='S':
@@ -248,7 +247,7 @@ class TripsFrame(Frame):
         )
         if filename == "": return
         with open(filename,"w",encoding="utf-8") as fp:
-            fp.write(f"{_loc["GUI_EVANA_TIME"]},{_loc["GUI_EVANA_TYPE"]},{_loc["GUI_EVANA_VEH"]},{_loc["GUI_EVANA_SOC"]},{_loc["GUI_EVANA_TRIP"]},{_loc["GUI_EVANA_INFO"]}\n")
+            fp.write(f'{_loc["GUI_EVANA_TIME"]},{_loc["GUI_EVANA_TYPE"]},{_loc["GUI_EVANA_VEH"]},{_loc["GUI_EVANA_SOC"]},{_loc["GUI_EVANA_TRIP"]},{_loc["GUI_EVANA_INFO"]}\n')
             for item in self._disp:
                 addinfo = ','.join(f"{k} = {v}".replace(',',' ') for k,v in item.additional.items())
                 fp.write(f"{item.simT},{item.op},{item.veh},{item.veh_soc},{item.trip_id},{addinfo}\n")
@@ -256,6 +255,6 @@ class TripsFrame(Frame):
     def load(self,filename:str):
         self._file = filename
         def thload(filename:str):
-            fh = CprocReader(filename)
+            fh = TripsReader(filename)
             self._Q.put(('L', fh))
         threading.Thread(target=thload,args=(filename,)).start()

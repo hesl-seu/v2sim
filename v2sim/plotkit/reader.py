@@ -1,5 +1,5 @@
-from fplugins import *
-from fstatistics import *
+from ..plugins import *
+from ..statistics import *
     
 class StatisticsNotSupportedError(Exception): pass
 

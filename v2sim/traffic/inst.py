@@ -1,11 +1,11 @@
 from itertools import chain
 import platform, random
 import numpy as np
-from ftraffic.geo import Point
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
 from feasytools import PQueue
-from .cproc import CprocLogger
+from .geo import Point
+from .trip import TripsLogger
 from .cslist import *
 from .ev import *
 from .params import WINDOWS_VISSUALIZE
@@ -94,7 +94,7 @@ class TrafficInst:
         self.__ctime: int = start_time
         self.__stime: int = start_time
         self.__etime: int = end_time
-        self.__logger = CprocLogger(clogfile)
+        self.__logger = TripsLogger(clogfile)
         # Read road network
         self.__rnet: Net = readNet(road_net_file)
         self.__edges: list[Edge] = self.__rnet.getEdges()
@@ -299,15 +299,15 @@ class TrafficInst:
         """
         veh = self._VEHs[veh_id]
         veh.status = VehStatus.Parking
-        arr_sta = CprocLogger.ARRIVAL_NO_CHARGE
+        arr_sta = TripsLogger.ARRIVAL_NO_CHARGE
         if veh.SOC < veh.ksc:
             # Add to the slow charge station
             if self.__start_charging_SCS(veh):
-                arr_sta = CprocLogger.ARRIVAL_CHARGE_SUCCESSFULLY
+                arr_sta = TripsLogger.ARRIVAL_CHARGE_SUCCESSFULLY
             else:
-                arr_sta = CprocLogger.ARRIVAL_CHARGE_FAILED
+                arr_sta = TripsLogger.ARRIVAL_CHARGE_FAILED
         else:
-            arr_sta = CprocLogger.ARRIVAL_NO_CHARGE
+            arr_sta = TripsLogger.ARRIVAL_NO_CHARGE
         self.__logger.arrive(self.__ctime, veh, arr_sta)
         tid = veh.next_trip()
         if tid != -1:

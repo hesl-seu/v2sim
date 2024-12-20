@@ -8,15 +8,14 @@ from sumolib.net import readNet, Net
 from typing import IO, Any, Literal, TypeVar, Union
 import time
 import random
-from flocale import Lang
-from ftraffic.geo import Point
-from ftraffic import DetectFiles, get_sim_config
+from ..locale import Lang
+from ..traffic import DetectFiles, get_sim_config, Point
 from .graph import ELGraph, plot_graph
 from .poly import PolygonMan
 from .tripgen import EVsGenerator
 from .csquery import csQuery
 
-DEFAULT_CNAME = "probtable"
+DEFAULT_CNAME = str(Path(__file__).parent.parent / "probtable")
 
 
 class ProcExisting(IntEnum):

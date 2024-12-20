@@ -2,8 +2,8 @@ from collections import defaultdict
 from itertools import chain
 from feasytools import TimeImplictFunc
 from fpowerkit import Grid, FloatVar, GridSolveResult, DistFlowSolver, LoadReduceModule
-from flocale import CustomLocaleLib
-from ftraffic import DetectFiles, CS
+from ..locale import CustomLocaleLib
+from ..traffic import DetectFiles, CS
 from .base import *
 
 _locale = CustomLocaleLib(["zh_CN","en"])

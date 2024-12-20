@@ -3,13 +3,12 @@ import queue, shutil, signal, time, sys
 from typing import Any, Optional
 from feasytools import ArgChecker, time2str
 from pathlib import Path
-from fplotkit import AdvancedPlot
-from fplugins import *
-from fstatistics import *
-from ftraffic import *
-from flocale import Lang
-from ftrafficgen import TrafficGenerator
-from ftrafficgen.graph import ELGraph
+from .plotkit import AdvancedPlot
+from .plugins import *
+from .statistics import *
+from .traffic import *
+from .locale import Lang
+from .trafficgen import TrafficGenerator, ELGraph
 
 def load_external_components(
     external_plugin_dir: str, plugin_pool: PluginPool, sta_pool: StaPool
@@ -29,6 +28,7 @@ def load_external_components(
             module = importlib.import_module(f"{external_plugin_dir}.{module_name}")
         except Exception as e:
             print(Lang.WARN_EXT_LOAD_FAILED.format(module_name, e))
+            module = None
         if hasattr(module, "plugin_exports"):
             try:
                 plugin_pool._Register(*module.plugin_exports)

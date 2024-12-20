@@ -3,13 +3,13 @@ External Plugin Example:
   Please put the external plugin in the external_plugins folder, 
   and the plugin file name is "plugin_name.py"
 '''
-from flocale import CustomLocaleLib
-from fplugins import *
+from v2sim import CustomLocaleLib
+from v2sim.plugins import *
 
 _locale = CustomLocaleLib(["zh_CN","en"])
 _locale.SetLanguageLib("zh_CN",
     DESCRIPTION = "插件描述",
-    # 更多语言信息
+    # More language information
 )
 _locale.SetLanguageLib("en",
     DESCRIPTION = "Plugin description",

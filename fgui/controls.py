@@ -2,7 +2,7 @@ from .view import *
 from typing import Any, Callable, Literal
 from feasytools import RangeList, SegFunc
 from tkinter import messagebox as MB
-from flocale import CustomLocaleLib
+from v2sim import CustomLocaleLib
 
 _loc = CustomLocaleLib(["zh_CN","en"])
 _loc.SetLanguageLib("zh_CN",

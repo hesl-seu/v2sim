@@ -1,8 +1,7 @@
 import random
 from typing import Optional
 from xml.etree.ElementTree import Element
-from ftraffic.geo import Point
-from ftraffic.utils import readXML
+from ..traffic import Point, readXML
 
 class Polygon:
     def __init__(self, elem:Element):

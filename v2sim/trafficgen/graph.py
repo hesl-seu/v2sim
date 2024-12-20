@@ -1,17 +1,16 @@
 from typing import DefaultDict, List, Dict
 import threading
-from ftraffic.utils import load_fcs, load_scs
 import sumolib
-from flocale import Lang
-from ftraffic.geo import EdgeFinder, Point
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib.axes import Axes
-import matplotlib.pyplot as plt
 Net = sumolib.net.Net
 Edge = sumolib.net.edge.Edge
 Node = sumolib.net.node.Node
 Conn = sumolib.net.connection.Connection
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib.axes import Axes
+import matplotlib.pyplot as plt
+from ..locale import Lang
+from ..traffic import EdgeFinder, Point, load_fcs, load_scs
 
 def _largeStackExec(func, *args):
     import sys

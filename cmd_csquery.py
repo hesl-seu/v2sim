@@ -1,6 +1,6 @@
 from pathlib import Path
 from feasytools import ArgChecker
-from ftrafficgen.csquery import csQuery
+from v2sim import csQuery
 
 
 if __name__ == '__main__':

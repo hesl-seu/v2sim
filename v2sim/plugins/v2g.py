@@ -1,4 +1,4 @@
-from flocale import CustomLocaleLib
+from ..locale import CustomLocaleLib
 from fpowerkit import Generator
 from feasytools import ComFunc
 from .pdn import PluginPDN

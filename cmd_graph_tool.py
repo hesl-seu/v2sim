@@ -1,5 +1,4 @@
-from ftraffic.utils import DetectFiles
-from ftrafficgen.graph import ELGraph, plot_graph
+from v2sim import DetectFiles, ELGraph, plot_graph
 from feasytools import ArgChecker
 import libsumo
 

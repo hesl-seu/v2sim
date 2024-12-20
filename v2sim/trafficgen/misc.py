@@ -1,8 +1,7 @@
-import gzip
-import random
+import gzip, random
 from typing import Union
-from flocale import Lang
-from ftraffic import EV,Trip
+from ..locale import Lang
+from ..traffic import EV,Trip
 
 def random_diff(seq, exclude):
     """

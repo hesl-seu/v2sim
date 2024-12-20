@@ -5,7 +5,7 @@ import os
 import bisect
 from pathlib import Path
 from typing import Type, Optional
-from fplugins import *
+from ..plugins import *
 from .logcs import *
 from .logev import *
 from .loggr import *

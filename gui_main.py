@@ -7,17 +7,14 @@ from fgui.view import *
 from fgui import ScrollableTreeView, ALWAYS_ONLINE
 from tkinter import filedialog
 from tkinter import messagebox as MB
-from flocale import CustomLocaleLib, Lang
-from ftraffic import CS, FCS, SCS, DetectFiles, FileDetectResult, get_sim_config, readXML
-from ftraffic.cslist import _LoadCSList
-from ftrafficgen import ListSelection, PricingMethod, TrafficGenerator, csQuery, ELGraph, plot_graph
+from v2sim import *
 from PIL import Image as PILImage
 from PIL import ImageTk as PILImageTk
 from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc
 import xml.etree.ElementTree as ET
 
-DEFAULT_PDN_ATTR = {"srcbus": "", "srcVpu":"1.0", "maxVpu":"1.15", "minVpu": "0.85", "maxIkA":"0.866"}
+DEFAULT_PDN_ATTR = {"srcbus": "B1", "srcVpu":"1.0", "maxVpu":"1.15", "minVpu": "0.85", "maxIkA":"0.866"}
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
 GLOBAL_IMG = None
@@ -619,7 +616,7 @@ class CSEditorGUI(Frame):
 
     def load(self, file:str):
         try:
-            self.cslist = _LoadCSList(file, self.csType)
+            self.cslist = LoadCSList(file, self.csType)
         except Exception as e:
             showerr(f"Error loading {file}: {e}")
             return
@@ -1196,7 +1193,7 @@ class MainBox(Tk):
             return
         self.setStatus("Loading project...")
         self.state = res = DetectFiles(self.folder)
-        self.title(f"{_loc["TITLE"]} - {self.folder}")
+        self.title(f"{_loc['TITLE']} - {self.folder}")
 
         try:
             self.tg = TrafficGenerator(self.folder)

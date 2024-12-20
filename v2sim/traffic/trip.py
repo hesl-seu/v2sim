@@ -1,10 +1,10 @@
 from typing import Literal, Optional
-from flocale.lang import Lang
-from ftraffic.utils import TWeights
+from ..locale import Lang
+from .utils import TWeights
 from .ev import EV
 
 
-class CprocLogger:
+class TripsLogger:
     ARRIVAL_NO_CHARGE = 0
     ARRIVAL_CHARGE_SUCCESSFULLY = 1
     ARRIVAL_CHARGE_FAILED = 2
@@ -56,7 +56,7 @@ class CprocLogger:
     def close(self):
         self.__ostream.close()
 
-class MetaData:
+class TripLogItem:
     OP_NAMEs = {
         'A': Lang.CPROC_ARRIVE,
         'AC': Lang.CPROC_ARRIVE_CS,
@@ -76,7 +76,7 @@ class MetaData:
         self.additional = additional
 
     def to_tuple(self,conv:bool=False):
-        op = self.__op if not conv else MetaData.OP_NAMEs[self.__op]
+        op = self.__op if not conv else TripLogItem.OP_NAMEs[self.__op]
         return (self.simT, op, self.veh, self.veh_soc, self.trip_id, self.additional.get('cs_param',''), self.additional)
     
     @property
@@ -85,7 +85,7 @@ class MetaData:
 
     @property
     def op(self):
-        return MetaData.OP_NAMEs[self.__op]
+        return TripLogItem.OP_NAMEs[self.__op]
     
     @property
     def cs_param(self):
@@ -95,7 +95,7 @@ class MetaData:
         return f"{self.simT}|{self.__op}|{self.veh},{self.veh_soc},{self.trip_id}|{self.additional}"
     
     def __str__(self):
-        ret = f"[{self.simT},{MetaData.OP_NAMEs[self.__op]}]"
+        ret = f"[{self.simT},{TripLogItem.OP_NAMEs[self.__op]}]"
         veh = f"{self.veh}(Soc={self.veh_soc},TripID={self.trip_id})"
         if self.__op == 'A':
             if self.additional['status'] == '0':
@@ -166,11 +166,11 @@ class MetaData:
             raise ValueError(f"Unknown operation {self.__op}")
         return ret
     
-class CprocReader:
+class TripsReader:
     def __init__(self, filename:str):
         with open(filename, 'r', encoding='utf-8') as fp:
             self.raw_texts = fp.readlines()
-        self.meta_data:list[MetaData] = []
+        self.meta_data:list[TripLogItem] = []
         self.translated_texts:list[str] = []
         for d in map(lambda x: x.strip().split('|'), self.raw_texts):
             simT = int(d[0])
@@ -216,7 +216,7 @@ class CprocReader:
                 additional['batt_req'] = d[4]
             else:
                 raise ValueError(f"Unknown operation {op}")
-            met = MetaData(simT, op, veh, soc, int(tripid), additional)
+            met = TripLogItem(simT, op, veh, soc, int(tripid), additional)
             self.meta_data.append(met)
             self.translated_texts.append(str(met))
             

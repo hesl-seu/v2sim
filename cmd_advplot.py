@@ -1,4 +1,4 @@
-from fplotkit import AdvancedPlot
+from v2sim import AdvancedPlot
 import sys
 
 if __name__ == "__main__":

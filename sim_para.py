@@ -10,10 +10,8 @@ from concurrent.futures import CancelledError, Future, ProcessPoolExecutor
 from pathlib import Path
 from typing import Optional
 from feasytools import time2str, ArgChecker
-from flocale import Lang
-from fplugins import PluginPool
-from fstatistics.manager import StaPool
-from sim_core import (
+from v2sim import (
+    Lang, PluginPool, StaPool,
     get_sim_params,
     simulate_multi,
     load_external_components,

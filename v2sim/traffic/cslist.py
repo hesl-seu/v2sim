@@ -1,7 +1,7 @@
 from itertools import repeat
 from typing import Iterable, Type, Union, Optional, TypeVar, Generic
 from feasytools import RangeList
-from flocale import Lang
+from ..locale import Lang
 from .geo import KDTree, Point
 from .utils import readXML
 from .params import *
@@ -50,7 +50,9 @@ def _LoadCSList(filePath:str, csType:CS_Type) -> list:
             )
         )
     return _cs
-            
+
+LoadCSList = _LoadCSList
+
 class CSList(Generic[T_CS]):
     """CS List. Index starts from 0."""
     _cs: list[T_CS]

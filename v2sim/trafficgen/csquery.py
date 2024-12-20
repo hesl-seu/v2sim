@@ -1,9 +1,7 @@
 from typing import Any, Optional, Union, overload
 from pathlib import Path
-import time
-import json
-import requests
-from ftraffic.utils import _checkFile, DetectFiles, readXML
+import time, json, requests
+from ..traffic import CheckFile, DetectFiles, readXML
 
 
 class CS:
@@ -137,13 +135,13 @@ def csQuery(root:str, new_loc:str, ak:str, allyes:bool):
     
     print("Saving json...")
     json_path = str(Path(root) / "cs.json")
-    _checkFile(json_path)
+    CheckFile(json_path)
     with open(json_path, 'w') as f:
         json.dump(results, f, ensure_ascii=False)
     
     print("Saving csv...")
     csv_path = str(Path(root) / "cs.csv")
-    _checkFile(csv_path)
+    CheckFile(csv_path)
     with open(csv_path, 'w') as f:
         f.write("id,name,lat,lng\n")
         for itm in cslist:

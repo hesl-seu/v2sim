@@ -3,8 +3,7 @@ from queue import Queue
 import threading, os
 from fgui.view import *
 from fgui import ScrollableTreeView, TripsFrame
-from flocale import CustomLocaleLib
-from fplotkit import AdvancedPlot, ReadOnlyStatistics
+from v2sim import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
 from tkinter import filedialog
 from tkinter import messagebox as MB
 
@@ -496,7 +495,7 @@ class PlotBox(Tk):
                 if res_path=="":
                     self._Q.put(('Q',None))
                     return
-            self.title(f"{_loc["TITLE"]} - {res_path.absolute()}")
+            self.title(f'{_loc["TITLE"]} - {res_path.absolute()}')
             self.disable_all()
             sta = ReadOnlyStatistics(str(res_path))
             nplt = AdvancedPlot()

@@ -1,8 +1,6 @@
 import sys
-from flocale import Lang
-from ftrafficgen import TrafficGenerator, DEFAULT_CNAME
-from feasytools import ArgChecker
-from feasytools.argchk import KeyNotSpecifiedError
+from v2sim import Lang, TrafficGenerator, DEFAULT_CNAME
+from feasytools import ArgChecker, KeyNotSpecifiedError
 
 def print_help():
     print(Lang.TRIPGEN_HELP_STR.format(sys.argv[0],DEFAULT_CNAME))

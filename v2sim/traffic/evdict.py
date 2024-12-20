@@ -1,7 +1,6 @@
 from .utils import readXML
 from .params import *
-from .trip import Trip
-from .ev import EV
+from .ev import EV, Trip
 
 
 class EVDict(dict[str, EV]):
