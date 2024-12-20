@@ -1,5 +1,7 @@
 # V2Sim: An Open-Source Microscopic V2G Simulation Platform in Urban Power and Transportation Network
 
+Paper on arXiv: https://arxiv.org/abs/2412.09808
+
 [Click here to read the Wiki](https://github.com/fmy-xfk/v2sim/wiki) 
 
 V2Sim is a microscopic V2G simulation platform in urban power and transportation network. It is open-source under BSD license.
