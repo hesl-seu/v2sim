@@ -16,14 +16,9 @@ def _chk(x:Optional[float])->float:
     if x is None: return 0
     return x
 
-@runtime_checkable
-class PluginWithGrid(Protocol):
-    @property
-    def Grid(self)->Grid: ...
-
-def _find_grid_plugin(plugins:dict[str,PluginBase])->PluginWithGrid:
+def _find_grid_plugin(plugins:dict[str,PluginBase])->IGridPlugin:
     for plg in plugins.values():
-        if isinstance(plg, PluginWithGrid):
+        if isinstance(plg, IGridPlugin):
             return plg
     raise ValueError("未找到可以导出电网数据的插件")
 

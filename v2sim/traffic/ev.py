@@ -289,7 +289,7 @@ class EV:
         """
         Update the battery SOC and odometer in driving state
         """
-        assert new_dis >= self._dis
+        assert new_dis >= self._dis, f"EV {self._id}: self._dis = {self._dis:.1f} > new_dis = {new_dis:.1f}"
         self._elec -= (new_dis - self._dis) * self._consumption
         self._dis = new_dis
 

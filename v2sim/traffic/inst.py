@@ -547,6 +547,6 @@ class TrafficInst:
 
     def simulation_stop(self):
         if self.__gui is None:
-            raise RuntimeError("Simulation has not started. Calll 'simulation_start' first.")
+            raise RuntimeError("Simulation has not started. Call 'simulation_start' first.")
         traci.close()
         self.__logger.close()

@@ -86,6 +86,10 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         return len(self.__sol.dec_buses) > 0
     
     @property
+    def Solver(self):
+        return self.__sol
+    
+    @property
     def Grid(self)->Grid:
         '''Get the grid instance'''
         return self.__gr

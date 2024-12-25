@@ -484,10 +484,15 @@ class FCS(CS):
         return veh_id in self._chi
 
     def veh_count(self, only_charging=False) -> int:
+        '''Number of vehicles in the FCS. If only charging, return number of vehicle charging in the FCS.'''
         if only_charging:
             return len(self._chi)
         else:
             return len(self._chi) + len(self._buf)
+    
+    def wait_count(self) -> int:
+        '''Number of vehicles waiting for charging'''
+        return len(self._buf)
 
     def __len__(self) -> int:
         return len(self._chi) + len(self._buf)

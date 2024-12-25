@@ -91,35 +91,38 @@ class V2SimInstance:
             print(con, file=file, end=end)
 
     def __init__(
-        self, *,
-        cfgdir: str,            
-        gen_veh_command:str="", 
-        gen_fcs_command:str="", 
-        gen_scs_command:str="", 
-        plot_command:str="",    
-        outdir: str,            
-        traffic_step: int,      
-        start_time: int,        
-        end_time: int,
-        no_plg: str,            
-        log: str,               
-        seed: int,              
-        copy: bool,             
-        plg_pool: PluginPool,   
-        sta_pool: StaPool,      
-        vb=None,                
-        silent: bool,           
+        self, 
+        cfgdir: str,
+        outdir: str = "./results",
+        *,
+        plg_pool: Optional[PluginPool] = None,
+        sta_pool: Optional[StaPool] = None,
+        gen_veh_command:str = "", 
+        gen_fcs_command:str = "", 
+        gen_scs_command:str = "", 
+        plot_command:str = "",
+        traffic_step: int = 10,      
+        start_time: int = 0,        
+        end_time: int = 172800,
+        no_plg: str = "",            
+        log: str = "fcs, scs",               
+        seed: int = 0,              
+        copy: bool = False,
+        vb = None,                
+        silent: bool = False,           
         mpQ: Optional[queue.Queue[tuple[int, str]]] = None, 
         clntID: int = -1,       
     ) -> tuple[bool, TrafficInst, StaWriter]:
         '''
         Initialization
             cfgdir: Configuration folder
+            outdir: Output folder
+            plg_pool: Available plugin pool
+            sta_pool: Available statistical item pool
             gen_veh_command: command to generate vehicle
             gen_fcs_command: Generate fast charging station command
             gen_scs_command: Generate slow charging station command
             plot_command: Plot command
-            outdir: Output folder
             traffic_step: Simulation step
             start_time: Start time
             end_time: End time
@@ -127,13 +130,14 @@ class V2SimInstance:
             log: Data to be recorded, separated by commas
             seed: Randomization seed
             copy: Whether to copy the configuration file after the simulation ends
-            plg_pool: Available plugin pool
-            sta_pool: Available statistical item pool
             vb: Whether to enable the visualization window, None means not enabled, when running this function in multiple processes, please set to None
             silent: Whether to silent mode, default is False, when running this function in multiple processes, please set to True
             mpQ: Queue for communication with the main process when running this function in multiple processes, set to None if not using multi-process function
             clntID: Identifier of this process when running this function in multiple processes, set to -1 if not using multi-process function
         '''
+
+        if plg_pool is None: plg_pool = PluginPool()
+        if sta_pool is None: sta_pool = StaPool()
 
         self.__mpQ = mpQ
         self.__silent = silent
@@ -248,6 +252,7 @@ class V2SimInstance:
         )
 
         # Enable plugins
+        self.__gridplg = None
         if proj_cfg.plg:
             plg_file = proj_cfg.plg
             plg_man = PluginMan(
@@ -258,12 +263,15 @@ class V2SimInstance:
                 plg_pool
             )
             for plugname, plugin in plg_man.GetPlugins().items():
+                if isinstance(plugin, PluginPDN):
+                    self.__gridplg = plugin
                 self.__print(Lang.INFO_PLG.format(plugname, plugin.Description))
         else:
             plg_man = PluginMan(None, pres, self.__inst, [], plg_pool)
 
         # Create a data logger
         log_item = log.strip().lower().split(",")
+        if len(log_item) == 1 and log_item[0] == "": log_item = []
         mySta = StaWriter(str(pres), self.__inst, plg_man.GetPlugins(), sta_pool)
         for itm in log_item:
             mySta.Add(itm)
@@ -282,6 +290,8 @@ class V2SimInstance:
         self.__proj_cfg = proj_cfg
         self.__proj_dir = proj_dir
         self.__outdir = outdir
+        self.__working_flag = False
+
     @property
     def project_dir(self):
         '''Folder of the project'''
@@ -367,6 +377,26 @@ class V2SimInstance:
         '''Dict of vehicles'''
         return self.__inst.vehicles
     
+    @property
+    def edges(self):
+        '''List of the edges'''
+        return self.__inst.edges
+    
+    @property
+    def edge_names(self):
+        '''Name list of the edges'''
+        return self.__inst.get_edge_names()
+    
+    @property
+    def is_working(self):
+        '''Determine whether the simulation has started'''
+        return self.__working_flag
+    
+    @property
+    def pdn(self) -> Optional[PluginPDN]:
+        '''Power grid plugin'''
+        return self.__gridplg
+    
     def send_to_host(self, msg:str):
         '''Send message to host process'''
         assert self.__mpQ is not None, "Not working in multiprocessing mode. No host exists."
@@ -378,12 +408,13 @@ class V2SimInstance:
             If you use this function, do not use function 'simulation'.
             Follow the start - step - stop paradigm.
         '''
+        self.__working_flag = True
         self.__inst.simulation_start(self.__sumocfg_file, self.__rnet_file, self.__start_time, self.__vb is not None)
         self.__plgman.PreSimulationAll()
     
     def step(self) -> int:
         '''
-        Simulation step. 
+        Simulation steps. 
             If you use this function, do not use function 'simulation'.
             Follow the start - step - stop paradigm.
         Return the simulation time after this step.
@@ -394,6 +425,16 @@ class V2SimInstance:
         self.__sta.Log(self.__inst.current_time)
         return self.__inst.current_time
     
+    def step_until(self, t:int) -> int:
+        '''
+        Simulation steps till time t. 
+            If you use this function, do not use function 'simulation'.
+            Follow the start - step - stop paradigm.
+        Return the simulation time after stepping.
+        '''
+        while self.__inst.current_time < t:
+            self.step()
+
     def stop(self):
         '''
         Stop simulation.
@@ -403,11 +444,13 @@ class V2SimInstance:
         self.__plgman.PostSimulationAll()
         self.__inst.simulation_stop()
         self.__sta.close()
+        self.__out.close()
         if self.__copy:
             shutil.copy(self.__veh_file, self.__pres / ("veh.xml"))
             shutil.copy(self.__fcs_file, self.__pres / ("cs.xml"))
             shutil.copy(self.__scs_file, self.__pres / ("pk.xml"))
             shutil.copy(self.__plg_file, self.__pres / ("plg.xml"))
+        self.__working_flag = False
     
     def simulate(self):
         '''
