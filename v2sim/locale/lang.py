@@ -65,6 +65,7 @@ The following parameters are used for single simulation:
     initial-state: Folder of initial state files. If not given, the initial state will be desgined by the default behavior of sumo.
     load-last-state: Load the saved state of last simulation of this case. If this option is enabled, the initial-state option will be ignored.
     save-on-abort: Whether to save the state when the simulation is aborted.
+    save-on-finish: Whether to save the state when the simulation is finished.
 The following parameters are used for graphical simulation:
     show: Enable this option to start in GUI mode. This option is only useful in Linux. In Windows, please adjust WINDOWS_VISSUALIZE in ftraffic/params.py to change the visibility level
     no-daemon: Enable this option to separate the simulation thread from the display window. When not enabled, the simulation will stop once the display window is closed

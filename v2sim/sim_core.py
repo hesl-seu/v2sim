@@ -75,6 +75,7 @@ def get_sim_params(
             "initial_state":    args.pop_str("initial-state", ""),
             "load_last_state":  args.pop_bool("load-last-state"),
             "save_on_abort":    args.pop_bool("save-on-abort"),
+            "save_on_finish":   args.pop_bool("save-on-finish"),
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
@@ -118,6 +119,7 @@ class V2SimInstance:
         initial_state: str = "",
         load_last_state: bool = False,
         save_on_abort: bool = False,
+        save_on_finish: bool = False,
     ) -> tuple[bool, TrafficInst, StaWriter]:
         '''
         Initialization
@@ -143,6 +145,7 @@ class V2SimInstance:
             initial_state: Folder of the initial state of the simulation
             load_last_state: Load the state in result dir if there is a state folder
             save_on_abort: Whether to save the state when Ctrl+C is pressed
+            save_on_finish: Whether to save the state when the simulation ends
         '''
 
         if plg_pool is None: plg_pool = PluginPool()
@@ -305,6 +308,7 @@ class V2SimInstance:
         self.__outdir = outdir
         self.__working_flag = False
         self.save_on_abort = save_on_abort
+        self.save_on_finish = save_on_finish
 
     @property
     def project_dir(self):
@@ -520,7 +524,7 @@ class V2SimInstance:
         dur = time.time() - self.__st_time
         print(Lang.MAIN_SIM_DONE.format(time2str(dur)),file=self.__out)
         self.__out.close()
-        self.stop()
+        self.stop(self.__pres / "saved_state" if self.save_on_finish else "")
         self.__print()
         self.__print(Lang.MAIN_SIM_DONE.format(time2str(dur)))
         self.__mpwrite("sim:done")

@@ -61,6 +61,7 @@ class _locale:
     initial-state: 仿真的初始状态文件夹, 默认不加载(使用SUMO的默认行为)
     load-last-state: 加载上次仿真保存的状态, 启用该项将使initial-state失效
     save-on-abort: 当仿真意外中断时, 保存仿真状态
+    save-on-finish: 当仿真完成时, 保存仿真状态
 以下参数用于图形化仿真:
     show: 启用该选项以GUI模式启动. 该选项仅在Linux下有用, 在Windows下请调整ftraffic/params.py的WINDOWS_VISSUALIZE来改变可见性级别
     no-daemon: 启用该选项以将仿真线程与显示窗口分离, 不启用时显示窗口一旦关闭, 仿真也会停止

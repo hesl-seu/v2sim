@@ -573,6 +573,7 @@ class TrafficInst:
             folder: Folder path
         """
         f = Path(folder)
+        f.mkdir(parents=True, exist_ok=True)
         traci.simulation_saveState(str(f / "traffic.xml.gz"))
         with gzip.open(str(f / "inst.gz"), "wb") as f:
             pickle.dump({
