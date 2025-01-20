@@ -57,6 +57,10 @@ class _locale:
     gen-veh: 强制重新生成车辆文件的命令行, 默认不生成
     gen-fcs: 强制重新生成充电站文件的命令行, 默认不生成
     gen-scs: 强制重新生成充电站文件的命令行, 默认不生成
+    plot: 完成仿真后的绘图命令行, 默认不绘图
+    initial-state: 仿真的初始状态文件夹, 默认不加载(使用SUMO的默认行为)
+    load-last-state: 加载上次仿真保存的状态, 启用该项将使initial-state失效
+    save-on-abort: 当仿真意外中断时, 保存仿真状态
 以下参数用于图形化仿真:
     show: 启用该选项以GUI模式启动. 该选项仅在Linux下有用, 在Windows下请调整ftraffic/params.py的WINDOWS_VISSUALIZE来改变可见性级别
     no-daemon: 启用该选项以将仿真线程与显示窗口分离, 不启用时显示窗口一旦关闭, 仿真也会停止
@@ -104,6 +108,7 @@ class _locale:
     ERROR_TRIPS_FILE_NOT_FOUND = "错误: 未找到EV和行程文件."
     ERROR_FCS_FILE_NOT_FOUND = "错误: 未找到快充站文件."
     ERROR_SCS_FILE_NOT_FOUND = "错误: 未找到慢充站文件."
+    ERROR_STATE_FILE_NOT_FOUND = "错误: 状态文件未找到, {0}."
     ERROR_ST_ED_TIME_NOT_SPECIFIED = "错误: 仿真起止时间未指定."
     ERROR_CLIENT_ID_NOT_SPECIFIED = "错误: 未指定客户端ID."
     ERROR_CONFIG_DIR_FILE_DUPLICATE = "错误: 配置文件夹中{0}有重复: {1}和{2}"

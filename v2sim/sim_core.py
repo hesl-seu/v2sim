@@ -72,6 +72,9 @@ def get_sim_params(
             "plot_command":     args.pop_str("plot", ""),
             "plg_pool":         plg_pool,
             "sta_pool":         sta_pool,
+            "initial_state":    args.pop_str("initial-state", ""),
+            "load_last_state":  args.pop_bool("load-last-state"),
+            "save_on_abort":    args.pop_bool("save-on-abort"),
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
@@ -111,7 +114,10 @@ class V2SimInstance:
         vb = None,                
         silent: bool = False,           
         mpQ: Optional[queue.Queue[tuple[int, str]]] = None, 
-        clntID: int = -1,       
+        clntID: int = -1,
+        initial_state: str = "",
+        load_last_state: bool = False,
+        save_on_abort: bool = False,
     ) -> tuple[bool, TrafficInst, StaWriter]:
         '''
         Initialization
@@ -134,6 +140,9 @@ class V2SimInstance:
             silent: Whether to silent mode, default is False, when running this function in multiple processes, please set to True
             mpQ: Queue for communication with the main process when running this function in multiple processes, set to None if not using multi-process function
             clntID: Identifier of this process when running this function in multiple processes, set to -1 if not using multi-process function
+            initial_state: Folder of the initial state of the simulation
+            load_last_state: Load the state in result dir if there is a state folder
+            save_on_abort: Whether to save the state when Ctrl+C is pressed
         '''
 
         if plg_pool is None: plg_pool = PluginPool()
@@ -153,7 +162,10 @@ class V2SimInstance:
         if pres.is_dir() and (pres / "cproc.clog").exists():
             tm = time.strftime("%Y%m%d_%H%M%S", time.localtime(pres.stat().st_mtime))
             tm2 = time.time_ns() % int(1e9)
-            pres.rename(f"{str(pres)}_{tm}_{tm2}")
+            new_path = f"{str(pres)}_{tm}_{tm2}"
+            if (pres / "saved_state").exists() and load_last_state:
+                initial_state = new_path + "/saved_state"
+            pres.rename(new_path)
         pres.mkdir(parents=True, exist_ok=True)
         self.__pres = pres
 
@@ -248,7 +260,8 @@ class V2SimInstance:
             rnet_file, start_time, end_time, str(pres / "cproc.clog"), seed,
             vehfile = veh_file, veh_obj = vehicles,
             fcsfile = fcs_file, fcs_obj = fcs_obj,
-            scsfile = scs_file, scs_obj = scs_obj
+            scsfile = scs_file, scs_obj = scs_obj,
+            initial_state_folder = initial_state
         )
 
         # Enable plugins
@@ -291,6 +304,7 @@ class V2SimInstance:
         self.__proj_dir = proj_dir
         self.__outdir = outdir
         self.__working_flag = False
+        self.save_on_abort = save_on_abort
 
     @property
     def project_dir(self):
@@ -388,6 +402,11 @@ class V2SimInstance:
         return self.__inst.get_edge_names()
     
     @property
+    def veh_count(self):
+        '''Number of vehicles'''
+        return len(self.__inst.vehicles)
+    
+    @property
     def is_working(self):
         '''Determine whether the simulation has started'''
         return self.__working_flag
@@ -402,7 +421,7 @@ class V2SimInstance:
         assert self.__mpQ is not None, "Not working in multiprocessing mode. No host exists."
         self.__mpwrite(msg)
     
-    def start(self):
+    def start(self, load_from:str = ""):
         '''
         Start simulation.
             If you use this function, do not use function 'simulation'.
@@ -411,6 +430,8 @@ class V2SimInstance:
         self.__working_flag = True
         self.__inst.simulation_start(self.__sumocfg_file, self.__rnet_file, self.__start_time, self.__vb is not None)
         self.__plgman.PreSimulationAll()
+        if load_from != "":
+            self.load_state(load_from)
     
     def step(self) -> int:
         '''
@@ -435,12 +456,22 @@ class V2SimInstance:
         while self.__inst.current_time < t:
             self.step()
 
-    def stop(self):
+    def load_state(self, load_from:str):
+        '''Load the previous state of the simulation'''
+        self.__inst.load_state(load_from)
+    
+    def save_state(self, save_to:str):
+        '''Save the current state of the simulation'''
+        self.__inst.save_state(save_to)
+    
+    def stop(self, save_state_to:str = ""):
         '''
         Stop simulation.
             If you use this function, do not use function 'simulation'.
             Follow the start - step - stop paradigm.
         '''
+        if save_state_to != "":
+            self.save_state(save_state_to)
         self.__plgman.PostSimulationAll()
         self.__inst.simulation_stop()
         self.__sta.close()
@@ -480,6 +511,10 @@ class V2SimInstance:
             self.step()
             self._istep()
             if self.__stopsig:
+                if self.save_on_abort:
+                    p = self.__pres / "saved_state"
+                    p.mkdir(parents=True, exist_ok=True)
+                    self.save_state(str(p))
                 break
         
         dur = time.time() - self.__st_time

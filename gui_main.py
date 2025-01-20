@@ -91,6 +91,8 @@ _loc.SetLanguageLib("zh_CN",
     SIM_PLGPROP = "其他属性",
     SIM_YES = "是",
     SIM_NO = "否",
+    SIM_LOAD_LAST_STATE = "加载上次的状态（实验性功能）",
+    SIM_SAVE_ON_ABORT = "中断时保存状态",
     TAB_SIM = "仿真",
     TAB_CSCSV = "充电站下载",
     TAB_FCS = "快充站",
@@ -208,6 +210,8 @@ _loc.SetLanguageLib("en",
     SIM_PLGPROP = "Extra Properties",
     SIM_YES = "Yes",
     SIM_NO = "No",
+    SIM_LOAD_LAST_STATE = "Load last state (Experimental)",
+    SIM_SAVE_ON_ABORT = "Save state when aborted",
     TAB_SIM = "Simulation",
     TAB_CSCSV = "CS Downloader",
     TAB_FCS = "Fast CS",
@@ -930,6 +934,12 @@ class MainBox(Tk):
         self.entry_seed = Entry(self.sim_time)
         self.entry_seed.insert(0, "0")
         self.entry_seed.grid(row=3, column=1, padx=3, pady=3, sticky="w")
+        self.sim_load_last_state = BooleanVar(self, False)
+        self.sim_cb_load_last_state = Checkbutton(self.sim_time, text=_loc["SIM_LOAD_LAST_STATE"], variable=self.sim_load_last_state)
+        self.sim_cb_load_last_state.grid(row=4, column=0, padx=3, pady=3, sticky="w", columnspan=2)
+        self.sim_save_on_abort = BooleanVar(self, False)
+        self.sim_cb_save_on_abort = Checkbutton(self.sim_time, text=_loc["SIM_SAVE_ON_ABORT"], variable=self.sim_save_on_abort)
+        self.sim_cb_save_on_abort.grid(row=5, column=0, padx=3, pady=3, sticky="w", columnspan=2)
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_loc["SIM_PLUGIN"])
         self.sim_plglist = ScrollableTreeView(self.sim_plugins, True)
@@ -1114,7 +1124,9 @@ class MainBox(Tk):
                     "-e", str(end), 
                     "-l", str(step), 
                     "-log", ','.join(logs),
-                    "-seed", str(seed)
+                    "-seed", str(seed),
+                    "--load-last-state" if self.sim_load_last_state.get() else "",
+                    "--save-on-abort" if self.sim_save_on_abort.get() else "",
                 ]
         self.destroy()
         try:

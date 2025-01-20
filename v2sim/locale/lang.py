@@ -61,6 +61,10 @@ The following parameters are used for single simulation:
     gen-veh: Command line to regenerate the EVs file. If not given, the file won't be regenerated, and this is the default behavior.
     gen-fcs: Command line to regenerate the FCS file. If not given, the file won't be regenerated, and this is the default behavior.
     gen-scs: Command line to regenerate the SCS file. If not given, the file won't be regenerated, and this is the default behavior.
+    plot: Command line for figure plotting after simulation.
+    initial-state: Folder of initial state files. If not given, the initial state will be desgined by the default behavior of sumo.
+    load-last-state: Load the saved state of last simulation of this case. If this option is enabled, the initial-state option will be ignored.
+    save-on-abort: Whether to save the state when the simulation is aborted.
 The following parameters are used for graphical simulation:
     show: Enable this option to start in GUI mode. This option is only useful in Linux. In Windows, please adjust WINDOWS_VISSUALIZE in ftraffic/params.py to change the visibility level
     no-daemon: Enable this option to separate the simulation thread from the display window. When not enabled, the simulation will stop once the display window is closed
@@ -109,6 +113,7 @@ Usage: python {} -i <input_file> -o <output_file> [-t <data_type>] [-h/help]
     ERROR_TRIPS_FILE_NOT_FOUND = "Error: EV & Trips file not found."
     ERROR_FCS_FILE_NOT_FOUND = "Error: Fast charging station file not found."
     ERROR_SCS_FILE_NOT_FOUND = "Error: Slow charging station file not found."
+    ERROR_STATE_FILE_NOT_FOUND = "Error: State file not found, {0}"
     ERROR_ST_ED_TIME_NOT_SPECIFIED = "Error: Start and end time not specified."
     ERROR_CLIENT_ID_NOT_SPECIFIED = "Error: Client ID not specified."
     ERROR_CONFIG_DIR_FILE_DUPLICATE = "Error: Duplicate item '{0}' in configuration directory: {1} and {2}"

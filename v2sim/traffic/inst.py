@@ -1,6 +1,8 @@
 from itertools import chain
+from pathlib import Path
 import platform, random
 import numpy as np
+import pickle, gzip
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
 from feasytools import PQueue
@@ -74,27 +76,31 @@ class TrafficInst:
         vehfile: str, veh_obj:Optional[EVDict] = None,
         fcsfile: str, fcs_obj:Optional[CSList] = None,
         scsfile: str, scs_obj:Optional[CSList] = None,
+        initial_state_folder: str = ""
     ):
         """
         TrafficInst initialization
             road_net_file: SUMO road network configuration file
             start_time: Simulation start time
             end_time: Simulation end time
+            clogfile: Log file path
+            seed: Randomization seed
             vehfile: Vehicle information and itinerary file
             fcsfile: Fast charging station list file
             scsfile: Slow charging station list file
-            evs: Vehicle information and itinerary, can also be EVDict, this item is used for quick loading
-            seed: Randomization seed
+            initial_state_folder: Initial state folder path
         """
         random.seed(seed)
         self.__gui = None
+        self.__logger = TripsLogger(clogfile)
+        
         self.__vehfile = vehfile
         self.__fcsfile = fcsfile
         self.__scsfile = scsfile
         self.__ctime: int = start_time
         self.__stime: int = start_time
         self.__etime: int = end_time
-        self.__logger = TripsLogger(clogfile)
+        
         # Read road network
         self.__rnet: Net = readNet(road_net_file)
         self.__edges: list[Edge] = self.__rnet.getEdges()
@@ -104,6 +110,12 @@ class TrafficInst:
         # Load static shortest paths
         self.__shortest_paths: dict[str, Stage] = {}
 
+        self.__istate_folder = initial_state_folder
+
+        if self.__istate_folder != "":
+            self.__load_v2sim_state(self.__istate_folder)
+            return
+        
         # Load vehicles
         self._fQ = PQueue()  # Fault queue
         self._que = PQueue()  # Departure queue
@@ -479,6 +491,10 @@ class TrafficInst:
             sumoCmd.extend(["-b", str(start_time)])
         traci.start(sumoCmd)
 
+        if self.__istate_folder:
+            self.__load_sumo_state(self.__istate_folder)
+            self.__istate_folder = ""
+        
         self.__ctime = int(traci.simulation.getTime())
         self.__batch_depart()
 
@@ -550,3 +566,53 @@ class TrafficInst:
             raise RuntimeError("Simulation has not started. Call 'simulation_start' first.")
         traci.close()
         self.__logger.close()
+    
+    def save_state(self, folder: str):
+        """
+        Save the current state of the simulation
+            folder: Folder path
+        """
+        f = Path(folder)
+        traci.simulation_saveState(str(f / "traffic.xml.gz"))
+        with gzip.open(str(f / "inst.gz"), "wb") as f:
+            pickle.dump({
+                "ctime":self.__ctime,
+                "fQ":self._fQ,
+                "que":self._que,
+                "VEHs":self._VEHs,
+                "fcs":self._fcs,
+                "scs":self._scs,
+                "names_fcs":self.__names_fcs,
+                "names_scs":self.__names_scs,
+            }, f)
+        
+    
+    def __load_v2sim_state(self, folder: str):
+        inst = Path(folder) / "inst.gz"
+        if not inst.exists():
+            raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(inst))
+        with gzip.open(str(inst), "rb") as f:
+            d = pickle.load(f)
+        self.__ctime = d["ctime"]
+        self._fQ = d["fQ"]
+        self._que = d["que"]
+        self._VEHs = d["VEHs"]
+        self._fcs = d["fcs"]
+        self._scs = d["scs"]
+        self.__names_fcs = d["names_fcs"]
+        self.__names_scs = d["names_scs"]
+    
+    def __load_sumo_state(self, folder: str):
+        traffic = Path(folder) / "traffic.xml.gz"
+        if not traffic.exists():
+            raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(traffic))
+        traci.simulation_loadState(str(traffic))
+
+    def load_state(self, folder: str):
+        """
+        Load the state of the simulation
+            folder: Folder path
+        """
+        self.__load_v2sim_state(folder)
+        self.__load_sumo_state(folder)
+        
