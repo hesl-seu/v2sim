@@ -25,3 +25,8 @@ profiling
 deploy
 cases/*
 !cases/std_*
+
+# Setup files
+build
+dist
+*.egg-info
