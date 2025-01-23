@@ -4,7 +4,7 @@ from queue import Empty, Queue
 import threading
 from typing import Any, Optional
 from fgui.view import *
-from fgui import ScrollableTreeView, ALWAYS_ONLINE
+from fgui import ScrollableTreeView, ALWAYS_ONLINE, PDFuncEditor, PropertyPanel, EditMode
 from tkinter import filedialog
 from tkinter import messagebox as MB
 from v2sim import *
@@ -114,13 +114,19 @@ _loc.SetLanguageLib("zh_CN",
     GRID_VB = "基准电压:",
     VEH_BASIC = "基本信息",
     VEH_COUNT = "车辆数量:",
-    VEH_V2GPROP = "愿意参加V2G的电动车比例(0.00~1.00):",
+    VEH_V2GPROP = "V2G比例:",
+    VEH_V2GPROP_INFO = "愿意参加V2G的电动车比例(0.00~1.00)",
     VEH_SEED = "随机种子:",
     VEH_ODSRC = "OD对来源",
     VEH_ODAUTO = "自动检测",
     VEH_ODTAZ = "根据交通区域类型生成",
     VEH_ODPOLY = "根据建筑轮廓与类型生成",
     VEH_GEN = "生成车辆",
+    VEH_OMEGA_DESC = "Omega表示用户对充电成本的敏感度。更大的Omega意味着更小的价格影响。",
+    VEH_KREL_DESC = "KRel表示用户对距离的估计。大于1的KRel意味着用户低估了距离。",
+    VEH_KSC_DESC = "KSC表示慢充的SoC阈值。",
+    VEH_KFC_DESC = "KFC表示半路快充的SoC阈值。",
+    VEH_KV2G_DESC = "KV2G表示可用于V2G的电池的SoC阈值。",
     CS_GEN = "生成一组新的充电站",
     CS_MODE = "生成模式",
     CS_USEALL = "所有可用项",
@@ -234,13 +240,19 @@ _loc.SetLanguageLib("en",
     GRID_VB = "Base U:",
     VEH_BASIC = "Basic Information",
     VEH_COUNT = "Vehicle count:",
-    VEH_V2GPROP = "Proportion of vehicles willing to join V2G (0.00~1.00):",
+    VEH_V2GPROP = "V2G prop:",
+    VEH_V2GPROP_INFO = "Proportion of vehicles willing to join V2G (0.00~1.00)",
     VEH_SEED = "Seed:",
     VEH_ODSRC = "OD pair source",
     VEH_ODAUTO = "Auto detection",
     VEH_ODTAZ = "By TAZs' types",
     VEH_ODPOLY = "By buildings' contours and types",
     VEH_GEN = "Generate",
+    VEH_OMEGA_DESC = "Omega indicates the user's sensitivity to the cost of charging. Bigger Omega means less sensitive.",
+    VEH_KREL_DESC = "KRel indicates the user's estimation of the distance. Bigger KRel means the user underestimates the distance.",
+    VEH_KSC_DESC = "KSC indicates the SoC threshold for slow charging.",
+    VEH_KFC_DESC = "KFC indicates the SoC threshold for fast charging halfway.",
+    VEH_KV2G_DESC = "KV2G indicates the SoC threshold of the battery that can be used for V2G.",
     CS_GEN = "Generate a new group of CSs",
     CS_MODE = "Generation Mode",
     CS_USEALL = "All available",
@@ -1035,11 +1047,28 @@ class MainBox(Tk):
         self.entry_v2gprop = Entry(self.fr_veh_basic)
         self.entry_v2gprop.insert(0, "1.00")
         self.entry_v2gprop.grid(row=1, column=1, padx=3, pady=3, sticky="w")
+        self.lb_v2gprop_info = Label(self.fr_veh_basic, text=_loc["VEH_V2GPROP_INFO"])
+        self.lb_v2gprop_info.grid(row=1, column=2, padx=3, pady=3, sticky="w")
         self.lb_carseed = Label(self.fr_veh_basic, text=_loc["VEH_SEED"])
         self.lb_carseed.grid(row=2, column=0, padx=3, pady=3, sticky="w")
         self.entry_carseed = Entry(self.fr_veh_basic)
         self.entry_carseed.insert(0, "0")
         self.entry_carseed.grid(row=2, column=1, padx=3, pady=3, sticky="w")
+
+        self.veh_pars = PropertyPanel(self.tab_Veh, {
+            "Omega":repr(PDUniform(5.0, 10.0)),
+            "KRel":repr(PDUniform(1.0, 1.2)),
+            "KSC":repr(PDUniform(0.4, 0.6)),
+            "KFC":repr(PDUniform(0.2, 0.25)),
+            "KV2G":repr(PDUniform(0.65, 0.75)),
+        }, default_edit_mode=EditMode.PDFUNC, desc = {
+            "Omega": _loc["VEH_OMEGA_DESC"],
+            "KRel": _loc["VEH_KREL_DESC"],
+            "KSC": _loc["VEH_KSC_DESC"],
+            "KFC": _loc["VEH_KFC_DESC"],
+            "KV2G": _loc["VEH_KV2G_DESC"],
+        })
+        self.veh_pars.pack(fill="x", expand=False, pady=10)
 
         self.veh_gen_src = IntVar(self, 0)
         self.fr_veh_src = LabelFrame(self.tab_Veh,text=_loc["VEH_ODSRC"])
@@ -1064,6 +1093,12 @@ class MainBox(Tk):
         self.protocol("WM_DELETE_WINDOW", self.onDestroy)
         self.after(100, self._loop)
     
+    def veh_par_edit(self, var:StringVar):
+        def _f():
+            e = PDFuncEditor(var)
+            e.wait_window()
+        return _f
+
     @property
     def saved(self):
         return self.sim_plglist.saved and self.FCS_editor.saved and self.SCS_editor.saved
@@ -1371,10 +1406,22 @@ class MainBox(Tk):
         self.setStatus("Generating vehicles...")
         try:
             carcnt = int(self.entry_carcnt.get())
-            v2gprop = float(self.entry_v2gprop.get())
             carseed = int(self.entry_carseed.get())
         except:
             showerr("Invalid input")
+            return
+        try:
+            pars = self.veh_pars.getAllData()
+            new_pars = {
+                "v2g_prop":float(self.entry_v2gprop.get()),
+                "omega":eval(pars["Omega"]),
+                "krel":eval(pars["KRel"]),
+                "ksc":eval(pars["KSC"]),
+                "kfc":eval(pars["KFC"]),
+                "kv2g":eval(pars["KV2G"]),
+            }
+        except:
+            showerr("Invalid Vehicle parameters")
             return
         if self.veh_gen_src.get() == 0:
             mode = "Auto"
@@ -1385,7 +1432,7 @@ class MainBox(Tk):
         def work():
             try:
                 assert self.tg
-                self.tg.EVTrips(carcnt, carseed, v2gprop, mode = mode)
+                self.tg.EVTrips(carcnt, carseed, mode = mode, **new_pars)
                 self._load(["veh"])
                 self._Q.put(("DoneOK", None))
             except Exception as e:

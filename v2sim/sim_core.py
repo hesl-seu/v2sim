@@ -238,6 +238,7 @@ class V2SimInstance:
         fcs_file = proj_cfg.fcs
         fcs_obj = CSList(vehicles, filePath = fcs_file, csType = FCS)
         self.__print(Lang.INFO_FCS.format(fcs_file,len(fcs_obj)))
+        if fcs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
 
         # Check SCS file
         if not proj_cfg.scs:
@@ -245,6 +246,7 @@ class V2SimInstance:
         scs_file = proj_cfg.scs
         scs_obj = CSList(vehicles, filePath = scs_file, csType = SCS)
         self.__print(Lang.INFO_SCS.format(scs_file,len(scs_obj)))
+        if scs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
 
         # Check start and end time
         if start_time == -1:
@@ -294,6 +296,8 @@ class V2SimInstance:
         
         self.__sta = mySta
         self.__plgman = plg_man
+        if initial_state:
+            self.__load_plugin_states(Path(initial_state) / "plugins.gz")
         self.__steplen = traffic_step
         self.__sumocfg_file = sumocfg_file
         self.__rnet_file = rnet_file
@@ -459,14 +463,22 @@ class V2SimInstance:
         '''
         while self.__inst.current_time < t:
             self.step()
+    
+    def __load_plugin_states(self, p:Path):
+        if not p.exists(): raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(p))
+        with gzip.open(str(p), "rb") as f:
+            self.__plgman.LoadStates(pickle.load(f))
 
     def load_state(self, load_from:str):
         '''Load the previous state of the simulation'''
         self.__inst.load_state(load_from)
+        self.__load_plugin_states(Path(load_from) / "plugins.gz")
     
     def save_state(self, save_to:str):
         '''Save the current state of the simulation'''
         self.__inst.save_state(save_to)
+        with gzip.open(str(Path(save_to) / "plugins.gz"), "wb") as f:
+            pickle.dump(self.__plgman.SaveStates(), f)
     
     def stop(self, save_state_to:str = ""):
         '''

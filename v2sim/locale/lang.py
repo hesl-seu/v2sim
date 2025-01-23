@@ -180,6 +180,7 @@ Usage: python {} -i <input_file> -o <output_file> [-t <data_type>] [-h/help]
     CSLIST_INVALID_TAG = "Invalid tag {} when initializing CSList with xml file."
     CSLIST_PBUY_NOT_SPECIFIED = "Purchase price not specified when initializing CSList with xml file."
     CSLIST_INVALID_INIT_PARAM = "Invalid initialization parameter type for CSList."
+    CSLIST_KDTREE_DISABLED = "    KDTree is disabled due to invalid CS position. Cannot find nearest CS."
 
     CPROC_ARRIVE = "Arrival"
     CPROC_ARRIVE_CS = "Charging Start"

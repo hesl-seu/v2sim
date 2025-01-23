@@ -43,8 +43,20 @@ class PluginPDN(PluginBase[float], IGridPlugin):
             return sum(c.Pc_MW for c in cslist)/Sb_MVA
         return _sumP
     
+    def _save_state(self) -> object:
+        '''Save the plugin state'''
+        return None
+        
+    def _load_state(self,state:object) -> None:
+        '''Load the plugin state'''
+
     def Initialization(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plugin_dependency:'list[PluginBase]') -> float:
         '''Initialize the plugin from the XML element'''
+        self.__inst = inst
+        self.SetPreStep(self.PreStep)
+        self.__fh = open(res_dir/"pdn_res.log","w")
+        self.SetPostSimulation(self.__fh.close)
+
         res = DetectFiles(str(work_dir))
         assert res.grid, _locale["ERROR_NO_GRID"]
         self.__gr = Grid.fromFile(res.grid, True)
@@ -64,7 +76,6 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         )
         self.__sol.SetErrorSaveTo(str(work_dir))
         self.__badcnt = 0
-        self.__inst = inst
         self.__pds:dict[str, list[CS]] = defaultdict(list)
         for c in chain(inst.FCSList,inst.SCSList):
             if not c.node in self.__gr.BusNames:
@@ -76,9 +87,6 @@ class PluginPDN(PluginBase[float], IGridPlugin):
             if b in decs:
                 self.__sol.dec_buses[b] = LoadReduceModule(b, v)
         self.last_ok = GridSolveResult.Failed
-        self.SetPreStep(self.PreStep)
-        self.__fh = open(res_dir/"pdn_res.log","w")
-        self.SetPostSimulation(self.__fh.close)
         return 1e100
 
     def isSmartChargeEnabled(self)->bool:

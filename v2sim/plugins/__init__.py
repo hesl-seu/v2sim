@@ -133,3 +133,16 @@ class PluginMan:
     def GetPlugins(self)->dict[str,PluginBase]:
         '''Get all plugins'''
         return self.__curPlugins
+
+    def SaveStates(self) -> dict[str, object]:
+        '''Save all plugin states'''
+        ret = {}
+        for name, p in self.__curPlugins.items():
+            ret[name] = p._save_state()
+        return ret
+    
+    def LoadStates(self, states: dict[str, object]):
+        '''Load all plugin states'''
+        for name, p in self.__curPlugins.items():
+            if name in states:
+                p._load_state(states[name])

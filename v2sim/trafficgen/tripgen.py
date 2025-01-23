@@ -2,10 +2,12 @@ import random, time, sumolib
 from typing import Literal, Optional
 from feasytools import ReadOnlyTable
 import numpy as np
+
 from ..locale import Lang
 from ..traffic import EV, EVDict, readXML, DetectFiles
 from .misc import random_diff, TripInner, _EV, _xmlSaver
 from .poly import PolygonMan
+from .pdf import PDFunc
 
 
 TAZ_TYPE_LIST = ["Home", "Work", "Relax", "Other"]
@@ -228,15 +230,13 @@ class EVsGenerator:
             [from_EDGE, first_EDGE], "Home"
         )
 
-    def __genTripsChain1(self, vehicle_id: str, v2g_prop: float):  # vehicle_trip
+    def __genTripsChain1(self, ev:_EV):  # vehicle_trip
         """
         Generate a full day of trips on the first day
-            vehicle_id: Vehicle ID
-            v2g_prop: Probability of willing to V2G
+            ev: vehicle instance
         """
         daynum = 0
         weekday = True
-        ev = _EV(vehicle_id, random.choice(self.vTypes), self.__genSoC(), v2g_prop)
         trip_1 = self.__genFirstTrip1("trip0_1", weekday)
         trip_2 = self.__genTripA("trip0_2",trip_1.toTAZ,
             trip_1.NTP,trip_1.toE,trip_1.DPTT,weekday)
@@ -248,7 +248,6 @@ class EVsGenerator:
         ev.add_trip(daynum, trip_2)
         if trip_3: # Trip3: if O==D, don't generate trip 3
             ev.add_trip(daynum, trip_3)
-        return ev
 
     def __genFirstTripA(self, trip_id, ev: _EV, weekday: bool = True):
         """
@@ -283,34 +282,50 @@ class EVsGenerator:
         if trip2_3:
             ev.add_trip(daynum, trip2_3)
 
-    def __genEV(self, veh_id: str, v2g_prop: float) -> _EV:
-        ev = self.__genTripsChain1(veh_id, v2g_prop)
+    def __genEV(self, veh_id: str, **kwargs) -> _EV:
+        '''
+        Generate a full week of trips for a vehicle as an inner instance
+        '''
+        ev = _EV(veh_id, random.choice(self.vTypes), self.__genSoC(), **kwargs)
+        self.__genTripsChain1(ev)
         for j in range(1, 8):
             self.__genTripsChainA(ev, j)
         return ev
 
-    def genEV(self, veh_id: str, v2g_prop: float) -> EV:
+    def genEV(self, veh_id: str, **kwargs) -> EV:
         """
         Generate a full week of trips for a vehicle
+            veh_id: ID of the vehicle
+            v2g_prop: Proportion of users willing to participate in V2G
+            omega: PDFunc | None = None,
+            krel: PDFunc | None = None,
+            ksc: PDFunc | None = None,
+            kfc: PDFunc | None = None,
+            kv2g: PDFunc | None = None
         """
-        return self.__genEV(veh_id, v2g_prop).to_EV()
+        return self.__genEV(veh_id, **kwargs).to_EV()
 
     def genEVs(
-        self, N: int, v2g_prop: float, fname: Optional[str] = None, silent: bool = False
+        self, N: int, fname: Optional[str] = None, silent: bool = False, **kwargs
     ) -> EVDict:
         """
         Generate EV and trips
             N: Number of vehicles
-            v2g_prop: Proportion of users willing to participate in V2G
             fname: Saved file name (if None, not saved)
             silent: Whether silent mode
+            v2g_prop: Proportion of users willing to participate in V2G
+            omega: PDFunc | None = None,
+            krel: PDFunc | None = None,
+            ksc: PDFunc | None = None,
+            kfc: PDFunc | None = None,
+            kv2g: PDFunc | None = None
         """
         st_time = time.time()
         last_print_time = 0
         saver = _xmlSaver(fname) if fname else None
         ret = EVDict()
         for i in range(0, N):
-            ev = self.__genEV("v" + str(i), v2g_prop)
+            ev = self.__genEV("v" + str(i), **kwargs)
             ret.add(ev.to_EV())
             if saver:
                 saver.write(ev)

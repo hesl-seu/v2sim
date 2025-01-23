@@ -104,7 +104,14 @@ class CSList(Generic[T_CS]):
         self.__v2g_demand: list[float] = []
         for i, cs in enumerate(self._cs):
             self._remap[cs.name] = i
-        self._kdtree = KDTree([Point(cs._x, cs._y) for cs in self._cs], range(self._n))
+        pts = []
+        for cs in self._cs:
+            if cs._x == float("inf") or cs._y == float("inf"):
+                self._kdtree = None
+                break
+            pts.append(Point(cs._x, cs._y))
+        else:
+            self._kdtree = KDTree(pts, range(self._n))
     
     def select_near(self, pos: Point, n: int = 2147483647) -> Iterable[int]:
         """
@@ -114,7 +121,7 @@ class CSList(Generic[T_CS]):
         Return
             Selected number list
         """
-        if n >= self._n:
+        if n >= self._n or self._kdtree is None:
             return range(self._n)
         return self._kdtree.k_nearest_mapped(pos, n)
 

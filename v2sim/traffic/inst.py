@@ -241,7 +241,7 @@ class TrafficInst:
         if len(cs_names) == 0:
             return [], (-1, -1, -1)
 
-        t_drive = np.array([t.travelTime for t in stages]) / 60  # 将行驶时间转化为分钟 | Convert travel time to minutes
+        t_drive = np.array([t.travelTime for t in stages]) / 60  # Convert travel time to minutes
         t_wait = (
             np.array([max(t - lim, 0) for t, lim in zip(veh_cnt, slots)]) * 30
         )  # Queue time: 30 minutes per vehicle

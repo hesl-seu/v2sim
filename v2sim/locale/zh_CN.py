@@ -175,6 +175,7 @@ class _locale:
     CSLIST_INVALID_TAG = "用xml文件初始化CSList时, 遇到无效的tag{}"
     CSLIST_PBUY_NOT_SPECIFIED = "用xml文件初始化CSList时, 未指定购电价格"
     CSLIST_INVALID_INIT_PARAM = "无效的CSList初始化参数类型"
+    CSLIST_KDTREE_DISABLED = "    由于存在无效充电站位置，KD树已禁用，将不能使用select_near功能"
 
     CPROC_ARRIVE = "到达"
     CPROC_ARRIVE_CS = "充电"

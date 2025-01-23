@@ -14,6 +14,7 @@ from .graph import ELGraph, plot_graph
 from .poly import PolygonMan
 from .tripgen import EVsGenerator
 from .csquery import csQuery
+from .pdf import *
 
 DEFAULT_CNAME = str(Path(__file__).parent.parent / "probtable")
 
@@ -124,23 +125,28 @@ class TrafficGenerator:
             args = ArgChecker(args)
         N_cnt = args.pop_int("n")
         cname = args.pop_str("c", DEFAULT_CNAME)
-        v2g_prop = args.pop_float("v", 1.0)
         seed = args.pop_int("seed", time.time_ns())
-        return self.EVTrips(N_cnt, seed, v2g_prop, cname)
+        v2g_prop = args.pop_float("v", 1.0)
+        return self.EVTrips(N_cnt, seed, cname, v2g_prop=v2g_prop)
     
-    def EVTrips(self, n: int, seed: int, v2g_prop: float, cname: str = DEFAULT_CNAME, mode: Literal["Auto","TAZ","Poly"]="Auto"):
+    def EVTrips(self, n: int, seed: int, cname: str = DEFAULT_CNAME, mode: Literal["Auto","TAZ","Poly"]="Auto", **kwargs):
         """
         Generate trips
             n: Number of vehicles
             seed: Randomization seed
-            v2g_prop: Proportion of users willing to participate in V2G
             cname: Trip parameter folder
             mode: Generation mode, "Auto" for automatic, "TAZ" for TAZ-based, "Poly" for polygon-based
+            v2g_prop: Proportion of users willing to participate in V2G
+            omega: PDFunc | None = None,
+            krel: PDFunc | None = None,
+            ksc: PDFunc | None = None,
+            kfc: PDFunc | None = None,
+            kv2g: PDFunc | None = None
         """
         if "veh" in self.__cfg:
             self.__existing.do(self.__cfg["veh"])
         fname = f"{self.__root}/{self.__name}.veh.xml.gz"
-        return EVsGenerator(cname, self.__root, seed, mode).genEVs(n, v2g_prop, fname, self.__silent)
+        return EVsGenerator(cname, self.__root, seed, mode).genEVs(n, fname, self.__silent, **kwargs)
 
     def _CS(
         self,

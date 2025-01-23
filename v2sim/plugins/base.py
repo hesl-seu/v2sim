@@ -30,18 +30,26 @@ class PluginBase(Generic[PIResult]):
     __PreStep: Optional[PIExec]
     __PostSimulation: Optional[PINoRet]
     __PostStep: Optional[PIExec]
-    def SetPreSimulation(self,func:PINoRet)->None:
+    def SetPreSimulation(self,func:PINoRet) -> None:
         '''Pre-simulation plugin processing, run after other parameters are loaded'''
         self.__PreSimulation = func
-    def SetPreStep(self,func:PIExec)->None:
+    def SetPreStep(self,func:PIExec) -> None:
         '''Plugin work before simulation step'''
         self.__PreStep = func
-    def SetPostStep(self,func:PIExec)->None:
+    def SetPostStep(self,func:PIExec) -> None:
         '''Plugin work after simulation step'''
         self.__PostStep = func
-    def SetPostSimulation(self,func:PINoRet)->None:
+    def SetPostSimulation(self,func:PINoRet) -> None:
         '''Post-simulation plugin processing'''
         self.__PostSimulation = func
+
+    @abstractmethod
+    def _save_state(self) -> object:
+        '''Save the plugin state'''
+        
+    @abstractmethod
+    def _load_state(self,state:object) -> None:
+        '''Load the plugin state'''
 
     def __init__(self,inst:TrafficInst,elem:ET.Element,work_dir:Path,res_dir:Path,enable_time:Optional[RangeList]=None,
             interval:int=0,plugin_dependency:'list[PluginBase]'=[]):

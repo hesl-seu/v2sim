@@ -10,18 +10,16 @@ V2Sim is a microscopic V2G simulation platform in urban power and transportation
 
 ### A. Setup the environment
 
-1. Setup Python: Visit `https://www.python.org/download` to get Python;
+1. Setup Python: Visit `https://www.python.org/download` to get Python (version 3.12 or above recommended).
 
-2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get the newest version of SUMO;
+2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get the newest version of SUMO.
 
-3. Setup git: Official tutorial is [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
-
-4. Setup necessary packages:
+3. Setup necessary packages. Ensure you have installed `pip` together with Python.
 ```bash
 pip install -r requirements.txt
 ```
 
-5. Clone this repository: 
+4. Download this repo. You can directly download this repo by clicking the `download` button on this page. Or you can setup `git` and clone this repo by the following command. The official tutorial about using `git` is [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
 ```bash
 git clone https://github.com/fmy-xfk/v2sim.git
 ```
@@ -42,7 +40,7 @@ Copy your case generated with OSMWebWizard to a proper place. Then run `gui_main
 ![alt text](docs/3.png)
 
 2. Download charging station positions: If the area you downloaded is in **China Mainland**, you can download charging station positions in this program. Otherwise, please skip this step.
-+ Switch to `CS Downloader` page and type an AMap developer key in the given input box.
++ Switch to `CS Downloader` page and type an AMap developer key in the given input box. **ATTENTION: You must apply for a key on the [AMap official site](https://lbs.amap.com/)! This function will never work without a key!** 
 + Click `Download` to get CS positions from AMap(高德地图). Please wait patiently while downloading the CS positions. If there are too many CSs in the given area, they may not be all downloaded due to the restriction of AMap.
 + A successful result is shown below (The address are all Chinese since they are located in China):
 

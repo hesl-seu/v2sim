@@ -1,8 +1,10 @@
+from enum import StrEnum
 from .view import *
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Optional
 from feasytools import RangeList, SegFunc
 from tkinter import messagebox as MB
-from v2sim import CustomLocaleLib
+from v2sim import CustomLocaleLib, PDFunc
+from v2sim.trafficgen.pdf import *
 
 _loc = CustomLocaleLib(["zh_CN","en"])
 _loc.SetLanguageLib("zh_CN",
@@ -28,6 +30,9 @@ _loc.SetLanguageLib("zh_CN",
     RIGHT_BOUND = "右边界",
     PROPERTY = "属性",
     VALUE = "值",
+    PDFUNC_EDITOR = "概率密度函数编辑器",
+    PDMODEL = "概率密度模型",
+    PROP_NODESC = "(无描述)",
 )
 
 _loc.SetLanguageLib("en",
@@ -53,10 +58,29 @@ _loc.SetLanguageLib("en",
     RIGHT_BOUND = "Right bound",
     PROPERTY = "Property",
     VALUE = "Value",
+    PDFUNC_EDITOR = "Probability Density Function Editor",
+    PDMODEL = "PDF Model",
+    PROP_NODESC = "(No description)"
 )
 
 ALWAYS_ONLINE = _loc['ALWAYS_ONLINE']
 def _empty_postfunc(itm:tuple[Any,...], val:str): pass
+
+class EditMode(StrEnum):
+    DISABLED = "disabled"
+    ENTRY = "entry"
+    SPIN = "spin"
+    COMBO = "combo"
+    RANGELIST = "rangelist"
+    SEGFUNC = "segfunc"
+    PROP = "prop"
+    PDFUNC = "pdfunc"
+
+class EditModeDirection(StrEnum):
+    UNDEFINED = "undefined"
+    ROW = "row"
+    COL = "col"
+    CELL = "cell"
 
 # Double click to edit the cell: https://blog.csdn.net/falwat/article/details/127494533
 class ScrollableTreeView(Frame):
@@ -85,6 +109,7 @@ class ScrollableTreeView(Frame):
         self.tree.bind('<Double-1>', func=self.tree_item_edit)
         self.onSave = None
         self.edit_mode:'dict[str, tuple[str, Any, Callable[[tuple[Any,...], str],None]]]' = {}
+        self._emd = EditModeDirection.UNDEFINED
 
     def save(self):
         if self.onSave:
@@ -102,18 +127,51 @@ class ScrollableTreeView(Frame):
         for i in self.tree.get_children():
             res.append(self.tree.item(i, "values"))
         return res
-
-    def setColEditMode(self, col:str, mode:Literal["disabled", "entry", "spin", "combo", "rangelist", "segfunc", "prop"], *,
-                       spin_from:int=1, spin_to:int=100, combo_values:list[str]=[], rangelist_hint:bool = False, 
-                       post_func:Callable[[tuple[Any,...], str],None] = _empty_postfunc):
+    
+    def setColEditMode(self, col:str, mode:EditMode, **kwargs):
+        if self._emd not in [EditModeDirection.COL, EditModeDirection.UNDEFINED]:
+            raise ValueError(f"Cannot set column edit mode when edit mode == {self._emd}")
+        self._emd = EditModeDirection.COL
+        self.__setEditMode(col, mode, **kwargs)
+    
+    def setRowEditMode(self, row:str, mode:EditMode, **kwargs):
+        if self._emd not in [EditModeDirection.ROW, EditModeDirection.UNDEFINED]:
+            raise ValueError(f"Cannot set row edit mode when edit mode == {self._emd}")
+        self._emd = EditModeDirection.ROW
+        self.__setEditMode(row, mode, **kwargs)
+        print(row,mode)
+    
+    def setCellEditMode(self, row:str, col:str, mode:EditMode, **kwargs):
+        if self._emd not in [EditModeDirection.CELL, EditModeDirection.UNDEFINED]:
+            raise ValueError(f"Cannot set cell edit mode when edit mode == {self._emd}")
+        self._emd = EditModeDirection.CELL
+        self.__setEditMode(row + "@" + col, mode, **kwargs)
+    
+    def clearEditModes(self):
+        self._emd = EditModeDirection.UNDEFINED
+        self.edit_mode.clear()
+    
+    def __setEditMode(self, label:str, mode:EditMode, *,
+            spin_from:int=1, spin_to:int=100, 
+            prop_edit_modes:Optional[dict[str, EditMode]] = None, 
+            prop_default_mode:EditMode = EditMode.ENTRY,
+            prop_desc:Optional[dict[str, str]] = None,
+            combo_values:Optional[list[str]] = None,
+            rangelist_hint:bool = False, 
+            post_func:Callable[[tuple[Any,...], str],None] = _empty_postfunc):
         if mode == "spin":
-            self.edit_mode[col] = (mode, (spin_from, spin_to), post_func)
+            self.edit_mode[label] = (mode, (spin_from, spin_to), post_func)
         elif mode == "combo":
-            self.edit_mode[col] = (mode, combo_values, post_func)
+            if combo_values is None: combo_values = []
+            self.edit_mode[label] = (mode, combo_values, post_func)
         elif mode == "rangelist":
-            self.edit_mode[col] = (mode, rangelist_hint, post_func)
+            self.edit_mode[label] = (mode, rangelist_hint, post_func)
+        elif mode == EditMode.PROP:
+            if prop_edit_modes is None: prop_edit_modes = {}
+            if prop_desc is None: prop_desc = {}
+            self.edit_mode[label] = (mode, (prop_edit_modes, prop_default_mode, prop_desc), post_func)
         else:
-            self.edit_mode[col] = (mode, None, post_func)
+            self.edit_mode[label] = (mode, None, post_func)
 
     def disableEdit(self):
         self.tree.unbind('<Double-1>')
@@ -124,10 +182,12 @@ class ScrollableTreeView(Frame):
     def tree_item_edit(self, e: Event):
         if len(self.tree.selection()) == 0:
             return
+        
         self.selected_item = self.tree.selection()[0]
+        selected_row = self.tree.item(self.selected_item, "values")[0]
 
         for i, col in enumerate(self.tree['columns']):
-            x, y, w, h =  self.tree.bbox(self.selected_item, col)
+            x, y, w, h = self.tree.bbox(self.selected_item, col)
             assert isinstance(x, int) and isinstance(y, int) and isinstance(w, int) and isinstance(h, int)
             if x < e.x < x + w and y < e.y < y + h:
                 self.selected_column = col
@@ -140,31 +200,44 @@ class ScrollableTreeView(Frame):
             text = self.tree.item(self.selected_item, 'text')
         
         self.delegate_var.set(text)
-        
-        if self.selected_column not in self.edit_mode or self.selected_column is None: return
-        mode_str, val, self.post_func = self.edit_mode[self.selected_column]
-        if mode_str == 'combo':
+        if self._emd == EditModeDirection.COL:
+            if self.selected_column not in self.edit_mode or self.selected_column is None: return
+            label = self.selected_column
+        elif self._emd == EditModeDirection.ROW:
+            if selected_row not in self.edit_mode or selected_row is None: return
+            label = selected_row
+        elif self._emd == EditModeDirection.CELL:
+            if selected_row is None or self.selected_column is None: return
+            label = selected_row + "@" + self.selected_column
+            if label not in self.edit_mode: return
+        else:
+            return
+        mode_str, val, self.post_func = self.edit_mode[label]
+        if mode_str == EditMode.COMBO:
             assert isinstance(val, list)
             self.delegate_widget = Combobox(self.tree, width=w // 10, textvariable=self.delegate_var, values=val)
             self.delegate_widget.bind('<<ComboboxSelected>>', self.tree_item_edit_done)
             self.delegate_widget.bind('<FocusOut>', self.tree_item_edit_done)
-        elif mode_str == 'spin':
+        elif mode_str == EditMode.SPIN:
             assert isinstance(val, tuple)
             self.delegate_widget = Spinbox(self.tree, width=w // 10, textvariable=self.delegate_var, from_=val[0], to=val[1], increment=1)
             self.delegate_widget.bind('<FocusOut>', self.tree_item_edit_done)
-        elif mode_str == 'entry':
+        elif mode_str == EditMode.ENTRY:
             self.delegate_widget = Entry(self.tree, width=w // 10, textvariable=self.delegate_var)
             self.delegate_widget.bind('<FocusOut>', self.tree_item_edit_done)
-        elif mode_str == 'rangelist':
+        elif mode_str == EditMode.RANGELIST:
             d = self.delegate_var.get()
             if d == ALWAYS_ONLINE: d = "[]"
             self.delegate_widget = RangeListEditor(RangeList(eval(d)), self.delegate_var, True)
             self.delegate_widget.bind('<Destroy>', self.tree_item_edit_done)
-        elif mode_str == 'prop':
+        elif mode_str == EditMode.PROP:
             d = self.delegate_var.get()
-            self.delegate_widget = PropertyEditor(eval(d), self.delegate_var)
+            self.delegate_widget = PropertyEditor(eval(d), self.delegate_var, edit_modes=val[0], default_edit_mode=val[1], desc=val[2])
             self.delegate_widget.bind('<Destroy>', self.tree_item_edit_done)
-        elif mode_str == 'segfunc':
+        elif mode_str == EditMode.PDFUNC:
+            self.delegate_widget = PDFuncEditor(self.delegate_var)
+            self.delegate_widget.bind('<Destroy>', self.tree_item_edit_done)
+        elif mode_str == EditMode.SEGFUNC:
             d = self.delegate_var.get()
             try:
                 float(d)
@@ -208,15 +281,21 @@ class ScrollableTreeView(Frame):
     def insert(self, *args, **kwargs):
         self.tree.insert(*args, **kwargs)
     
-    def delete(self, *args):
-        self.tree.delete(*args)
+    def delete(self, *items:Union[str,int]):
+        self.tree.delete(*items)
+    
+    def set(self, item:Union[str, int], column:Union[None, str, int], value:Any):
+        self.tree.set(item, column, value)
+    
+    def selection(self):
+        return self.tree.selection()
     
     def get_children(self):
         return self.tree.get_children()
     
     def clear(self):
         self.delete(*self.get_children())
-        self.lb_save.config(text=_loc["SAVED"],foreground="green")
+        self.lb_save.config(text=_loc["SAVED"], foreground="green")
     
     @property
     def saved(self):
@@ -362,10 +441,20 @@ class SegFuncEditor(Toplevel):
         return SegFunc(res)
 
 
-class PropertyEditor(Toplevel):
-    def __init__(self, data:dict[str,str], var:StringVar):
-        super().__init__()
-        self.title(_loc["PROPERTY_EDITOR"])
+class PropertyPanel(Frame):
+    def __onclick(self, event):
+        if len(self.tree.selection()) == 0:
+            self.__desc_var.set(_loc["PROP_NODESC"])
+            return
+        self.selected_item = self.tree.selection()[0]
+        selected_row = self.tree.item(self.selected_item, "values")[0]
+        self.__desc_var.set(self.__desc_dict.get(selected_row, _loc["PROP_NODESC"]))
+    
+    def __init__(self, master, data:dict[str,str],
+            edit_modes:Optional[dict[str,EditMode]] = None,
+            default_edit_mode:EditMode = EditMode.ENTRY, 
+            desc:Optional[dict[str, str]] = None, **kwargs):
+        super().__init__(master, **kwargs)
         self.data = data
         self.tree = ScrollableTreeView(self, allowSave=False)
         self.tree['show'] = 'headings'
@@ -374,9 +463,78 @@ class PropertyEditor(Toplevel):
         self.tree.column("d", width=120, stretch=YES)
         self.tree.heading("t", text=_loc["PROPERTY"])
         self.tree.heading("d", text=_loc["VALUE"])
+        self.tree.tree.bind("<<TreeviewSelect>>", self.__onclick)
         self.tree.pack(fill="both", expand=True)
+        if edit_modes is None: edit_modes = {}
         for l,r in data.items():
             self.tree.insert("", "end", values=(l, r))
+            self.tree.setCellEditMode(l, "d", edit_modes.get(l, default_edit_mode))
+        self.__desc_dict = desc if desc else {}
+        self.__desc_var = StringVar(self, _loc["PROP_NODESC"])
+        self.__desc = Label(self, textvariable=self.__desc_var)
+        self.__desc.pack(fill="x", expand=True)
+    
+    def getAllData(self) -> dict[str, str]:
+        res:dict[str, str] = {}
+        for i in self.tree.get_children():
+            x = self.tree.tree.item(i, "values")
+            res[x[0]] = x[1]
+        return res
+
+class PropertyEditor(Toplevel):
+    def __init__(self, data:dict[str,str], var:StringVar, 
+            edit_modes:Optional[dict[str,EditMode]] = None,
+            default_edit_mode:EditMode = EditMode.ENTRY,
+            desc:Optional[dict[str,str]] = None):
+        super().__init__()
+        self.title(_loc["PROPERTY_EDITOR"])
+        self.__panel = PropertyPanel(self, data, edit_modes, default_edit_mode, desc)
+        self.__panel.pack(fill="both", expand=True)
+        self.__fr = Frame(self)
+        self.__fr.pack(fill="x", expand=False)
+        self.__btn_save = Button(self.__fr, text=_loc["SAVE_AND_CLOSE"], command=self.save)
+        self.__btn_save.grid(row=0,column=4,padx=3,pady=3,sticky="e")
+        self.var = var
+    
+    def getAllData(self) -> dict[str,str]:
+        return self.__panel.getAllData()
+    
+    def save(self):
+        d = self.getAllData()
+        self.var.set(repr(d))
+        self.destroy()
+
+class PDFuncEditor(Toplevel):
+    def reset_tree(self, pdfunc:PDFunc):
+        self.tree.clear()
+        for l,r in pdfunc.__dict__.items():
+            self.tree.insert("", "end", values=(l, r))
+    
+    def __init__(self, var: StringVar):
+        super().__init__()
+        self.title(_loc["PDFUNC_EDITOR"])
+        pdfunc = eval(var.get())
+        assert isinstance(pdfunc, PDFunc)
+        self.model = StringVar(self, pdfunc.__class__.__name__.removeprefix("PD"))
+        self.fr0 = Frame(self)
+        self.mlabel = Label(self.fr0, text=_loc["PDMODEL"])
+        self.mlabel.grid(row=0,column=0,padx=3,pady=3,sticky="w")
+        self.cb = Combobox(self.fr0, textvariable=self.model,
+            values=["Normal", "Uniform", "Triangular", 
+            "Exponential", "Gamma", "Weibull", 
+            "Beta", "LogNormal", "LogLogistic"])
+        self.cb.bind('<<ComboboxSelected>>', lambda x: self.reset_tree(create_pd_func(self.model.get())))
+        self.cb.grid(row=0,column=1,padx=3,pady=3,sticky="w")
+        self.fr0.pack(fill="x", expand=True)
+        self.tree = ScrollableTreeView(self, allowSave=False)
+        self.tree['show'] = 'headings'
+        self.tree["columns"] = ("t", "d")
+        self.tree.column("t", width=120, stretch=NO)
+        self.tree.column("d", width=120, stretch=YES)
+        self.tree.heading("t", text=_loc["PROPERTY"])
+        self.tree.heading("d", text=_loc["VALUE"])
+        self.tree.pack(fill="both", expand=True)
+        self.reset_tree(pdfunc)
         self.tree.setColEditMode("d", "entry")
         self.fr = Frame(self)
         self.fr.pack(fill="x", expand=False)
@@ -384,12 +542,12 @@ class PropertyEditor(Toplevel):
         self.btn_save.grid(row=0,column=4,padx=3,pady=3,sticky="e")
         self.var = var
 
-    def getAllData(self) -> dict[str,str]:
-        res:dict[str, str] = {}
+    def getAllData(self) -> PDFunc:
+        res:dict[str, float] = {}
         for i in self.tree.get_children():
             x = self.tree.tree.item(i, "values")
-            res[x[0]] = x[1]
-        return res
+            res[x[0]] = float(x[1])
+        return create_pd_func(self.model.get(), **res)
     
     def save(self):
         d = self.getAllData()

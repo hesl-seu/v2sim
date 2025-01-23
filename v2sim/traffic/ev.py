@@ -289,7 +289,8 @@ class EV:
         """
         Update the battery SOC and odometer in driving state
         """
-        assert new_dis >= self._dis, f"EV {self._id}: self._dis = {self._dis:.1f} > new_dis = {new_dis:.1f}"
+        # Since SUMO save and load may lead to error, so -1.0 to tolerate the error
+        assert new_dis >= self._dis - 1.0, f"EV {self._id}: self._dis = {self._dis:.8f} > new_dis = {new_dis:.8f}"
         self._elec -= (new_dis - self._dis) * self._consumption
         self._dis = new_dis
 
