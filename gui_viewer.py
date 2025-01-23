@@ -1,11 +1,19 @@
+import gzip
 from pathlib import Path
+import pickle
 from queue import Queue
 import threading, os
+from typing import Literal
 from fgui.view import *
 from fgui import ScrollableTreeView, TripsFrame
 from v2sim import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
 from tkinter import filedialog
 from tkinter import messagebox as MB
+
+from v2sim.traffic.cs import CS
+from v2sim.traffic.cslist import CSList
+from v2sim.traffic.ev import EV
+from v2sim.traffic.evdict import EVDict
 
 _loc = CustomLocaleLib(["zh_CN","en"])
 _loc.SetLanguageLib("zh_CN",
@@ -19,6 +27,7 @@ _loc.SetLanguageLib("zh_CN",
     TAB_CURVE = "绘图",
     TAB_GRID = "电网",
     TAB_TRIP = "行程",
+    TAB_STATE = "状态",
 )
 
 _loc.SetLanguageLib("en",
@@ -32,6 +41,7 @@ _loc.SetLanguageLib("en",
     TAB_CURVE = "Graphs",
     TAB_GRID = "Grid",
     TAB_TRIP = "Trips",
+    TAB_STATE = "State",
 )
 
 ITEM_ALL = _loc["ITEM_ALL"]
@@ -64,7 +74,9 @@ class PlotBox(Tk):
         self.tab_grid = Frame(self.tab)
         self.tab.add(self.tab_grid,text=_loc["TAB_GRID"])
         self.tab_trip = TripsFrame(self.tab)
-        self.tab.add(self.tab_trip,text=_loc["TAB_TRIP"],sticky='nsew')
+        self.tab.add(self.tab_trip,text=_loc["TAB_TRIP"], sticky='nsew')
+        self.tab_state = Frame(self.tab)
+        self.tab.add(self.tab_state,text=_loc["TAB_STATE"], sticky='nsew')
 
         self.panel_time = LabelFrame(self.tab_curve, text="Time")
         self.panel_time.pack(side='top',fill='x',padx=3,pady=5)
@@ -223,6 +235,24 @@ class PlotBox(Tk):
         self.btn_line.configure(command=self.plotLineCurve)
         self.btn_time2.configure(command=self.collectgrid)
 
+        self.__inst = None
+        self.query_fr = LabelFrame(self.tab_state, text="Queries")
+        self.cb_fcs_query = Combobox(self.query_fr)
+        self.cb_fcs_query.grid(row=0,column=0,sticky='ew',padx=3,pady=5)
+        self.btn_fcs_query = Button(self.query_fr, text="Query FCS", takefocus=False, command=self.queryFCS)
+        self.btn_fcs_query.grid(row=0,column=1,sticky='ew',padx=3,pady=5)
+        self.cb_scs_query = Combobox(self.query_fr)
+        self.cb_scs_query.grid(row=1,column=0,sticky='ew',padx=3,pady=5)
+        self.btn_scs_query = Button(self.query_fr, text="Query SCS", takefocus=False, command=self.querySCS)
+        self.btn_scs_query.grid(row=1,column=1,sticky='ew',padx=3,pady=5)
+        self.entry_ev_query = Entry(self.query_fr)
+        self.entry_ev_query.grid(row=2,column=0,sticky='ew',padx=3,pady=5)
+        self.btn_ev_query = Button(self.query_fr, text="Query EV", takefocus=False, command=self.queryEV)
+        self.btn_ev_query.grid(row=2,column=1,sticky='ew',padx=3,pady=5)
+        self.query_fr.pack(side='top',fill='x',padx=3,pady=5)
+        self.text_qres = Text(self.tab_state)
+        self.text_qres.pack(side='top',fill='both',padx=3,pady=5)
+        
         self._ava ={
             "fcs": [False, self.panel_fcs],
             "scs": [False, self.panel_scs],
@@ -236,6 +266,69 @@ class PlotBox(Tk):
         threading.Thread(target=self.reload,daemon=True,args=("results",)).start()
 
         self.after(100,self._upd)
+    
+    def set_qres(self,text:str):
+        self.text_qres.delete(0.0,END)
+        self.text_qres.insert(END,text)
+    
+    def __queryCS(self,cstype:Literal["fcs","scs"], q:str):
+        if self.__inst is None: 
+            self.set_qres("No instance loaded!")
+            return
+        if q.strip()=="":
+            self.set_qres("Query cannot be empty!")
+            return
+        cslist = self.__inst[cstype]
+        assert isinstance(cslist, CSList)
+        try:
+            cs = cslist[q]
+            assert isinstance(cs, CS)
+        except:
+            res = "CS Not found: "+q
+        else:
+            if cs.supports_V2G:
+                res = (
+                    f"ID: {cs.name} (V2G)\nBus: {cs.node}\n  Pc_kW:{cs.Pc_kW}\n  Pd_kW: {cs.Pd_kW}\n  Pv2g_kW: {cs.Pv2g_kW}\n" +
+                    f"Slots: {cs.slots}\n  Count: {cs.veh_count()} total, {cs.veh_count(True)} charging\n"+
+                    f"Price:\n  Buy: {cs.pbuy}\n  Sell: {cs.psell}\n"
+                )
+            else:
+                res = (
+                    f"ID: {cs.name}\nBus: {cs.node}\n  Pc_kW:{cs.Pc_kW}\n" +
+                    f"Slots: {cs.slots}\n  Count: {cs.veh_count()} total, {cs.veh_count(True)} charging\n"+
+                    f"Price:\n  Buy: {cs.pbuy}\n"
+                )
+        self.set_qres(res)
+    
+    def queryFCS(self):
+        self.__queryCS("fcs",self.cb_fcs_query.get())
+        
+    def querySCS(self):
+        self.__queryCS("scs",self.cb_scs_query.get())
+    
+    def queryEV(self):
+        if self.__inst is None: 
+            self.set_qres("No instance loaded!")
+            return
+        q = self.entry_ev_query.get()
+        if q.strip()=="":
+            self.set_qres("Query cannot be empty!")
+            return
+        vehs = self.__inst["VEHs"]
+        assert isinstance(vehs, EVDict)
+        try:
+            veh = vehs[q]
+            assert isinstance(veh, EV)
+        except:
+            res = "EV Not found: "+q
+        else:
+            res = (
+                f"ID: {veh.ID}\n  SoC: {veh.SOC*100:.4f}%\n  Status: {veh.status}\n  Distance(m): {veh.odometer}\n" + 
+                f"Params:\n  Omega: {veh.omega}\n  KRel: {veh.krel}\n  Kfc: {veh.kfc}  Ksc: {veh.ksc}  Kv2g: {veh.kv2g}\n" +
+                f"Consump(Wh/m): {veh.consumption*1000}\n" +
+                f"Money:\n  Charging cost: {veh._cost}\n  V2G earn: {veh._earn}\n  Net cost: {veh._cost-veh._earn}\n"
+            )
+        self.set_qres(res)
     
     def _win(self):
         self.title(_loc["TITLE"])
@@ -431,11 +524,17 @@ class PlotBox(Tk):
                 if self._sta.has_FCS():
                     self._ava["fcs"][0] = True
                     self.fcs_entry['values'] = [ITEM_SUM, ITEM_ALL] + self._sta.FCS_head
+                    self.cb_fcs_query['values'] = self._sta.FCS_head
                     self.fcs_entry.set(ITEM_SUM)
+                    if self._sta.FCS_head:
+                        self.cb_fcs_query.set(self._sta.FCS_head[0])
                 if self._sta.has_SCS():
                     self._ava["scs"][0] = True
                     self.scs_entry['values'] = [ITEM_SUM, ITEM_ALL] + self._sta.SCS_head
+                    self.cb_scs_query['values'] = self._sta.SCS_head
                     self.scs_entry.set(ITEM_SUM)
+                    if self._sta.SCS_head:
+                        self.cb_scs_query.set(self._sta.SCS_head[0])
                 self._ava["ev"][0] = self._sta.has_EV()
                 if self._sta.has_GEN():
                     self._ava["gen"][0] = True
@@ -489,7 +588,7 @@ class PlotBox(Tk):
                 if res_path.exists():
                     break
                 else: 
-                    if not first: MB.showerror("Error loading","Folder not found!")
+                    if not first: MB.showerror("Error loading", "Folder not found!")
                 first = False
                 res_path = self.askdir()
                 if res_path=="":
@@ -503,6 +602,14 @@ class PlotBox(Tk):
             cproc = res_path / "cproc.clog"
             if cproc.exists():
                 self.tab_trip.load(str(cproc))
+            state_path = res_path / "saved_state" / "inst.gz"
+            if state_path.exists():
+                try:
+                    with gzip.open(state_path,'rb') as f:
+                        self.__inst = pickle.load(f)
+                except:
+                    MB.showerror("Error loading", "Failed to load saved state!")
+                    self.__inst = None
         except Exception as e:
             self._Q.put(('LE',e))
 
