@@ -110,6 +110,7 @@ class AMapPOIReader:
         # 011100(充电站中类)|011102(充换电站)|011103(专用充电站)|073000(电动自行车充电站中类)|073001(电动自行车换电)|073002(电动自行车专用充电站)
         url = f'https://restapi.amap.com/v3/place/polygon?polygon={str(rect)}&keywords={keyword}&offset={self.offset}&page={pagenum}&key={self.key}&types=011100&extensions=all'
         response = requests.get(url)
+        response.encoding = 'utf-8'
         result = json.loads(response.text)
         return result
 
