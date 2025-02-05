@@ -84,9 +84,17 @@ class EditModeDirection(StrEnum):
 
 # Double click to edit the cell: https://blog.csdn.net/falwat/article/details/127494533
 class ScrollableTreeView(Frame):
+    def show_title(self, title:str):
+        self.lb_title.config(text=title)
+        self.lb_title.grid(row=0,column=0,padx=3,pady=3,sticky="w",columnspan=2)
+
+    def hide_title(self):
+        self.lb_title.grid_remove()
+    
     def __init__(self, master, allowSave:bool = False, **kwargs):
         super().__init__(master, **kwargs)
         self.post_func = _empty_postfunc
+        self.lb_title = Label(self, text=_loc["NOT_OPEN"])
         self.tree = Treeview(self)
         self.tree.grid(row=1,column=0,sticky='nsew')
         self.rowconfigure(1, weight=1)
@@ -450,12 +458,24 @@ class PropertyPanel(Frame):
         selected_row = self.tree.item(self.selected_item, "values")[0]
         self.__desc_var.set(self.__desc_dict.get(selected_row, _loc["PROP_NODESC"]))
     
+    def setData(self, data:dict[str,str],
+            edit_modes:Optional[dict[str,EditMode]] = None,
+            default_edit_mode:EditMode = EditMode.ENTRY, 
+            desc:Optional[dict[str, str]] = None):
+        self.data = data
+        if edit_modes is None: edit_modes = {}
+        self.tree.clear()
+        for l, r in data.items():
+            self.tree.insert("", "end", values=(l, r))
+            self.tree.setCellEditMode(l, "d", edit_modes.get(l, default_edit_mode))
+        self.__desc_dict = desc if desc else {}
+        
+    
     def __init__(self, master, data:dict[str,str],
             edit_modes:Optional[dict[str,EditMode]] = None,
             default_edit_mode:EditMode = EditMode.ENTRY, 
             desc:Optional[dict[str, str]] = None, **kwargs):
         super().__init__(master, **kwargs)
-        self.data = data
         self.tree = ScrollableTreeView(self, allowSave=False)
         self.tree['show'] = 'headings'
         self.tree["columns"] = ("t", "d")
@@ -465,14 +485,10 @@ class PropertyPanel(Frame):
         self.tree.heading("d", text=_loc["VALUE"])
         self.tree.tree.bind("<<TreeviewSelect>>", self.__onclick)
         self.tree.pack(fill="both", expand=True)
-        if edit_modes is None: edit_modes = {}
-        for l,r in data.items():
-            self.tree.insert("", "end", values=(l, r))
-            self.tree.setCellEditMode(l, "d", edit_modes.get(l, default_edit_mode))
-        self.__desc_dict = desc if desc else {}
         self.__desc_var = StringVar(self, _loc["PROP_NODESC"])
         self.__desc = Label(self, textvariable=self.__desc_var)
-        self.__desc.pack(fill="x", expand=True)
+        self.__desc.pack(fill="x", expand=False)
+        self.setData(data,edit_modes,default_edit_mode,desc)
     
     def getAllData(self) -> dict[str, str]:
         res:dict[str, str] = {}

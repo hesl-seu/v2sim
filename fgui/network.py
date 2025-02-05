@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 from v2sim import ELGraph, Edge
+from .controls import EditMode, PropertyPanel
 from .view import *
 
 PointList = list[tuple[float, float]]
@@ -16,11 +17,15 @@ class NetworkPanel(Frame):
         super().__init__(master, **kwargs)
 
         self._cv = Canvas(self, bg='white')
-        self._cv.pack(side='top',anchor='center',fill=BOTH, expand=1)
+        self._cv.pack(side='left',anchor='center',fill=BOTH, expand=1)
         self._cv.bind("<MouseWheel>", self._onMouseWheel)
-        self._cv.bind("<Button-1>", self._onClick)
-        self._cv.bind("<B1-Motion>", self._onMotion)
-        self._cv.bind("<ButtonRelease-1>", self._onRelease)
+        self._cv.bind("<Button-1>", self._onLClick)
+        self._cv.bind("<Button-3>", self._onRClick)
+        self._cv.bind("<B3-Motion>", self._onRMotion)
+        self._cv.bind("<ButtonRelease-3>", self._onRRelease)
+
+        self._pr = PropertyPanel(self, {})
+        self._pr.pack(side='right',anchor='e',fill=Y, expand=0)
         self.clear()
 
         if roadnet is not None:
@@ -44,22 +49,30 @@ class NetworkPanel(Frame):
         self._r = roadnet
         if repaint: self._draw()
     
-    def _onClick(self, event):
+    def _onLClick(self, event):
         x, y = event.x, event.y
         nr_item = self._cv.find_closest(x, y)
         ovl_item = self._cv.find_overlapping(x-5, y-5, x+5, y+5)
         if nr_item and nr_item[0] in ovl_item:
             clicked_item = nr_item[0]
-            self._drag['item'] = 'all' #clicked_item
-            print(clicked_item, self._items[clicked_item])
-        else:
-            clicked_item = None
-            self._drag['item'] = 'all'
-            print("None")
-        self._drag["x"] = x
-        self._drag["y"] = y
+            self.UnlocateAllEdges()
+            self.LocateEdge(self._items[clicked_item].desc, 'purple')
+            itm = self._items[clicked_item]
+            self._pr.tree.show_title(f"Type: {itm.type} (ID = {clicked_item})")
+            if itm.type == "edge":
+                if itm.desc in self._r.cs_names:
+                    self._pr.setData({"Name":itm.desc, "Type": "Fast CS"}, default_edit_mode=EditMode.DISABLED)
+                else:
+                    self._pr.setData({"Name":itm.desc, "Type": "Normal Edge"}, default_edit_mode=EditMode.DISABLED)
+            else:
+                self._pr.setData({})
+
+    def _onRClick(self, event):
+        self._drag['item'] = 'all'
+        self._drag["x"] = event.x
+        self._drag["y"] = event.y
     
-    def _onMotion(self, event):
+    def _onRMotion(self, event):
         if self._drag["item"]:
             x, y = event.x, event.y
             dx = x - self._drag["x"]
@@ -68,7 +81,7 @@ class NetworkPanel(Frame):
             self._drag["x"] = x
             self._drag["y"] = y
     
-    def _onRelease(self, event):
+    def _onRRelease(self, event):
         self._drag["item"] = None
     
     def _onMouseWheel(self, event):
