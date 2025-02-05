@@ -11,3 +11,4 @@ from .controls import (
     EditModeDirection
 )
 from .trips import TripsFrame
+from .network import NetworkPanel

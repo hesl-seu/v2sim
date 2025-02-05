@@ -99,11 +99,11 @@ class ELGraph:
         self.edgeIDs:List[str] = [self.all_edgeIDs[x] for x in tscc.max_scc]
         self.edges:List[Edge] = [self.net.getEdge(e) for e in self.edgeIDs]
         
-        edgenames = set(self.edgeIDs)
+        self.edgeIDset:set[str] = set(self.edgeIDs)
         bad_CS:set[str] = set()
         for e in self.net.getEdges():
             eid:str = e.getID()
-            if eid in self.cs_names and eid not in edgenames:
+            if eid in self.cs_names and eid not in self.edgeIDset:
                 bad_CS.add(eid)
         self.unreachable_CS = bad_CS
 
@@ -131,6 +131,11 @@ class ELGraph:
     def EdgeIDs(self):
         '''List of edge IDs in the largest strongly connected component'''
         return self.edgeIDs
+
+    @property
+    def EdgeIDSet(self):
+        '''List of edge IDs in the largest strongly connected component'''
+        return self.edgeIDset
     
     @property
     def AllEdgeIDs(self):

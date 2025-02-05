@@ -4,7 +4,7 @@ from queue import Empty, Queue
 import threading
 from typing import Any, Optional
 from fgui.view import *
-from fgui import ScrollableTreeView, ALWAYS_ONLINE, PDFuncEditor, PropertyPanel, EditMode
+from fgui import ScrollableTreeView, ALWAYS_ONLINE, PDFuncEditor, PropertyPanel, EditMode, NetworkPanel
 from tkinter import filedialog
 from tkinter import messagebox as MB
 from v2sim import *
@@ -17,7 +17,6 @@ import xml.etree.ElementTree as ET
 DEFAULT_PDN_ATTR = {"srcbus": "B1", "srcVpu":"1.0", "maxVpu":"1.15", "minVpu": "0.85", "maxIkA":"0.866"}
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
-GLOBAL_IMG = None
 
 def showerr(msg:str):
     MB.showerror(_loc["MB_ERROR"], msg)
@@ -829,7 +828,6 @@ class MainBox(Tk):
         self.folder:str = ""
         self.state:Optional[FileDetectResult] = None
         self.tg:Optional[TrafficGenerator] = None
-        self.elg:Optional[ELGraph] = None
         self._win()
 
         self.menu = Menu(self)
@@ -1021,9 +1019,8 @@ class MainBox(Tk):
         self.tabs.add(self.tab_SCS, text=_loc["TAB_SCS"])
 
         self.tab_Net = Frame(self.tabs)
-        self.tab_Net.bind("<Configure>", self.resized)
-        self.lb_img = Label(self.tab_Net)
-        self.lb_img.pack(fill="both", expand=True)
+        self.cv_net = NetworkPanel(self.tab_Net)
+        self.cv_net.pack(fill=BOTH, expand=True)
         self.panel_net = LabelFrame(self.tab_Net, text=_loc["RNET_TITLE"])
         self.btn_draw = Button(self.panel_net, text=_loc["RNET_DRAW"], command=self.draw)
         self.btn_draw.grid(row=0, column=0, padx=3, pady=3, sticky="w")
@@ -1234,10 +1231,6 @@ class MainBox(Tk):
                 neww, newh = d
                 neww = neww - 10
                 newh = newh - 80
-        global GLOBAL_IMG, RESIZED_IMG
-        if GLOBAL_IMG and neww > -1 and newh > -1:
-            RESIZED_IMG = PILImageTk.PhotoImage(_resize(GLOBAL_IMG.width, GLOBAL_IMG.height, neww, newh, GLOBAL_IMG))
-            self.lb_img.config(image = RESIZED_IMG) # type: ignore
         self.after(100, self._loop)
     
     def _load(self,loads:list[str]=[]):
@@ -1336,7 +1329,7 @@ class MainBox(Tk):
                 self.sim_plglist.save()
         self.rb_veh_src2.configure(state="normal" if "poly" in res else "disabled")
         self.rb_veh_src1.configure(state="normal" if "taz" in res else "disabled")
-
+        self.cv_net.clear()
         self.state = res = DetectFiles(self.folder)
 
         def setText(lb:Label, itm:str, must:bool = False):
@@ -1441,22 +1434,16 @@ class MainBox(Tk):
 
     def draw(self):
         if not self.__checkFolderOpened(): return
-        if self.elg is None:
+        if self.cv_net.RoadNet is None:
             assert self.state and self.state.net
             if self.state.fcs:
-                self.elg = ELGraph(self.state.net, self.state.fcs)
+                elg = ELGraph(self.state.net, self.state.fcs)
             else:
-                self.elg = ELGraph(self.state.net)
-        plot_graph(self.folder, self.elg, self.entry_locedges.get().split(','))
-        img_path = str(Path(self.folder) / "graph_helper.png")
-        global GLOBAL_IMG, RESIZED_IMG
-        GLOBAL_IMG = PILImage.open(img_path)
-        self._Q.put(("Resized", (self.tab_Net.winfo_width(), self.tab_Net.winfo_height())))
-    
-    def resized(self, event):
-        global GLOBAL_IMG, RESIZED_IMG
-        if GLOBAL_IMG:
-            self._Q.put(("Resized", (event.width, event.height)))
+                elg = ELGraph(self.state.net)
+            self.cv_net.setRoadNet(elg)
+        self.cv_net.UnlocateAllEdges()
+        s = set(x.strip() for x in self.entry_locedges.get().split(','))
+        self.cv_net.LocateEdges(s)
 
     def CSCSVDownloadWorker(self):
         if not self.__checkFolderOpened(): return
