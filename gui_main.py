@@ -1436,10 +1436,11 @@ class MainBox(Tk):
         if not self.__checkFolderOpened(): return
         if self.cv_net.RoadNet is None:
             assert self.state and self.state.net
-            if self.state.fcs:
-                elg = ELGraph(self.state.net, self.state.fcs)
-            else:
-                elg = ELGraph(self.state.net)
+            elg = ELGraph(
+                self.state.net,
+                self.state.fcs if self.state.fcs else "",
+                self.state.scs if self.state.scs else "",
+            )
             self.cv_net.setRoadNet(elg)
         self.cv_net.UnlocateAllEdges()
         s = set(x.strip() for x in self.entry_locedges.get().split(','))

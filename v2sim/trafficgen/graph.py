@@ -76,13 +76,12 @@ class ELGraph:
     The edges are the largest strongly connected component of the road network.
     CS edges that are not in the largest strongly connected component are also stored.
     '''
-    def __init__(self, net_file:str, cs_file:str=""):
-        self.net:Net = sumolib.net.readNet(net_file)
-        if cs_file == "":
-            self.cs_names = set()
-        else:
-            self.cs_names = load_fcs(cs_file)
-        self.all_edges:List[Edge] = self.net.getEdges()
+    def __init__(self, net_file:str, fcs_file:str="", scs_file:str=""):
+        self._net:Net = sumolib.net.readNet(net_file)
+        self._fcs_names = set() if fcs_file == "" else load_fcs(fcs_file)
+        self._scs_names = set() if scs_file == "" else load_scs(scs_file)
+        self._cs_names = self._fcs_names.union(self._scs_names)
+        self.all_edges:List[Edge] = self._net.getEdges()
         self.all_edgeIDs:List[str] = [e.getID() for e in self.all_edges]
         self._id2num:dict[str, int] = {e:i for i,e in enumerate(self.all_edgeIDs)}
         gl:list[list[int]] = [[] for _ in range(len(self.all_edges))]
@@ -97,18 +96,21 @@ class ELGraph:
         _largeStackExec(tscc.get_scc)
         assert tscc.max_scc is not None
         self.edgeIDs:List[str] = [self.all_edgeIDs[x] for x in tscc.max_scc]
-        self.edges:List[Edge] = [self.net.getEdge(e) for e in self.edgeIDs]
+        self.edges:List[Edge] = [self._net.getEdge(e) for e in self.edgeIDs]
         
         self.edgeIDset:set[str] = set(self.edgeIDs)
-        bad_CS:set[str] = set()
-        for e in self.net.getEdges():
+        bad_fcs:set[str] = set()
+        bad_scs:set[str] = set()
+        for e in self._net.getEdges():
             eid:str = e.getID()
-            if eid in self.cs_names and eid not in self.edgeIDset:
-                bad_CS.add(eid)
-        self.unreachable_CS = bad_CS
+            if eid in self._fcs_names and eid not in self.edgeIDset:
+                bad_fcs.add(eid)
+            if eid in self._scs_names and eid not in self.edgeIDset:
+                bad_scs.add(eid)
+        self.unreachable_CS = bad_fcs.union(bad_scs)
 
         self.__edge_finder = EdgeFinder({e.getID():e.getShape() for e in self.edges}) # type: ignore
-    
+
     def checkBadCS(self, display:bool = True) -> bool:
         if len(self.unreachable_CS) > 0:
             if display: print(Lang.WARN_CS_NOT_IN_SCC.format(self.unreachable_CS))
@@ -126,6 +128,26 @@ class ELGraph:
         if dist > threshold_m:
             raise RuntimeError(str(dist))
         return edge_id
+    
+    @property
+    def FCSNames(self) -> set[str]:
+        '''Return the set of FCS edge names'''
+        return self._fcs_names
+    
+    @property
+    def SCSNames(self) -> set[str]:
+        '''Return the set of SCS edge names'''
+        return self._scs_names
+
+    @property
+    def CSNames(self) -> set[str]:
+        '''Return the set of CS edge names'''
+        return self._cs_names
+    
+    @property
+    def Net(self) -> Net:
+        '''Return the road network'''
+        return self._net
     
     @property
     def EdgeIDs(self):
@@ -161,13 +183,13 @@ PointList = list[tuple[float, float]]
 
 def plot_graph(input_dir:str, elg:ELGraph, locate_edges:List[str] = [], route_edges:List[str] = [], mid_edges:List[str] = []):
     sccedges = set(elg.EdgeIDs)
-    fig,ax = plt.subplots(figsize=(10,10),dpi=128,constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(10,10),dpi=128,constrained_layout=True)
     ax: Axes
-    for e in elg.net.getEdges():
+    for e in elg.Net.getEdges():
         e: Edge
         ename:str = e.getID()
         shape:PointList = e.getShape() # type: ignore
-        if ename in elg.cs_names:
+        if ename in elg.CSNames:
             c = "darkblue" if ename in sccedges else "darkgray"
             lw = 2
         else:

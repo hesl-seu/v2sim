@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 from v2sim import ELGraph, Edge
+from fpowerkit import Bus, Line, PDNCases
+from fpowerkit import Grid as fGrid
 from .controls import EditMode, PropertyPanel
 from .view import *
 
@@ -13,7 +15,7 @@ class itemdesc:
     desc:Any
 
 class NetworkPanel(Frame):
-    def __init__(self, master, roadnet:Optional[ELGraph]=None, **kwargs):
+    def __init__(self, master, roadnet:Optional[ELGraph]=None, grid:Optional[Grid]=None, **kwargs):
         super().__init__(master, **kwargs)
 
         self._cv = Canvas(self, bg='white')
@@ -29,7 +31,34 @@ class NetworkPanel(Frame):
         self.clear()
 
         if roadnet is not None:
-            self.RoadNet = roadnet
+            self.setRoadNet(roadnet)
+        
+        if grid is not None:
+            self.setGrid(grid)
+    
+    def scale(self, x:float, y:float, s:float, item = 'all'):
+        self._cv.scale(item, x, y, s, s)
+        self._scale['k'] *= s
+        self._scale['x'] = (1 - s) * x + self._scale['x'] * s
+        self._scale['y'] = (1 - s) * y + self._scale['y'] * s
+    
+    def move(self, dx:float, dy:float, item = 'all'):
+        self._cv.move(item, dx, dy)
+        self._scale['x'] += dx
+        self._scale['y'] += dy
+    
+    def convLL2XY(self, lon:float, lat:float) -> tuple[float, float]:
+        '''Convert longitude and latitude to canvas coordinates'''
+        if self._r is None: return (lon, lat)
+        x, y = self._r.Net.convertLonLat2XY(lon, lat)
+        return x * self._scale['k'] + self._scale['x'], y * self._scale['k'] + self._scale['y']
+    
+    def convXY2LL(self, x:float, y:float) -> tuple[float, float]:
+        '''Convert canvas coordinates to longitude and latitude'''
+        x = (x - self._scale['x'])/self._scale['k']
+        y = (y - self._scale['y'])/self._scale['k']
+        if self._r is None: return (x, y)
+        return self._r.Net.convertXY2LonLat(x, y)
     
     def clear(self):
         self._cv.delete('all')
@@ -38,7 +67,9 @@ class NetworkPanel(Frame):
         self._Redges:dict[str, int] = {}
         self._located_edges:set[str] = set()
         self._drag = {'item': None,'x': 0,'y': 0}
+        self._scale = {'k':1.0, 'x':0, 'y':0}
         self._r = None
+        self._g = None
     
     @property
     def RoadNet(self) -> Optional[ELGraph]:
@@ -47,6 +78,15 @@ class NetworkPanel(Frame):
     def setRoadNet(self, roadnet:ELGraph, repaint:bool=True):
         assert isinstance(roadnet, ELGraph)
         self._r = roadnet
+        if repaint: self._draw()
+    
+    @property
+    def Grid(self) -> Optional[Grid]:
+        return self._g
+    
+    def setGrid(self, grid:fGrid, repaint:bool=True):
+        assert isinstance(grid, fGrid)
+        self._g = grid
         if repaint: self._draw()
     
     def _onLClick(self, event):
@@ -60,10 +100,11 @@ class NetworkPanel(Frame):
             itm = self._items[clicked_item]
             self._pr.tree.show_title(f"Type: {itm.type} (ID = {clicked_item})")
             if itm.type == "edge":
-                if itm.desc in self._r.cs_names:
-                    self._pr.setData({"Name":itm.desc, "Type": "Fast CS"}, default_edit_mode=EditMode.DISABLED)
-                else:
-                    self._pr.setData({"Name":itm.desc, "Type": "Normal Edge"}, default_edit_mode=EditMode.DISABLED)
+                self._pr.setData({
+                    "Name":itm.desc, 
+                    "Has FCS": itm.desc in self._r.FCSNames,
+                    "Has SCS": itm.desc in self._r.SCSNames,
+                }, default_edit_mode=EditMode.DISABLED)
             else:
                 self._pr.setData({})
 
@@ -77,7 +118,7 @@ class NetworkPanel(Frame):
             x, y = event.x, event.y
             dx = x - self._drag["x"]
             dy = y - self._drag["y"]
-            self._cv.move(self._drag["item"], dx, dy)
+            self.move(dx, dy, self._drag["item"])
             self._drag["x"] = x
             self._drag["y"] = y
     
@@ -93,7 +134,7 @@ class NetworkPanel(Frame):
             self._scale_cnt -= 1
         else:
             s = 1
-        self._cv.scale('all', event.x, event.y, s, s)
+        self.scale(event.x, event.y, s)
     
     def _center(self):
         bbox = self._cv.bbox("all")
@@ -104,10 +145,10 @@ class NetworkPanel(Frame):
         wh = self._cv.winfo_height()
         dx = (ww - cw) / 2 - bbox[0]
         dy = (wh - ch) / 2 - bbox[1]
-        self._cv.move("all", dx, dy)
+        self.move(dx, dy)
         s = min(max(ww-50, 100)/cw, max(wh-50, 100)/ch)
-        self._cv.scale('all', ww//2, wh//2, s, s)
-    
+        self.scale(ww//2, wh//2, s)
+     
     def LocateEdge(self, edge:str, color:str='red'):
         '''Locate an edge by highlighting it in given color, red by default'''
         if edge in self._Redges:
@@ -134,15 +175,17 @@ class NetworkPanel(Frame):
             self._cv.itemconfig(pid, fill=c, width=lw)
         
     def __get_edge_prop(self, edge:str) -> tuple[str, float]:
-        if edge in self._r.cs_names:
+        if edge in self._r.FCSNames:
             return ("darkblue",3) if edge in self._r.EdgeIDSet else ("darkgray",3)
+        elif edge in self._r.SCSNames:
+            return ("blue",2) if edge in self._r.EdgeIDSet else ("gray",2)
         else:
             return ("blue",1) if edge in self._r.EdgeIDSet else ("gray",1)
-        
+    
     def _draw(self, scale:float=1.0, dx:float=0.0, dy:float=0.0, center:bool=True):
         if self._r is None: return
         self._cv.delete('all')
-        for e in self._r.net.getEdges():
+        for e in self._r.Net.getEdges():
             e: Edge
             ename:str = e.getID()
             shape = e.getShape()
