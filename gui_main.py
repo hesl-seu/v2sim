@@ -67,9 +67,11 @@ _loc.SetLanguageLib("zh_CN",
     CSE_PRICESELL = "用户售电价格",
     CSE_PCALLOC = "充电功率分配方案",
     CSE_PDALLOC = "放电功率分配方案",
-    RNET_TITLE = "路网",
-    RNET_DRAW = "绘制",
+    RNET_TITLE = "网络",
+    RNET_DRAW = "定位",
     RNET_EDGES = "要定位的道路：",
+    SAVE_GRID = "保存电网",
+    PU_VALS = "基准电压：{0}kV，基准功率：{1}MVA",
     SIM_BASIC = "基本信息",
     SIM_BEGT = "开始时间/秒：",
     SIM_ENDT = "结束时间/秒：",
@@ -98,7 +100,7 @@ _loc.SetLanguageLib("zh_CN",
     TAB_CSCSV = "充电站下载",
     TAB_FCS = "快充站",
     TAB_SCS = "慢充站",
-    TAB_RNET = "路网",
+    TAB_RNET = "网络",
     TAB_VEH = "车辆",
     TAB_GRID = "电网",
     CSCSV_ID = "编号",
@@ -195,9 +197,11 @@ _loc.SetLanguageLib("en",
     CSE_PRICESELL = "Price Sell",
     CSE_PCALLOC = "Pc Allocator",
     CSE_PDALLOC = "Pd Allocator",
-    RNET_TITLE = "Road Network",
-    RNET_DRAW = "Draw",
+    RNET_TITLE = "Network",
+    RNET_DRAW = "Locate",
     RNET_EDGES = "Edges to be located:",
+    SAVE_GRID = "Save Grid",
+    PU_VALS = "Base Voltage: {0}kV, Base Power: {1}MVA",
     SIM_BASIC = "Basic Information",
     SIM_BEGT = "Start Time/s:",
     SIM_ENDT = "End Time/s:",
@@ -226,9 +230,8 @@ _loc.SetLanguageLib("en",
     TAB_CSCSV = "CS Downloader",
     TAB_FCS = "Fast CS",
     TAB_SCS = "Slow CS",
-    TAB_RNET = "Road Network",
+    TAB_RNET = "Network",
     TAB_VEH = "Vehicles",
-    TAB_GRID = "Power Grid",
     CSCSV_ID = "ID",
     CSCSV_X = "X",
     CSCSV_Y = "Y",
@@ -796,148 +799,6 @@ class CSCSVEditor(Frame):
     def clear(self):
         self.lb_cnt.config(text=_loc["LB_COUNT"].format(0))
         self.tree.clear()
-        
-    
-class GridEditor(Frame):
-    def __init__(self, master, **kwargs):
-        super().__init__(master, **kwargs)
-        self.__grid:Optional[PowerGrid] = None
-        self.panel = LabelFrame(self, text=_loc["GRID_BASIC"])
-        self.panel.pack(fill="x", expand=False)
-        self.lb_sb = Label(self.panel, text=_loc["GRID_SB"])
-        self.lb_sb.grid(row=0,column=0,padx=3,pady=3,sticky="w")
-        self.lb_sb_val = Label(self.panel, text="---")
-        self.lb_sb_val.grid(row=0,column=1,padx=3,pady=3,sticky="w")
-        self.lb_vb = Label(self.panel, text=_loc["GRID_VB"])
-        self.lb_vb.grid(row=1,column=0,padx=3,pady=3,sticky="w")
-        self.lb_vb_val = Label(self.panel, text="---")
-        self.lb_vb_val.grid(row=1,column=1,padx=3,pady=3,sticky="w")
-
-        self.tree = ScrollableTreeView(self) 
-        self.tree['show'] = 'headings'
-        self.tree["columns"] = ("Bus", "PLoad", "QLoad")
-        self.tree.column("Bus", width=120, stretch=NO)
-        self.tree.column("PLoad", width=200, stretch=YES)
-        self.tree.column("QLoad", width=200, stretch=YES)
-        
-        self.tree.heading("Bus", text="Bus Name")
-        self.tree.heading("PLoad", text="Active Load/pu")
-        self.tree.heading("QLoad", text="Reactive Load/pu")
-        self.tree.pack(fill="both", expand=True)
-
-        self.tree2 = ScrollableTreeView(self) 
-        self.tree2['show'] = 'headings'
-        self.tree2["columns"] = ("Line", "R", "X", "From", "To")
-        self.tree2.column("Line", width=120, stretch=NO)
-        self.tree2.column("R", width=100, stretch=NO)
-        self.tree2.column("X", width=100, stretch=NO)
-        self.tree2.column("From", width=100, stretch=NO)
-        self.tree2.column("To", width=100, stretch=NO)
-        
-        self.tree2.heading("Line", text="Line Name")
-        self.tree2.heading("R", text="R/pu")
-        self.tree2.heading("X", text="X/pu")
-        self.tree2.heading("From", text="From Bus")
-        self.tree2.heading("To", text="To Bus")
-        self.tree2.pack(fill="both", expand=True)
-
-        self.tree3 = ScrollableTreeView(self) 
-        self.tree3['show'] = 'headings'
-        self.tree3["columns"] = ("Gen", "Bus", "Pmin", "Qmin", "Pmax", "Qmax", "CostA", "CostB", "CostC")
-        self.tree3.column("Gen", width=130, stretch=NO)
-        self.tree3.column("Bus", width=60, stretch=NO)
-        self.tree3.column("Pmin", width=75, stretch=NO)
-        self.tree3.column("Qmin", width=75, stretch=NO)
-        self.tree3.column("Pmax", width=75, stretch=NO)
-        self.tree3.column("Qmax", width=75, stretch=NO)
-        self.tree3.column("CostA", width=155, stretch=NO)
-        self.tree3.column("CostB", width=120, stretch=NO)
-        self.tree3.column("CostC", width=80, stretch=NO)
-
-        self.tree3.heading("Gen", text="Generator Name")
-        self.tree3.heading("Bus", text="At Bus")
-        self.tree3.heading("Pmin", text="Pmin/pu")
-        self.tree3.heading("Qmin", text="Qmin/pu")
-        self.tree3.heading("Pmax", text="Pmax/pu")
-        self.tree3.heading("Qmax", text="Qmax/pu")
-        self.tree3.heading("CostA", text="Cost/$/pu power^2")
-        self.tree3.heading("CostB", text="Cost/$/pu power")
-        self.tree3.heading("CostC", text="Cost/$")
-
-        self.tree3.pack(fill="both", expand=True)
-    
-    @property
-    def Grid(self)->Optional[PowerGrid]:
-        return self.__grid
-    
-    def __update_gui(self):
-        LIMIT = 500
-        try:
-            cnt = 0
-            while cnt < LIMIT:
-                cnt += 1
-                t, x = self.__q.get_nowait()
-                if t == '1':
-                    self.tree.insert("", "end", values=x)
-                elif t == '2':
-                    self.tree2.insert("", "end", values=x)
-                elif t == '3':
-                    self.tree3.insert("", "end", values=x)
-                elif t == 'a':
-                    x and x()
-        except queue.Empty:
-            pass
-        if not self.__q_closed or cnt >= LIMIT:
-            self.after(10, self.__update_gui)
-
-    def __load(self, fileOrGrid: Union[str, PowerGrid], async_:bool=False, after:OAfter=None):
-        if isinstance(fileOrGrid, PowerGrid):
-            self.__grid = fileOrGrid
-        else:
-            self.__grid = PowerGrid.fromFile(fileOrGrid)
-        self.tree.clear()
-        self.tree2.clear()
-        self.tree3.clear()
-        self.lb_sb_val.config(text=str(self.__grid.Sb_MVA)+" MVA")
-        self.lb_vb_val.config(text=str(self.__grid.Ub)+" kV")
-        for bus in self.__grid.Buses:
-            v = (bus.ID, bus.Pd, bus.Qd)
-            if async_:
-                self.__q.put(('1',v))
-            else:
-                self.tree.insert("", "end", values=v)
-        for line in self.__grid.Lines:
-            v = (line.ID, f"{line.R:.6f}", f"{line.X:.6f}", line.fBus, line.tBus)
-            if async_:
-                self.__q.put(('2',v))
-            else:
-                self.tree2.insert("", "end", values=v)
-        for gen in self.__grid.Gens:
-            v = (gen.ID, gen.BusID, gen.Pmin, gen.Qmin, gen.Pmax, gen.Qmax, gen.CostA, gen.CostB, gen.CostC)
-            if async_:
-                self.__q.put(('3',v))
-            else:
-                self.tree3.insert("", "end", values=v)
-        if async_:
-            self.__q.put(('a', after))
-            self.__q_closed = True
-        else:
-            after and after()
-
-    def LoadFile(self, file: str, async_:bool = False, after:OAfter=None):
-        if async_:
-            self.__q_closed = False
-            self.__q = Queue()
-            threading.Thread(target=self.__load, args=(file, True, after), daemon=True).start()
-            self.after(10, self.__update_gui)
-        else:
-            self.__load(file, False, after)
-
-    @Grid.setter
-    def Grid(self, val:Optional[PowerGrid]):
-        self.__grid = val
-        if val is None: return
-        self.__load(val)
 
 
 class LoadingBox(Toplevel):
@@ -1187,12 +1048,17 @@ class MainBox(Tk):
         self.cv_net = NetworkPanel(self.tab_Net)
         self.cv_net.pack(fill=BOTH, expand=True)
         self.panel_net = LabelFrame(self.tab_Net, text=_loc["RNET_TITLE"])
+        self.btn_savegrid = Button(self.panel_net, text=_loc["SAVE_GRID"], command=self.saveGrid)
+        self.btn_savegrid.pack(side='left',padx=3,pady=3, anchor='w')
+        self.lb_puvalues = Label(self.panel_net, text=_loc["PU_VALS"].format('Null','Null'))
+        self.lb_puvalues.pack(side='left',padx=3,pady=3, anchor='w')
         self.btn_draw = Button(self.panel_net, text=_loc["RNET_DRAW"], command=self.draw)
-        self.btn_draw.grid(row=0, column=0, padx=3, pady=3, sticky="w")
-        self.lb_locedges = Label(self.panel_net, text=_loc["RNET_EDGES"])
-        self.lb_locedges.grid(row=0, column=1, padx=3, pady=3, sticky="w")
+        self.btn_draw.pack(side="right", padx=3, pady=3, anchor="e")
         self.entry_locedges = Entry(self.panel_net)
-        self.entry_locedges.grid(row=0, column=2, padx=3, pady=3, sticky="w")
+        self.entry_locedges.pack(side="right", padx=3, pady=3, anchor="e")
+        self.lb_locedges = Label(self.panel_net, text=_loc["RNET_EDGES"])
+        self.lb_locedges.pack(side="right", padx=3, pady=3, anchor="e")
+        
         self.panel_net.pack(fill="x", expand=False, anchor="s")
         self.tabs.add(self.tab_Net, text=_loc["TAB_RNET"])
 
@@ -1245,11 +1111,6 @@ class MainBox(Tk):
         self.btn_genveh.pack(anchor="w")
         self.tabs.add(self.tab_Veh, text=_loc["TAB_VEH"])
 
-        self.tab_Grid = Frame(self.tabs)
-        self.grid_editor = GridEditor(self.tab_Grid)
-        self.grid_editor.pack(fill="both", expand=True)
-        self.tabs.add(self.tab_Grid, text=_loc["TAB_GRID"])
-
         self.sbar = Label(self, text=_loc["STA_READY"], anchor="w")
         self.sbar.grid(row=1, column=0, columnspan=2, sticky="ew")
         self.protocol("WM_DELETE_WINDOW", self.onDestroy)
@@ -1269,6 +1130,16 @@ class MainBox(Tk):
         if not self.sim_plglist.saved: self.sim_plglist.save()
         if not self.FCS_editor.saved: self.FCS_editor.save()
         if not self.SCS_editor.saved: self.SCS_editor.save()
+    
+    def saveGrid(self):
+        defpath = self.folder+"/"+DEFAULT_GRID_NAME
+        if self.state.grid:
+            path = self.state.grid
+            os.remove(path)
+            if not path.lower().endswith(".xml"): path = defpath
+        else:
+            path = defpath
+        self.cv_net.saveGrid(path)
         
     def onDestroy(self):
         if not self.saved:
@@ -1442,7 +1313,6 @@ class MainBox(Tk):
                 with open(self.folder+"/"+DEFAULT_GRID_NAME,"w") as f:
                     f.write(DEFAULT_GRID)
                 self.state = res = DetectFiles(self.folder)
-            self._load_grid(async_, lambda: frm.setText('GRID',_loc['DONE']))
         if len(loads) == 0 or "plg" in loads:
             has_pdn = False
             pdn_enabled = False
@@ -1491,7 +1361,7 @@ class MainBox(Tk):
         self.cv_net.clear()
         self.state = res = DetectFiles(self.folder)
         if len(loads) == 0 or "net" in loads:
-            self._load_network(self.tabs.select(), async_, lambda: frm.setText('ROADNET',_loc['DONE']))
+            self._load_network(self.tabs.select(), async_, lambda: (frm.setText('ROADNET',_loc['DONE']), frm.setText('GRID',_loc['DONE'])))
         def setText(lb:Label, itm:str, must:bool = False):
             if itm in res:
                 lb.config(text=res[itm].removeprefix(self.folder), foreground="black")
@@ -1553,6 +1423,9 @@ class MainBox(Tk):
             time.sleep(0.01)
             self.tabs.select(tab_ret)
             def work():
+                if self.state.grid:
+                    self.cv_net.setGrid(PowerGrid.fromFile(self.state.grid))
+                self.lb_puvalues.configure(text=_loc["PU_VALS"].format(self.cv_net.Grid.Ub,self.cv_net.Grid.Sb_MVA))
                 self.cv_net.setRoadNet(ELGraph(self.state.net,
                     self.state.fcs if self.state.fcs else "",
                     self.state.scs if self.state.scs else "",
@@ -1561,10 +1434,6 @@ class MainBox(Tk):
                 threading.Thread(target=work,daemon=True).start()
             else:
                 work()
-    
-    def _load_grid(self, async_:bool = False, after:OAfter=None):
-        if self.state.grid: 
-            self.grid_editor.LoadFile(self.state.grid, async_, after)
 
     def openFolder(self):
         init_dir = Path("./cases")

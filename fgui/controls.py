@@ -94,6 +94,7 @@ class ScrollableTreeView(Frame):
     def __init__(self, master, allowSave:bool = False, **kwargs):
         super().__init__(master, **kwargs)
         self.post_func = _empty_postfunc
+        self._afterf = None
         self.lb_title = Label(self, text=_loc["NOT_OPEN"])
         self.tree = Treeview(self)
         self.tree.grid(row=1,column=0,sticky='nsew')
@@ -118,6 +119,8 @@ class ScrollableTreeView(Frame):
         self.onSave = None
         self.edit_mode:'dict[str, tuple[str, Any, Callable[[tuple[Any,...], str],None]]]' = {}
         self._emd = EditModeDirection.UNDEFINED
+        self.delegate_widget = None
+        self.selected_item = None
 
     def save(self):
         if self.onSave:
@@ -263,16 +266,30 @@ class ScrollableTreeView(Frame):
         self.lb_save.config(text=_loc["UNSAVED"],foreground="red")
 
     def tree_item_edit_done(self, e):
-        if not isinstance(self.delegate_widget, Toplevel):
+        if self.delegate_widget and not isinstance(self.delegate_widget, Toplevel):
             self.delegate_widget.place_forget()
         v = self.delegate_var.get()
-        line = self.tree.item(self.selected_item, 'values')
+        if not self.selected_item: return
+        try:
+            line = self.tree.item(self.selected_item, 'values')
+        except:
+            return
         assert isinstance(line, tuple)
         self.post_func(line, v)
         if self.selected_column is None:
             self.tree.item(self.selected_item, text=v)
         else:
             self.tree.set(self.selected_item, self.selected_column, v)
+        self._afterf and self._afterf()
+    
+    @property
+    def AfterFunc(self):
+        '''Function to be executed when an item is editted'''
+        return self._afterf
+    
+    @AfterFunc.setter
+    def AfterFunc(self, v):
+        self._afterf = v
     
     def __setitem__(self, key, val):
         self.tree[key] = val
@@ -461,13 +478,19 @@ class PropertyPanel(Frame):
     def setData(self, data:dict[str,str],
             edit_modes:Optional[dict[str,EditMode]] = None,
             default_edit_mode:EditMode = EditMode.ENTRY, 
-            desc:Optional[dict[str, str]] = None):
+            desc:Optional[dict[str, str]] = None,
+            edit_modes_kwargs:Optional[dict[str,dict[str,Any]]] = None):
+        self.tree.tree_item_edit_done(None)
         self.data = data
         if edit_modes is None: edit_modes = {}
         self.tree.clear()
         for l, r in data.items():
             self.tree.insert("", "end", values=(l, r))
-            self.tree.setCellEditMode(l, "d", edit_modes.get(l, default_edit_mode))
+            if edit_modes_kwargs and l in edit_modes_kwargs:
+                kwargs = edit_modes_kwargs[l]
+            else:
+                kwargs = {}
+            self.tree.setCellEditMode(l, "d", edit_modes.get(l, default_edit_mode), **kwargs)
         self.__desc_dict = desc if desc else {}
         
     
