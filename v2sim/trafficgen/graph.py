@@ -1,6 +1,7 @@
 from typing import DefaultDict, List, Dict
 import threading
 import sumolib
+from feasytools import EdgeFinder, Point
 Net = sumolib.net.Net
 Edge = sumolib.net.edge.Edge
 Node = sumolib.net.node.Node
@@ -10,7 +11,7 @@ matplotlib.use('Agg')
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 from ..locale import Lang
-from ..traffic import EdgeFinder, Point, load_fcs, load_scs
+from ..traffic import load_fcs, load_scs
 
 def _largeStackExec(func, *args):
     import sys

@@ -1,8 +1,7 @@
 from itertools import repeat
 from typing import Iterable, Type, Union, Optional, TypeVar, Generic
-from feasytools import RangeList
+from feasytools import RangeList, KDTree, Point
 from ..locale import Lang
-from .geo import KDTree, Point
 from .utils import readXML
 from .params import *
 from .evdict import EVDict

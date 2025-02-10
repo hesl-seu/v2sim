@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
-<pdn interval="300" enabled="YES" srcbus="B1" srcVpu="1.0" maxVpu="1.15" minVpu="0.85" maxIkA="0.866" />
+<pdn interval="300" enabled="YES" diableSmartCharge="YES" loadReductionBus="B1,B2" maxLoadReductionProp="0.5"/>
 <v2g interval="300" enabled="YES">
 <online>
 <item btime="28800" etime="36000" />

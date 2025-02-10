@@ -10,10 +10,10 @@ from tkinter import filedialog
 from tkinter import messagebox as MB
 from v2sim import *
 from fpowerkit import Grid as PowerGrid
-from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc
+from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
 import xml.etree.ElementTree as ET
 
-DEFAULT_PDN_ATTR = {"srcbus": "B1", "srcVpu":"1.0", "maxVpu":"1.15", "minVpu": "0.85", "maxIkA":"0.866"}
+DEFAULT_PDN_ATTR = {}
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
 
@@ -149,6 +149,9 @@ _loc.SetLanguageLib("zh_CN",
     CS_BUSSELECTED = "在给定母线中选择",
     CS_BUSRANDOM = "在N条随机母线中选择",
     CS_BTN_GEN = "生成充电站",
+    NOT_OPEN = "未打开",
+    SAVED = "已保存",
+    UNSAVED = "未保存",
 )
 
 _loc.SetLanguageLib("en",
@@ -278,6 +281,9 @@ _loc.SetLanguageLib("en",
     CS_BUSSELECTED = "From given",
     CS_BUSRANDOM = "From N random buses",
     CS_BTN_GEN = "Generate",
+    NOT_OPEN = "Not open",
+    SAVED = "Saved",
+    UNSAVED = "Unsaved",
 )
 
 SIM_YES = "YES" #_loc["SIM_YES"]
@@ -1048,6 +1054,14 @@ class MainBox(Tk):
         self.cv_net = NetworkPanel(self.tab_Net)
         self.cv_net.pack(fill=BOTH, expand=True)
         self.panel_net = LabelFrame(self.tab_Net, text=_loc["RNET_TITLE"])
+        self.lb_gridsave = Label(self.panel_net, text=_loc["NOT_OPEN"])
+        self.lb_gridsave.pack(side='left',padx=3,pady=3, anchor='w')
+        def on_saved_changed(saved:bool):
+            if saved:
+                self.lb_gridsave.config(text=_loc["SAVED"],foreground="green")
+            else:
+                self.lb_gridsave.config(text=_loc["UNSAVED"],foreground="red")
+        self.cv_net.save_callback = on_saved_changed
         self.btn_savegrid = Button(self.panel_net, text=_loc["SAVE_GRID"], command=self.saveGrid)
         self.btn_savegrid.pack(side='left',padx=3,pady=3, anchor='w')
         self.lb_puvalues = Label(self.panel_net, text=_loc["PU_VALS"].format('Null','Null'))
@@ -1124,12 +1138,13 @@ class MainBox(Tk):
 
     @property
     def saved(self):
-        return self.sim_plglist.saved and self.FCS_editor.saved and self.SCS_editor.saved
+        return self.sim_plglist.saved and self.FCS_editor.saved and self.SCS_editor.saved and self.cv_net.saved
     
     def save(self):
         if not self.sim_plglist.saved: self.sim_plglist.save()
         if not self.FCS_editor.saved: self.FCS_editor.save()
         if not self.SCS_editor.saved: self.SCS_editor.save()
+        if not self.cv_net.saved: self.saveGrid()
     
     def saveGrid(self):
         defpath = self.folder+"/"+DEFAULT_GRID_NAME
@@ -1422,6 +1437,7 @@ class MainBox(Tk):
             self.tabs.select(self.tab_Net)
             time.sleep(0.01)
             self.tabs.select(tab_ret)
+            self.lb_gridsave.config(text=_loc["SAVED"],foreground="green")
             def work():
                 if self.state.grid:
                     self.cv_net.setGrid(PowerGrid.fromFile(self.state.grid))

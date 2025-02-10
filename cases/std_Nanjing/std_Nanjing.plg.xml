@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
-<pdn interval="300" enabled="YES" srcbus="B0_1,B1_1,B2_1,B3_1,B4_1,B5_1,B6_1,B7_1,B8_1,B9_1,B10_1,B11_1,B12_1,B13_1,B14_1,B15_1,B16_1,B17_1,B18_1,B19_1,B20_1,B21_1,B22_1,B23_1,B24_1,B25_1,B26_1,B27_1,B28_1,B29_1" srcVpu="1.1" maxVpu="1.2" minVpu="0.8" maxIkA="1.0" />
+<pdn interval="300" enabled="YES" diableSmartCharge="YES" />
 <v2g interval="300" enabled="YES">
 <online>
 <item btime="28800" etime="36000" />

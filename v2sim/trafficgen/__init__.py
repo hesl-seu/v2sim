@@ -3,6 +3,7 @@ from enum import IntEnum
 from itertools import repeat
 from pathlib import Path
 from feasytools import ArgChecker
+from feasytools.pdf import *
 from fpowerkit import Grid
 from sumolib.net import readNet, Net
 from typing import IO, Any, Literal, TypeVar, Union
@@ -14,7 +15,6 @@ from .graph import ELGraph, plot_graph
 from .poly import PolygonMan
 from .tripgen import EVsGenerator
 from .csquery import csQuery
-from .pdf import *
 
 DEFAULT_CNAME = str(Path(__file__).parent.parent / "probtable")
 

@@ -1,10 +1,11 @@
 from enum import StrEnum
 from .view import *
-from typing import Any, Callable, Optional
-from feasytools import RangeList, SegFunc
+from typing import Any, Callable, Iterable, Optional
+from feasytools import RangeList, SegFunc, CreatePDFunc
+from feasytools.pdf import *
 from tkinter import messagebox as MB
 from v2sim import CustomLocaleLib, PDFunc
-from v2sim.trafficgen.pdf import *
+from fpowerkit import Bus, Line, Generator, PVWind
 
 _loc = CustomLocaleLib(["zh_CN","en"])
 _loc.SetLanguageLib("zh_CN",
@@ -170,12 +171,12 @@ class ScrollableTreeView(Frame):
             combo_values:Optional[list[str]] = None,
             rangelist_hint:bool = False, 
             post_func:Callable[[tuple[Any,...], str],None] = _empty_postfunc):
-        if mode == "spin":
+        if mode == EditMode.SPIN:
             self.edit_mode[label] = (mode, (spin_from, spin_to), post_func)
-        elif mode == "combo":
+        elif mode == EditMode.COMBO:
             if combo_values is None: combo_values = []
             self.edit_mode[label] = (mode, combo_values, post_func)
-        elif mode == "rangelist":
+        elif mode == EditMode.RANGELIST:
             self.edit_mode[label] = (mode, rangelist_hint, post_func)
         elif mode == EditMode.PROP:
             if prop_edit_modes is None: prop_edit_modes = {}
@@ -250,16 +251,13 @@ class ScrollableTreeView(Frame):
             self.delegate_widget.bind('<Destroy>', self.tree_item_edit_done)
         elif mode_str == EditMode.SEGFUNC:
             d = self.delegate_var.get()
-            try:
-                float(d)
-                d = f"[(0,{d})]"
-            except:
-                pass
-            self.delegate_widget = SegFuncEditor(SegFunc(eval(d)), self.delegate_var)
+            obj = eval(d)
+            if obj is None: obj = []
+            elif isinstance(obj, (float,int)): obj = [(0,obj)]
+            self.delegate_widget = SegFuncEditor(SegFunc(obj), self.delegate_var)
             self.delegate_widget.bind('<Destroy>', self.tree_item_edit_done)
         else:
             return
-        
         if not isinstance(self.delegate_widget, Toplevel):
             self.delegate_widget.place(width=w, height=h, x=x, y=y)
         self.delegate_widget.focus()
@@ -453,7 +451,7 @@ class SegFuncEditor(Toplevel):
             MB.showerror(_loc["ERROR"], _loc["INVALID_SEG_FUNC"])
             return
         if len(d) == 0:
-            self.var.set(ALWAYS_ONLINE)
+            self.var.set(str(None))
         else:
             self.var.set(str(d))
         self.destroy()
@@ -466,6 +464,41 @@ class SegFuncEditor(Toplevel):
         return SegFunc(res)
 
 
+class EditDesc:
+    def __init__(self, typename:type):
+        self._t = typename.__name__
+        self._desc:dict[str,str] = {}
+        self._text:dict[str,str] = {}
+        self._dtype:dict[str,type] = {}
+        self._em:dict[str,EditMode] = {}
+        self._em_kwargs:dict[str,dict[str,Any]] = {}
+        self._onchanged:dict[str,Optional[Callable[[Any,Any],None]]] = {}
+    
+    def add(self, key:str, show:str, dtype:type, desc:str, 
+            edit_mode:EditMode, onchanged = None, **kwargs):
+        self._desc[key] = desc
+        self._text[key] = show
+        self._dtype[key] = dtype
+        self._em[key] = edit_mode
+        self._em_kwargs[key] = kwargs
+        self._onchanged[key] = onchanged
+        return self
+    
+    @staticmethod
+    def create(typename:type, default_edit_mode:EditMode):
+        return EditDesc(typename, default_edit_mode)
+
+class EditDescGroup:
+    def __init__(self, EditDescs:Iterable[EditDesc]):
+        self._eds = {ed._t:ed for ed in EditDescs}
+    
+    def get(self, inst:Any) -> EditDesc:
+        typename = type(inst).__name__
+        if typename not in self._eds:
+            raise KeyError(f"Type {typename} not found in EditDescGroup")
+        return self._eds[typename]
+    
+
 class PropertyPanel(Frame):
     def __onclick(self, event):
         if len(self.tree.selection()) == 0:
@@ -475,6 +508,10 @@ class PropertyPanel(Frame):
         selected_row = self.tree.item(self.selected_item, "values")[0]
         self.__desc_var.set(self.__desc_dict.get(selected_row, _loc["PROP_NODESC"]))
     
+    def setObj(self, obj: Any, edesc:EditDesc):
+        self.tree.tree_item_edit_done(None)
+        self.setData(obj.__dict__, edesc._em, edesc._dem, edesc._desc, edesc._em_kwargs)
+
     def setData(self, data:dict[str,str],
             edit_modes:Optional[dict[str,EditMode]] = None,
             default_edit_mode:EditMode = EditMode.ENTRY, 
@@ -562,7 +599,7 @@ class PDFuncEditor(Toplevel):
             values=["Normal", "Uniform", "Triangular", 
             "Exponential", "Gamma", "Weibull", 
             "Beta", "LogNormal", "LogLogistic"])
-        self.cb.bind('<<ComboboxSelected>>', lambda x: self.reset_tree(create_pd_func(self.model.get())))
+        self.cb.bind('<<ComboboxSelected>>', lambda x: self.reset_tree(CreatePDFunc(self.model.get())))
         self.cb.grid(row=0,column=1,padx=3,pady=3,sticky="w")
         self.fr0.pack(fill="x", expand=True)
         self.tree = ScrollableTreeView(self, allowSave=False)
@@ -586,7 +623,7 @@ class PDFuncEditor(Toplevel):
         for i in self.tree.get_children():
             x = self.tree.tree.item(i, "values")
             res[x[0]] = float(x[1])
-        return create_pd_func(self.model.get(), **res)
+        return CreatePDFunc(self.model.get(), **res)
     
     def save(self):
         d = self.getAllData()

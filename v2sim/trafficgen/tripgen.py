@@ -1,13 +1,12 @@
 import random, time, sumolib
 from typing import Literal, Optional
-from feasytools import ReadOnlyTable
+from feasytools import ReadOnlyTable, PDFunc
 import numpy as np
 
 from ..locale import Lang
 from ..traffic import EV, EVDict, readXML, DetectFiles
 from .misc import random_diff, TripInner, _EV, _xmlSaver
 from .poly import PolygonMan
-from .pdf import PDFunc
 
 
 TAZ_TYPE_LIST = ["Home", "Work", "Relax", "Other"]

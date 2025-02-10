@@ -5,8 +5,7 @@ import numpy as np
 import pickle, gzip
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
-from feasytools import PQueue
-from .geo import Point
+from feasytools import PQueue, Point
 from .trip import TripsLogger
 from .cslist import *
 from .ev import *

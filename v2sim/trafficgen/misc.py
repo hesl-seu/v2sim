@@ -1,11 +1,10 @@
 import gzip, random
-from typing import Optional, Union
-
-from .pdf import *
+from typing import Any, Optional, Sequence, Union
+from feasytools.pdf import *
 from ..locale import Lang
 from ..traffic import EV,Trip
 
-def random_diff(seq, exclude):
+def random_diff(seq:Sequence[Any], exclude:Any):
     """
     Choose a random element from `seq` that is not equal to `exclude`
     """
