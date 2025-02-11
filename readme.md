@@ -14,12 +14,14 @@ V2Sim is a microscopic V2G simulation platform in urban power and transportation
 
 2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get the newest version of SUMO.
 
-3. Setup necessary packages. Ensure you have installed `pip` together with Python.
+3. Setup Gurobi (`https://gurobi.com`) if you want to use power grid simulation within V2Sim. You have to apply for a Gurobi license on your own and it is free for academic purpose.
+
+4. Setup necessary packages. Ensure you have installed `pip` together with Python.
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Download this repo. You can directly download this repo by clicking the `download` button on this page. Or you can setup `git` and clone this repo by the following command. The official tutorial about using `git` is [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+5. Download this repo. You can directly download this repo by clicking the `download` button on this page. Or you can setup `git` and clone this repo by the following command. The official tutorial about using `git` is [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
 ```bash
 git clone https://github.com/fmy-xfk/v2sim.git
 ```
@@ -57,6 +59,8 @@ Click the `Project` menu and open the folder you have created. You will see some
 3. Generate charging stations: Switch to `Fast CS` and `Slow CS` respectively to generate differnt types of charging stations. We strongly recommend you to generate CS from the downloaded positions if you are using a real-world road network. Click the `Generate` button to generate CS.
 
 + Do **NOT** click `Generate` repeatedly even if it seems not working. The progress will be shown in the command prompt instead of popping up another window.
+
++ **Generating Fast CS is neccessary**, while generating slow CS is not.
 
 + A successful result is like this:
 
