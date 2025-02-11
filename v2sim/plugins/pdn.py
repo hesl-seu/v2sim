@@ -60,19 +60,11 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         res = DetectFiles(str(work_dir))
         assert res.grid, _locale["ERROR_NO_GRID"]
         self.__gr = Grid.fromFile(res.grid, True)
-        v1bus = elem.get("srcbus")
-        if not v1bus:
-            raise RuntimeError("v1bus not specified")
         decs = elem.get("loadReductionBus","").split(",")
         if elem.get("diableSmartCharge","NO") == "YES":
             decs.clear()
         self.__sol = DistFlowSolver(self.__gr,
-            source_buses=v1bus.split(","),
-            source_bus_V_pu=float(elem.get("srcVpu","1.0")),
-            min_v_pu=float(elem.get("minVpu","0.85")),
-            max_v_pu=float(elem.get("maxVpu","1.15")),
-            max_I_kA=float(elem.get("maxIkA","0.866")),
-            max_load_reduction_proportion=float(elem.get("maxLoadReductionProp","0.5")),
+            mlrp=float(elem.get("maxLoadReductionProp","0.5")),
         )
         self.__sol.SetErrorSaveTo(str(work_dir))
         self.__badcnt = 0
@@ -115,9 +107,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
                     print(_locale["PDN_SOLVE_FAILED"].format(_t,self.__badcnt))
             else:
                 if ok == GridSolveResult.OKwithoutVICons or ok == GridSolveResult.SubOKwithoutVICons:
-                    print(f"t={_t}, Relax: Vmin={self.__sol.real_min_v_pu:.3f},",
-                          f"Vmax={self.__sol.real_max_v_pu:.3f},",
-                          f"Imax={self.__sol.real_max_I_kA:.2f}", file = self.__fh)
+                    print(f"t={_t}, Relax!", file = self.__fh)
                 if self.isSmartChargeEnabled():
                     for c in chain(self.__inst.FCSList,self.__inst.SCSList):
                         c.set_Pc_lim(float("inf"))
