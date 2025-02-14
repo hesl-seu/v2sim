@@ -30,12 +30,12 @@ class PluginV2G(PluginBase[V2GRes]):
     def _load_state(self,state:object) -> None:
         '''Load the plugin state'''
 
-    def Initialization(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plugin_dependency:'list[PluginBase]')->V2GRes:
+    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plg_deps:'list[PluginBase]')->V2GRes:
         self.__inst = inst
         self.SetPreStep(self._work)
 
-        assert len(plugin_dependency) == 1 and isinstance(plugin_dependency[0], IGridPlugin), _locale["ERROR_NO_PDN"]
-        self.__pdn = plugin_dependency[0]
+        assert len(plg_deps) == 1 and isinstance(plg_deps[0], IGridPlugin), _locale["ERROR_NO_PDN"]
+        self.__pdn = plg_deps[0]
         if isinstance(self.__pdn, PluginPDN) and self.__pdn.isSmartChargeEnabled():
             raise RuntimeError(_locale["ERROR_SMART_CHARGE"])
         self.__inst = inst

@@ -2,6 +2,8 @@ from collections import defaultdict
 from itertools import chain
 from feasytools import TimeImplictFunc
 from fpowerkit import Grid, FloatVar, GridSolveResult, DistFlowSolver, LoadReduceModule
+
+from v2sim.plugins.base import Getter, Setter, Validator
 from ..locale import CustomLocaleLib
 from ..traffic import DetectFiles, CS
 from .base import *
@@ -28,9 +30,16 @@ _locale.SetLanguageLib("en",
     PDN_SOLVE_OK_SINCE = "[PDN] Succeed to solve the PDN since time: {0}. Previously failed for {1} times"
 )
 
-def _sv(x: FloatVar)->float:
+def _sv(x)->float:
     assert x is not None, _locale["ERROR_SOLVE_FAILED"]
     return x
+
+def _isfloat(x):
+    try:
+        float(x)
+        return True
+    except:
+        return False
 
 class PluginPDN(PluginBase[float], IGridPlugin):
     @property
@@ -47,10 +56,11 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         '''Save the plugin state'''
         return None
         
-    def _load_state(self,state:object) -> None:
+    def _load_state(self, state:object) -> None:
         '''Load the plugin state'''
 
-    def Initialization(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plugin_dependency:'list[PluginBase]') -> float:
+    def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path,
+            res_dir:Path, plg_deps:'list[PluginBase]') -> float:
         '''Initialize the plugin from the XML element'''
         self.__inst = inst
         self.SetPreStep(self.PreStep)
@@ -60,11 +70,11 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         res = DetectFiles(str(work_dir))
         assert res.grid, _locale["ERROR_NO_GRID"]
         self.__gr = Grid.fromFile(res.grid, True)
-        decs = elem.get("loadReductionBus","").split(",")
-        if elem.get("diableSmartCharge","NO") == "YES":
+        decs = elem.get("DecBuses","").split(",")
+        if elem.get("SmartCharge", "NO") == "NO":
             decs.clear()
         self.__sol = DistFlowSolver(self.__gr,
-            mlrp=float(elem.get("maxLoadReductionProp","0.5")),
+            mlrp=float(elem.get("MLRP","0.5")),
         )
         self.__sol.SetErrorSaveTo(str(work_dir))
         self.__badcnt = 0
@@ -77,13 +87,13 @@ class PluginPDN(PluginBase[float], IGridPlugin):
             v = TimeImplictFunc(self.__create_closure(css, self.__gr.Sb_MVA))
             self.__gr.Bus(b).Pd += v
             if b in decs:
-                self.__sol.dec_buses[b] = LoadReduceModule(b, v)
+                self.__sol.AddReduce(b, v)
         self.last_ok = GridSolveResult.Failed
         return 1e100
 
     def isSmartChargeEnabled(self)->bool:
         '''Check if smart charging is enabled'''
-        return len(self.__sol.dec_buses) > 0
+        return len(self.__sol.DecBuses) > 0
     
     @property
     def Solver(self):
@@ -111,7 +121,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
                 if self.isSmartChargeEnabled():
                     for c in chain(self.__inst.FCSList,self.__inst.SCSList):
                         c.set_Pc_lim(float("inf"))
-                    for b,x in self.__sol.dec_buses.items():
+                    for b,x in self.__sol.DecBuses.items():
                         if x.Reduction:
                             tot = x.Limit(_t)
                             k = (tot - x.Reduction) / tot

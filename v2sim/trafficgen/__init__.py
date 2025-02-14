@@ -2,7 +2,7 @@ from collections import defaultdict
 from enum import IntEnum
 from itertools import repeat
 from pathlib import Path
-from feasytools import ArgChecker
+from feasytools import ArgChecker, KDTree
 from feasytools.pdf import *
 from fpowerkit import Grid
 from sumolib.net import readNet, Net
@@ -115,6 +115,11 @@ class TrafficGenerator:
             self.__cs_file = self.__cfg["cscsv"]
         else:
             self.__cs_file = ""
+        
+        if "grid" in self.__cfg:
+            self.__grid_file = self.__cfg["grid"]
+        else:
+            self.__grid_file = ""
 
     def EVTripsFromArgs(self, args: Union[str, ArgChecker]):
         """
@@ -158,6 +163,7 @@ class TrafficGenerator:
         mode: Literal["fcs", "scs"] = "fcs",
         bus: ListSelection = ListSelection.ALL,
         busCount: int = -1,
+        grid_file: str = "",
         givenBus: list[str] = [],
         cs: ListSelection = ListSelection.ALL,
         csCount: int = -1,
@@ -245,9 +251,29 @@ class TrafficGenerator:
         else:
             cs_names = cs.select(self.__ava_fcs if mode == "fcs" else self.__ava_scs, csCount, givenCS)
             cs_slots = repeat(slots, len(cs_names))
-        bus_names = bus.select(self.__bus_names, busCount, givenBus)
-        for sl, cname in zip(cs_slots, cs_names):
-            fp.write(f'<{mode} name="{mode}_{cname}" edge="{cname}" slots="{sl}" bus="{random.choice(bus_names)}"')
+        use_grid = False
+        bp:list[Point] = []
+        if grid_file != "":
+            gr = Grid.fromFile(grid_file)
+            use_grid = True
+            for b in gr.Buses:
+                lon, lat = b.LonLat
+                try:
+                    assert lon is not None or lat is not None
+                    x, y = el.Net.convertLonLat2XY(lon, lat)
+                except:
+                    use_grid = False
+                    break
+                bp.append(Point(x,y))
+            bus_names = gr.BusNames
+        if use_grid:
+            bkdt:KDTree[str] = KDTree(bp, bus_names)
+            selector = lambda cname: bkdt.nearest_mapped(Point(*el.get_edge_pos(cname)))  
+        else:
+            bus_names = bus.select(self.__bus_names, busCount, givenBus)
+            selector = lambda cname: random.choice(bus_names)
+        for sl, cname in zip(cs_slots, cs_names):            
+            fp.write(f'<{mode} name="{mode}_{cname}" edge="{cname}" slots="{sl}" bus="{selector(cname)}"')
             if mode == "scs":
                 fp.write(f' v2galloc="Average"')
             if cname in cs_pos:
@@ -281,6 +307,7 @@ class TrafficGenerator:
         file: str = "",
         bus: ListSelection = ListSelection.ALL,
         busCount: int = -1,
+        grid_file: str = "",
         givenBus: list[str] = [],
         cs: ListSelection = ListSelection.ALL,
         csCount: int = -1,
@@ -308,6 +335,7 @@ class TrafficGenerator:
             cs_file = file,
             bus=bus,
             busCount=busCount,
+            grid_file=grid_file,
             givenBus=givenBus,
             cs=cs,
             csCount=csCount,
@@ -324,6 +352,7 @@ class TrafficGenerator:
         file: str = "",
         bus: ListSelection = ListSelection.ALL,
         busCount: int = -1,
+        grid_file: str = "",
         givenBus: list[str] = [],
         cs: ListSelection = ListSelection.ALL,
         csCount: int = -1,
@@ -356,6 +385,7 @@ class TrafficGenerator:
             cs_file = file,
             bus=bus,
             busCount=busCount,
+            grid_file=grid_file,
             givenBus=givenBus,
             cs=cs,
             csCount=csCount,
@@ -376,6 +406,11 @@ class TrafficGenerator:
             print("CS file detected: ", cs_file)
         else:
             cs_file = params.pop_str("cs-file", "")
+        if self.__grid_file != "":
+            grid_file = self.__grid_file
+            print("Grid file detected: ", grid_file)
+        else:
+            grid_file = params.pop_str("grid-file", "")
         randomize_pbuy = params.pop_bool("randomize-pbuy")
         pbuy_method = PricingMethod.RANDOM if randomize_pbuy else PricingMethod.FIXED
         psell = params.pop_float("psell", 1.0)

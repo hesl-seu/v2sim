@@ -7,13 +7,13 @@ from tkinter import messagebox as MB
 from feasytools import SegFunc, ConstFunc, TimeFunc
 from typing import Any, Callable, Iterable, Optional, Union
 from v2sim import ELGraph, Edge
-from fpowerkit import Bus, Line, Generator, PVWind
+from fpowerkit import Bus, Line, Generator, PVWind, ESS
 from fpowerkit import Grid as fGrid
 from .controls import EditMode, PropertyPanel
 from .view import *
 
 
-GenOrPVW = Union[Generator, PVWind]
+GenLike = Union[Generator, PVWind, ESS]
 PointList = list[tuple[float, float]]
 OESet = Optional[set[str]]
 OAfter = Optional[Callable[[], None]]
@@ -76,7 +76,7 @@ class BIDC:
     
 class NetworkPanel(Frame):
     def __init__(self, master, roadnet:Optional[ELGraph]=None, 
-            grid:Optional[Grid]=None, save_callback:Optional[Callable[[bool],None]]=None, **kwargs):
+            grid:Optional[fGrid]=None, save_callback:Optional[Callable[[bool],None]]=None, **kwargs):
         super().__init__(master, **kwargs)
 
         self._cv = Canvas(self, bg='white')
@@ -115,8 +115,10 @@ class NetworkPanel(Frame):
             self._scale['x'] += dx
             self._scale['y'] += dy
     
-    def convLL2XY(self, lon:float, lat:float) -> tuple[float, float]:
+    def convLL2XY(self, lon:Optional[float], lat:Optional[float]) -> tuple[float, float]:
         '''Convert longitude and latitude to canvas coordinates'''
+        if lon is None: lon = 0
+        if lat is None: lat = 0
         if self._r:
             try:
                 x, y = self._r.Net.convertLonLat2XY(lon, lat)
@@ -169,7 +171,7 @@ class NetworkPanel(Frame):
                 self._draw_async(after=after)
             else:
                 self._draw()
-                after and after()
+                if after: after()
     
     @property
     def Enabled(self) -> bool:
@@ -200,6 +202,10 @@ class NetworkPanel(Frame):
     
     def _onLClick(self, event):
         if not self.__en: return
+        def _edit_id(typename:str, clicked_item:int) -> int:
+            if typename.endswith("conn"): return clicked_item + 1
+            elif typename.endswith("text"): return clicked_item + 2
+            else: return clicked_item
         x, y = event.x, event.y
         nr_item = self._cv.find_closest(x, y)
         ovl_item = self._cv.find_overlapping(x-5, y-5, x+5, y+5)
@@ -207,11 +213,13 @@ class NetworkPanel(Frame):
             clicked_item = nr_item[0]
             self.UnlocateAllEdges()
             itm = self._items[clicked_item]
+            assert self._r is not None
+            assert self._g is not None
             if itm.type == "edge":
                 self._pr.setData({
-                    "Name":itm.desc, 
-                    "Has FCS": itm.desc in self._r.FCSNames,
-                    "Has SCS": itm.desc in self._r.SCSNames,
+                    "Name": itm.desc, 
+                    "Has FCS": str(itm.desc in self._r.FCSNames),
+                    "Has SCS": str(itm.desc in self._r.SCSNames),
                 }, default_edit_mode=EditMode.DISABLED)
                 self.LocateEdge(itm.desc, 'purple')
             elif itm.type in ("bus", "bustext"):
@@ -234,7 +242,7 @@ class NetworkPanel(Frame):
                 l = self._g.Line(itm.desc)
                 self._pr.setData({
                     "Name":l.ID,"From Bus":l.fBus,"To Bus":l.tBus,
-                    "R/pu":l.R,"X/pu":l.X,"MaxI/kA":l.max_I,
+                    "R/pu":l.R,"X/pu":l.X,"MaxI/kA":l.max_I,"Length/km":l.L
                 }, default_edit_mode=EditMode.ENTRY,
                 edit_modes={
                     "From Bus":EditMode.COMBO, "To Bus":EditMode.COMBO
@@ -264,39 +272,42 @@ class NetworkPanel(Frame):
                     "Bus": {"combo_values":self._g.BusNames}
                 })
                 self._item_editing = g
-                if itm.type == "gen":
-                    self._item_editing_id = clicked_item
-                elif itm.type == "genconn":
-                    self._item_editing_id = clicked_item + 1
-                else:
-                    self._item_editing_id = clicked_item + 2
+                self._item_editing_id = _edit_id(itm.type, clicked_item)
             elif itm.type in ("pvw", "pvwtext", "pvwconn"):
                 p = self._g.PVWind(itm.desc.removesuffix(".text").removesuffix(".conn"))
-                self._pr.setData({
-                    "Name":p.ID,"Bus":p.BusID,
-                    "Longitude":p.Lon,"Latitude":p.Lat,
-                    "P/pu":p.P,"Power Factor":p.PF,
-                    "Tag":p._tag, "Curtail Cost":p.CC,
-                }, default_edit_mode=EditMode.ENTRY, desc={
-                    "Power Factor": "Power Factor should be 0.0~1.0",
-                    "Tag": "Tag should be 'PV' or 'Wind'",
-                    "Curtail Cost": "Unit = $/(pu pwr·h)"
-                }, edit_modes={
-                    "P/pu":EditMode.SEGFUNC, "Bus":EditMode.COMBO,
-                }, edit_modes_kwargs={
-                    "Bus": {"combo_values":self._g.BusNames}
-                })
+                self._pr.setData2({
+                    "Name":         (p.ID,      "Name of the PV/Wind generator"),
+                    "Bus":          (p.BusID,   "Bus to which the PV/Wind generator is connected",  EditMode.COMBO, {"combo_values":self._g.BusNames}),
+                    "Longitude":    (p.Lon,),
+                    "Latitude":     (p.Lat,),
+                    "P/pu":         (p.P,       "Active power output of the PV/Wind generator", EditMode.SEGFUNC),
+                    "Power Factor": (p.PF,      "Power Factor should be 0.0~1.0"),
+                    "Tag":          (p._tag,    "Tag should be 'PV' or 'Wind'", EditMode.COMBO, {"combo_values":['PV', 'Wind']}),
+                    "Curtail Cost": (p.CC,      "Unit = $/(pu pwr·h)"),
+                }, EditMode.ENTRY)
                 self._item_editing = p
-                if itm.type == "pvw":
-                    self._item_editing_id = clicked_item
-                elif itm.type == "pvwconn":
-                    self._item_editing_id = clicked_item + 1
-                else:
-                    self._item_editing_id = clicked_item + 2
+                self._item_editing_id = _edit_id(itm.type, clicked_item)
+            elif itm.type in ('ess', 'esstext', 'essconn'):
+                e = self._g.ESS(itm.desc.removesuffix(".text").removesuffix(".conn"))
+                self._pr.setData2({
+                    "Name":         (e.ID,      "Name of the ESS"),
+                    "Bus":          (e.BusID,   "Bus to which the ESS is connected",  EditMode.COMBO, {"combo_values":self._g.BusNames}),
+                    "Longitude":    (e.Lon,),
+                    "Latitude":     (e.Lat,),
+                    "Capacity/MWh": (e.Cap * self._g.Sb_MVA, "Maximum active power output of the ESS"),
+                    "SOC":          (e.SOC,     "State of Charge of the ESS, 0~1"),
+                    "Ec":           (e.EC,      "Charging Efficiency of the ESS"),
+                    "Ed":           (e.ED,      "Discharging Efficiency of the ESS"),
+                    "Max Pc/kW":    (e.MaxPc * self._g.Sb_kVA, "Maximum Charging Power, kW"),
+                    "Max Pd/kW":    (e.MaxPd * self._g.Sb_kVA, "Maximum Discharging Power, kW"),
+                    "Power factor": (e.PF,      "Power factor"),
+                }, EditMode.ENTRY)
+                self._item_editing = e
+                self._item_editing_id = _edit_id(itm.type, clicked_item)
             else:
                 self._pr.setData({})
             self._pr.tree.show_title(f"Type: {itm.type} (ID = {clicked_item})")
-            if itm.type == 'bus' or itm.type == 'gen' or itm.type == 'pvw':
+            if itm.type in ('bus', 'gen', 'pvw', 'ess'):
                 self._drag['item'] = clicked_item
                 self._drag["x"] = event.x
                 self._drag["y"] = event.y
@@ -309,17 +320,18 @@ class NetworkPanel(Frame):
         elif isinstance(v, TimeFunc):
             return v
         else:
-            return SegFunc(v)
+            return SegFunc(v) # type: ignore
 
     @property
     def saved(self) -> bool:
         return self.__saved
     @saved.setter
     def saved(self, v:bool):
-        self.save_callback and self.save_callback(v)
+        if self.save_callback: self.save_callback(v)
         self.__saved = v
     
-    def __move_gen(self, i:int, e:GenOrPVW, nLon:float, nLat:float, move_gen:bool=True):
+    def __move_gen(self, i:int, e:GenLike, nLon:float, nLat:float, move_gen:bool=True):
+        assert e.Lon is not None and e.Lat is not None
         x0, y0 = self.convLL2XY(e.Lon, e.Lat)
         x1, y1 = self.convLL2XY(nLon, nLat)
         e.Lon = nLon
@@ -327,21 +339,28 @@ class NetworkPanel(Frame):
         dx, dy = x1 - x0, y1 - y0
         if move_gen: self._cv.move(i, dx, dy)
         self._cv.move(i-2, dx, dy)
+        assert self._g is not None
         self.__replot_genline(i-1, e, self._g.Bus(e.BusID))
     
-    def __replot_genline(self, i:int, e:GenOrPVW, b:Bus):
+    def __replot_genline(self, i:int, e:GenLike, b:Bus):
+        assert e.Lon is not None and e.Lat is not None
+        assert b.Lon is not None and b.Lat is not None
         x0, y0 = self.convLL2XY(e.Lon, e.Lat)
         x1, y1 = self.convLL2XY(b.Lon, b.Lat)
         self._cv.coords(i, x0, y0, x1, y1)
     
     def __move_line(self, i:int, e:Line):
+        assert self._g is not None
         latf1, lonf1 = self._g.Bus(e.fBus).position
+        assert latf1 is not None and lonf1 is not None
         pf1 = self.convLL2XY(lonf1,latf1)
         latt1, lont1 = self._g.Bus(e.tBus).position
+        assert latt1 is not None and lont1 is not None
         pt1 = self.convLL2XY(lont1,latt1)
         self._cv.coords(i, pf1[0], pf1[1], pt1[0], pt1[1])
     
     def __move_bus(self, i:int, e:Bus, nLon:float, nLat:float, move_bus:bool=True):
+        assert e.Lon is not None and e.Lat is not None
         x0, y0 = self.convLL2XY(e.Lon, e.Lat)
         x1, y1 = self.convLL2XY(nLon, nLat)
         e.Lon = nLon
@@ -350,6 +369,7 @@ class NetworkPanel(Frame):
         if move_bus:
             self._cv.move(i, dx, dy)
         self._cv.move(i-1, dx, dy)
+        assert self._g is not None
         for g in self._g.GensAtBus(e.ID):
             gid = self._items.queryID(g.ID)
             self.__replot_genline(gid-1, g, e)
@@ -367,6 +387,7 @@ class NetworkPanel(Frame):
         ret = self._pr.getAllData()
         e = self._item_editing
         i = self._item_editing_id
+        assert self._g is not None
         if isinstance(e, Bus):
             if ret['Name'] != e.ID and ret['Name'] in self._g.BusNames:
                 MB.showerror("Error", f"New name duplicated: {ret['Name']}")
@@ -422,11 +443,25 @@ class NetworkPanel(Frame):
         elif isinstance(e, Line):
             self._g.ChangeLineFromBus(e.ID, ret['From Bus'])
             self._g.ChangeLineToBus(e.ID, ret['To Bus'])
-            e.R = ret['R/pu']
-            e.X = ret['X/pu']
-            e.max_I = ret['MaxI/kA']
+            e.R = float(ret['R/pu'])
+            e.X = float(ret['X/pu'])
+            e.L = float(ret['Length/km'])
+            e.max_I = float(ret['MaxI/kA'])
             self.__move_line(i, e)
             self._g.ChangeLineID(e.ID, ret['Name'])
+            e._id = ret['Name']
+        elif isinstance(e, ESS):
+            nLon = float(ret['Longitude'])
+            nLat = float(ret["Latitude"])
+            e.Cap = float(ret['Capacity/MWh']) / self._g.Sb_MVA
+            e._elec = float(ret['SOC']) * e.Cap
+            e.EC = float(ret['Ec'])
+            e.ED = float(ret['Ed'])
+            e.MaxPc = float(ret['Max Pc']) / self._g.Sb_kVA
+            e.MaxPd = float(ret['Max Pd']) / self._g.Sb_kVA
+            e.PF = float(ret['Power factor'])
+            self._g.ChangeESSBus(e.ID, ret['Bus'])
+            self._g.ChangeESSID(e.ID, ret['Name'])
             e._id = ret['Name']
         self.saved = False
 
@@ -453,9 +488,20 @@ class NetworkPanel(Frame):
         i = self._drag["item"]
         self._drag["item"] = None
         if isinstance(i,int):
+            assert self._g is not None
             self.saved = False
-            x1,y1,x2,y2 = self._cv.coords(i)
-            nLon, nLat = self.convXY2LL((x1+x2)/2,(y1+y2)/2)
+            co = self._cv.coords(i)
+            if len(co) == 4: 
+                x1,y1,x2,y2 = co
+                cx = (x1+x2)/2
+                cy = (y1+y2)/2
+            elif len(co) == 6: # PVW
+                x1, y1, x2, y2, x3, y3 = co
+                cx = x1
+                cy = (y1+y2)/2
+            else:
+                raise RuntimeError("Invalid item")
+            nLon, nLat = self.convXY2LL(cx, cy)
             if self._items[i].type == 'bus':
                 e = self._g.Bus(self._items[i].desc)
                 self.__move_bus(i, e, nLon, nLat, False)
@@ -464,6 +510,9 @@ class NetworkPanel(Frame):
                 self.__move_gen(i, e, nLon, nLat, False)
             elif self._items[i].type == 'pvw':
                 e = self._g.PVWind(self._items[i].desc)
+                self.__move_gen(i, e, nLon, nLat, False)
+            elif self._items[i].type == 'ess':
+                e = self._g.ESS(self._items[i].desc)
                 self.__move_gen(i, e, nLon, nLat, False)
     
     def _onMouseWheel(self, event):
@@ -517,6 +566,7 @@ class NetworkPanel(Frame):
             self._cv.itemconfig(pid, fill=c, width=lw)
         
     def __get_edge_prop(self, edge:str) -> tuple[str, float]:
+        assert self._r is not None
         if edge in self._r.FCSNames:
             return ("darkblue",3) if edge in self._r.EdgeIDSet else ("darkgray",3)
         elif edge in self._r.SCSNames:
@@ -542,7 +592,7 @@ class NetworkPanel(Frame):
                 elif t == 'g':
                     self._draw_gen(*x)
                 elif t == 'a':
-                    x and x()
+                    if x: x()
                     self.__en = True
         except queue.Empty:
             pass
@@ -564,14 +614,19 @@ class NetworkPanel(Frame):
         self._items[self._cv.create_line(x1,y1,x2,y2,width=lw,fill=color)] = itemdesc('line', name)
     
     def _draw_gen(self,x,y,r,color,lw,name,xb,yb,tp):
-        assert tp == 'gen' or tp == 'pvw'
+        assert tp == 'gen' or tp == 'pvw' or tp == 'ess'
         self._items[self._cv.create_text(x+1.8*r,y+1.8*r,text=name)] = itemdesc(tp+'text', name+".text")
         self._items[self._cv.create_line(x, y, xb, yb, width=lw)] = itemdesc(tp+"conn", name+".conn")
-        self._items[self._cv.create_oval(x-r, y-r, x+r, y+r, fill=color, width=lw)] = itemdesc(tp, name)
+        if tp == 'gen':
+            self._items[self._cv.create_oval(x-r, y-r, x+r, y+r, fill=color, width=lw)] = itemdesc(tp, name)
+        elif tp == 'pvw':
+            self._items[self._cv.create_polygon(x, y-r, x-r, y+r, x+r, y+r, fill=color, outline='black', width=lw)] = itemdesc(tp, name)
+        else:
+            self._items[self._cv.create_rectangle(x-r, y-r, x+r, y+r, fill=color, width=lw)] = itemdesc(tp, name)
 
     def _draw_bus(self,x,y,r,color,lw,name):
         self._items[self._cv.create_text(x+1.8*r,y+1.8*r,text=name)] = itemdesc('bustext', name+".text")
-        self._items[self._cv.create_rectangle(x-r, y-r, x+r, y+r, fill=color, width=lw)] = itemdesc("bus", name)
+        self._items[self._cv.create_rectangle(x-0.5*r, y-r, x+0.5*r, y+r, fill=color, width=lw)] = itemdesc("bus", name)
     
     def _draw(self, scale:float=1.0, dx:float=0.0, dy:float=0.0, center:bool=True, async_:bool=False, after:OAfter=None):
         if self._r is None: return
@@ -583,9 +638,9 @@ class NetworkPanel(Frame):
             minx, miny, maxx, maxy = self._r.Net.getBoundary()
             edges = self._r.Net.getEdges()
             for e in edges:
-                e: Edge
+                assert isinstance(e, Edge)
                 ename:str = e.getID()
-                shape = e.getShape()
+                shape = e.getShape() # type: ignore
                 if shape is None:
                     raise ValueError(f"Edge {ename} has no shape")
                 shape:PointList
@@ -600,7 +655,7 @@ class NetworkPanel(Frame):
         if self._g is not None:
             if minx > maxx or miny > maxy:
                 r = 5
-                cx, cy = 0
+                cx, cy = 0, 0
             else:
                 r = max(maxx-minx, maxy-miny)/100
                 cx = minx
@@ -620,14 +675,14 @@ class NetworkPanel(Frame):
                     self.__q.put(('l',t))
                 else:
                     self._draw_line(*t)
-            for g in chain(self._g.Gens, self._g.PVWinds):
-                tp = 'gen' if isinstance(g, Generator) else 'pvw'
+            for g in chain(self._g.Gens, self._g.PVWinds, self._g.ESSs):
+                tp = g.__class__.__name__.lower()[:3]
                 xb, yb = self.convLL2XY(*self._g.Bus(g.BusID).LonLat)
                 if g.Lon is None or g.Lat is None:
                     x,y = xb, yb+3*r
                     locless += 1
                     g.Lon, g.Lat = self.convXY2LL(x,y)
-                    t = "Generator" if tp == 'gen' else "PVWind"
+                    t = g.__class__.__name__
                     print(f"{t} {g.ID} has no location, set to Lon, Lat = ({b.Lon:.6f},{b.Lat:.6f})")
                 x, y = self.convLL2XY(g.Lon, g.Lat)
                 t = (x, y, r, 'white', 2, g.ID, xb, yb, tp)
@@ -649,7 +704,7 @@ class NetworkPanel(Frame):
             self.__q_closed = True
         else:
             if center: self._center()
-            after and after()
+            if after: after()
             self.__en = True
     
     def saveGrid(self, path:str):

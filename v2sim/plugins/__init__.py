@@ -94,7 +94,7 @@ class PluginMan:
             for d in dependencies:
                 if d not in self.__curPlugins: raise PluginError(Lang.PLG_DEPS_NOT_LOADED.format(itm.tag,d))
                 deps.append(self.__curPlugins[d])
-            self.Add(plugin_type(inst,itm,work_dir,res_dir,plugin_dependency=deps))
+            self.Add(plugin_type(inst,itm,work_dir,res_dir,plg_deps=deps))
     
     def PreSimulationAll(self):
         '''Execute all plugins PreSimulation, return all plugins return value'''

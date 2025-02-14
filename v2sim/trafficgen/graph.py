@@ -130,6 +130,18 @@ class ELGraph:
             raise RuntimeError(str(dist))
         return edge_id
     
+    def get_edge_pos(self, edge:str):
+        e:Edge = self._net.getEdge(edge)
+        shp = e.getShape()
+        assert shp is not None
+        sx = sy = 0
+        for (x,y) in shp:
+            sx += x; sy+= y
+        sx /= len(shp); sy /= len(shp)
+        assert isinstance(sx, (float,int))
+        assert isinstance(sy, (float,int))
+        return sx, sy
+    
     @property
     def FCSNames(self) -> set[str]:
         '''Return the set of FCS edge names'''

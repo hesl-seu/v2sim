@@ -3,6 +3,7 @@ from pathlib import Path
 from queue import Empty, Queue
 import threading
 from typing import Any, Optional
+from fgui.controls import empty_postfunc
 from fgui.network import OAfter
 from fgui.view import *
 from fgui import ScrollableTreeView, ALWAYS_ONLINE, PDFuncEditor, PropertyPanel, EditMode, NetworkPanel
@@ -13,9 +14,14 @@ from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
 import xml.etree.ElementTree as ET
 
-DEFAULT_PDN_ATTR = {}
+DEFAULT_PDN_ATTR = {
+    "SmartCharge": "NO",
+    "DecBuses":"",
+    "MLRP":"0.5",
+}
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
+
 
 def showerr(msg:str):
     MB.showerror(_loc["MB_ERROR"], msg)
@@ -146,6 +152,7 @@ _loc.SetLanguageLib("zh_CN",
     CS_PB5SEGS = "5段式随机价格",
     CS_PBFIXED = "固定价格",
     CS_BUSMODE = "母线选择方式",
+    CS_BUSBYPOS = "根据母线位置选择(若所有母线地理位置已指定)",
     CS_BUSUSEALL = "在所有可用母线中选择",
     CS_BUSSELECTED = "在给定母线中选择",
     CS_BUSRANDOM = "在N条随机母线中选择",
@@ -279,6 +286,7 @@ _loc.SetLanguageLib("en",
     CS_PB5SEGS = "5 segements random",
     CS_PBFIXED = "Fixed",
     CS_BUSMODE = "Bus Selection Mode",
+    CS_BUSBYPOS = "By bus location (if all bus locations are specified)",
     CS_BUSUSEALL = "From all available",
     CS_BUSSELECTED = "From given",
     CS_BUSRANDOM = "From N random buses",
@@ -290,7 +298,37 @@ _loc.SetLanguageLib("en",
 
 SIM_YES = "YES" #_loc["SIM_YES"]
 SIM_NO = "NO" #_loc["SIM_NO"]
-    
+LOAD_CFG = "SUMO Config"
+LOAD_FCS = "Fast CS"
+LOAD_SCS = "Slow CS"
+LOAD_NET = "Network"
+LOAD_CSCSV = "CS CSV"
+LOAD_PLG = "Plugins"
+LOAD_GEN = "Instance"
+
+
+class PluginEditor(ScrollableTreeView):
+    def __init__(self, master, onEnabledSet:Callable[[tuple[Any,...], str], None] = empty_postfunc, **kwargs):
+        super().__init__(master, True, **kwargs)
+        self.__onset = onEnabledSet
+        self["show"] = 'headings'
+        self["columns"] = ("Name", "Interval", "Enabled", "Online", "Extra")
+        self.column("Name", width=120, stretch=NO)
+        self.column("Interval", width=100, stretch=NO)
+        self.column("Enabled", width=100, stretch=NO)
+        self.column("Online", width=200, stretch=NO)
+        self.column("Extra", width=200, stretch=YES)
+        self.heading("Name", text=_loc["SIM_PLGNAME"])
+        self.heading("Interval", text=_loc["SIM_EXEINTV"])
+        self.heading("Enabled", text=_loc["SIM_ENABLED"])
+        self.heading("Online", text=_loc["SIM_PLGOL"])
+        self.heading("Extra", text=_loc["SIM_PLGPROP"])
+        self.setColEditMode("Interval", EditMode.SPIN, spin_from=1, spin_to=86400)
+        self.setColEditMode("Enabled", EditMode.COMBO, combo_values=[SIM_YES, SIM_NO], post_func=onEnabledSet)
+        self.setColEditMode("Online", EditMode.RANGELIST, rangelist_hint = True)
+        self.setColEditMode("Extra", EditMode.PROP)
+        
+
 class CSEditorGUI(Frame):
     def __init__(self, master, generatorFunc, canV2g:bool, file:str="", **kwargs):
         super().__init__(master, **kwargs)
@@ -332,23 +370,23 @@ class CSEditorGUI(Frame):
         self.tree.heading("PriceBuy", text=_loc["CSE_PRICEBUY"])
         self.tree.heading("PcAlloc", text=_loc["CSE_PCALLOC"])
 
-        self.tree.setColEditMode("Edge", "entry")
-        self.tree.setColEditMode("Slots", "spin", spin_from = 0, spin_to = 100)
-        self.tree.setColEditMode("Bus", "entry")
-        self.tree.setColEditMode("x", "entry")
-        self.tree.setColEditMode("y", "entry")
-        self.tree.setColEditMode("Online", "rangelist", rangelist_hint=True)
-        self.tree.setColEditMode("MaxPc", "spin", spin_from = 0, spin_to = 1000)
-        self.tree.setColEditMode("PriceBuy", "segfunc")
-        self.tree.setColEditMode("PcAlloc", "combo", combo_values=["Average", "Prioritized"])
+        self.tree.setColEditMode("Edge", EditMode.ENTRY)
+        self.tree.setColEditMode("Slots", EditMode.SPIN, spin_from = 0, spin_to = 100)
+        self.tree.setColEditMode("Bus", EditMode.ENTRY)
+        self.tree.setColEditMode("x", EditMode.ENTRY)
+        self.tree.setColEditMode("y", EditMode.ENTRY)
+        self.tree.setColEditMode("Online", EditMode.RANGELIST, rangelist_hint=True)
+        self.tree.setColEditMode("MaxPc", EditMode.SPIN, spin_from = 0, spin_to = 1000)
+        self.tree.setColEditMode("PriceBuy", EditMode.SEGFUNC)
+        self.tree.setColEditMode("PcAlloc", EditMode.COMBO, combo_values=["Average", "Prioritized"])
         
         if canV2g:
             self.tree.heading("PriceSell", text=_loc["CSE_PRICESELL"])
             self.tree.heading("MaxPd", text=_loc["CSE_MAXPD"])
             self.tree.heading("PdAlloc", text=_loc["CSE_PDALLOC"])
-            self.tree.setColEditMode("PriceSell", "segfunc")
-            self.tree.setColEditMode("MaxPd", "spin", spin_from = 0, spin_to = 1000)
-            self.tree.setColEditMode("PdAlloc", "combo", combo_values=["Average"])
+            self.tree.setColEditMode("PriceSell", EditMode.SEGFUNC)
+            self.tree.setColEditMode("MaxPd", EditMode.SPIN, spin_from = 0, spin_to = 1000)
+            self.tree.setColEditMode("PdAlloc", EditMode.COMBO, combo_values=["Average"])
         self.tree.pack(fill="both", expand=True)
 
         self.panel2 = Frame(self)
@@ -424,16 +462,18 @@ class CSEditorGUI(Frame):
 
         self.busMode = IntVar(self, 0)
         self.group_bus = LabelFrame(self.gens, text=_loc["CS_BUSMODE"])
-        self.rb_busAll = Radiobutton(self.group_bus, text=_loc["CS_BUSUSEALL"], value=0, variable=self.busMode, command=self._busModeChanged)
-        self.rb_busAll.grid(row=0,column=0,padx=3,pady=3,sticky="w")
-        self.rb_busSel = Radiobutton(self.group_bus, text=_loc["CS_BUSSELECTED"], value=1, variable=self.busMode, command=self._busModeChanged)
-        self.rb_busSel.grid(row=0,column=1,padx=3,pady=3,sticky="w")
+        self.rb_busGrid = Radiobutton(self.group_bus, text=_loc["CS_BUSBYPOS"], value=0, variable=self.busMode, command=self._busModeChanged)
+        self.rb_busGrid.grid(row=0,column=0,padx=3,pady=3,sticky="w")
+        self.rb_busAll = Radiobutton(self.group_bus, text=_loc["CS_BUSUSEALL"], value=1, variable=self.busMode, command=self._busModeChanged)
+        self.rb_busAll.grid(row=0,column=1,padx=3,pady=3,sticky="w")
+        self.rb_busSel = Radiobutton(self.group_bus, text=_loc["CS_BUSSELECTED"], value=2, variable=self.busMode, command=self._busModeChanged)
+        self.rb_busSel.grid(row=0,column=2,padx=3,pady=3,sticky="w")
         self.entry_bussel = Entry(self.group_bus, state="disabled")
-        self.entry_bussel.grid(row=0,column=2,padx=3,pady=3,sticky="w")
-        self.rb_busRandN = Radiobutton(self.group_bus, text=_loc["CS_BUSRANDOM"], value=2, variable=self.busMode, command=self._busModeChanged)
-        self.rb_busRandN.grid(row=0,column=3,padx=3,pady=3,sticky="w")
+        self.entry_bussel.grid(row=0,column=3,padx=3,pady=3,sticky="w")
+        self.rb_busRandN = Radiobutton(self.group_bus, text=_loc["CS_BUSRANDOM"], value=3, variable=self.busMode, command=self._busModeChanged)
+        self.rb_busRandN.grid(row=0,column=4,padx=3,pady=3,sticky="w")
         self.entry_busrandN = Entry(self.group_bus, state="disabled")
-        self.entry_busrandN.grid(row=0,column=4,padx=3,pady=3,sticky="w")
+        self.entry_busrandN.grid(row=0,column=5,padx=3,pady=3,sticky="w")
         self.group_bus.grid(row=5,column=0,padx=3,pady=3,sticky="nesw")
 
         self.btn_regen = Button(self.gens, text=_loc["CS_BTN_GEN"], command=self.generate)
@@ -553,10 +593,10 @@ class CSEditorGUI(Frame):
     
     def _busModeChanged(self):
         v = self.busMode.get()
-        if v == 0:
+        if v == 0 or v == 1:
             self.entry_bussel.config(state="disabled")
             self.entry_busrandN.config(state="disabled")
-        elif v == 1:
+        elif v == 2:
             self.entry_bussel.config(state="normal")
             self.entry_busrandN.config(state="disabled")
         else:
@@ -598,13 +638,16 @@ class CSEditorGUI(Frame):
                 showerr("Invalid random N of CS")
                 return
             givenCS = []
+        use_grid = False
+        busCount = -1
+        givenbus = []
         if self.busMode.get() == 0:
+            use_grid = True
             bus = ListSelection.ALL
-            busCount = -1
-            givenbus = []
         elif self.busMode.get() == 1:
+            bus = ListSelection.ALL
+        elif self.busMode.get() == 2:
             bus = ListSelection.GIVEN
-            busCount = -1
             try:
                 givenbus = self.entry_bussel.get().split(',')
             except:
@@ -620,7 +663,6 @@ class CSEditorGUI(Frame):
             except:
                 showerr("Invalid random N of bus")
                 return
-            givenbus = []
         
         if self.pbuy.get() == 0:
             pbuyM = PricingMethod.RANDOM
@@ -646,11 +688,12 @@ class CSEditorGUI(Frame):
         else:
             psellM = PricingMethod.FIXED
             psell = 0
-        self.gf(self.use_cscsv.get(), seed = seed, mode = mode, slots = slots,
+        self.btn_regen.config(state=DISABLED)
+        self.gf(self, self.use_cscsv.get(), seed = seed, mode = mode, slots = slots,
                 bus = bus, busCount = busCount, givenBus = givenbus,
                 cs = cs, csCount = csCount, givenCS = givenCS, 
                 priceBuyMethod = pbuyM, priceBuy = pbuy, priceSellMethod = psellM, 
-                priceSell = psell, hasSell = self.csType == SCS)
+                priceSell = psell, hasSell = self.csType == SCS, use_grid = use_grid)
 
     def __update_gui(self):
         cnt = 0
@@ -662,7 +705,7 @@ class CSEditorGUI(Frame):
                 if t == 'v':
                     self.tree.insert("", "end", values=x)
                 elif t == 'a':
-                    x and x()
+                    if x: x()
         except queue.Empty:
             pass
         if not self.__q_closed or cnt >= LIMIT:
@@ -712,7 +755,7 @@ class CSEditorGUI(Frame):
             self.__q.put(('a', after))
             self.__q_closed = False
         else:
-            after and after()
+            if after: after()
     
     
 class CSCSVEditor(Frame):
@@ -777,7 +820,7 @@ class CSCSVEditor(Frame):
             self.__q.put(('a', after))
             self.__q_closed = True
         else:
-            after and after()
+            if after: after()
 
     def __update_gui(self):
         LIMIT = 50
@@ -789,7 +832,7 @@ class CSCSVEditor(Frame):
                 if t == 'v':
                     self.tree.insert("", "end", values=x)
                 elif t == 'a':
-                    x and x()
+                    if x: x()
         except queue.Empty:
             pass
         if not self.__q_closed or cnt >= LIMIT:
@@ -991,23 +1034,7 @@ class MainBox(Tk):
         self.sim_cb_save_on_finish.grid(row=6, column=0, padx=3, pady=3, sticky="w", columnspan=2)
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_loc["SIM_PLUGIN"])
-        self.sim_plglist = ScrollableTreeView(self.sim_plugins, True)
-        self.sim_plglist['show'] = 'headings'
-        self.sim_plglist["columns"] = ("Name", "Interval", "Enabled", "Online", "Extra")
-        self.sim_plglist.column("Name", width=120, stretch=NO)
-        self.sim_plglist.column("Interval", width=100, stretch=NO)
-        self.sim_plglist.column("Enabled", width=100, stretch=NO)
-        self.sim_plglist.column("Online", width=200, stretch=NO)
-        self.sim_plglist.column("Extra", width=200, stretch=YES)
-        self.sim_plglist.heading("Name", text=_loc["SIM_PLGNAME"])
-        self.sim_plglist.heading("Interval", text=_loc["SIM_EXEINTV"])
-        self.sim_plglist.heading("Enabled", text=_loc["SIM_ENABLED"])
-        self.sim_plglist.heading("Online", text=_loc["SIM_PLGOL"])
-        self.sim_plglist.heading("Extra", text=_loc["SIM_PLGPROP"])
-        self.sim_plglist.setColEditMode("Interval", "spin", spin_from=1, spin_to=86400)
-        self.sim_plglist.setColEditMode("Enabled", "combo", combo_values=[SIM_YES,SIM_NO],post_func=self._OnPDNEnabledSet())
-        self.sim_plglist.setColEditMode("Online", "rangelist", rangelist_hint = True)
-        self.sim_plglist.setColEditMode("Extra", "prop")
+        self.sim_plglist = PluginEditor(self.sim_plugins, self._OnPDNEnabledSet())
         self.sim_plglist.pack(fill="both", expand=True)
         self.sim_plugins.pack(fill="x", expand=False)
         self.sim_plglist.setOnSave(self.savePlugins())
@@ -1150,6 +1177,7 @@ class MainBox(Tk):
     
     def saveGrid(self):
         defpath = self.folder+"/"+DEFAULT_GRID_NAME
+        assert self.state is not None
         if self.state.grid:
             path = self.state.grid
             os.remove(path)
@@ -1229,6 +1257,8 @@ class MainBox(Tk):
             node_rf = node_input.find("route-files")
             if node_rf is not None:
                 route_file_name = node_rf.get("value")
+                if not isinstance(route_file_name, str):
+                    route_file_name = ""
                 node_input.remove(node_rf)
                 cflag = True
         if cflag:
@@ -1325,92 +1355,75 @@ class MainBox(Tk):
             showerr(f"Error loading traffic generator: {e}")
             self.tg = None
         else:
-            after and after()
+            if after: after()
     
     def _load(self,loads:Optional[list[str]]=None, async_:bool = True):
         if not self.folder:
             showerr("No project folder selected")
             return
-        frm = LoadingBox([
-            'INST','SCS','FCS','CSCSV','ROADNET','GRID'
-        ])
-        if loads is None: loads = []
-        self.after(100, self.__load_part2, loads, async_, frm)
+        if loads is None: loads = [
+            LOAD_GEN, LOAD_CFG, LOAD_FCS, LOAD_SCS, LOAD_CSCSV, LOAD_NET, LOAD_PLG
+        ]
+        frm = LoadingBox(loads)
+        self.after(100, self.__load_part2, set(loads), async_, frm)
     
-    def __load_part2(self, loads:list[str], async_:bool, frm:LoadingBox):
+    def __load_part2(self, loads:set[str], async_:bool, frm:LoadingBox):
         self.state = res = DetectFiles(self.folder)
         self.title(f"{_loc['TITLE']} - {self.folder}")
+        # Check if grid exists
+        if not res.grid: 
+            with open(self.folder+"/"+DEFAULT_GRID_NAME,"w") as f:
+                f.write(DEFAULT_GRID)
+            self.state = res = DetectFiles(self.folder)
         
-        threading.Thread(target = self._load_tg, args=(lambda:frm.setText('INST',_loc['DONE']),), daemon = True).start()
-        if len(loads) == 0 or "cfg" in loads:
+        # Load traffic generator
+        if LOAD_GEN in loads:
+            threading.Thread(target = self._load_tg, args=(
+                lambda:frm.setText(LOAD_GEN, _loc['DONE']),
+            ), daemon = True).start()
+
+        # Load SUMO config
+        if LOAD_CFG in loads:
             if res.cfg:
-                st,et,_ = get_sim_config(res.cfg)
+                st,et,x = get_sim_config(res.cfg)
                 if st == -1: st = 0
                 if et == -1: et = 172800
                 self.entry_start.delete(0, END)
                 self.entry_start.insert(0, str(st))
                 self.entry_end.delete(0, END)
                 self.entry_end.insert(0, str(et))
-        if len(loads) == 0 or "fcs" in loads:
-            self._load_fcs(async_, lambda: frm.setText('FCS',_loc['DONE']))
-        if len(loads) == 0 or "scs" in loads:
-            self._load_scs(async_, lambda: frm.setText('SCS',_loc['DONE']))
-        if len(loads) == 0 or "cscsv" in loads:
-            self._load_cscsv(async_, lambda: frm.setText('CSCSV',_loc['DONE']))
-        if len(loads) == 0 or "grid" in loads:
-            if not res.grid: 
-                with open(self.folder+"/"+DEFAULT_GRID_NAME,"w") as f:
-                    f.write(DEFAULT_GRID)
-                self.state = res = DetectFiles(self.folder)
-        if len(loads) == 0 or "plg" in loads:
-            has_pdn = False
-            pdn_enabled = False
-            has_v2g = False
-            self.sim_plglist.clear()
-            if res.plg:
-                for p in readXML(res.plg).getroot():
-                    if p.tag.lower() == "pdn": 
-                        has_pdn = True
-                        attr = DEFAULT_PDN_ATTR.copy()
-                    else:
-                        attr = {}
-                    if p.tag.lower() == "v2g": has_v2g = True
-                    olelem = p.find("online")
-                    if olelem is not None: ol_str = RangeList(olelem)
-                    else: ol_str = ALWAYS_ONLINE
-                    enabled = p.attrib.pop("enabled", SIM_YES)
-                    if enabled.upper() != SIM_NO:
-                        enabled = SIM_YES
-                        if p.tag.lower() == "pdn": 
-                            pdn_enabled = True
-                    intv = p.attrib.pop("interval")
-                    attr.update(p.attrib)
-                    self.sim_plglist.insert("", "end", values=(
-                        p.tag, intv, enabled, ol_str, repr(attr)
-                    ))
-            if not has_pdn:
-                self.sim_plglist.insert("", "end", values=("pdn", "300", SIM_YES, ALWAYS_ONLINE, repr(DEFAULT_PDN_ATTR)))
-                has_pdn = True
-                pdn_enabled = True
-            t = has_pdn and pdn_enabled
-            tv = "enabled" if t else "disabled"
-            self.sim_sta_gen.set(t)
-            self.sim_cb_gen.configure(state=tv)
-            self.sim_sta_bus.set(t)
-            self.sim_cb_bus.configure(state=tv)
-            self.sim_sta_line.set(t)
-            self.sim_cb_line.configure(state=tv)
-            if not has_v2g:
-                self.sim_plglist.insert("", "end", values=("v2g", "300", SIM_YES, ALWAYS_ONLINE, "{}"))
-                has_v2g = True
-            if not res.plg:
-                self.sim_plglist.save()
+            frm.setText(LOAD_CFG, _loc['DONE'])
+        
+        # Load FCS
+        if LOAD_FCS in loads:
+            self._load_fcs(async_, 
+                lambda: frm.setText(LOAD_FCS, _loc['DONE']))
+
+        # Load SCS
+        if LOAD_SCS in loads:
+            self._load_scs(async_, 
+                lambda: frm.setText(LOAD_SCS, _loc['DONE']))
+        
+        # Load CSCSV
+        if LOAD_CSCSV in loads:
+            self._load_cscsv(async_, 
+                lambda: frm.setText(LOAD_CSCSV, _loc['DONE']))
+        
+        # Load plugins
+        if LOAD_PLG in loads:
+            self._load_plugins()
+            frm.setText(LOAD_PLG,_loc['DONE'])
+        
         self.rb_veh_src2.configure(state="normal" if "poly" in res else "disabled")
         self.rb_veh_src1.configure(state="normal" if "taz" in res else "disabled")
-        self.cv_net.clear()
+        
         self.state = res = DetectFiles(self.folder)
-        if len(loads) == 0 or "net" in loads:
-            self._load_network(self.tabs.select(), async_, lambda: (frm.setText('ROADNET',_loc['DONE']), frm.setText('GRID',_loc['DONE'])))
+
+        if LOAD_NET in loads:
+            self.cv_net.clear()
+            self._load_network(self.tabs.select(), async_, 
+                lambda: frm.setText(LOAD_NET, _loc['DONE']))
+        
         def setText(lb:Label, itm:str, must:bool = False):
             if itm in res:
                 lb.config(text=res[itm].removeprefix(self.folder), foreground="black")
@@ -1432,14 +1445,62 @@ class MainBox(Tk):
         setText(self.lb_cscsv, "cscsv")
 
         self.setStatus(_loc["STA_READY"])
+        if len(loads) == 0: frm.destroy()
     
+    def _load_plugins(self):
+        has_pdn = False
+        pdn_enabled = False
+        has_v2g = False
+        self.sim_plglist.clear()
+        assert self.state is not None
+        if self.state.plg:
+            for p in readXML(self.state.plg).getroot():
+                if p.tag.lower() == "pdn": 
+                    has_pdn = True
+                    attr = DEFAULT_PDN_ATTR.copy()
+                else:
+                    attr = {}
+                if p.tag.lower() == "v2g": has_v2g = True
+                olelem = p.find("online")
+                if olelem is not None: ol_str = RangeList(olelem)
+                else: ol_str = ALWAYS_ONLINE
+                enabled = p.attrib.pop("enabled", SIM_YES)
+                if enabled.upper() != SIM_NO:
+                    enabled = SIM_YES
+                    if p.tag.lower() == "pdn": 
+                        pdn_enabled = True
+                intv = p.attrib.pop("interval")
+                attr.update(p.attrib)
+                self.sim_plglist.insert("", "end", values=(
+                    p.tag, intv, enabled, ol_str, repr(attr)
+                ))
+        if not has_pdn:
+            self.sim_plglist.insert("", "end", values=("pdn", "300", SIM_YES, ALWAYS_ONLINE, repr(DEFAULT_PDN_ATTR)))
+            has_pdn = True
+            pdn_enabled = True
+        t = has_pdn and pdn_enabled
+        tv = "enabled" if t else "disabled"
+        self.sim_sta_gen.set(t)
+        self.sim_cb_gen.configure(state=tv)
+        self.sim_sta_bus.set(t)
+        self.sim_cb_bus.configure(state=tv)
+        self.sim_sta_line.set(t)
+        self.sim_cb_line.configure(state=tv)
+        if not has_v2g:
+            self.sim_plglist.insert("", "end", values=("v2g", "300", SIM_YES, ALWAYS_ONLINE, "{}"))
+            has_v2g = True
+        if not self.state.plg:
+            self.sim_plglist.save()
+        
     def _load_fcs(self, async_:bool = False, afterx:OAfter=None):
+        assert self.state is not None
         def after():
+            assert self.state is not None
             self.sim_sta_fcs.set("fcs" in self.state)
             self.sim_cb_fcs.configure(state="enabled" if "fcs" in self.state else "disabled")
             self.FCS_editor.setPoly("poly" in self.state)
             self.FCS_editor.setCSCSV("cscsv" in self.state)
-            afterx and afterx()
+            if afterx: afterx()
         if self.state.fcs:
             self.FCS_editor.load(self.state.fcs, async_, after)
         else:
@@ -1447,12 +1508,14 @@ class MainBox(Tk):
             after()
         
     def _load_scs(self, async_:bool = False, afterx:OAfter=None):
+        assert self.state is not None
         def after():
+            assert self.state is not None
             self.sim_sta_scs.set("scs" in self.state)
             self.sim_cb_scs.configure(state="enabled" if "scs" in self.state else "disabled")
             self.SCS_editor.setPoly("poly" in self.state)
             self.SCS_editor.setCSCSV("cscsv" in self.state)
-            afterx and afterx()
+            if afterx: afterx()
         if self.state.scs:
             self.SCS_editor.load(self.state.scs, async_, after)
         else:
@@ -1460,11 +1523,12 @@ class MainBox(Tk):
             after()
 
     def _load_cscsv(self, async_:bool = False, after:OAfter=None):
+        assert self.state is not None
         if self.state.cscsv:
             self.CsCsv_editor.load(self.state.cscsv, async_, after)
         else:
             self.CsCsv_editor.clear()
-            after()
+            if after: after()
     
     def _load_network(self, tab_ret, async_:bool = False, after:OAfter=None):
         if self.state and self.state.net:
@@ -1473,8 +1537,10 @@ class MainBox(Tk):
             self.tabs.select(tab_ret)
             self.lb_gridsave.config(text=_loc["SAVED"],foreground="green")
             def work():
+                assert self.state is not None and self.state.net is not None
                 if self.state.grid:
                     self.cv_net.setGrid(PowerGrid.fromFile(self.state.grid))
+                assert self.cv_net.Grid is not None
                 self.lb_puvalues.configure(text=_loc["PU_VALS"].format(self.cv_net.Grid.Ub,self.cv_net.Grid.Sb_MVA))
                 self.cv_net.setRoadNet(ELGraph(self.state.net,
                     self.state.fcs if self.state.fcs else "",
@@ -1493,7 +1559,7 @@ class MainBox(Tk):
             self.folder = str(Path(folder))
             self._load()
     
-    def generateCS(self, cscsv_mode:int, **kwargs):
+    def generateCS(self, ctl:CSEditorGUI, cscsv_mode:int, **kwargs):
         if not self.tg:
             showerr("No traffic generator loaded")
             return
@@ -1507,6 +1573,13 @@ class MainBox(Tk):
         else:
             cs_file = ""
             poly_file = self.state.poly if self.state else ""
+        use_grid = kwargs.pop("use_grid", False)
+        assert self.state is not None
+        if use_grid:
+            if self.state.grid is None:
+                showerr("No grid loaded")
+                return
+            kwargs["grid_file"] = self.state.grid
         kwargs["cs_file"] = cs_file
         kwargs["poly_file"] = poly_file
 
@@ -1515,12 +1588,14 @@ class MainBox(Tk):
                 if not self.tg: return
                 self.tg._CS(**kwargs)
                 if kwargs["mode"] == "fcs":
-                    self._load(["fcs"])
+                    self._load([LOAD_FCS, LOAD_GEN])
                 else:
-                    self._load(["scs"])
+                    self._load([LOAD_SCS, LOAD_GEN])
                 self._Q.put(("DoneOK", None))
             except Exception as e:
+                #raise e
                 self._Q.put(("DoneErr", e))
+            ctl.btn_regen.config(state=NORMAL)
         threading.Thread(target=work,daemon=True).start()    
     
     def generateVeh(self):
@@ -1554,14 +1629,16 @@ class MainBox(Tk):
             mode = "TAZ"
         else:
             mode = "Poly"
+        self.btn_genveh.config(state = DISABLED)
         def work():
             try:
                 assert self.tg
                 self.tg.EVTrips(carcnt, carseed, mode = mode, **new_pars)
-                self._load(["veh"])
+                self._load([])
                 self._Q.put(("DoneOK", None))
             except Exception as e:
                 self._Q.put(("DoneErr", e))
+            self.btn_genveh.config(state = NORMAL)
         threading.Thread(target=work,daemon=True).start()
 
     def draw(self):
@@ -1577,7 +1654,7 @@ class MainBox(Tk):
         def work():
             try:
                 csQuery(self.folder,"",key,True)
-                self._load(["cscsv"])
+                self._load([LOAD_CSCSV])
             except Exception as e:
                 self._Q.put(('DoneErr', f"Error downloading CS CSV: {e}"))
                 return

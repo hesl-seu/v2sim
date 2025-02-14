@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
-<pdn interval="300" enabled="YES" diableSmartCharge="YES" loadReductionBus="B1,B2" maxLoadReductionProp="0.5" />
+<pdn interval="300" enabled="YES" SmartCharge="NO" DecBuses="B1,B2" MLRP="0.5" />
 <v2g interval="300" enabled="YES">
 <online>
 <item btime="28800" etime="36000" />

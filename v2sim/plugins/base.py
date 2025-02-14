@@ -1,12 +1,17 @@
 from abc import abstractmethod
+from dataclasses import dataclass
 import enum
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
 from feasytools import RangeList
 from fpowerkit import Grid
 from ..traffic import TrafficInst
 from ..locale import Lang
+
+Getter = Callable[[Any], str]
+Setter = Callable[[str], Any]
+Validator = Callable[[str], bool]
 
 class PluginStatus(enum.IntEnum):
     '''Plugin status'''
@@ -51,8 +56,8 @@ class PluginBase(Generic[PIResult]):
     def _load_state(self,state:object) -> None:
         '''Load the plugin state'''
 
-    def __init__(self,inst:TrafficInst,elem:ET.Element,work_dir:Path,res_dir:Path,enable_time:Optional[RangeList]=None,
-            interval:int=0,plugin_dependency:'list[PluginBase]'=[]):
+    def __init__(self, inst:TrafficInst, elem:ET.Element, work_dir:Path, res_dir:Path, enable_time:Optional[RangeList]=None,
+            interval:int=0, plg_deps:'Optional[list[PluginBase]]' = None):
         '''
         Initialize the plugin
             inst: Traffic network simulation instance
@@ -79,7 +84,9 @@ class PluginBase(Generic[PIResult]):
             online_elem = elem.find("online")
             if online_elem is None: self.__on = None
             else: self.__on = RangeList(online_elem)
-        self.__respre = self.__respost = self.Initialization(elem,inst,work_dir,res_dir,plugin_dependency)
+        if plg_deps is None: plg_deps = []
+
+        self.__respre = self.__respost = self.Init(elem, inst, work_dir, res_dir, plg_deps)
     
     @property
     @abstractmethod
@@ -138,13 +145,14 @@ class PluginBase(Generic[PIResult]):
         return self.__respost
     
     @abstractmethod
-    def Initialization(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plugin_dependency:'list[PluginBase]') -> PIResult:
+    def Init(self, elem:ET.Element, inst:TrafficInst,
+            work_dir:Path, res_dir:Path, plg_deps:'list[PluginBase]') -> PIResult:
         '''
         Initialize the plugin from the XML element, TrafficInst, work path, result path, and plugin dependency.
         Return the result of offline.
         '''
     
-    def IsOnline(self,t:int):
+    def IsOnline(self, t:int):
         '''Determine if the plugin is online'''
         return self.__on is None or t in self.__on
     
@@ -158,7 +166,7 @@ class PluginBase(Generic[PIResult]):
         if self.__PostSimulation is not None:
             self.__PostSimulation()
     
-    def _precall(self,_t:int)->None:
+    def _precall(self, _t:int)->None:
         '''Run the plugin PreStep'''
         if self.__PreStep is None: return
         if self.__on != None and _t not in self.__on:
@@ -169,7 +177,7 @@ class PluginBase(Generic[PIResult]):
         else:
             self.__PreStep(_t,PluginStatus.HOLD)
     
-    def _postcall(self,_t:int,/)->None:
+    def _postcall(self, _t:int, /)->None:
         '''Run the plugin PostStep'''
         if self.__PostStep is None: return
         if self.__on != None and _t not in self.__on:

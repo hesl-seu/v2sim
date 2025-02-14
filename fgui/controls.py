@@ -65,7 +65,7 @@ _loc.SetLanguageLib("en",
 )
 
 ALWAYS_ONLINE = _loc['ALWAYS_ONLINE']
-def _empty_postfunc(itm:tuple[Any,...], val:str): pass
+def empty_postfunc(itm:tuple[Any,...], val:str): pass
 
 class EditMode(StrEnum):
     DISABLED = "disabled"
@@ -94,7 +94,7 @@ class ScrollableTreeView(Frame):
     
     def __init__(self, master, allowSave:bool = False, **kwargs):
         super().__init__(master, **kwargs)
-        self.post_func = _empty_postfunc
+        self.post_func = empty_postfunc
         self._afterf = None
         self.lb_title = Label(self, text=_loc["NOT_OPEN"])
         self.tree = Treeview(self)
@@ -170,7 +170,7 @@ class ScrollableTreeView(Frame):
             prop_desc:Optional[dict[str, str]] = None,
             combo_values:Optional[list[str]] = None,
             rangelist_hint:bool = False, 
-            post_func:Callable[[tuple[Any,...], str],None] = _empty_postfunc):
+            post_func:Callable[[tuple[Any,...], str], None] = empty_postfunc):
         if mode == EditMode.SPIN:
             self.edit_mode[label] = (mode, (spin_from, spin_to), post_func)
         elif mode == EditMode.COMBO:
@@ -253,8 +253,13 @@ class ScrollableTreeView(Frame):
             d = self.delegate_var.get()
             obj = eval(d)
             if obj is None: obj = []
-            elif isinstance(obj, (float,int)): obj = [(0,obj)]
-            self.delegate_widget = SegFuncEditor(SegFunc(obj), self.delegate_var)
+            elif isinstance(obj, (float, int)): obj = [(0,obj)]
+            assert isinstance(obj, list)
+            for xx in obj:
+                assert isinstance(xx, tuple)
+                assert isinstance(xx[0], int)
+                assert isinstance(xx[1], (int,float))
+            self.delegate_widget = SegFuncEditor(SegFunc(obj), self.delegate_var) # type: ignore
             self.delegate_widget.bind('<Destroy>', self.tree_item_edit_done)
         else:
             return
@@ -278,7 +283,7 @@ class ScrollableTreeView(Frame):
             self.tree.item(self.selected_item, text=v)
         else:
             self.tree.set(self.selected_item, self.selected_column, v)
-        self._afterf and self._afterf()
+        if self._afterf: self._afterf()
     
     @property
     def AfterFunc(self):
@@ -340,8 +345,8 @@ class RangeListEditor(Toplevel):
         self.tree.pack(fill="both", expand=True)
         for l,r in data:
             self.tree.insert("", "end", values=(l, r))
-        self.tree.setColEditMode("lb", "entry")
-        self.tree.setColEditMode("rb", "entry")
+        self.tree.setColEditMode("lb", EditMode.ENTRY)
+        self.tree.setColEditMode("rb", EditMode.ENTRY)
         if hint_hms:
             self.lb_hint = Label(self, text=_loc["TIME_FORMAT"])
             self.lb_hint.pack(fill="x", expand=False)
@@ -411,8 +416,8 @@ class SegFuncEditor(Toplevel):
         self.tree.pack(fill="both", expand=True)
         for l,r in data:
             self.tree.insert("", "end", values=(l, r))
-        self.tree.setColEditMode("t", "entry")
-        self.tree.setColEditMode("d", "entry")
+        self.tree.setColEditMode("t", EditMode.ENTRY)
+        self.tree.setColEditMode("d", EditMode.ENTRY)
         self.fr = Frame(self)
         self.fr.pack(fill="x", expand=False)
         self.btn_add = Button(self.fr, text=_loc["ADD"], command=self.add, width=6)
@@ -486,7 +491,7 @@ class EditDesc:
     
     @staticmethod
     def create(typename:type, default_edit_mode:EditMode):
-        return EditDesc(typename, default_edit_mode)
+        return EditDesc(typename)
 
 class EditDescGroup:
     def __init__(self, EditDescs:Iterable[EditDesc]):
@@ -510,9 +515,9 @@ class PropertyPanel(Frame):
     
     def setObj(self, obj: Any, edesc:EditDesc):
         self.tree.tree_item_edit_done(None)
-        self.setData(obj.__dict__, edesc._em, edesc._dem, edesc._desc, edesc._em_kwargs)
+        self.setData(obj.__dict__, edesc._em, EditMode.ENTRY, edesc._desc, edesc._em_kwargs)
 
-    def setData(self, data:dict[str,str],
+    def setData(self, data:dict[str, Any],
             edit_modes:Optional[dict[str,EditMode]] = None,
             default_edit_mode:EditMode = EditMode.ENTRY, 
             desc:Optional[dict[str, str]] = None,
@@ -529,7 +534,22 @@ class PropertyPanel(Frame):
                 kwargs = {}
             self.tree.setCellEditMode(l, "d", edit_modes.get(l, default_edit_mode), **kwargs)
         self.__desc_dict = desc if desc else {}
-        
+    
+    def setData2(self, data:dict[str, tuple[Any,...]], default_edit_mode:EditMode = EditMode.ENTRY):
+        new_data = {}
+        desc = {}
+        edit_modes = {}
+        edit_modes_kwargs = {}
+        for key, val in data.items():
+            assert len(val) >= 1
+            new_data[key] = val[0]
+            if len(val) >= 2:
+                desc[key] = val[1]
+            if len(val) >= 3:
+                edit_modes[key] = val[2]
+            if len(val) >= 4:
+                edit_modes_kwargs[key] = val[3]
+        self.setData(new_data, edit_modes, default_edit_mode, desc, edit_modes_kwargs)        
     
     def __init__(self, master, data:dict[str,str],
             edit_modes:Optional[dict[str,EditMode]] = None,
@@ -611,7 +631,7 @@ class PDFuncEditor(Toplevel):
         self.tree.heading("d", text=_loc["VALUE"])
         self.tree.pack(fill="both", expand=True)
         self.reset_tree(pdfunc)
-        self.tree.setColEditMode("d", "entry")
+        self.tree.setColEditMode("d", EditMode.ENTRY)
         self.fr = Frame(self)
         self.fr.pack(fill="x", expand=False)
         self.btn_save = Button(self.fr, text=_loc["SAVE_AND_CLOSE"], command=self.save)
