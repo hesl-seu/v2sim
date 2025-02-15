@@ -21,7 +21,7 @@ class DemoExternalPlugin(PluginBase):
     def Description(self)->str:
         return _locale["DESCRIPTION"]
     
-    def Initialization(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,plugin_dependency:'list[PluginBase]') -> object:
+    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,plg_deps:'list[PluginBase]') -> object:
         '''
         Add plugin initialization code here, return:
             Return value when the plugin is offline
