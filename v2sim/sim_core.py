@@ -31,12 +31,12 @@ def load_external_components(
             module = None
         if hasattr(module, "plugin_exports"):
             try:
-                plugin_pool._Register(*module.plugin_exports)
+                plugin_pool._Register(*module.plugin_exports) # type: ignore
             except Exception as e:
                 print(Lang.WARN_EXT_INVALID_PLUGIN.format(module_name, e))
         if hasattr(module, "sta_exports"):
             try:
-                sta_pool.Register(*module.sta_exports)
+                sta_pool.Register(*module.sta_exports) # type: ignore
             except Exception as e:
                 print(Lang.WARN_EXT_INVALID_STA.format(module_name, e))
                 
@@ -120,7 +120,7 @@ class V2SimInstance:
         load_last_state: bool = False,
         save_on_abort: bool = False,
         save_on_finish: bool = False,
-    ) -> tuple[bool, TrafficInst, StaWriter]:
+    ):
         '''
         Initialization
             cfgdir: Configuration folder
@@ -463,6 +463,7 @@ class V2SimInstance:
         '''
         while self.__inst.current_time < t:
             self.step()
+        return self.__inst.current_time
     
     def __load_plugin_states(self, p:Path):
         if not p.exists(): raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(p))
@@ -536,7 +537,7 @@ class V2SimInstance:
         dur = time.time() - self.__st_time
         print(Lang.MAIN_SIM_DONE.format(time2str(dur)),file=self.__out)
         self.__out.close()
-        self.stop(self.__pres / "saved_state" if self.save_on_finish else "")
+        self.stop(str(self.__pres / "saved_state") if self.save_on_finish else "")
         self.__print()
         self.__print(Lang.MAIN_SIM_DONE.format(time2str(dur)))
         self.__mpwrite("sim:done")

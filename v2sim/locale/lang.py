@@ -392,6 +392,22 @@ class CustomLocaleLib:
             self.__default = default_lang
         self.__lib = {lang: {} for lang in supports_lang}
     
+    @staticmethod
+    def LoadFromFolder(folder:str):
+        p = Path(folder)
+        if not p.exists():
+            raise FileNotFoundError(f"Folder {folder} not found.")
+        if not p.is_dir():
+            raise NotADirectoryError(f"{folder} is not a directory.")
+        langs = []
+        for pc in p.iterdir():
+            if pc.is_file() and pc.suffix == ".lang":
+                langs.append(pc.stem)
+        lib = CustomLocaleLib(langs)
+        for lang in langs:
+            lib.LoadLanguageLib(lang, str(p / f"{lang}.lang"))
+        return lib
+    
     @property
     def SupportedLanguage(self):
         return self.__supports
@@ -413,6 +429,14 @@ class CustomLocaleLib:
         for key,val in kwargs.items():
             self.__lib[lang][key] = val
     
+    def LoadLanguageLib(self, lang:str, path:str):
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line: continue
+                key,val = line.split("=", 1)
+                self.__lib[lang][key.strip()] = val
+    
     def __setitem__(self, key, value):
         assert isinstance(key, tuple)
         assert len(key) == 2
@@ -421,6 +445,10 @@ class CustomLocaleLib:
         self.__lib[key[0]][key[1]] = value
     
     def __getitem__(self, key) -> str:
+        assert isinstance(key, str)
+        return self.__lib[Lang.get_lang_code()][key]
+    
+    def __call__(self, key) -> str:
         assert isinstance(key, str)
         return self.__lib[Lang.get_lang_code()][key]
 

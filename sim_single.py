@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 from v2sim import (
     Lang, PluginPool, StaPool,
     WINDOWS_VISSUALIZE,
@@ -24,11 +25,14 @@ def error_exit(err=None, print_help: bool = False):
     sys.exit()
 
 
-if __name__ == "__main__":
-    try:
-        args = ArgChecker(force_parametric=["gen-veh", "gen-scs", "gen-fcs", "plot"])
-    except Exception as e:
-        error_exit(e, True)
+def work(pars:Optional[dict] = None, clntID:int = -1, q=None):
+    if pars is not None:
+        args = ArgChecker(pars=pars, force_parametric=["gen-veh", "gen-scs", "gen-fcs", "plot"])
+    else:
+        try:
+            args = ArgChecker(force_parametric=["gen-veh", "gen-scs", "gen-fcs", "plot"])
+        except Exception as e:
+            error_exit(e, True)
     if args.pop_bool("h") or args.pop_bool("help"):
         error_exit(None, True)
 
@@ -88,6 +92,11 @@ if __name__ == "__main__":
             print(Lang.WARN_MAIN_GUI_NOT_FOUND)
             visible = False
 
+    kwargs.update({
+        "clntID": clntID,
+        "mpQ": q
+    })
+    
     if visible:
         vb = ViewBox(
             ["Driving", "Pending", "Charging", "Parking", "Depleted"],
@@ -106,5 +115,8 @@ if __name__ == "__main__":
         th = threading.Thread(target=work, daemon=not no_deamon).start()
         vb.mainloop()
     else:
-        print(Lang.MAIN_SIM_START)
+        if clntID == -1: print(Lang.MAIN_SIM_START)
         simulate_single(**kwargs)
+
+if __name__ == "__main__":
+    work()
