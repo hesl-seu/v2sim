@@ -334,7 +334,7 @@ You can load the commands from a file as an argument in the command prompt/termi
             lc = en_Lang
         else:
             try:
-                m = importlib.import_module(f"flocale.{lang}")
+                m = importlib.import_module(f"v2sim.locale.{lang}")
             except ImportError:
                 return False
             if not hasattr(m, "_locale"): raise ValueError(f"Invalid language {lang}")
