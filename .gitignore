@@ -17,6 +17,7 @@ flocale/lang.txt
 *.log
 *results*
 profiling
+perfdata
 
 # Cases
 *.veh.xml*
