@@ -167,3 +167,41 @@ def DetectFiles(dir: str) -> FileDetectResult:
         elif filenamel.endswith("cs.csv"):
             add("cscsv", filename)
     return FileDetectResult(**ret)
+
+def FixSUMOCfg(cfg_path: str, start: int=0, end: int=172800) -> tuple[bool, ET.ElementTree, str]:
+    cflag = False
+    tr = ET.ElementTree(file = cfg_path)
+    cfg = tr.getroot()
+    node_report = cfg.find("report")
+    route_file_name = ""
+    if node_report is not None:
+        cfg.remove(node_report)
+        cflag = True
+    node_routing = cfg.find("routing")
+    if node_routing is not None:
+        cfg.remove(node_routing)
+        cflag = True
+    node_input = cfg.find("input")
+    if node_input is not None:
+        node_rf = node_input.find("route-files")
+        if node_rf is not None:
+            route_file_name = node_rf.get("value")
+            if not isinstance(route_file_name, str):
+                route_file_name = ""
+            node_input.remove(node_rf)
+            cflag = True
+    node_time = cfg.find("time")
+    if node_time is None:
+        node_time = ET.Element("time")
+        node_time.append(ET.Element("begin", {"value":str(start)}))
+        node_time.append(ET.Element("end", {"value":str(end)}))
+        cfg.append(node_time)
+        cflag = True
+    else:
+        if node_time.find("begin") is None: 
+            node_time.append(ET.Element("begin", {"value":str(start)}))
+            cflag = True
+        if node_time.find("end") is None:
+            node_time.append(ET.Element("end", {"value":str(end)}))
+            cflag = True
+    return cflag, tr, route_file_name

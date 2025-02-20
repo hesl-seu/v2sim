@@ -972,32 +972,13 @@ class MainBox(Tk):
         if not self.state.cfg:
             showerr("No SUMO config file detected")
             return
-        cflag = False
-        tr = ET.ElementTree(file = self.state.cfg)
-        cfg = tr.getroot()
-        node_report = cfg.find("report")
-        route_file_name = ""
-        if node_report is not None:
-            cfg.remove(node_report)
-            cflag = True
-        node_routing = cfg.find("routing")
-        if node_routing is not None:
-            cfg.remove(node_routing)
-            cflag = True
-        node_input = cfg.find("input")
-        if node_input is not None:
-            node_rf = node_input.find("route-files")
-            if node_rf is not None:
-                route_file_name = node_rf.get("value")
-                if not isinstance(route_file_name, str):
-                    route_file_name = ""
-                node_input.remove(node_rf)
-                cflag = True
+        
+        cflag, tr, route_file_name = FixSUMOCfg(self.state.cfg, start, end)
         if cflag:
             if MB.askyesno(_loc["MB_INFO"],_loc["MB_CFG_MODIFY"]):
                 tr.write(self.state.cfg)
                 route_path = Path(self.state.cfg).absolute().parent / route_file_name
-                if route_path.exists():
+                if route_file_name.strip() != "" and route_path.exists():
                     route_path.unlink()
             else:
                 return

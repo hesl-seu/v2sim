@@ -435,7 +435,7 @@ class CustomLocaleLib:
                 line = line.strip()
                 if not line: continue
                 key,val = line.split("=", 1)
-                self.__lib[lang][key.strip()] = val
+                self.__lib[lang][key.strip()] = val.replace("\\n", "\n")
     
     def __setitem__(self, key, value):
         assert isinstance(key, tuple)

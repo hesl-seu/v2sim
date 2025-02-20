@@ -14,4 +14,9 @@
         <gui-settings-file value="osm.view.xml" />
     </gui_only>
 
+    <time>
+        <begin value="0" />
+        <end value="172800" />
+    </time>
+
 </configuration>
