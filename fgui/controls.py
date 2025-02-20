@@ -226,7 +226,7 @@ class ScrollableTreeView(Frame):
             return
         mode_str, val, self.post_func = self.edit_mode[label]
         if mode_str == EditMode.COMBO:
-            assert isinstance(val, list)
+            assert isinstance(val, (list, tuple))
             self.delegate_widget = Combobox(self.tree, width=w // 10, textvariable=self.delegate_var, values=val)
             self.delegate_widget.bind('<<ComboboxSelected>>', self.tree_item_edit_done)
             self.delegate_widget.bind('<FocusOut>', self.tree_item_edit_done)

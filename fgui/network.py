@@ -4,10 +4,10 @@ from queue import Queue
 import queue
 import threading
 from tkinter import messagebox as MB
-from feasytools import SegFunc, ConstFunc, TimeFunc
+from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
 from typing import Any, Callable, Iterable, Optional, Union
 from v2sim import ELGraph, Edge
-from fpowerkit import Bus, Line, Generator, PVWind, ESS
+from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy
 from fpowerkit import Grid as fGrid
 from .controls import EditMode, PropertyPanel
 from .view import *
@@ -289,6 +289,10 @@ class NetworkPanel(Frame):
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
             elif itm.type in ('ess', 'esstext', 'essconn'):
                 e = self._g.ESS(itm.desc.removesuffix(".text").removesuffix(".conn"))
+                cp = e._cprice
+                if cp is not None: cp /= self._g.Sb_kVA
+                dp = e._dprice
+                if dp is not None: dp /= self._g.Sb_kVA
                 self._pr.setData2({
                     "Name":         (e.ID,      "Name of the ESS"),
                     "Bus":          (e.BusID,   "Bus to which the ESS is connected",  EditMode.COMBO, {"combo_values":self._g.BusNames}),
@@ -301,6 +305,11 @@ class NetworkPanel(Frame):
                     "Max Pc/kW":    (e.MaxPc * self._g.Sb_kVA, "Maximum Charging Power, kW"),
                     "Max Pd/kW":    (e.MaxPd * self._g.Sb_kVA, "Maximum Discharging Power, kW"),
                     "Power factor": (e.PF,      "Power factor"),
+                    "Policy":       (e._policy.value, "Charging and discharging policy", EditMode.COMBO, {"combo_values":(ESSPolicy.Manual.value,ESSPolicy.Price.value,ESSPolicy.Time.value)}),
+                    "CTime":        (str(e._ctime), "Charging time if policy is time-based", EditMode.RANGELIST),
+                    "DTime":        (str(e._dtime), "Discharging time if policy is time-based", EditMode.RANGELIST),
+                    "CPrice/$/kWh": (cp,        "Charging if price is strictly below than this given price under price-based policy"),
+                    "DPrice/$/kWh": (dp,        "Discharging if price is strictly greater than this given price under price-based policy"),
                 }, EditMode.ENTRY)
                 self._item_editing = e
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
@@ -457,8 +466,17 @@ class NetworkPanel(Frame):
             e._elec = float(ret['SOC']) * e.Cap
             e.EC = float(ret['Ec'])
             e.ED = float(ret['Ed'])
-            e.MaxPc = float(ret['Max Pc']) / self._g.Sb_kVA
-            e.MaxPd = float(ret['Max Pd']) / self._g.Sb_kVA
+            e.MaxPc = float(ret['Max Pc/kW']) / self._g.Sb_kVA
+            e.MaxPd = float(ret['Max Pd/kW']) / self._g.Sb_kVA
+            e._policy = ESSPolicy(ret['Policy'])
+            e._ctime = RangeList(eval(ret["CTime"]))
+            e._dtime = RangeList(eval(ret["DTime"]))
+            cp = ret["CPrice/$/kWh"]
+            if cp.lower() == "none": e._cprice = None
+            else: e._cprice = float(cp) * self._g.Sb_kVA
+            dp = ret["DPrice/$/kWh"]
+            if dp.lower() == "none": e._dprice = None
+            else: e._dprice = float(dp) * self._g.Sb_kVA
             e.PF = float(ret['Power factor'])
             self._g.ChangeESSBus(e.ID, ret['Bus'])
             self._g.ChangeESSID(e.ID, ret['Name'])

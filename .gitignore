@@ -26,6 +26,7 @@ perfdata
 deploy
 cases/*
 !cases/std_*
+!cases/pwe_*
 
 # Setup files
 build
