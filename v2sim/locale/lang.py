@@ -310,7 +310,8 @@ You can load the commands from a file as an argument in the command prompt/termi
     PLOT_YLABEL_VOLTKV = "Voltage (kV)"
     PLOT_YLABEL_CURRENT = "Current (kA)"
     PLOT_YLABEL_COUNT = "Count"
-    PLOT_YLABEL_SOC = "SoC (%)"
+    PLOT_YLABEL_SOC = "SoC"
+    PLOT_YLABEL_CURTAIL = "Curtailment (%)"
     PLOT_YLABEL_STATUS = "Vehicle Status"
     PLOT_YLABEL_PRICE = "Price ($/kWh)"
     PLOT_XLABEL_TIME = "Time"
@@ -321,6 +322,8 @@ You can load the commands from a file as an argument in the command prompt/termi
     PLOT_LINE = "Line: {0}"
     PLOT_GEN = "Generator: {0}"
     PLOT_BUS = "Bus: {0}"
+    PLOT_PVW = "PV or Wind Turbine: {0}"
+    PLOT_ESS = "ESS: {0}"
 
     @staticmethod
     def format(item:str, **kwargs):

@@ -116,6 +116,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
                 if self.last_ok:
                     print(_locale["PDN_SOLVE_FAILED"].format(_t,self.__badcnt))
             else:
+                self.__gr.ApplyAllESS(_t-self.LastTime)
                 if ok == GridSolveResult.OKwithoutVICons or ok == GridSolveResult.SubOKwithoutVICons:
                     print(f"t={_t}, Relax!", file = self.__fh)
                 if self.isSmartChargeEnabled():

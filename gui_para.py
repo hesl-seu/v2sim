@@ -1,6 +1,5 @@
 import tkinter as tk
 import multiprocessing as mp
-import subprocess as sp
 from tkinter import filedialog as fd
 from tkinter import messagebox as mb
 from fgui import ScrollableTreeView

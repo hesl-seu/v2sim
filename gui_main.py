@@ -38,7 +38,36 @@ LOAD_CSCSV = "CS CSV"
 LOAD_PLG = "Plugins"
 LOAD_GEN = "Instance"
 
+class LogItemPad(LabelFrame):
+    def __init__(self, master, title:str, items:dict[str,str], **kwargs):
+        super().__init__(master, text=title, **kwargs)
+        self._bvs:dict[str,BooleanVar] = {}
+        self._cbs:dict[str,Checkbutton] = {}
+        for id, val in items.items():
+            bv = BooleanVar(self, True)
+            self._bvs[id] = bv
+            cb = Checkbutton(self, text=val, variable=bv)
+            cb.pack(anchor='w', side='left')
+            self._cbs[id] = cb
+            
+    def __getitem__(self, key:str):
+        return self._bvs[key].get()
+    
+    def __setitem__(self, key:str, val:bool):
+        self._bvs[key].set(val)
+    
+    def enable(self, key:str):
+        return self._cbs[key].configure(state="enabled")
 
+    def disable(self, key:str):
+        return self._cbs[key].configure(state="disabled")
+    
+    def setEnabled(self, key:str, v:bool):
+        if v:
+            return self._cbs[key].configure(state="enabled")
+        else:
+            return self._cbs[key].configure(state="disabled")
+    
 class PluginEditor(ScrollableTreeView):
     def __init__(self, master, onEnabledSet:Callable[[tuple[Any,...], str], None] = empty_postfunc, **kwargs):
         super().__init__(master, True, **kwargs)
@@ -621,14 +650,10 @@ class MainBox(Tk):
     def _OnPDNEnabledSet(self):
         def _setSimStat(itm:tuple[Any,...], v:str):
             if itm[0] != "pdn": return
-            t = "enabled" if v == SIM_YES else "disabled"
-            self.sim_cb_line.configure(state=t)
-            self.sim_cb_bus.configure(state=t)
-            self.sim_cb_gen.configure(state=t)
-            tv = v == SIM_YES
-            self.sim_sta_line.set(tv)
-            self.sim_sta_bus.set(tv)
-            self.sim_sta_gen.set(tv)
+            t = v == SIM_YES
+            for x in ("gen","bus","line","pvw","ess"):
+                self.sim_statistic[x] = t
+                self.sim_statistic.setEnabled(x, t)
         return _setSimStat
     
     def __init__(self):
@@ -771,26 +796,18 @@ class MainBox(Tk):
         self.sim_plugins.pack(fill="x", expand=False)
         self.sim_plglist.setOnSave(self.savePlugins())
 
-        self.sim_statistic = LabelFrame(self.tab_sim, text=_loc["SIM_STAT"])
+        self.sim_statistic = LogItemPad(self.tab_sim, _loc["SIM_STAT"],{
+            "fcs":_loc["SIM_FCS"],
+            "scs":_loc["SIM_SCS"],
+            "ev":_loc["SIM_VEH"],
+            "gen":_loc["SIM_GEN"],
+            "bus":_loc["SIM_BUS"],
+            "line":_loc["SIM_LINE"],
+            "pvw":_loc["SIM_PVW"],
+            "ess":_loc["SIM_ESS"],
+        })
+        self.sim_statistic["ev"] = False
         self.sim_statistic.pack(fill="x", expand=False)
-        self.sim_sta_fcs = BooleanVar(self, True)
-        self.sim_cb_fcs = Checkbutton(self.sim_statistic, text=_loc["SIM_FCS"], variable=self.sim_sta_fcs)
-        self.sim_cb_fcs.grid(row=0, column=0, padx=3, pady=3, sticky="w")
-        self.sim_sta_scs = BooleanVar(self, True)
-        self.sim_cb_scs = Checkbutton(self.sim_statistic, text=_loc["SIM_SCS"], variable=self.sim_sta_scs)
-        self.sim_cb_scs.grid(row=0, column=1, padx=3, pady=3, sticky="w")
-        self.sim_sta_ev = BooleanVar(self, False)
-        self.sim_cb_ev = Checkbutton(self.sim_statistic, text=_loc["SIM_VEH"], variable=self.sim_sta_ev)
-        self.sim_cb_ev.grid(row=0, column=2, padx=3, pady=3, sticky="w")
-        self.sim_sta_gen = BooleanVar(self, True)
-        self.sim_cb_gen = Checkbutton(self.sim_statistic, text=_loc["SIM_GEN"], variable=self.sim_sta_gen)
-        self.sim_cb_gen.grid(row=0, column=3, padx=3, pady=3, sticky="w")
-        self.sim_sta_bus = BooleanVar(self, True)
-        self.sim_cb_bus = Checkbutton(self.sim_statistic, text=_loc["SIM_BUS"], variable=self.sim_sta_bus)
-        self.sim_cb_bus.grid(row=0, column=4, padx=3, pady=3, sticky="w")
-        self.sim_sta_line = BooleanVar(self, True)
-        self.sim_cb_line = Checkbutton(self.sim_statistic, text=_loc["SIM_LINE"], variable=self.sim_sta_line)
-        self.sim_cb_line.grid(row=0, column=5, padx=3, pady=3, sticky="w")
 
         self.sim_btn = Button(self.tab_sim, text=_loc["SIM_START"], command=self.simulate)
         self.sim_btn.pack(anchor="w", padx=3, pady=3)
@@ -949,18 +966,9 @@ class MainBox(Tk):
             showerr("No vehicles loaded")
             return
         logs = []
-        if self.sim_sta_fcs.get():
-            logs.append("fcs")
-        if self.sim_sta_scs.get():
-            logs.append("scs")
-        if self.sim_sta_ev.get():
-            logs.append("ev")
-        if self.sim_sta_gen.get():
-            logs.append("gen")
-        if self.sim_sta_bus.get():
-            logs.append("bus")
-        if self.sim_sta_line.get():
-            logs.append("line")
+        for x in ("fcs","scs","ev","gen","bus","line","pvw","ess"):
+            if self.sim_statistic[x]:
+                logs.append(x)
         if not logs:
             showerr("No statistics selected")
             return
@@ -1192,13 +1200,9 @@ class MainBox(Tk):
             has_pdn = True
             pdn_enabled = True
         t = has_pdn and pdn_enabled
-        tv = "enabled" if t else "disabled"
-        self.sim_sta_gen.set(t)
-        self.sim_cb_gen.configure(state=tv)
-        self.sim_sta_bus.set(t)
-        self.sim_cb_bus.configure(state=tv)
-        self.sim_sta_line.set(t)
-        self.sim_cb_line.configure(state=tv)
+        for x in ("gen","bus","line","pvw","ess"):
+            self.sim_statistic[x] = t
+            self.sim_statistic.setEnabled(x, t)
         if not has_v2g:
             self.sim_plglist.insert("", "end", values=("v2g", "300", SIM_YES, ALWAYS_ONLINE, "{}"))
             has_v2g = True
@@ -1209,8 +1213,9 @@ class MainBox(Tk):
         assert self.state is not None
         def after():
             assert self.state is not None
-            self.sim_sta_fcs.set("fcs" in self.state)
-            self.sim_cb_fcs.configure(state="enabled" if "fcs" in self.state else "disabled")
+            v = "fcs" in self.state
+            self.sim_statistic["fcs"]=v
+            self.sim_statistic.setEnabled("fcs", v)
             self.FCS_editor.setPoly("poly" in self.state)
             self.FCS_editor.setCSCSV("cscsv" in self.state)
             if afterx: afterx()
@@ -1224,8 +1229,9 @@ class MainBox(Tk):
         assert self.state is not None
         def after():
             assert self.state is not None
-            self.sim_sta_scs.set("scs" in self.state)
-            self.sim_cb_scs.configure(state="enabled" if "scs" in self.state else "disabled")
+            v = "scs" in self.state
+            self.sim_statistic["scs"]=v
+            self.sim_statistic.setEnabled("scs", v)
             self.SCS_editor.setPoly("poly" in self.state)
             self.SCS_editor.setCSCSV("cscsv" in self.state)
             if afterx: afterx()

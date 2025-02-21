@@ -302,6 +302,7 @@ class _locale:
     PLOT_YLABEL_COST = "钱($)"
     PLOT_YLABEL_COUNT = "数量"
     PLOT_YLABEL_SOC = "荷电状态(%)"
+    PLOT_YLABEL_CURTAIL = "舍弃率(%)"
     PLOT_YLABEL_STATUS = "车辆状态"
     PLOT_YLABEL_PRICE = "价格($/kWh)"
     PLOT_XLABEL_TIME = "时间"
@@ -312,3 +313,5 @@ class _locale:
     PLOT_LINE = "线路: {0}"
     PLOT_GEN = "发电机: {0}"
     PLOT_BUS = "母线: {0}"
+    PLOT_PVW = "光伏或风机: {0}"
+    PLOT_ESS = "储能系统: {0}"

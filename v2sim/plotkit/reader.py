@@ -24,6 +24,8 @@ class ReadOnlyStatistics(StaReader):
     def has_GEN(self)->bool: return FILE_GEN in self
     def has_BUS(self)->bool: return FILE_BUS in self
     def has_LINE(self)->bool: return FILE_LINE in self
+    def has_PVW(self)->bool: return FILE_PVW in self
+    def has_ESS(self)->bool: return FILE_ESS in self
     
     def __init__(self,path:str):
         super().__init__(path)
@@ -72,6 +74,22 @@ class ReadOnlyStatistics(StaReader):
                 if itm in self.__line_head:
                     self.__line_head.remove(itm)
             self.__line_head.sort(key=_parse_val)
+        if FILE_PVW not in self:
+            self.__pvw_head = None
+        else:
+            self.__pvw_head = list(set(__trans(x) for x in self.GetTable(FILE_PVW).keys()))
+            for itm in PVW_ATTRIB:
+                if itm in self.__pvw_head:
+                    self.__pvw_head.remove(itm)
+            self.__pvw_head.sort(key=_parse_val)
+        if FILE_ESS not in self:
+            self.__ess_head = None
+        else:
+            self.__ess_head = list(set(__trans(x) for x in self.GetTable(FILE_ESS).keys()))
+            for itm in ESS_ATTRIB:
+                if itm in self.__ess_head:
+                    self.__ess_head.remove(itm)
+            self.__ess_head.sort(key=_parse_val)
         
     @property
     def FCS_head(self)->list[str]: 
@@ -102,6 +120,16 @@ class ReadOnlyStatistics(StaReader):
     def line_head(self)->list[str]:
         assert self.__line_head is not None, "Line properties not supported"
         return self.__line_head
+    
+    @property
+    def pvw_head(self)->list[str]:
+        assert self.__pvw_head is not None, "PV & Wind properties not supported"
+        return self.__pvw_head
+
+    @property
+    def ess_head(self)->list[str]:
+        assert self.__ess_head is not None, "ESS properties not supported"
+        return self.__ess_head
 
     def FCS_attrib_of(self,cs:str,attrib:str)->TimeSeg: 
         '''Charging station information'''
@@ -212,3 +240,13 @@ class ReadOnlyStatistics(StaReader):
         '''Line information'''
         assert attrib in LINE_ATTRIB
         return self.GetColumn(FILE_LINE,l+"#"+attrib)
+    
+    def pvw_attrib_of(self,p:str,attrib:str)->TimeSeg:
+        '''PV and wind information'''
+        assert attrib in PVW_ATTRIB
+        return self.GetColumn(FILE_PVW,p+"#"+attrib)
+    
+    def ess_attrib_of(self,e:str,attrib:str)->TimeSeg:
+        '''ESS information'''
+        assert attrib in ESS_ATTRIB
+        return self.GetColumn(FILE_ESS,e+"#"+attrib)

@@ -1,16 +1,22 @@
 from itertools import chain
 from typing import Protocol, runtime_checkable
 from fpowerkit import Grid
+from feasytools import TimeFunc
 from .base import *
 
 FILE_GEN = "gen"
 FILE_BUS = "bus"
 FILE_LINE = "line"
+FILE_PVW = "pvw"
+FILE_ESS = "ess"
+
 GEN_ATTRIB = ["P","Q","costp"]
 GEN_TOT_ATTRIB = ["totP","totQ","totC"]
 BUS_ATTRIB = ["Pd","Qd","Pg","Qg","V"]
 BUS_TOT_ATTRIB = ["totPd","totQd","totPg","totQg"]
 LINE_ATTRIB = ["P","Q","I"]
+PVW_ATTRIB = ["P","curt"]
+ESS_ATTRIB = ["P","soc"]
 
 def _chk(x:Optional[float])->float:
     if x is None: return 0
@@ -57,28 +63,51 @@ class StaBus(StaBase):
         mpdn = self.__plg.Grid
         sb_MVA = mpdn.Sb
         _t = inst.current_time
-        Pd = [b.Pd(_t)*sb_MVA for b in mpdn.Buses]
-        Qd = [b.Qd(_t)*sb_MVA for b in mpdn.Buses]
-        V = [b.V*mpdn.Ub if b.V else 0 for b in mpdn.Buses]
+        bs = mpdn.Buses
+        Pd = [b.Pd(_t)*sb_MVA for b in bs]
+        Qd = [b.Qd(_t)*sb_MVA for b in bs]
+        V = (b.V*mpdn.Ub if b.V else 0 for b in bs)
         Pg = []; Qg = []
         for bn in self.__bus_with_gens:
             pg = 0; qg = 0
             for g in mpdn.GensAtBus(bn):
-                if g.P is not None: pg += g.P
-                if g.Q is not None: qg += g.Q
+                if isinstance(g.P, float): pg += g.P
+                elif isinstance(g.P, TimeFunc): pg += g.P(_t)
+                if isinstance(g.Q, float): pg += g.Q
+                elif isinstance(g.Q, TimeFunc): pg += g.Q(_t)
             Pg.append(pg*sb_MVA); Qg.append(qg*sb_MVA)
         return chain(Pd,Qd,V,Pg,Qg,[sum(Pd), sum(Qd), sum(Pg), sum(Qg)]) # Unit = MVA
 
 class StaLine(StaBase):
     def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
         self.__plg = _find_grid_plugin(plugins)
-        super().__init__(FILE_LINE,path,cross_list(self.__plg.Grid._lines.keys(),["P","Q","I"]),tinst,plugins)
+        super().__init__(FILE_LINE,path,cross_list(self.__plg.Grid._lines.keys(),LINE_ATTRIB),tinst,plugins)
 
     def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
         mpdn = self.__plg.Grid
-        Ib_kA = mpdn.Ib
-        sb_MVA = mpdn.Sb
-        P = [_chk(b.P)*sb_MVA for b in mpdn.Lines]
-        Q = [_chk(b.Q)*sb_MVA for b in mpdn.Lines]
-        I = [_chk(b.I)*Ib_kA for b in mpdn.Lines]
+        P = (_chk(b.P)*mpdn.Sb for b in mpdn.Lines)
+        Q = (_chk(b.Q)*mpdn.Sb for b in mpdn.Lines)
+        I = (_chk(b.I)*mpdn.Ib for b in mpdn.Lines)
         return chain(P,Q,I) # Unit = MVA or kA
+
+class StaPVWind(StaBase):
+    def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
+        self.__plg = _find_grid_plugin(plugins)
+        super().__init__(FILE_PVW, path, cross_list(self.__plg.Grid._pvws.keys(),PVW_ATTRIB),tinst,plugins)
+
+    def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
+        mpdn = self.__plg.Grid
+        P = (b.P(inst.current_time)*mpdn.Sb for b in mpdn.PVWinds)
+        curt = (_chk(b._cr) for b in mpdn.PVWinds)
+        return chain(P, curt) # Unit = MVA or %
+
+class StaESS(StaBase):
+    def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
+        self.__plg = _find_grid_plugin(plugins)
+        super().__init__(FILE_ESS, path, cross_list(self.__plg.Grid._esss.keys(),ESS_ATTRIB),tinst,plugins)
+
+    def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
+        mpdn = self.__plg.Grid
+        P = (_chk(b.P)*mpdn.Sb for b in mpdn.ESSs)
+        soc = (b.SOC for b in mpdn.ESSs)
+        return chain(P, soc) # Unit = MVA or %

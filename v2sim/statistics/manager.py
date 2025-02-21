@@ -22,6 +22,8 @@ class StaPool:
                 FILE_GEN: StaGen,
                 FILE_BUS: StaBus,
                 FILE_LINE: StaLine,
+                FILE_PVW: StaPVWind,
+                FILE_ESS: StaESS,
             }
 
     def Register(self, name: str, base: Type) -> None:
@@ -300,16 +302,16 @@ class _CSVTable:
         return self.lastTime
     
 class StaReader:
-    """**只读**数据统计模块, 只能从文件夹创建"""
+    """Readonly statistics reader, created from a folder"""
     def __init__(
         self,
         path: str,
         sta_pool: Optional[StaPool] = None,
     ):
         """
-        初始化
-            path: 初始化文件夹
-            sta_pool: 统计项池, 用于检查统计项是否存在, 如果为None则不检查
+        Initialize
+            path: Path to the results folder
+            sta_pool: Statistics items' pool, for checking whether an item exists. None for not checking.
         """
         work_dir = Path(path)
         dir_con = os.listdir(path)

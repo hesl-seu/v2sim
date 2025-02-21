@@ -1,4 +1,5 @@
 from itertools import chain
+import operator
 from ..traffic import VehStatus
 from .base import *
 try:
@@ -15,10 +16,10 @@ class StaEV(StaBase):
 
     def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
         vehs = inst.vehicles.values()
-        soc = map(lambda veh:veh.SOC, vehs)
-        status = map(lambda veh:veh.status, vehs)
-        cost = map(lambda veh:veh._cost, vehs)
-        earn = map(lambda veh:veh._earn, vehs)
+        soc = (veh.SOC for veh in vehs)
+        status = map(operator.attrgetter("_sta"), vehs)
+        cost = map(operator.attrgetter("_cost"), vehs)
+        earn = map(operator.attrgetter("_earn"), vehs)
         x = []
         y = []
         for veh in inst.vehicles.values():

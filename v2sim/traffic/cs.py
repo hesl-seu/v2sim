@@ -14,7 +14,7 @@ def _get_price_xml(t: TimeFunc, elem:str) -> str:
     if isinstance(t, ConstFunc):
         return f'<{elem}>\n  <item btime="0" price="{t._val}" />\n</{elem}>'
     elif isinstance(t, SegFunc):
-        return t.to_xml(elem, "item", "btime", "price")
+        return t.toXML(elem, "item", "btime", "price")
     elif isinstance(t, OverrideFunc):
         return _get_price_xml(t._val, elem)
     else:
@@ -358,7 +358,7 @@ class SCS(CS):
             f'pc_alloc="{self._pc_alloc_str}" pd_alloc="{self._pd_alloc_str}">\n'
         ret += _get_price_xml(self._pbuy, "pbuy") + "\n"
         if self._psell: ret += _get_price_xml(self._psell, "psell") + "\n"
-        if len(self._offline) > 0: ret += self._offline.to_xml("offline") + "\n"
+        if len(self._offline) > 0: ret += self._offline.toXML("offline") + "\n"
         ret += "</scs>"
         return ret
     
@@ -385,16 +385,17 @@ class SCS(CS):
         return veh_id in self._chi or veh_id in self._free
 
     def __len__(self) -> int:
-        return len(self._chi) + len(self._free)
+        return self._chi.__len__() + len(self._free)
 
     def is_charging(self, veh_id: str) -> bool:
         return veh_id in self._chi
 
     def veh_count(self, only_charging:bool = False) -> int:
+        # __len__ and len(): Performance consideration
         if only_charging:
-            return len(self._chi)
+            return self._chi.__len__()
         else:
-            return len(self._chi) + len(self._free)
+            return self._chi.__len__() + len(self._free)
 
     def get_V2G_cap(self, ev_dict: EVDict, _t:int) -> float:
         if not self.is_online(_t):
@@ -452,7 +453,7 @@ class FCS(CS):
         ret = f'<fcs name="{self._name}" edge="{self._name}" slots="{self._slots}" bus="{self._node}" ' \
             f'x="{self._x}" y="{self._y}" max_pc="{self._pc_lim1 * 3600:.2f}" pc_alloc="{self._pc_alloc_str}">\n'
         ret += _get_price_xml(self._pbuy, "pbuy") + "\n"
-        if len(self._offline) > 0: ret += self._offline.to_xml("offline") + "\n"
+        if len(self._offline) > 0: ret += self._offline.toXML("offline") + "\n"
         ret += "</fcs>"
         return ret
     
@@ -483,19 +484,22 @@ class FCS(CS):
     def is_charging(self, veh_id: str) -> bool:
         return veh_id in self._chi
 
-    def veh_count(self, only_charging=False) -> int:
-        '''Number of vehicles in the FCS. If only charging, return number of vehicle charging in the FCS.'''
+    def veh_count(self, only_charging:bool = False) -> int:
+        # __len__ and len(): Performance consideration
         if only_charging:
-            return len(self._chi)
+            return self._chi.__len__()
         else:
-            return len(self._chi) + len(self._buf)
+            return self._chi.__len__() + len(self._buf)
+        
+    def _cntva(self):
+        return self._chi.__len__() + len(self._buf)
     
     def wait_count(self) -> int:
         '''Number of vehicles waiting for charging'''
         return len(self._buf)
 
     def __len__(self) -> int:
-        return len(self._chi) + len(self._buf)
+        return self._chi.__len__() + len(self._buf)
 
     def update(
         self, ev_dict: EVDict, sec: int, cur_time: int, v2g_k: float

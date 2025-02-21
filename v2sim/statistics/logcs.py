@@ -12,28 +12,34 @@ class StaFCS(StaBase):
 
     def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
         t = inst.current_time
-        cnt = inst.FCSList.get_veh_count()
-        Pc = map(lambda cs:cs.Pc_kW, inst.FCSList)
-        pb = map(lambda cs:cs.pbuy(t), inst.FCSList)
+        IL = inst.FCSList
+        cnt = (cs.__len__() for cs in IL)
+        Pc = (cs._cload * 3600 for cs in IL)
+        pb = (cs.pbuy(t) for cs in IL)
         return chain(cnt, Pc, pb)
 
 class StaSCS(StaBase):
     def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
         head = cross_list(tinst.SCSList.get_CS_names(),CS_ATTRIB)
         super().__init__(FILE_SCS,path,head,tinst,plugins)
+        self.L = len(tinst.SCSList)
+        self.supv2g = self.L > 0 and tinst.SCSList[0].supports_V2G
+        self.hasv2g = "v2g" in plugins
 
     def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
+        L = self.L
+        IL = inst.SCSList
         t = inst.current_time
-        v2g = "v2g" in plugins and plugins["v2g"].IsOnline(t)
-        cnt = inst.SCSList.get_veh_count()
-        Pc = map(lambda cs:cs.Pc_kW, inst.SCSList)
-        pb = map(lambda cs:cs.pbuy(t), inst.SCSList)
-        if len(inst.SCSList)>0 and inst.SCSList[0].supports_V2G:
-            ps = map(lambda cs:cs.psell(t), inst.SCSList)
-            Pd = map(lambda cs:cs.Pd_kW, inst.SCSList) if v2g else repeat(0,len(inst.SCSList))
-            Pv2g = map(lambda cs:cs.Pv2g_kW, inst.SCSList) if v2g else repeat(0,len(inst.SCSList))
+        cnt = (cs.__len__() for cs in IL)
+        Pc = (cs._cload * 3600 for cs in IL) # Performance problem: do not call property
+        pb = (cs.pbuy(t) for cs in IL)
+        if self.supv2g:
+            v2g = self.hasv2g and plugins["v2g"].IsOnline(t)
+            ps = (cs.psell(t) for cs in IL)
+            Pd = (cs._dload * 3600 for cs in IL) if v2g else repeat(0, L)
+            Pv2g = (cs._cur_v2g_cap * 3600 for cs in IL) if v2g else repeat(0, L)
         else:
-            ps = repeat(0,len(inst.SCSList))
-            Pd = repeat(0,len(inst.SCSList))
-            Pv2g = repeat(0,len(inst.SCSList))
+            ps = repeat(0,L)
+            Pd = repeat(0,L)
+            Pv2g = repeat(0,L)
         return chain(cnt,Pc,Pd,Pv2g,pb,ps)

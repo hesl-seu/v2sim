@@ -212,6 +212,14 @@ class AdvancedPlot:
                 d = se.line_attrib_of(val,"Q")
             elif domain == "line_current":
                 d = se.line_attrib_of(val,"I")
+            elif domain == "pvw_p":
+                d = se.pvw_attrib_of(val,"P")
+            elif domain == "pvw_cr":
+                d = se.pvw_attrib_of(val,"curt")
+            elif domain == "ess_p":
+                d = se.ess_attrib_of(val,"P")
+            elif domain == "ess_soc":
+                d = se.ess_attrib_of(val,"soc")
             else:
                 raise ValueError(f"Unsupported domain '{domain}'")
         return d.slice(tl,self.max_tr).interpolate(tl,self.max_tr)
@@ -653,4 +661,40 @@ class AdvancedPlot:
         p.mkdir(parents=True,exist_ok=True)
         if line_name == "<sum>": line_name = "sum"
         if save_to == "": save_to = str(p / f"line_{line_name}.png")
+        self.save(save_to)
+    
+    def quick_pvw(self,tl:int,tr:int,pvw_name:str,P:bool,cr:bool,save_to:str="",res_path:str="results"):
+        self.new_fig(tl,tr)
+        if P:
+            self.add_data("{"+f"{res_path}|pvw_p|{pvw_name}"+"}","Active Power",color="blue")
+            self.yleft_label(Lang.PLOT_YLABEL_POWERMW)
+        if cr:
+            side = "right" if P else "left"
+            self.add_data("{"+f"{res_path}|pvw_cr|{pvw_name}"+"}","Curtailment Rate",color="red")
+            self.y_label(Lang.PLOT_YLABEL_CURTAIL, side=side)
+        self.title(Lang.PLOT_PVW.format(pvw_name))
+        self.legend()
+        self.x_label(Lang.PLOT_XLABEL_TIME)
+        p = Path(res_path) / "figures"
+        p.mkdir(parents=True,exist_ok=True)
+        if pvw_name == "<sum>": pvw_name = "sum"
+        if save_to == "": save_to = str(p / f"pvw_{pvw_name}.png")
+        self.save(save_to)
+    
+    def quick_ess(self,tl:int,tr:int,ess_name:str,P:bool,cr:bool,save_to:str="",res_path:str="results"):
+        self.new_fig(tl,tr)
+        if P:
+            self.add_data("{"+f"{res_path}|ess_p|{ess_name}"+"}","Active Power",color="blue")
+            self.yleft_label(Lang.PLOT_YLABEL_POWERMW)
+        if cr:
+            side = "right" if P else "left"
+            self.add_data("{"+f"{res_path}|ess_soc|{ess_name}"+"}","SoC",color="red")
+            self.y_label(Lang.PLOT_YLABEL_SOC, side=side)
+        self.title(Lang.PLOT_ESS.format(ess_name))
+        self.legend()
+        self.x_label(Lang.PLOT_XLABEL_TIME)
+        p = Path(res_path) / "figures"
+        p.mkdir(parents=True,exist_ok=True)
+        if ess_name == "<sum>": ess_name = "sum"
+        if save_to == "": save_to = str(p / f"ess_{ess_name}.png")
         self.save(save_to)
