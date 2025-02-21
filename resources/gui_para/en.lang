@@ -1,6 +1,7 @@
 TITLE=Parallel Simulation
 CASE_NAME=Case name
 CASE_PATH=Case path
+CASE_PROG=Progress
 CASE_STAT=Statistics
 LOAD_CASE=Load...
 REMOVE_CASE=Remove

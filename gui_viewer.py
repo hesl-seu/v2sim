@@ -3,7 +3,7 @@ from pathlib import Path
 import pickle
 from queue import Queue
 import threading, os
-from typing import Literal
+from typing import Literal, Optional
 from fgui.view import *
 from fgui import ScrollableTreeView, TripsFrame
 from v2sim import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
@@ -17,6 +17,8 @@ from v2sim.traffic.evdict import EVDict
 
 _L = CustomLocaleLib.LoadFromFolder("resources/gui_viewer")
 
+AVAILABLE_ITEMS = ["fcs","scs","ev","gen","bus","line","pvw","ess"]
+AVAILABLE_ITEMS2 = AVAILABLE_ITEMS + ["fcs_accum","scs_accum","bus_total","gen_total"]
 ITEM_ALL = _L["ITEM_ALL"]
 ITEM_SUM = _L["ITEM_SUM"]
 ITEM_ALL_G = "<All common generators>"
@@ -30,7 +32,7 @@ class OptionBox(Frame):
         self._ctls:list[Checkbutton] = []
         self._mp:dict[str, BooleanVar] = {}
         for id, (text, v) in options.items():
-            bv = BooleanVar(self, v, id)
+            bv = BooleanVar(self, v)
             self._bools.append(bv)
             self._mp[id] = bv
             self._ctls.append(Checkbutton(self,text=text,variable=bv))
@@ -49,27 +51,34 @@ class OptionBox(Frame):
     
     def __getitem__(self, key:str)->bool:
         return self._mp[key].get()
+    
+    def getValues(self):
+        return {k: v.get() for k,v in self._mp.items()}
+    
+    def getSelected(self):
+        return [k for k,v in self._mp.items() if v.get()]
 
 class PlotPad(Frame):
-    def __init__(self, master, plot_cmd, show_accum:bool=False, accum_cmd=None, useEntry:bool=False, useTotalText:bool=False, **kwargs):
+    def __init__(self, master, show_accum:bool=False, useEntry:bool=False, useTotalText:bool=False, **kwargs):
         super().__init__(master, **kwargs)
-        self.btn_plot = Button(self, text=_L["BTN_PLOT"], takefocus=False, command=plot_cmd)
-        self.btn_plot.pack(side='left',padx=3,pady=5)
         if useEntry:
             self.cb = Entry(self)
         else:
             self.cb = Combobox(self)
             self.cb['values'] = []
         self.cb.pack(side='left',padx=3,pady=5)
-        if show_accum and accum_cmd is not None:
-            self.btn_accum = Button(self, text=_L["BTN_TOTAL"] if useTotalText else _L["BTN_ACCUM"], takefocus=False, command=accum_cmd)
-            self.btn_accum.pack(side='left',padx=3,pady=5)
+        self.accum = BooleanVar(self, False)
+        if show_accum:
+            self.accum.set(True)
+            self.cb_accum = Checkbutton(self, text=_L["BTN_TOTAL"] if useTotalText else _L["BTN_ACCUM"], variable=self.accum)
+            self.cb_accum.pack(side='left',padx=3,pady=5)
         else:
-            self.btn_accum = None
+            self.cb_accum = None
     
     def setValues(self, values:list[str]):
         if isinstance(self.cb, Combobox):
             self.cb['values'] = values
+            self.cb.current(0)
     
     def set(self, item:str):
         if isinstance(self.cb, Combobox):
@@ -82,14 +91,211 @@ class PlotPad(Frame):
         return self.cb.get()
     
     def disable(self):
-        self.btn_plot['state']=DISABLED
         self.cb['state']=DISABLED
-        if self.btn_accum: self.btn_accum['state']=DISABLED
+        if self.cb_accum: self.cb_accum['state']=DISABLED
         
     def enable(self):
-        self.btn_plot['state']=NORMAL
         self.cb['state']=NORMAL
-        if self.btn_accum: self.btn_accum['state']=NORMAL
+        if self.cb_accum: self.cb_accum['state']=NORMAL
+
+class PlotPage(Frame):
+    @property
+    def AccumPlotMax(self)->bool:
+        return self.accum_plotmax.get()
+    
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        self.panel_time = LabelFrame(self, text=_L["TIME"])
+        self.panel_time.pack(side='top',fill='x',padx=3,pady=5)
+        self.lb_time = Label(self.panel_time, text=_L["START_TIME"])
+        self.lb_time.grid(row=0,column=0)
+        self.entry_time = Entry(self.panel_time)
+        self.entry_time.insert(0,"86400")
+        self.entry_time.grid(row=0,column=1,sticky='ew')
+        self.lb_end_time = Label(self.panel_time, text=_L["END_TIME"])
+        self.lb_end_time.grid(row=0,column=2)
+        self.entry_end_time = Entry(self.panel_time)
+        self.entry_end_time.insert(0,"-1")
+        self.entry_end_time.grid(row=0,column=3,sticky='ew')
+        self.accum_plotmax = BooleanVar(self.panel_time,False)
+        self.cb_accum_plotmax = Checkbutton(self.panel_time,text=_L["PLOT_MAX"],variable=self.accum_plotmax)
+        self.cb_accum_plotmax.grid(row=0,column=4)
+
+        self.plot_fcs = BooleanVar(self, False)
+        self.cb_fcs = Checkbutton(self, text=_L["FCS_TITLE"], variable=self.plot_fcs)
+        self.cb_fcs.pack(side='top',padx=3,pady=5,anchor='w')
+        self.panel_fcs = Frame(self, border=1, relief='groove')
+        self.panel_fcs.pack(side='top',fill='x',padx=(30,3),pady=(0,5))
+        self.fcs_opts = OptionBox(self.panel_fcs, {
+            "wcnt": (_L["FCS_NVEH"], True),
+            "load": (_L["FCS_PC"], True),
+            "price": (_L["FCS_PRICE"], False),
+        })
+        self.fcs_opts.pack(side='top',fill='x',padx=3)
+        self.fcs_pad = PlotPad(self.panel_fcs, True)
+        self.fcs_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
+
+        self.plot_scs = BooleanVar(self, False)
+        self.cb_scs = Checkbutton(self, text=_L["SCS_TITLE"], variable=self.plot_scs)
+        self.cb_scs.pack(side='top',padx=3,pady=5,anchor='w')
+        self.panel_scs = Frame(self, border=1, relief='groove')
+        self.panel_scs.pack(side='top',fill='x',padx=(30,3),pady=(0,5))
+        self.scs_opts = OptionBox(self.panel_scs, {
+            "wcnt": (_L["SCS_NVEH"], True), 
+            "cload": (_L["SCS_PC"], True), 
+            "dload": (_L["SCS_PD"], True), 
+            "netload": (_L["SCS_PPURE"], True), 
+            "v2gcap": (_L["SCS_PV2G"], True), 
+            "pricebuy": (_L["SCS_PBUY"], False), 
+            "pricesell": (_L["SCS_PSELL"], False), 
+        })
+        self.scs_opts.pack(side='top',fill='x',padx=3)
+        self.scs_pad = PlotPad(self.panel_scs, True)
+        self.scs_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
+
+        self.plot_ev = BooleanVar(self, False)
+        self.cb_ev = Checkbutton(self, text=_L["EV_TITLE"], variable=self.plot_ev)
+        self.cb_ev.pack(side='top',padx=3,pady=5,anchor='w')
+        self.panel_ev = Frame(self, border=1, relief='groove')
+        self.panel_ev.pack(side='top',fill='x',padx=(30,3),pady=(0,5))
+        self.ev_opts = OptionBox(self.panel_ev, {
+            "soc": (_L["SOC"], True),
+            "status": (_L["EV_STA"], False),
+            "cost": (_L["EV_COST"], True),
+            "earn": (_L["EV_EARN"], True),
+            "cpure": (_L["EV_NETCOST"], True),
+        })
+        self.ev_opts.pack(side='top',fill='x',padx=3)
+        self.ev_pad = PlotPad(self.panel_ev, useEntry=True)
+        self.ev_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
+
+        self.plot_bus = BooleanVar(self, False)
+        self.cb_bus = Checkbutton(self, text=_L["BUS_TITLE"], variable=self.plot_bus)
+        self.cb_bus.pack(side='top',padx=3,pady=5,anchor='w')
+        self.panel_bus = Frame(self, border=1, relief='groove')
+        self.panel_bus.pack(side='top',fill='x',padx=(20,3),pady=(0,5))
+        self.bus_opts = OptionBox(self.panel_bus, {
+            "activel": (_L["BUS_PD"], True),
+            "reactivel": (_L["BUS_QD"], True),
+            "volt": (_L["BUS_V"], True),
+            "activeg": (_L["BUS_PG"], True),
+            "reactiveg": (_L["BUS_QG"], True),
+        })
+        self.bus_opts.pack(side='top',fill='x',padx=3)
+        self.bus_pad = PlotPad(self.panel_bus, True, False, True)
+        self.bus_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
+
+        self.frA = Frame(self)
+        self.frA.pack(side='top',fill='x')
+        self.frA.grid_columnconfigure(0,weight=1)
+        self.frA.grid_columnconfigure(1,weight=1)
+        self.plot_gen = BooleanVar(self, False)
+        self.cb_gen = Checkbutton(self.frA, text=_L["GEN_TITLE"], variable=self.plot_gen)
+        self.cb_gen.grid(row=0,column=0,padx=3,pady=5,sticky='w')
+        self.panel_gen = Frame(self.frA, border=1, relief='groove')
+        self.panel_gen.grid(row=1,column=0,sticky="nsew",padx=(20,3),pady=(0,5))
+        self.gen_opts = OptionBox(self.panel_gen, {
+            "active": (_L["ACTIVE_POWER"], True),
+            "reactive": (_L["REACTIVE_POWER"], True),
+            "costp": (_L["GEN_COST"], True),
+        })
+        self.gen_opts.pack(side='top',fill='x',padx=3)
+        self.gen_pad = PlotPad(self.panel_gen, True, False, True)
+        self.gen_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
+
+        self.plot_line = BooleanVar(self, False)
+        self.cb_line = Checkbutton(self.frA, text=_L["LINE_TITLE"], variable=self.plot_line)
+        self.cb_line.grid(row=0,column=1,padx=3,pady=5,sticky='w')
+        self.panel_line = Frame(self.frA, border=1, relief='groove')
+        self.panel_line.grid(row=1,column=1,sticky="nsew",padx=(20,3),pady=(0,5))
+        self.line_opts = OptionBox(self.panel_line, {
+            "active": (_L["ACTIVE_POWER"], True),
+            "reactive": (_L["REACTIVE_POWER"], True),
+            "current": (_L["LINE_CURRENT"], True),
+        })
+        self.line_opts.pack(side='top',fill='x',padx=3)
+        self.line_pad = PlotPad(self.panel_line)
+        self.line_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
+
+        self.plot_pvw = BooleanVar(self, False)
+        self.cb_pvw = Checkbutton(self.frA, text=_L["PVW_TITLE"], variable=self.plot_pvw)
+        self.cb_pvw.grid(row=2,column=0,padx=3,pady=5,sticky='w')
+        self.panel_pvw = Frame(self.frA, border=1, relief='groove')
+        self.panel_pvw.grid(row=3,column=0,sticky="nsew",padx=(20,3),pady=(0,5))
+        self.pvw_opts = OptionBox(self.panel_pvw, {
+            "P": (_L["ACTIVE_POWER"], True),
+            "cr": (_L["PVW_CR"], True),
+        })
+        self.pvw_opts.pack(side='top',fill='x',padx=3)
+        self.pvw_pad = PlotPad(self.panel_pvw)
+        self.pvw_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
+
+        self.plot_ess = BooleanVar(self, False)
+        self.cb_ess = Checkbutton(self.frA, text=_L["ESS_TITLE"], variable=self.plot_ess)
+        self.cb_ess.grid(row=2,column=1,padx=3,pady=5,sticky='w')
+        self.panel_ess = Frame(self.frA, border=1, relief='groove')
+        self.panel_ess.grid(row=3,column=1,sticky="nsew",padx=(20,3),pady=(0,5))
+        self.ess_opts = OptionBox(self.panel_ess, {
+            "p": (_L["ACTIVE_POWER"], True),
+            "soc": (_L["SOC"], True),
+        })
+        self.ess_opts.pack(side='top',fill='x',padx=3)
+        self.ess_pad = PlotPad(self.panel_ess)
+        self.ess_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
+    
+    def getConfig(self):
+        return {
+            "btime": int(self.entry_time.get()),
+            "etime": int(self.entry_end_time.get()),
+            "plotmax": self.accum_plotmax.get(),
+            "fcs_accum": self.fcs_pad.accum.get() and self.plot_fcs.get(),
+            "scs_accum": self.scs_pad.accum.get() and self.plot_scs.get(),
+            "bus_total": self.bus_pad.accum.get() and self.plot_bus.get(),
+            "gen_total": self.gen_pad.accum.get() and self.plot_gen.get(),
+            "fcs": self.fcs_opts.getValues() if self.plot_fcs.get() else None,
+            "scs": self.scs_opts.getValues() if self.plot_scs.get() else None,
+            "ev": self.ev_opts.getValues() if self.plot_ev.get() else None,
+            "gen": self.gen_opts.getValues() if self.plot_gen.get() else None,
+            "bus": self.bus_opts.getValues() if self.plot_bus.get() else None,
+            "line": self.line_opts.getValues() if self.plot_line.get() else None,
+            "pvw": self.pvw_opts.getValues() if self.plot_pvw.get() else None,
+            "ess": self.ess_opts.getValues() if self.plot_ess.get() else None,
+        }
+
+    def getTime(self):
+        return int(self.entry_time.get()), int(self.entry_end_time.get())
+    
+    def pars(self, key:str):
+        ret = self.getConfig()[key]
+        assert isinstance(ret, dict), f"{key} is not a dict: {ret}"
+        ret.update({
+            "tl": int(self.entry_time.get()),
+            "tr": int(self.entry_end_time.get())
+        })
+        return ret
+
+    def enable(self, items:Optional[list[str]]=None):
+        if items is None:
+            items = AVAILABLE_ITEMS
+        else:
+            for i in items:
+                assert i in AVAILABLE_ITEMS
+        for i in items:
+            getattr(self, f"cb_{i}")['state']=NORMAL
+            getattr(self, f"{i}_opts").enable()
+            getattr(self, f"{i}_pad").enable()
+    
+    def disable(self, items:list[str]=[]):
+        if len(items)==0:
+            items = AVAILABLE_ITEMS
+        else:
+            for i in items:
+                assert i in AVAILABLE_ITEMS
+        for i in items:
+            getattr(self, f"cb_{i}")['state']=DISABLED
+            getattr(self, f"{i}_opts").disable()
+            getattr(self, f"{i}_pad").disable()
+
 
 class PlotBox(Tk):
     _sta:ReadOnlyStatistics
@@ -118,126 +324,19 @@ class PlotBox(Tk):
         self.tab_state = Frame(self.tab)
         self.tab.add(self.tab_state,text=_L["TAB_STATE"], sticky='nsew')
 
-        self.panel_time = LabelFrame(self.tab_curve, text="Time")
-        self.panel_time.pack(side='top',fill='x',padx=3,pady=5)
-        self.lb_time = Label(self.panel_time, text="Start time:")
-        self.lb_time.grid(row=0,column=0)
-        self.entry_time = Entry(self.panel_time)
-        self.entry_time.insert(0,"86400")
-        self.entry_time.grid(row=0,column=1,sticky='ew')
-        self.lb_end_time = Label(self.panel_time, text="End time:")
-        self.lb_end_time.grid(row=0,column=2)
-        self.entry_end_time = Entry(self.panel_time)
-        self.entry_end_time.insert(0,"-1")
-        self.entry_end_time.grid(row=0,column=3,sticky='ew')
-        self.accum_plotmax = BooleanVar(self.panel_time,False,"accum_plotmax")
-        self.cb_accum_plotmax = Checkbutton(self.panel_time,text="Plot max",variable=self.accum_plotmax)
-        self.cb_accum_plotmax.grid(row=0,column=4)
-
-        self.panel_fcs = LabelFrame(self.tab_curve, text=_L["FCS_TITLE"])
-        self.panel_fcs.pack(side='top',fill='x',padx=3,pady=5)
-        self.fcs_opts = OptionBox(self.panel_fcs, {
-            "wcnt": (_L["FCS_NVEH"], True),
-            "pc": (_L["FCS_PC"], True),
-            "price": (_L["FCS_PRICE"], False),
-        })
-        self.fcs_opts.pack(side='top',fill='x',padx=3)
-        self.fcs_pad = PlotPad(self.panel_fcs, self.plotFCSCurve, True, self.plotFCSAccum)
-        self.fcs_pad.pack(side='top',fill='x',padx=3)
-
-        self.panel_scs = LabelFrame(self.tab_curve, text=_L["SCS_TITLE"])
-        self.panel_scs.pack(side='top',fill='x',padx=3,pady=5)
-        self.scs_opts = OptionBox(self.panel_scs, {
-            "wcnt": (_L["SCS_NVEH"], True), 
-            "pc": (_L["SCS_PC"], True), 
-            "pd": (_L["SCS_PD"], True), 
-            "ppure": (_L["SCS_PPURE"], True), 
-            "pv2g": (_L["SCS_PV2G"], True), 
-            "pricebuy": (_L["SCS_PBUY"], False), 
-            "pricesell": (_L["SCS_PSELL"], False), 
-        })
-        self.scs_opts.pack(side='top',fill='x',padx=3)
-        self.scs_pad = PlotPad(self.panel_scs, self.plotSCSCurve, True, self.plotSCSAccum)
-        self.scs_pad.pack(side='top',fill='x',padx=3)
-
-        self.panel_ev = LabelFrame(self.tab_curve,text=_L["EV_TITLE"],)
-        self.panel_ev.pack(side='top',fill='x',padx=3,pady=5)
-        self.ev_opts = OptionBox(self.panel_ev, {
-            "soc": ("SoC", True),
-            "sta": ("Status", False),
-            "cost": ("Charging cost", True),
-            "earn": ("V2G earn", True),
-            "cpure": ("Net cost", True),
-        })
-        self.ev_opts.pack(side='top',fill='x',padx=3)
-        self.ev_pad = PlotPad(self.panel_ev, self.plotEVCurve, useEntry=True)
-        self.ev_pad.pack(side='top',fill='x',padx=3)
-
-        self.panel_bus = LabelFrame(self.tab_curve,text=_L["BUS_TITLE"],)
-        self.panel_bus.pack(side='top',fill='x',padx=3,pady=5)
-        self.bus_opts = OptionBox(self.panel_bus, {
-            "pd": ("Active load", True),
-            "qd": ("Reactive load", True),
-            "v": ("Voltage", True),
-            "pg": ("Active gen.", True),
-            "qg": ("Reactive gen.", True),
-        })
-        self.bus_opts.pack(side='top',fill='x',padx=3)
-        self.bus_pad = PlotPad(self.panel_bus, self.plotBusCurve, True, self.plotBTotal, False, True)
-        self.bus_pad.pack(side='top',fill='x',padx=3)
-
-        self.frA = Frame(self.tab_curve)
-        self.frA.pack(side='top',fill='x')
-        self.panel_gen = LabelFrame(self.frA,text=_L["GEN_TITLE"],)
-        self.panel_gen.grid(column=0,row=0,padx=3,pady=5,sticky="nsew")
-        self.gen_opts = OptionBox(self.panel_gen, {
-            "p": ("Active power", True),
-            "q": ("Reactive power", True),
-            "cost": ("Avg. cost", True),
-        })
-        self.gen_opts.pack(side='top',fill='x',padx=3)
-        self.gen_pad = PlotPad(self.panel_gen, self.plotGCurve, True, self.plotGTotal, False, True)
-        self.gen_pad.pack(side='top',fill='x',padx=3)
-
-        self.panel_line = LabelFrame(self.frA, text=_L["LINE_TITLE"],)
-        self.panel_line.grid(column=1,row=0,padx=3,pady=5,sticky="nsew")
-        self.line_opts = OptionBox(self.panel_line, {
-            "p": ("Active power", True),
-            "q": ("Reactive power", True),
-            "cur": ("Current", True),
-        })
-        self.line_opts.pack(side='top',fill='x',padx=3)
-        self.line_pad = PlotPad(self.panel_line, self.plotLineCurve)
-        self.line_pad.pack(side='top',fill='x',padx=3)
-
-        self.panel_pvw = LabelFrame(self.frA, text=_L["PVW_TITLE"],)
-        self.panel_pvw.grid(column=0,row=1,padx=3,pady=5,sticky="nsew")
-        self.pvw_opts = OptionBox(self.panel_pvw, {
-            "p": ("Active power", True),
-            "cr": ("Curtailed rate", True),
-        })
-        self.pvw_opts.pack(side='top',fill='x',padx=3)
-        self.pvw_pad = PlotPad(self.panel_pvw, self.plotPVWCurve)
-        self.pvw_pad.pack(side='top',fill='x',padx=3)
-
-        self.panel_ess = LabelFrame(self.frA, text=_L["ESS_TITLE"],)
-        self.panel_ess.grid(column=1,row=1,padx=3,pady=5,sticky="nsew")
-        self.ess_opts = OptionBox(self.panel_ess, {
-            "p": ("Active power", True),
-            "soc": ("SoC", True),
-        })
-        self.ess_opts.pack(side='top',fill='x',padx=3)
-        self.ess_pad = PlotPad(self.panel_ess, self.plotESSCurve)
-        self.ess_pad.pack(side='top',fill='x',padx=3)
+        self._pp = PlotPage(self.tab_curve)
+        self._pp.pack(fill='x',padx=3,pady=5)
+        self.btn_draw = Button(self.tab_curve, text=_L["BTN_PLOT"], command=self.plotSelected)
+        self.btn_draw.pack(anchor='w',padx=3,pady=5)
         
         self.panel_time2 = Frame(self.tab_grid)
         self.panel_time2.pack(side='top',fill='x',padx=3,pady=5)
-        self.lb_time2 = Label(self.panel_time2, text="Time point:")
+        self.lb_time2 = Label(self.panel_time2, text=_L["TIME_POINT"])
         self.lb_time2.grid(row=0,column=0)
         self.entry_time2 = Entry(self.panel_time2)
         self.entry_time2.insert(0,"86400")
         self.entry_time2.grid(row=0,column=1,sticky='ew')
-        self.btn_time2 = Button(self.panel_time2, text="Collect", takefocus=False, command=self.collectgrid)
+        self.btn_time2 = Button(self.panel_time2, text=_L["GRID_COLLECT"], takefocus=False, command=self.collectgrid)
         self.btn_time2.grid(row=0,column=2)
 
         self.grbus = ScrollableTreeView(self.tab_grid)
@@ -276,7 +375,7 @@ class PlotBox(Tk):
         self.plt = AdvancedPlot()
 
         self.__inst = None
-        self.query_fr = LabelFrame(self.tab_state, text="Queries")
+        self.query_fr = LabelFrame(self.tab_state, text=_L["TAB_QUERIES"])
         self.cb_fcs_query = Combobox(self.query_fr)
         self.cb_fcs_query.grid(row=0,column=0,sticky='ew',padx=3,pady=5)
         self.btn_fcs_query = Button(self.query_fr, text="Query FCS", takefocus=False, command=self.queryFCS)
@@ -294,14 +393,14 @@ class PlotBox(Tk):
         self.text_qres.pack(side='top',fill='both',padx=3,pady=5)
         
         self._ava ={
-            "fcs": [False, self.panel_fcs],
-            "scs": [False, self.panel_scs],
-            "ev": [False, self.panel_ev],
-            "gen": [False, self.panel_gen],
-            "bus": [False, self.panel_bus],
-            "line": [False, self.panel_line],
-            "pvw": [False, self.panel_pvw],
-            "ess": [False, self.panel_ess],
+            "fcs": False,
+            "scs": False, 
+            "ev": False, 
+            "gen": False, 
+            "bus": False, 
+            "line": False, 
+            "pvw": False, 
+            "ess": False,
         }
         self._Q = Queue()
         self.disable_all()
@@ -375,12 +474,11 @@ class PlotBox(Tk):
     def _win(self):
         self.title(_L["TITLE"])
         width = 1024
-        height = 768
+        height = 840
         screenwidth = self.winfo_screenwidth()
         screenheight = self.winfo_screenheight()
         geometry = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
         self.geometry(geometry)
-        #self.resizable(width=False, height=False)
 
     def collectgrid(self):
         self.grbus.clear()
@@ -404,21 +502,12 @@ class PlotBox(Tk):
         self.set_status(_L["STA_READY"])
     
     def disable_all(self):
-        for ok, panel in self._ava.values():
-            for child in panel.children.values():
-                if isinstance(child, (Button, Combobox, Checkbutton, Entry)):
-                    child['state']=DISABLED
-                elif isinstance(child, (OptionBox, PlotPad)):
-                    child.disable()
+        self._pp.disable()
+        self.btn_draw['state']=DISABLED
 
     def enable_all(self):
-        for ok, panel in self._ava.values():
-            if not ok: continue
-            for child in panel.children.values():
-                if isinstance(child, (Button, Combobox, Checkbutton, Entry)):
-                    child['state']=NORMAL
-                elif isinstance(child, (OptionBox, PlotPad)):
-                    child.enable()
+        self._pp.enable([p for p, ok in self._ava.items() if ok])
+        self.btn_draw['state']=NORMAL
     
     def set_status(self,text:str):
         self._sbar.configure(text=text)
@@ -430,40 +519,33 @@ class PlotBox(Tk):
                 self._sta,self._npl=par
                 assert isinstance(self._sta,ReadOnlyStatistics)
                 if self._sta.has_FCS():
-                    self._ava["fcs"][0] = True
-                    self.fcs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.FCS_head)
+                    self._ava["fcs"] = True
+                    self._pp.fcs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.FCS_head)
                     self.cb_fcs_query['values'] = self._sta.FCS_head
-                    self.fcs_pad.set(ITEM_SUM)
                     if self._sta.FCS_head:
                         self.cb_fcs_query.set(self._sta.FCS_head[0])
                 if self._sta.has_SCS():
-                    self._ava["scs"][0] = True
-                    self.scs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.SCS_head)
+                    self._ava["scs"] = True
+                    self._pp.scs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.SCS_head)
                     self.cb_scs_query['values'] = self._sta.SCS_head
-                    self.scs_pad.set(ITEM_SUM)
                     if self._sta.SCS_head:
                         self.cb_scs_query.set(self._sta.SCS_head[0])
-                self._ava["ev"][0] = self._sta.has_EV()
+                self._ava["ev"] = self._sta.has_EV()
                 if self._sta.has_GEN():
-                    self._ava["gen"][0] = True
-                    self.gen_pad.setValues([ITEM_ALL_G,ITEM_ALL_V2G,ITEM_ALL] + self._sta.gen_head)
-                    self.gen_pad.set(ITEM_ALL_G)
+                    self._ava["gen"] = True
+                    self._pp.gen_pad.setValues([ITEM_ALL_G,ITEM_ALL_V2G,ITEM_ALL] + self._sta.gen_head)
                 if self._sta.has_BUS():
-                    self._ava["bus"][0] = True
-                    self.bus_pad.setValues([ITEM_ALL] + self._sta.bus_head)
-                    self.bus_pad.set(ITEM_ALL)
+                    self._ava["bus"] = True
+                    self._pp.bus_pad.setValues([ITEM_ALL] + self._sta.bus_head)
                 if self._sta.has_LINE():
-                    self._ava["line"][0] = True
-                    self.line_pad.setValues([ITEM_ALL] + self._sta.line_head)
-                    self.line_pad.set(ITEM_ALL)
+                    self._ava["line"] = True
+                    self._pp.line_pad.setValues([ITEM_ALL] + self._sta.line_head)
                 if self._sta.has_PVW():
-                    self._ava["pvw"][0] = True
-                    self.pvw_pad.setValues([ITEM_ALL] + self._sta.pvw_head)
-                    self.pvw_pad.set(ITEM_ALL)
+                    self._ava["pvw"] = True
+                    self._pp.pvw_pad.setValues([ITEM_ALL] + self._sta.pvw_head)
                 if self._sta.has_ESS():
-                    self._ava["ess"][0] = True
-                    self.ess_pad.setValues([ITEM_ALL] + self._sta.ess_head)
-                    self.ess_pad.set(ITEM_ALL)
+                    self._ava["ess"] = True
+                    self._pp.ess_pad.setValues([ITEM_ALL] + self._sta.ess_head)
                 self.set_status(_L["STA_READY"])
                 self.enable_all()
             elif op=='I':
@@ -491,6 +573,7 @@ class PlotBox(Tk):
             title="Please select the result folder",
             initialdir=str(p)
         )
+    
     def force_reload(self):
         res_path = self.askdir()
         if res_path=="": return
@@ -529,259 +612,146 @@ class PlotBox(Tk):
         except Exception as e:
             self._Q.put(('LE',e))
 
-    def plotSCSAccum(self):
+    def plotSelected(self):
+        cfg = self._pp.getConfig()
         self.disable_all()
-        self.set_status("Plotting SCS load accumulation graph...")
-        def work():
-            try:
-                tl = int(self.entry_time.get())
-                tr = int(self.entry_end_time.get())
-                self._npl.quick_scs_accum(tl, tr, self.accum_plotmax.get(), res_path=self._sta.root)
-            except Exception as e:
-                self._Q.put(('E',f'Error plotting SCS load accum. graph: {e}'))
-                return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
-    
-    def plotFCSAccum(self):
-        self.disable_all()
-        self.set_status("Plotting FCS load accumulation graph...")
-        def work():
-            try:
-                tl = int(self.entry_time.get())
-                tr = int(self.entry_end_time.get())
-                self._npl.quick_fcs_accum(tl, tr, self.accum_plotmax.get(), res_path=self._sta.root)
-            except Exception as e:
-                self._Q.put(('E',f'Error plotting SCS load accum. graph: {e}'))
-                return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
+        self.set_status("Plotting all...")
+        for a in AVAILABLE_ITEMS2:
+            if cfg[a]: break
+        else:
+            MB.showerror("Error", "Nothing to plot!")
+            self.enable_all()
+        def work(cfg):
+            for a in AVAILABLE_ITEMS2:
+                if cfg[a]:
+                    getattr(self, "_plot_"+a)()
+                    if "_" in a: continue
+                    getattr(self._pp, "plot_"+a).set("False")
+            self._Q.put(('D', None))
+        threading.Thread(target=work,args=(cfg,),daemon=True).start()
 
-    def plotFCSCurve(self):
-        self.disable_all()
-        self.set_status("Plotting FCS graph...")
-        def work():
-            t=self.fcs_pad.get()
-            if t.strip()=="" or t==ITEM_ALL:
-                cs = self._sta.FCS_head
-            elif t==ITEM_SUM:
-                cs = ["<sum>"]
-            else:
-                cs = [x.strip() for x in t.split(',')]
-            for i,c in enumerate(cs,start=1):
-                try:
-                    self._Q.put(('I',f'({i} of {len(cs)})Plotting FCS graph...'))
-                    tl = int(self.entry_time.get())
-                    tr = int(self.entry_end_time.get())
-                    self.plt.quick_fcs(tl, tr, c,
-                        self.fcs_opts["pc"], self.fcs_opts["price"], self.fcs_opts["wcnt"],res_path=self._sta.root)
-                except Exception as e:
-                    self._Q.put(('E',f'Error plotting FCS: {e}'))
-                    return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
+    def _plot_scs_accum(self):
+        tl,tr = self._pp.getTime()
+        self._npl.quick_scs_accum(tl, tr, self._pp.AccumPlotMax, res_path=self._sta.root)
     
-    def plotSCSCurve(self):
-        self.disable_all()
-        self.set_status("Plotting SCS graph...")
-        def work():
-            t=self.scs_pad.get()
-            if t.strip()=="" or t==ITEM_ALL:
-                cs = self._sta.SCS_head
-            elif t==ITEM_SUM:
-                cs = ["<sum>"]
-            else:
-                cs = [x.strip() for x in t.split(',')]
-            for i,c in enumerate(cs,start=1):
-                try:
-                    self._Q.put(('I',f'({i} of {len(cs)})Plotting SCS graph...'))
-                    tl = int(self.entry_time.get())
-                    tr = int(self.entry_end_time.get())
-                    self.plt.quick_scs(tl,tr,c, 
-                        self.scs_opts["pc"],
-                        self.scs_opts["pd"],
-                        self.scs_opts["ppure"],
-                        self.scs_opts["pv2g"],
-                        self.scs_opts["wcnt"],
-                        self.scs_opts["pricebuy"],
-                        self.scs_opts["pricesell"],
-                        res_path=self._sta.root)
-                except Exception as e:
-                    self._Q.put(('E',f'Error plotting SCS: {e}'))
-                    return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
-    
-    def plotEVCurve(self):
-        self.disable_all()
-        self.set_status("Plotting EV params...")
-        def work():
-            self._npl.tl = int(self.entry_time.get())
-            t=self.ev_pad.get()
-            evs=None if t.strip()=="" else [x.strip() for x in t.split(',')]
-            if evs is None:
-                self._Q.put(('E','ID of EV cannot be empty'))
-                return
-            for ev in evs:
-                try:
-                    tl = int(self.entry_time.get())
-                    tr = int(self.entry_end_time.get())
-                    self._npl.quick_ev(tl, tr, ev,
-                        self.ev_opts["soc"], 
-                        self.ev_opts["sta"],
-                        self.ev_opts["cost"],
-                        self.ev_opts["earn"],
-                        self.ev_opts["cpure"],
-                        res_path=self._sta.root
-                    )
-                except Exception as e:
-                    self._Q.put(('E',f'Error plotting params. of {ev}: {e}'))
-                    return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
+    def _plot_fcs_accum(self):
+        tl, tr = self._pp.getTime()
+        self._npl.quick_fcs_accum(tl, tr, self._pp.AccumPlotMax, res_path=self._sta.root)
 
-    def plotGCurve(self):
-        self.disable_all()
-        self.set_status("Plotting generator curves...")
-        def work():
-            t=self.gen_pad.get()
-            if t.strip()=="" or t==ITEM_ALL:
-                gen=self._sta.gen_head
-            elif t==ITEM_ALL_G:
-                gen = [x for x in self._sta.gen_head if not x.startswith("V2G")]
-            elif t==ITEM_ALL_V2G:
-                gen = [x for x in self._sta.gen_head if x.startswith("V2G")]
-            else: gen=[x.strip() for x in t.split(',')]
-            for i,g in enumerate(gen,start=1):
-                try:
-                    self._Q.put(('I',f'({i}/{len(gen)})Plotting generators...'))
-                    tl = int(self.entry_time.get())
-                    tr = int(self.entry_end_time.get())
-                    self.plt.quick_gen(tl,tr,g,
-                        self.gen_opts["p"],self.gen_opts["q"],self.gen_opts["cost"],
-                        res_path=self._sta.root)
-                except Exception as e:
-                    self._Q.put(('E',f'Error plotting generators: {e}'))
-                    return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
+    def _plot_fcs(self):
+        t = self._pp.fcs_pad.get()
+        if t.strip()=="" or t==ITEM_ALL:
+            cs = self._sta.FCS_head
+        elif t==ITEM_SUM:
+            cs = ["<sum>"]
+        else:
+            cs = [x.strip() for x in t.split(',')]
+        for i,c in enumerate(cs,start=1):
+            self._Q.put(('I',f'({i} of {len(cs)})Plotting FCS graph...'))
+            self.plt.quick_fcs(
+                cs_name=c, res_path=self._sta.root, 
+                **self._pp.pars("fcs")
+            )
 
-    def plotBusCurve(self):
-        self.disable_all()
-        self.set_status("Plotting bus curves...")
-        def work():
-            t=self.bus_pad.get()
-            if t.strip()=="" or t==ITEM_ALL:
-                bus=self._sta.bus_head
-            else: bus=[x.strip() for x in t.split(',')]
-            for i,g in enumerate(bus,start=1):
-                try:
-                    self._Q.put(('I',f'({i}/{len(bus)})Plotting buses...'))
-                    tl = int(self.entry_time.get())
-                    tr = int(self.entry_end_time.get())
-                    self._npl.quick_bus(tl,tr,g,
-                        self.bus_opts["pd"],self.bus_opts["qd"],
-                        self.bus_opts["v"],self.bus_opts["pg"],self.bus_opts["qg"],
-                        res_path=self._sta.root)
-                except Exception as e:
-                    self._Q.put(('E',f'Error plotting buses: {e}'))
-                    return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
-    
-    def plotGTotal(self):
-        self.disable_all()
-        self.set_status("Plotting total generator curve...")
-        def work():
-            try:
-                tl = int(self.entry_time.get())
-                tr = int(self.entry_end_time.get())
-                self._npl.quick_gen_tot(tl,tr,True,True,True,res_path=self._sta.root)
-            except Exception as e:
-                self._Q.put(('E',f'Error plotting total generator curve: {e}'))
-                return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
-    
-    def plotBTotal(self):
-        self.disable_all()
-        self.set_status("Plotting total generator curve...")
-        def work():
-            try:
-                tl = int(self.entry_time.get())
-                tr = int(self.entry_end_time.get())
-                self._npl.quick_bus_tot(tl,tr,True,True,True,True,res_path=self._sta.root)
-            except Exception as e:
-                self._Q.put(('E',f'Error plotting total generator curve: {e}'))
-                return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
-    
-    def plotLineCurve(self):
-        self.disable_all()
-        self.set_status("Plotting line curves...")
-        def work():
-            t=self.line_pad.get()
-            if t.strip()=="" or t==ITEM_ALL:
-                line=self._sta.line_head
-            else: line=[x.strip() for x in t.split(',')]
-            for i,g in enumerate(line,start=1):
-                try:
-                    self._Q.put(('I',f'({i}/{len(line)})Plotting lines...'))
-                    tl = int(self.entry_time.get())
-                    tr = int(self.entry_end_time.get())
-                    self._npl.quick_line(tl,tr,g,
-                        self.line_opts["p"],self.line_opts["q"],self.line_opts["cur"],
-                        res_path=self._sta.root)
-                except Exception as e:
-                    self._Q.put(('E',f'Error plotting lines: {e}'))
-                    return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
-    
-    def plotPVWCurve(self):
-        self.disable_all()
-        self.set_status("Plotting PV & Wind curves...")
-        def work():
-            t=self.pvw_pad.get()
-            if t.strip()=="" or t==ITEM_ALL:
-                pvw=self._sta.pvw_head
-            else: pvw=[x.strip() for x in t.split(',')]
-            for i,g in enumerate(pvw,start=1):
-                try:
-                    self._Q.put(('I',f'({i}/{len(pvw)})Plotting PV & Wind...'))
-                    tl = int(self.entry_time.get())
-                    tr = int(self.entry_end_time.get())
-                    self._npl.quick_pvw(tl,tr,g,
-                        self.pvw_opts["p"],self.pvw_opts["cr"],
-                        res_path=self._sta.root)
-                except Exception as e:
-                    self._Q.put(('E',f'Error plotting PV & Wind: {e}'))
-                    return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
+    def _plot_scs(self):
+        t = self._pp.scs_pad.get()
+        if t.strip()=="" or t==ITEM_ALL:
+            cs = self._sta.SCS_head
+        elif t==ITEM_SUM:
+            cs = ["<sum>"]
+        else:
+            cs = [x.strip() for x in t.split(',')]
+        for i,c in enumerate(cs,start=1):
+            self._Q.put(('I',f'({i} of {len(cs)})Plotting SCS graph...'))
+            self.plt.quick_scs(
+                cs_name=c, res_path=self._sta.root,
+                **self._pp.pars("scs")
+            )
 
-    def plotESSCurve(self):
-        self.disable_all()
-        self.set_status("Plotting ESS curves...")
-        def work():
-            t=self.ess_pad.get()
-            if t.strip()=="" or t==ITEM_ALL:
-                ess=self._sta.ess_head
-            else: ess=[x.strip() for x in t.split(',')]
-            for i,g in enumerate(ess,start=1):
-                try:
-                    self._Q.put(('I',f'({i}/{len(ess)})Plotting ESS...'))
-                    tl = int(self.entry_time.get())
-                    tr = int(self.entry_end_time.get())
-                    self._npl.quick_ess(tl,tr,g,
-                        self.ess_opts["p"],self.ess_opts["soc"],
-                        res_path=self._sta.root)
-                except Exception as e:
-                    self._Q.put(('E',f'Error plotting ESS: {e}'))
-                    return
-            self._Q.put(('D',None))
-        threading.Thread(target=work,daemon=True).start()
+    def _plot_ev(self):
+        self._npl.tl = int(self._pp.entry_time.get())
+        t = self._pp.ev_pad.get()
+        evs=None if t.strip()=="" else [x.strip() for x in t.split(',')]
+        if evs is None:
+            self._Q.put(('E','ID of EV cannot be empty'))
+            return
+        for ev in evs:
+            self._npl.quick_ev(ev_name = ev,
+                res_path=self._sta.root,
+                **self._pp.pars("ev")
+            )
+    
+    def _plot_gen(self):
+        t = self._pp.gen_pad.get()
+        if t.strip()=="" or t==ITEM_ALL:
+            gen = self._sta.gen_head
+        elif t==ITEM_ALL_G:
+            gen = [x for x in self._sta.gen_head if not x.startswith("V2G")]
+        elif t==ITEM_ALL_V2G:
+            gen = [x for x in self._sta.gen_head if x.startswith("V2G")]
+        else: gen = [x.strip() for x in t.split(',')]
+        for i, g in enumerate(gen, start=1):
+            self._Q.put(('I',f'({i}/{len(gen)})Plotting generators...'))
+            self.plt.quick_gen(
+                gen_name=g,res_path=self._sta.root,
+                **self._pp.pars("gen")
+            )
+
+    def _plot_bus(self):
+        t=self._pp.bus_pad.get()
+        if t.strip()=="" or t==ITEM_ALL:
+            bus=self._sta.bus_head
+        else: bus=[x.strip() for x in t.split(',')]
+        for i,g in enumerate(bus,start=1):
+            self._Q.put(('I',f'({i}/{len(bus)})Plotting buses...'))
+            self._npl.quick_bus(
+                bus_name = g, res_path=self._sta.root,
+                **self._pp.pars("bus")
+            )
+    
+    def _plot_gen_total(self):
+        tl, tr = self._pp.getTime()
+        self._npl.quick_gen_tot(tl,tr,True,True,True,res_path=self._sta.root)
+    
+    def _plot_bus_total(self):
+        tl, tr = self._pp.getTime()
+        self._npl.quick_bus_tot(tl,tr,True,True,True,True,res_path=self._sta.root)
+    
+    def _plot_line(self):
+        t=self._pp.line_pad.get()
+        if t.strip()=="" or t==ITEM_ALL:
+            line=self._sta.line_head
+        else: line=[x.strip() for x in t.split(',')]
+        for i,g in enumerate(line,start=1):
+            self._Q.put(('I',f'({i}/{len(line)})Plotting lines...'))
+            self._npl.quick_line(
+                line_name = g, res_path=self._sta.root,
+                **self._pp.pars("line")
+            )
+
+    def _plot_pvw(self):
+        t = self._pp.pvw_pad.get()
+        if t.strip() == "" or t == ITEM_ALL:
+            pvw = self._sta.pvw_head
+        else: pvw = [x.strip() for x in t.split(',')]
+        for i, g in enumerate(pvw,start=1):
+            self._Q.put(('I',f'({i}/{len(pvw)})Plotting PV & Wind...'))
+            self._npl.quick_pvw(
+                pvw_name = g, res_path=self._sta.root,
+                **self._pp.pars("pvw")
+            )
+
+    def _plot_ess(self):
+        t = self._pp.ess_pad.get()
+        if t.strip() == "" or t == ITEM_ALL:
+            ess = self._sta.ess_head
+        else: ess = [x.strip() for x in t.split(',')]
+        for i,g in enumerate(ess,start=1):
+            self._Q.put(('I',f'({i}/{len(ess)})Plotting ESS...'))
+            self._npl.quick_ess(
+                ess_name = g, res_path = self._sta.root,
+                **self._pp.pars("ess")
+            )
     
 if __name__ == "__main__":
     win = PlotBox()
