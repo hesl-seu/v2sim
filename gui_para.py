@@ -1,4 +1,5 @@
 import tkinter as tk
+import tkinter.ttk as ttk
 import multiprocessing as mp
 from tkinter import filedialog as fd
 from tkinter import messagebox as mb
@@ -35,13 +36,13 @@ class ParaBox(tk.Tk):
         self.tr.heading("path", text=_L("CASE_PATH"), anchor=tk.W)
         self.tr.heading("prog", text=_L("CASE_PROG"), anchor=tk.W)
         self.tr.pack(expand=True, fill='both',padx=3, pady=3)
-        self.fr = tk.Frame(self)
+        self.fr = ttk.Frame(self)
         self.fr.pack(expand=False, fill='x', padx=3, pady=3)
-        self.btn_load = tk.Button(self.fr, text=_L("LOAD_CASE"), command=self.load)
+        self.btn_load = ttk.Button(self.fr, text=_L("LOAD_CASE"), command=self.load)
         self.btn_load.pack(padx=3, pady=3, anchor=tk.W, side=tk.LEFT)
-        self.btn_remove = tk.Button(self.fr, text=_L("REMOVE_CASE"), command=self.remove)
+        self.btn_remove = ttk.Button(self.fr, text=_L("REMOVE_CASE"), command=self.remove)
         self.btn_remove.pack(padx=3, pady=3, anchor=tk.W, side=tk.LEFT)
-        self.btn_run = tk.Button(self.fr, text=_L("RUN"), command=self.run)
+        self.btn_run = ttk.Button(self.fr, text=_L("RUN"), command=self.run)
         self.btn_run.pack(padx=3, pady=3, anchor=tk.E, side=tk.RIGHT)
     
     def load(self):
