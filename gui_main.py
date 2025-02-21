@@ -6,7 +6,7 @@ from typing import Any, Optional
 from fgui.controls import empty_postfunc
 from fgui.network import OAfter
 from fgui.view import *
-from fgui import ScrollableTreeView, ALWAYS_ONLINE, PDFuncEditor, PropertyPanel, EditMode, NetworkPanel
+from fgui import ScrollableTreeView, ALWAYS_ONLINE, PDFuncEditor, PropertyPanel, EditMode, NetworkPanel, LogItemPad
 from tkinter import filedialog
 from tkinter import messagebox as MB
 from v2sim import *
@@ -24,12 +24,12 @@ DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" gr
 
 
 def showerr(msg:str):
-    MB.showerror(_loc["MB_ERROR"], msg)
+    MB.showerror(_L["MB_ERROR"], msg)
 
-_loc = CustomLocaleLib.LoadFromFolder("resources/gui_main")
+_L = CustomLocaleLib.LoadFromFolder("resources/gui_main")
 
-SIM_YES = "YES" #_loc["SIM_YES"]
-SIM_NO = "NO" #_loc["SIM_NO"]
+SIM_YES = "YES" #_L["SIM_YES"]
+SIM_NO = "NO" #_L["SIM_NO"]
 LOAD_CFG = "SUMO Config"
 LOAD_FCS = "Fast CS"
 LOAD_SCS = "Slow CS"
@@ -38,35 +38,6 @@ LOAD_CSCSV = "CS CSV"
 LOAD_PLG = "Plugins"
 LOAD_GEN = "Instance"
 
-class LogItemPad(LabelFrame):
-    def __init__(self, master, title:str, items:dict[str,str], **kwargs):
-        super().__init__(master, text=title, **kwargs)
-        self._bvs:dict[str,BooleanVar] = {}
-        self._cbs:dict[str,Checkbutton] = {}
-        for id, val in items.items():
-            bv = BooleanVar(self, True)
-            self._bvs[id] = bv
-            cb = Checkbutton(self, text=val, variable=bv)
-            cb.pack(anchor='w', side='left')
-            self._cbs[id] = cb
-            
-    def __getitem__(self, key:str):
-        return self._bvs[key].get()
-    
-    def __setitem__(self, key:str, val:bool):
-        self._bvs[key].set(val)
-    
-    def enable(self, key:str):
-        return self._cbs[key].configure(state="enabled")
-
-    def disable(self, key:str):
-        return self._cbs[key].configure(state="disabled")
-    
-    def setEnabled(self, key:str, v:bool):
-        if v:
-            return self._cbs[key].configure(state="enabled")
-        else:
-            return self._cbs[key].configure(state="disabled")
     
 class PluginEditor(ScrollableTreeView):
     def __init__(self, master, onEnabledSet:Callable[[tuple[Any,...], str], None] = empty_postfunc, **kwargs):
@@ -79,11 +50,11 @@ class PluginEditor(ScrollableTreeView):
         self.column("Enabled", width=100, stretch=NO)
         self.column("Online", width=200, stretch=NO)
         self.column("Extra", width=200, stretch=YES)
-        self.heading("Name", text=_loc["SIM_PLGNAME"])
-        self.heading("Interval", text=_loc["SIM_EXEINTV"])
-        self.heading("Enabled", text=_loc["SIM_ENABLED"])
-        self.heading("Online", text=_loc["SIM_PLGOL"])
-        self.heading("Extra", text=_loc["SIM_PLGPROP"])
+        self.heading("Name", text=_L["SIM_PLGNAME"])
+        self.heading("Interval", text=_L["SIM_EXEINTV"])
+        self.heading("Enabled", text=_L["SIM_ENABLED"])
+        self.heading("Online", text=_L["SIM_PLGOL"])
+        self.heading("Extra", text=_L["SIM_PLGPROP"])
         self.setColEditMode("Interval", EditMode.SPIN, spin_from=1, spin_to=86400)
         self.setColEditMode("Enabled", EditMode.COMBO, combo_values=[SIM_YES, SIM_NO], post_func=onEnabledSet)
         self.setColEditMode("Online", EditMode.RANGELIST, rangelist_hint = True)
@@ -121,15 +92,15 @@ class CSEditorGUI(Frame):
             self.tree.column("PcAlloc", width=80, stretch=NO)
             self.tree.column("PdAlloc", width=80, stretch=NO)
         
-        self.tree.heading("Edge", text=_loc["CSE_EDGE"])
-        self.tree.heading("Slots", text=_loc["CSE_SLOTS"])
-        self.tree.heading("Bus", text=_loc["CSE_BUS"])
-        self.tree.heading("x", text=_loc["CSE_X"])
-        self.tree.heading("y", text=_loc["CSE_Y"])
-        self.tree.heading("Online", text=_loc["CSE_ONLINE"])
-        self.tree.heading("MaxPc", text=_loc["CSE_MAXPC"])
-        self.tree.heading("PriceBuy", text=_loc["CSE_PRICEBUY"])
-        self.tree.heading("PcAlloc", text=_loc["CSE_PCALLOC"])
+        self.tree.heading("Edge", text=_L["CSE_EDGE"])
+        self.tree.heading("Slots", text=_L["CSE_SLOTS"])
+        self.tree.heading("Bus", text=_L["CSE_BUS"])
+        self.tree.heading("x", text=_L["CSE_X"])
+        self.tree.heading("y", text=_L["CSE_Y"])
+        self.tree.heading("Online", text=_L["CSE_ONLINE"])
+        self.tree.heading("MaxPc", text=_L["CSE_MAXPC"])
+        self.tree.heading("PriceBuy", text=_L["CSE_PRICEBUY"])
+        self.tree.heading("PcAlloc", text=_L["CSE_PCALLOC"])
 
         self.tree.setColEditMode("Edge", EditMode.ENTRY)
         self.tree.setColEditMode("Slots", EditMode.SPIN, spin_from = 0, spin_to = 100)
@@ -142,57 +113,57 @@ class CSEditorGUI(Frame):
         self.tree.setColEditMode("PcAlloc", EditMode.COMBO, combo_values=["Average", "Prioritized"])
         
         if canV2g:
-            self.tree.heading("PriceSell", text=_loc["CSE_PRICESELL"])
-            self.tree.heading("MaxPd", text=_loc["CSE_MAXPD"])
-            self.tree.heading("PdAlloc", text=_loc["CSE_PDALLOC"])
+            self.tree.heading("PriceSell", text=_L["CSE_PRICESELL"])
+            self.tree.heading("MaxPd", text=_L["CSE_MAXPD"])
+            self.tree.heading("PdAlloc", text=_L["CSE_PDALLOC"])
             self.tree.setColEditMode("PriceSell", EditMode.SEGFUNC)
             self.tree.setColEditMode("MaxPd", EditMode.SPIN, spin_from = 0, spin_to = 1000)
             self.tree.setColEditMode("PdAlloc", EditMode.COMBO, combo_values=["Average"])
         self.tree.pack(fill="both", expand=True)
 
         self.panel2 = Frame(self)
-        self.btn_find = Button(self.panel2, text=_loc["BTN_FIND"], command=self._on_btn_find_click)
+        self.btn_find = Button(self.panel2, text=_L["BTN_FIND"], command=self._on_btn_find_click)
         self.btn_find.pack(fill="x", side='right', anchor='e', expand=False)
         self.entry_find = Entry(self.panel2)
         self.entry_find.pack(fill="x", side='right', anchor='e',expand=False)
-        self.lb_cnt = Label(self.panel2, text=_loc["LB_COUNT"].format(0))
+        self.lb_cnt = Label(self.panel2, text=_L["LB_COUNT"].format(0))
         self.lb_cnt.pack(fill="x", side='left', anchor='w', expand=False)
         self.panel2.pack(fill="x")
 
-        self.gens = LabelFrame(self, text=_loc["CS_GEN"])
+        self.gens = LabelFrame(self, text=_L["CS_GEN"])
         self.gens.pack(fill="x", expand=False)
 
         self.useMode = IntVar(self, 0)
-        self.group_use = LabelFrame(self.gens, text=_loc["CS_MODE"])
-        self.rb_useAll = Radiobutton(self.group_use, text=_loc["CS_USEALL"], value=0, variable=self.useMode, command=self._useModeChanged)
+        self.group_use = LabelFrame(self.gens, text=_L["CS_MODE"])
+        self.rb_useAll = Radiobutton(self.group_use, text=_L["CS_USEALL"], value=0, variable=self.useMode, command=self._useModeChanged)
         self.rb_useAll.grid(row=0,column=0,padx=3,pady=3,sticky="w")
-        self.rb_useSel = Radiobutton(self.group_use, text=_loc["CS_SELECTED"], value=1, variable=self.useMode, command=self._useModeChanged)
+        self.rb_useSel = Radiobutton(self.group_use, text=_L["CS_SELECTED"], value=1, variable=self.useMode, command=self._useModeChanged)
         self.rb_useSel.grid(row=0,column=1,padx=3,pady=3,sticky="w")
         self.entry_sel = Entry(self.group_use, state="disabled")
         self.entry_sel.grid(row=0,column=2,padx=3,pady=3,sticky="w")
-        self.rb_useRandN = Radiobutton(self.group_use, text=_loc["CS_RANDOM"], value=2, variable=self.useMode, command=self._useModeChanged)
+        self.rb_useRandN = Radiobutton(self.group_use, text=_L["CS_RANDOM"], value=2, variable=self.useMode, command=self._useModeChanged)
         self.rb_useRandN.grid(row=0,column=3,padx=3,pady=3,sticky="w")
         self.entry_randN = Entry(self.group_use, state="disabled")
         self.entry_randN.grid(row=0,column=4,padx=3,pady=3,sticky="w")
         self.group_use.grid(row=2,column=0,padx=3,pady=3,sticky="nesw")
 
         self.use_cscsv = IntVar(self, 0)
-        self.group_src = LabelFrame(self.gens, text=_loc["CS_SRC"])
-        self.rb_rnet = Radiobutton(self.group_src, text=_loc["CS_USEEDGES"], value=0, variable=self.use_cscsv)
+        self.group_src = LabelFrame(self.gens, text=_L["CS_SRC"])
+        self.rb_rnet = Radiobutton(self.group_src, text=_L["CS_USEEDGES"], value=0, variable=self.use_cscsv)
         self.rb_rnet.grid(row=0,column=0,padx=3,pady=3,sticky="w")
-        self.rb_cscsv = Radiobutton(self.group_src, text=_loc["CS_USECSV"], value=1, variable=self.use_cscsv, state="disabled")
+        self.rb_cscsv = Radiobutton(self.group_src, text=_L["CS_USECSV"], value=1, variable=self.use_cscsv, state="disabled")
         self.rb_cscsv.grid(row=0,column=1,padx=3,pady=3,sticky="w")
-        self.rb_poly = Radiobutton(self.group_src, text=_loc["CS_USEPOLY"], value=2, variable=self.use_cscsv,state="disabled")
+        self.rb_poly = Radiobutton(self.group_src, text=_L["CS_USEPOLY"], value=2, variable=self.use_cscsv,state="disabled")
         self.rb_poly.grid(row=0,column=2,padx=3,pady=3,sticky="w")
         self.group_src.grid(row=1,column=0,padx=3,pady=3,sticky="nesw")
 
         self.fr = Frame(self.gens)
-        self.lb_slots = Label(self.fr, text=_loc["CS_SLOTS"])
+        self.lb_slots = Label(self.fr, text=_L["CS_SLOTS"])
         self.lb_slots.grid(row=0,column=0,padx=3,pady=3,sticky="w")
         self.entry_slots = Entry(self.fr)
         self.entry_slots.grid(row=0,column=1,padx=3,pady=3,sticky="w")
         self.entry_slots.insert(0, "10")
-        self.lb_seed = Label(self.fr, text=_loc["CS_SEED"])
+        self.lb_seed = Label(self.fr, text=_L["CS_SEED"])
         self.lb_seed.grid(row=0,column=2,padx=3,pady=3,sticky="w")
         self.entry_seed = Entry(self.fr)
         self.entry_seed.grid(row=0,column=3,padx=3,pady=3,sticky="w")
@@ -200,10 +171,10 @@ class CSEditorGUI(Frame):
         self.fr.grid(row=0,column=0,padx=3,pady=3,sticky="nesw")
         
         self.pbuy = IntVar(self, 1)
-        self.group_pbuy = LabelFrame(self.gens, text=_loc["CS_PRICEBUY"])
-        self.rb_pbuy0 = Radiobutton(self.group_pbuy, text=_loc["CS_PB5SEGS"], value=0, variable=self.pbuy, command=self._pBuyChanged)
+        self.group_pbuy = LabelFrame(self.gens, text=_L["CS_PRICEBUY"])
+        self.rb_pbuy0 = Radiobutton(self.group_pbuy, text=_L["CS_PB5SEGS"], value=0, variable=self.pbuy, command=self._pBuyChanged)
         self.rb_pbuy0.grid(row=0,column=0,padx=3,pady=3,sticky="w")
-        self.rb_pbuy1 = Radiobutton(self.group_pbuy, text=_loc["CS_PBFIXED"], value=1, variable=self.pbuy, command=self._pBuyChanged)
+        self.rb_pbuy1 = Radiobutton(self.group_pbuy, text=_L["CS_PBFIXED"], value=1, variable=self.pbuy, command=self._pBuyChanged)
         self.rb_pbuy1.grid(row=0,column=1,padx=3,pady=3,sticky="w")
         self.entry_pbuy = Entry(self.group_pbuy)
         self.entry_pbuy.insert(0, "1.0")
@@ -211,10 +182,10 @@ class CSEditorGUI(Frame):
         self.group_pbuy.grid(row=3,column=0,padx=3,pady=3,sticky="nesw")
 
         self.psell = IntVar(self, 1)
-        self.group_psell = LabelFrame(self.gens, text=_loc["CS_PRICESELL"])
-        self.rb_psell0 = Radiobutton(self.group_psell, text=_loc["CS_PB5SEGS"], value=0, variable=self.psell, command=self._pSellChanged)
+        self.group_psell = LabelFrame(self.gens, text=_L["CS_PRICESELL"])
+        self.rb_psell0 = Radiobutton(self.group_psell, text=_L["CS_PB5SEGS"], value=0, variable=self.psell, command=self._pSellChanged)
         self.rb_psell0.grid(row=0,column=0,padx=3,pady=3,sticky="w")
-        self.rb_psell1 = Radiobutton(self.group_psell, text=_loc["CS_PBFIXED"], value=1, variable=self.psell, command=self._pSellChanged)
+        self.rb_psell1 = Radiobutton(self.group_psell, text=_L["CS_PBFIXED"], value=1, variable=self.psell, command=self._pSellChanged)
         self.rb_psell1.grid(row=0,column=1,padx=3,pady=3,sticky="w")
         self.entry_psell = Entry(self.group_psell)
         self.entry_psell.insert(0, "1.5")
@@ -222,22 +193,22 @@ class CSEditorGUI(Frame):
         self.group_psell.grid(row=4,column=0,padx=3,pady=3,sticky="nesw")
 
         self.busMode = IntVar(self, 0)
-        self.group_bus = LabelFrame(self.gens, text=_loc["CS_BUSMODE"])
-        self.rb_busGrid = Radiobutton(self.group_bus, text=_loc["CS_BUSBYPOS"], value=0, variable=self.busMode, command=self._busModeChanged)
+        self.group_bus = LabelFrame(self.gens, text=_L["CS_BUSMODE"])
+        self.rb_busGrid = Radiobutton(self.group_bus, text=_L["CS_BUSBYPOS"], value=0, variable=self.busMode, command=self._busModeChanged)
         self.rb_busGrid.grid(row=0,column=0,padx=3,pady=3,sticky="w")
-        self.rb_busAll = Radiobutton(self.group_bus, text=_loc["CS_BUSUSEALL"], value=1, variable=self.busMode, command=self._busModeChanged)
+        self.rb_busAll = Radiobutton(self.group_bus, text=_L["CS_BUSUSEALL"], value=1, variable=self.busMode, command=self._busModeChanged)
         self.rb_busAll.grid(row=0,column=1,padx=3,pady=3,sticky="w")
-        self.rb_busSel = Radiobutton(self.group_bus, text=_loc["CS_BUSSELECTED"], value=2, variable=self.busMode, command=self._busModeChanged)
+        self.rb_busSel = Radiobutton(self.group_bus, text=_L["CS_BUSSELECTED"], value=2, variable=self.busMode, command=self._busModeChanged)
         self.rb_busSel.grid(row=0,column=2,padx=3,pady=3,sticky="w")
         self.entry_bussel = Entry(self.group_bus, state="disabled")
         self.entry_bussel.grid(row=0,column=3,padx=3,pady=3,sticky="w")
-        self.rb_busRandN = Radiobutton(self.group_bus, text=_loc["CS_BUSRANDOM"], value=3, variable=self.busMode, command=self._busModeChanged)
+        self.rb_busRandN = Radiobutton(self.group_bus, text=_L["CS_BUSRANDOM"], value=3, variable=self.busMode, command=self._busModeChanged)
         self.rb_busRandN.grid(row=0,column=4,padx=3,pady=3,sticky="w")
         self.entry_busrandN = Entry(self.group_bus, state="disabled")
         self.entry_busrandN.grid(row=0,column=5,padx=3,pady=3,sticky="w")
         self.group_bus.grid(row=5,column=0,padx=3,pady=3,sticky="nesw")
 
-        self.btn_regen = Button(self.gens, text=_loc["CS_BTN_GEN"], command=self.generate)
+        self.btn_regen = Button(self.gens, text=_L["CS_BTN_GEN"], command=self.generate)
         self.btn_regen.grid(row=6,column=0,padx=3,pady=3,sticky="w")
         self.tree.setOnSave(self.save())
 
@@ -483,7 +454,7 @@ class CSEditorGUI(Frame):
     
     def clear(self):
         self.tree.clear()
-        self.lb_cnt.config(text=_loc["LB_COUNT"].format(0))
+        self.lb_cnt.config(text=_L["LB_COUNT"].format(0))
     
     def __load(self, file:str, async_:bool=False, after:OAfter=None):
         try:
@@ -493,7 +464,7 @@ class CSEditorGUI(Frame):
             return
         self.file = file
         self.tree.clear()
-        self.lb_cnt.config(text=_loc["LB_COUNT"].format(len(self.cslist)))
+        self.lb_cnt.config(text=_L["LB_COUNT"].format(len(self.cslist)))
         if self.csType == FCS:
             for cs in self.cslist:
                 ol = str(cs._offline) if len(cs._offline)>0 else ALWAYS_ONLINE
@@ -535,20 +506,20 @@ class CSCSVEditor(Frame):
         self.tree.column("Y", width=100, stretch=NO)
         self.tree.column("Address", width=180, stretch=YES)
         
-        self.tree.heading("ID", text=_loc["CSCSV_ID"])
-        self.tree.heading("X", text=_loc["CSCSV_X"])
-        self.tree.heading("Y", text=_loc["CSCSV_Y"])
-        self.tree.heading("Address", text=_loc["CSCSV_ADDR"])
+        self.tree.heading("ID", text=_L["CSCSV_ID"])
+        self.tree.heading("X", text=_L["CSCSV_X"])
+        self.tree.heading("Y", text=_L["CSCSV_Y"])
+        self.tree.heading("Address", text=_L["CSCSV_ADDR"])
         self.tree.pack(fill="both", expand=True)
 
-        self.lb_cnt = Label(self, text=_loc["LB_COUNT"].format(0))
+        self.lb_cnt = Label(self, text=_L["LB_COUNT"].format(0))
         self.lb_cnt.pack(fill="x", expand=False)
 
         self.panel = Frame(self)
         self.panel.pack(fill="x", expand=False)
-        self.btn_down = Button(self.panel, text=_loc["CSCSV_DOWNLOAD"], command=self.down)
+        self.btn_down = Button(self.panel, text=_L["CSCSV_DOWNLOAD"], command=self.down)
         self.btn_down.grid(row=0,column=0,padx=3,pady=3,sticky="w")
-        self.lb_amapkey = Label(self.panel, text=_loc["CSCSV_KEY"])
+        self.lb_amapkey = Label(self.panel, text=_L["CSCSV_KEY"])
         self.lb_amapkey.grid(row=0, column=1, padx=3, pady=3, sticky="w")
         self.entry_amapkey = Entry(self.panel, width=50)
         self.entry_amapkey.grid(row=0, column=2, columnspan=2, padx=3, pady=3, sticky="w")
@@ -558,7 +529,7 @@ class CSCSVEditor(Frame):
                 self.entry_amapkey.insert(0, f.read().strip())
         
     def down(self):
-        if MB.askyesno(_loc["CSCSV_CONFIRM_TITLE"], _loc["CSCSV_CONFIRM"]):
+        if MB.askyesno(_L["CSCSV_CONFIRM_TITLE"], _L["CSCSV_CONFIRM"]):
             self.down_wk()
     
     def __load(self, file:str, async_:bool=False, after:OAfter=None):
@@ -569,7 +540,7 @@ class CSCSVEditor(Frame):
             showerr(f"Error loading {file}: {e}")
             return
         self.file = file
-        self.lb_cnt.config(text=_loc["LB_COUNT"].format(len(lines) - 1))
+        self.lb_cnt.config(text=_L["LB_COUNT"].format(len(lines) - 1))
         self.tree.clear()
         for cs in lines[1:]:
             vals = cs.strip().split(',')
@@ -609,7 +580,7 @@ class CSCSVEditor(Frame):
             self.__load(file, False, after)
     
     def clear(self):
-        self.lb_cnt.config(text=_loc["LB_COUNT"].format(0))
+        self.lb_cnt.config(text=_L["LB_COUNT"].format(0))
         self.tree.clear()
 
 
@@ -632,7 +603,7 @@ class LoadingBox(Toplevel):
     def setText(self, itm:str, val:str):
         self.cks[self.dkt[itm]].configure(text=val)
         for x in self.cks:
-            if x['text'] != _loc['DONE']: break
+            if x['text'] != _L['DONE']: break
         else:
             self.destroy()
     
@@ -641,10 +612,10 @@ class MainBox(Tk):
     @staticmethod
     def setLang(lang_code:str):
         def _f():
-            _loc.DefaultLanguage = lang_code
+            _L.DefaultLanguage = lang_code
             Lang.load(lang_code)
             Lang.save_lang_code(lang_code == "<auto>")
-            MB.showinfo(_loc["MB_INFO"],_loc["LANG_RESTART"])
+            MB.showinfo(_L["MB_INFO"],_L["LANG_RESTART"])
         return _f
     
     def _OnPDNEnabledSet(self):
@@ -666,19 +637,19 @@ class MainBox(Tk):
 
         self.menu = Menu(self)
         self.menuFile = Menu(self.menu, tearoff=False)
-        self.menu.add_cascade(label=_loc["MENU_PROJ"], menu=self.menuFile)
-        self.menuFile.add_command(label=_loc["MENU_OPEN"], command=self.openFolder, accelerator='Ctrl+O')
+        self.menu.add_cascade(label=_L["MENU_PROJ"], menu=self.menuFile)
+        self.menuFile.add_command(label=_L["MENU_OPEN"], command=self.openFolder, accelerator='Ctrl+O')
         self.bind("<Control-o>", lambda e: self.openFolder())
-        self.menuFile.add_command(label=_loc["MENU_SAVEALL"], command=self.save, accelerator="Ctrl+S")
+        self.menuFile.add_command(label=_L["MENU_SAVEALL"], command=self.save, accelerator="Ctrl+S")
         self.bind("<Control-s>", lambda e: self.save())
         self.menuFile.add_separator()
-        self.menuFile.add_command(label=_loc["MENU_EXIT"], command=self.onDestroy, accelerator='Ctrl+Q')
+        self.menuFile.add_command(label=_L["MENU_EXIT"], command=self.onDestroy, accelerator='Ctrl+Q')
         self.bind("<Control-q>", lambda e: self.onDestroy())
         self.menuLang = Menu(self.menu, tearoff=False)
-        self.menu.add_cascade(label=_loc["MENU_LANG"], menu=self.menuLang)
-        self.menuLang.add_command(label=_loc["MENU_LANG_AUTO"], command=self.setLang("<auto>"))
-        self.menuLang.add_command(label=_loc["MENU_LANG_EN"], command=self.setLang("en"))
-        self.menuLang.add_command(label=_loc["MENU_LANG_ZHCN"], command=self.setLang("zh_CN"))
+        self.menu.add_cascade(label=_L["MENU_LANG"], menu=self.menuLang)
+        self.menuLang.add_command(label=_L["MENU_LANG_AUTO"], command=self.setLang("<auto>"))
+        self.menuLang.add_command(label=_L["MENU_LANG_EN"], command=self.setLang("en"))
+        self.menuLang.add_command(label=_L["MENU_LANG_ZHCN"], command=self.setLang("zh_CN"))
         self.config(menu=self.menu)
         self.rowconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
@@ -686,190 +657,190 @@ class MainBox(Tk):
         self.panel_info = Frame(self, borderwidth=1, relief="solid")
         self.panel_info.grid(row=0, column=0, padx=3, pady=3, sticky="nsew")
 
-        self.lb_infotitle = Label(self.panel_info, text = _loc["BAR_PROJINFO"], background="white")
+        self.lb_infotitle = Label(self.panel_info, text = _L["BAR_PROJINFO"], background="white")
         self.lb_infotitle.grid(row=0, column=0, columnspan=2, padx=3, pady=3, sticky="nsew")
 
-        self.lb_fcs_indicatif = Label(self.panel_info, text = _loc["BAR_FCS"])
+        self.lb_fcs_indicatif = Label(self.panel_info, text = _L["BAR_FCS"])
         self.lb_fcs_indicatif.grid(row=1, column=0, padx=3, pady=3)
-        self.lb_fcs = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_fcs = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_fcs.grid(row=1, column=1, padx=3, pady=3)
 
-        self.lb_scs_indicatif = Label(self.panel_info, text = _loc["BAR_SCS"])
+        self.lb_scs_indicatif = Label(self.panel_info, text = _L["BAR_SCS"])
         self.lb_scs_indicatif.grid(row=2, column=0, padx=3, pady=3)
-        self.lb_scs = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_scs = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_scs.grid(row=2, column=1, padx=3, pady=3)
 
-        self.lb_grid_indicatif = Label(self.panel_info, text = _loc["BAR_GRID"])
+        self.lb_grid_indicatif = Label(self.panel_info, text = _L["BAR_GRID"])
         self.lb_grid_indicatif.grid(row=3, column=0, padx=3, pady=3)
-        self.lb_grid = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_grid = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_grid.grid(row=3, column=1, padx=3, pady=3)
 
-        self.lb_net_indicatif = Label(self.panel_info, text = _loc["BAR_RNET"])
+        self.lb_net_indicatif = Label(self.panel_info, text = _L["BAR_RNET"])
         self.lb_net_indicatif.grid(row=4, column=0, padx=3, pady=3)
-        self.lb_net = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_net = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_net.grid(row=4, column=1, padx=3, pady=3)
 
-        self.lb_veh_indicatif = Label(self.panel_info, text = _loc["BAR_VEH"])
+        self.lb_veh_indicatif = Label(self.panel_info, text = _L["BAR_VEH"])
         self.lb_veh_indicatif.grid(row=5, column=0, padx=3, pady=3)
-        self.lb_veh = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_veh = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_veh.grid(row=5, column=1, padx=3, pady=3)
 
-        self.lb_plg_indicatif = Label(self.panel_info, text = _loc["BAR_PLG"])
+        self.lb_plg_indicatif = Label(self.panel_info, text = _L["BAR_PLG"])
         self.lb_plg_indicatif.grid(row=6, column=0, padx=3, pady=3)
-        self.lb_plg = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_plg = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_plg.grid(row=6, column=1, padx=3, pady=3)
 
-        self.lb_cfg_indicatif = Label(self.panel_info, text = _loc["BAR_SUMO"])
+        self.lb_cfg_indicatif = Label(self.panel_info, text = _L["BAR_SUMO"])
         self.lb_cfg_indicatif.grid(row=7, column=0, padx=3, pady=3)
-        self.lb_cfg = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_cfg = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_cfg.grid(row=7, column=1, padx=3, pady=3)
 
-        self.lb_taz_indicatif = Label(self.panel_info, text = _loc["BAR_TAZ"])
+        self.lb_taz_indicatif = Label(self.panel_info, text = _L["BAR_TAZ"])
         self.lb_taz_indicatif.grid(row=8, column=0, padx=3, pady=3)
-        self.lb_taz = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_taz = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_taz.grid(row=8, column=1, padx=3, pady=3)
 
-        self.lb_py_indicatif = Label(self.panel_info, text = _loc["BAR_ADDON"])
+        self.lb_py_indicatif = Label(self.panel_info, text = _L["BAR_ADDON"])
         self.lb_py_indicatif.grid(row=9, column=0, padx=3, pady=3)
-        self.lb_py = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_py = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_py.grid(row=9, column=1, padx=3, pady=3)
 
-        self.lb_taz_type_indicatif = Label(self.panel_info, text = _loc["BAR_TAZTYPE"])
+        self.lb_taz_type_indicatif = Label(self.panel_info, text = _L["BAR_TAZTYPE"])
         self.lb_taz_type_indicatif.grid(row=10, column=0, padx=3, pady=3)
-        self.lb_taz_type = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_taz_type = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_taz_type.grid(row=10, column=1, padx=3, pady=3)
 
-        self.lb_osm_indicatif = Label(self.panel_info, text = _loc["BAR_OSM"])
+        self.lb_osm_indicatif = Label(self.panel_info, text = _L["BAR_OSM"])
         self.lb_osm_indicatif.grid(row=11, column=0, padx=3, pady=3)
-        self.lb_osm = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_osm = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_osm.grid(row=11, column=1, padx=3, pady=3)
 
-        self.lb_poly_indicatif = Label(self.panel_info, text = _loc["BAR_POLY"])
+        self.lb_poly_indicatif = Label(self.panel_info, text = _L["BAR_POLY"])
         self.lb_poly_indicatif.grid(row=12, column=0, padx=3, pady=3)
-        self.lb_poly = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_poly = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_poly.grid(row=12, column=1, padx=3, pady=3)
 
-        self.lb_cscsv_indicatif = Label(self.panel_info, text = _loc["BAR_CSCSV"])
+        self.lb_cscsv_indicatif = Label(self.panel_info, text = _L["BAR_CSCSV"])
         self.lb_cscsv_indicatif.grid(row=13, column=0, padx=3, pady=3)
-        self.lb_cscsv = Label(self.panel_info, text = _loc["BAR_NONE"])
+        self.lb_cscsv = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_cscsv.grid(row=13, column=1, padx=3, pady=3)
 
         self.tabs = Notebook(self)
         self.tabs.grid(row=0, column=1, padx=3, pady=3, sticky="nsew")
 
         self.tab_sim = Frame(self.tabs)
-        self.sim_time = LabelFrame(self.tab_sim, text=_loc["SIM_BASIC"])
+        self.sim_time = LabelFrame(self.tab_sim, text=_L["SIM_BASIC"])
         self.sim_time.pack(fill="x", expand=False)
-        self.lb_start = Label(self.sim_time, text=_loc["SIM_BEGT"])
+        self.lb_start = Label(self.sim_time, text=_L["SIM_BEGT"])
         self.lb_start.grid(row=0, column=0, padx=3, pady=3, sticky="w")
         self.entry_start = Entry(self.sim_time)
         self.entry_start.insert(0, "0")
         self.entry_start.grid(row=0, column=1, padx=3, pady=3, sticky="w")
-        self.lb_end = Label(self.sim_time, text=_loc["SIM_ENDT"])
+        self.lb_end = Label(self.sim_time, text=_L["SIM_ENDT"])
         self.lb_end.grid(row=1, column=0, padx=3, pady=3, sticky="w")
         self.entry_end = Entry(self.sim_time)
         self.entry_end.insert(0, "172800")
         self.entry_end.grid(row=1, column=1, padx=3, pady=3, sticky="w")
-        self.lb_step = Label(self.sim_time, text=_loc["SIM_STEP"])
+        self.lb_step = Label(self.sim_time, text=_L["SIM_STEP"])
         self.lb_step.grid(row=2, column=0, padx=3, pady=3, sticky="w")
         self.entry_step = Entry(self.sim_time)
         self.entry_step.insert(0, "10")
         self.entry_step.grid(row=2, column=1, padx=3, pady=3, sticky="w")
-        self.lb_seed = Label(self.sim_time, text=_loc["SIM_SEED"])
+        self.lb_seed = Label(self.sim_time, text=_L["SIM_SEED"])
         self.lb_seed.grid(row=3, column=0, padx=3, pady=3, sticky="w")
         self.entry_seed = Entry(self.sim_time)
         self.entry_seed.insert(0, "0")
         self.entry_seed.grid(row=3, column=1, padx=3, pady=3, sticky="w")
         self.sim_load_last_state = BooleanVar(self, False)
-        self.sim_cb_load_last_state = Checkbutton(self.sim_time, text=_loc["SIM_LOAD_LAST_STATE"], variable=self.sim_load_last_state)
+        self.sim_cb_load_last_state = Checkbutton(self.sim_time, text=_L["SIM_LOAD_LAST_STATE"], variable=self.sim_load_last_state)
         self.sim_cb_load_last_state.grid(row=4, column=0, padx=3, pady=3, sticky="w", columnspan=2)
         self.sim_save_on_abort = BooleanVar(self, False)
-        self.sim_cb_save_on_abort = Checkbutton(self.sim_time, text=_loc["SIM_SAVE_ON_ABORT"], variable=self.sim_save_on_abort)
+        self.sim_cb_save_on_abort = Checkbutton(self.sim_time, text=_L["SIM_SAVE_ON_ABORT"], variable=self.sim_save_on_abort)
         self.sim_cb_save_on_abort.grid(row=5, column=0, padx=3, pady=3, sticky="w", columnspan=2)
         self.sim_save_on_finish = BooleanVar(self, False)
-        self.sim_cb_save_on_finish = Checkbutton(self.sim_time, text=_loc["SIM_SAVE_ON_FINISH"], variable=self.sim_save_on_finish)
+        self.sim_cb_save_on_finish = Checkbutton(self.sim_time, text=_L["SIM_SAVE_ON_FINISH"], variable=self.sim_save_on_finish)
         self.sim_cb_save_on_finish.grid(row=6, column=0, padx=3, pady=3, sticky="w", columnspan=2)
 
-        self.sim_plugins = LabelFrame(self.tab_sim, text=_loc["SIM_PLUGIN"])
+        self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
         self.sim_plglist = PluginEditor(self.sim_plugins, self._OnPDNEnabledSet())
         self.sim_plglist.pack(fill="both", expand=True)
         self.sim_plugins.pack(fill="x", expand=False)
         self.sim_plglist.setOnSave(self.savePlugins())
 
-        self.sim_statistic = LogItemPad(self.tab_sim, _loc["SIM_STAT"],{
-            "fcs":_loc["SIM_FCS"],
-            "scs":_loc["SIM_SCS"],
-            "ev":_loc["SIM_VEH"],
-            "gen":_loc["SIM_GEN"],
-            "bus":_loc["SIM_BUS"],
-            "line":_loc["SIM_LINE"],
-            "pvw":_loc["SIM_PVW"],
-            "ess":_loc["SIM_ESS"],
+        self.sim_statistic = LogItemPad(self.tab_sim, _L["SIM_STAT"],{
+            "fcs":_L["SIM_FCS"],
+            "scs":_L["SIM_SCS"],
+            "ev":_L["SIM_VEH"],
+            "gen":_L["SIM_GEN"],
+            "bus":_L["SIM_BUS"],
+            "line":_L["SIM_LINE"],
+            "pvw":_L["SIM_PVW"],
+            "ess":_L["SIM_ESS"],
         })
         self.sim_statistic["ev"] = False
         self.sim_statistic.pack(fill="x", expand=False)
 
-        self.sim_btn = Button(self.tab_sim, text=_loc["SIM_START"], command=self.simulate)
+        self.sim_btn = Button(self.tab_sim, text=_L["SIM_START"], command=self.simulate)
         self.sim_btn.pack(anchor="w", padx=3, pady=3)
-        self.tabs.add(self.tab_sim, text=_loc["TAB_SIM"])
+        self.tabs.add(self.tab_sim, text=_L["TAB_SIM"])
 
         self.tab_CsCsv = Frame(self.tabs)
         self.CsCsv_editor = CSCSVEditor(self.tab_CsCsv, self.CSCSVDownloadWorker)
         self.CsCsv_editor.pack(fill="both", expand=True)
-        self.tabs.add(self.tab_CsCsv, text=_loc["TAB_CSCSV"])
+        self.tabs.add(self.tab_CsCsv, text=_L["TAB_CSCSV"])
 
         self.tab_FCS = Frame(self.tabs)
         self.FCS_editor = CSEditorGUI(self.tab_FCS, self.generateCS, False)
         self.FCS_editor.pack(fill="both", expand=True)
-        self.tabs.add(self.tab_FCS, text=_loc["TAB_FCS"])
+        self.tabs.add(self.tab_FCS, text=_L["TAB_FCS"])
 
         self.tab_SCS = Frame(self.tabs)
         self.SCS_editor = CSEditorGUI(self.tab_SCS, self.generateCS, True)
         self.SCS_editor.pack(fill="both", expand=True)
-        self.tabs.add(self.tab_SCS, text=_loc["TAB_SCS"])
+        self.tabs.add(self.tab_SCS, text=_L["TAB_SCS"])
 
         self.tab_Net = Frame(self.tabs)
         self.cv_net = NetworkPanel(self.tab_Net)
         self.cv_net.pack(fill=BOTH, expand=True)
-        self.panel_net = LabelFrame(self.tab_Net, text=_loc["RNET_TITLE"])
-        self.lb_gridsave = Label(self.panel_net, text=_loc["NOT_OPEN"])
+        self.panel_net = LabelFrame(self.tab_Net, text=_L["RNET_TITLE"])
+        self.lb_gridsave = Label(self.panel_net, text=_L["NOT_OPEN"])
         self.lb_gridsave.pack(side='left',padx=3,pady=3, anchor='w')
         def on_saved_changed(saved:bool):
             if saved:
-                self.lb_gridsave.config(text=_loc["SAVED"],foreground="green")
+                self.lb_gridsave.config(text=_L["SAVED"],foreground="green")
             else:
-                self.lb_gridsave.config(text=_loc["UNSAVED"],foreground="red")
+                self.lb_gridsave.config(text=_L["UNSAVED"],foreground="red")
         self.cv_net.save_callback = on_saved_changed
-        self.btn_savegrid = Button(self.panel_net, text=_loc["SAVE_GRID"], command=self.saveGrid)
+        self.btn_savegrid = Button(self.panel_net, text=_L["SAVE_GRID"], command=self.saveGrid)
         self.btn_savegrid.pack(side='left',padx=3,pady=3, anchor='w')
-        self.lb_puvalues = Label(self.panel_net, text=_loc["PU_VALS"].format('Null','Null'))
+        self.lb_puvalues = Label(self.panel_net, text=_L["PU_VALS"].format('Null','Null'))
         self.lb_puvalues.pack(side='left',padx=3,pady=3, anchor='w')
-        self.btn_draw = Button(self.panel_net, text=_loc["RNET_DRAW"], command=self.draw)
+        self.btn_draw = Button(self.panel_net, text=_L["RNET_DRAW"], command=self.draw)
         self.btn_draw.pack(side="right", padx=3, pady=3, anchor="e")
-        self.entry_locedges = Entry(self.panel_net)
-        self.entry_locedges.pack(side="right", padx=3, pady=3, anchor="e")
-        self.lb_locedges = Label(self.panel_net, text=_loc["RNET_EDGES"])
-        self.lb_locedges.pack(side="right", padx=3, pady=3, anchor="e")
+        self.entry_Ledges = Entry(self.panel_net)
+        self.entry_Ledges.pack(side="right", padx=3, pady=3, anchor="e")
+        self.lb_Ledges = Label(self.panel_net, text=_L["RNET_EDGES"])
+        self.lb_Ledges.pack(side="right", padx=3, pady=3, anchor="e")
         
         self.panel_net.pack(fill="x", expand=False, anchor="s")
-        self.tabs.add(self.tab_Net, text=_loc["TAB_RNET"])
+        self.tabs.add(self.tab_Net, text=_L["TAB_RNET"])
 
         self.tab_Veh = Frame(self.tabs)
-        self.fr_veh_basic = LabelFrame(self.tab_Veh,text=_loc["VEH_BASIC"])
+        self.fr_veh_basic = LabelFrame(self.tab_Veh,text=_L["VEH_BASIC"])
         self.fr_veh_basic.pack(fill="x", expand=False)
-        self.lb_carcnt = Label(self.fr_veh_basic, text=_loc["VEH_COUNT"])
+        self.lb_carcnt = Label(self.fr_veh_basic, text=_L["VEH_COUNT"])
         self.lb_carcnt.grid(row=0, column=0, padx=3, pady=3, sticky="w")
         self.entry_carcnt = Entry(self.fr_veh_basic)
         self.entry_carcnt.insert(0, "10000")
         self.entry_carcnt.grid(row=0, column=1, padx=3, pady=3, sticky="w")
-        self.lb_v2gprop = Label(self.fr_veh_basic, text=_loc["VEH_V2GPROP"])
+        self.lb_v2gprop = Label(self.fr_veh_basic, text=_L["VEH_V2GPROP"])
         self.lb_v2gprop.grid(row=1, column=0, padx=3, pady=3, sticky="w")
         self.entry_v2gprop = Entry(self.fr_veh_basic)
         self.entry_v2gprop.insert(0, "1.00")
         self.entry_v2gprop.grid(row=1, column=1, padx=3, pady=3, sticky="w")
-        self.lb_v2gprop_info = Label(self.fr_veh_basic, text=_loc["VEH_V2GPROP_INFO"])
+        self.lb_v2gprop_info = Label(self.fr_veh_basic, text=_L["VEH_V2GPROP_INFO"])
         self.lb_v2gprop_info.grid(row=1, column=2, padx=3, pady=3, sticky="w")
-        self.lb_carseed = Label(self.fr_veh_basic, text=_loc["VEH_SEED"])
+        self.lb_carseed = Label(self.fr_veh_basic, text=_L["VEH_SEED"])
         self.lb_carseed.grid(row=2, column=0, padx=3, pady=3, sticky="w")
         self.entry_carseed = Entry(self.fr_veh_basic)
         self.entry_carseed.insert(0, "0")
@@ -882,28 +853,28 @@ class MainBox(Tk):
             "KFC":repr(PDUniform(0.2, 0.25)),
             "KV2G":repr(PDUniform(0.65, 0.75)),
         }, default_edit_mode=EditMode.PDFUNC, desc = {
-            "Omega": _loc["VEH_OMEGA_DESC"],
-            "KRel": _loc["VEH_KREL_DESC"],
-            "KSC": _loc["VEH_KSC_DESC"],
-            "KFC": _loc["VEH_KFC_DESC"],
-            "KV2G": _loc["VEH_KV2G_DESC"],
+            "Omega": _L["VEH_OMEGA_DESC"],
+            "KRel": _L["VEH_KREL_DESC"],
+            "KSC": _L["VEH_KSC_DESC"],
+            "KFC": _L["VEH_KFC_DESC"],
+            "KV2G": _L["VEH_KV2G_DESC"],
         })
         self.veh_pars.pack(fill="x", expand=False, pady=10)
 
         self.veh_gen_src = IntVar(self, 0)
-        self.fr_veh_src = LabelFrame(self.tab_Veh,text=_loc["VEH_ODSRC"])
+        self.fr_veh_src = LabelFrame(self.tab_Veh,text=_L["VEH_ODSRC"])
         self.fr_veh_src.pack(fill="x", expand=False)
-        self.rb_veh_src0 = Radiobutton(self.fr_veh_src, text=_loc["VEH_ODAUTO"], value=0, variable=self.veh_gen_src)
+        self.rb_veh_src0 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODAUTO"], value=0, variable=self.veh_gen_src)
         self.rb_veh_src0.grid(row=0, column=0, padx=3, pady=3, sticky="w")
-        self.rb_veh_src1 = Radiobutton(self.fr_veh_src, text=_loc["VEH_ODTAZ"], value=1, variable=self.veh_gen_src)
+        self.rb_veh_src1 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODTAZ"], value=1, variable=self.veh_gen_src)
         self.rb_veh_src1.grid(row=1, column=0, padx=3, pady=3, sticky="w")
-        self.rb_veh_src2 = Radiobutton(self.fr_veh_src, text=_loc["VEH_ODPOLY"], value=2, variable=self.veh_gen_src)
+        self.rb_veh_src2 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODPOLY"], value=2, variable=self.veh_gen_src)
         self.rb_veh_src2.grid(row=2, column=0, padx=3, pady=3, sticky="w")
-        self.btn_genveh = Button(self.tab_Veh, text=_loc["VEH_GEN"], command=self.generateVeh)
+        self.btn_genveh = Button(self.tab_Veh, text=_L["VEH_GEN"], command=self.generateVeh)
         self.btn_genveh.pack(anchor="w")
-        self.tabs.add(self.tab_Veh, text=_loc["TAB_VEH"])
+        self.tabs.add(self.tab_Veh, text=_L["TAB_VEH"])
 
-        self.sbar = Label(self, text=_loc["STA_READY"], anchor="w")
+        self.sbar = Label(self, text=_L["STA_READY"], anchor="w")
         self.sbar.grid(row=1, column=0, columnspan=2, sticky="ew")
         self.protocol("WM_DELETE_WINDOW", self.onDestroy)
         self.after(100, self._loop)
@@ -937,7 +908,7 @@ class MainBox(Tk):
         
     def onDestroy(self):
         if not self.saved:
-            ret = MB.askyesnocancel(_loc["MB_INFO"], _loc["MB_EXIT_SAVE"])
+            ret = MB.askyesnocancel(_L["MB_INFO"], _L["MB_EXIT_SAVE"])
             if ret is None: return
             if ret: self.save()
         self.destroy()
@@ -973,7 +944,7 @@ class MainBox(Tk):
             showerr("No statistics selected")
             return
         if not self.saved:
-            if not MB.askyesno(_loc["MB_INFO"],_loc["MB_SAVE_AND_SIM"]): return
+            if not MB.askyesno(_L["MB_INFO"],_L["MB_SAVE_AND_SIM"]): return
             self.save()
 
         #Check SUMOCFG
@@ -983,7 +954,7 @@ class MainBox(Tk):
         
         cflag, tr, route_file_name = FixSUMOCfg(self.state.cfg, start, end)
         if cflag:
-            if MB.askyesno(_loc["MB_INFO"],_loc["MB_CFG_MODIFY"]):
+            if MB.askyesno(_L["MB_INFO"],_L["MB_CFG_MODIFY"]):
                 tr.write(self.state.cfg)
                 route_path = Path(self.state.cfg).absolute().parent / route_file_name
                 if route_file_name.strip() != "" and route_path.exists():
@@ -1059,7 +1030,7 @@ class MainBox(Tk):
                 self.after(100, self._loop)
                 return
             if t == "DoneOK":
-                self.setStatus(_loc["STA_READY"])
+                self.setStatus(_L["STA_READY"])
             elif t == "DoneErr":
                 self.setStatus(f"Error: {d}")
                 showerr(f"Error: {d}")
@@ -1090,7 +1061,7 @@ class MainBox(Tk):
     
     def __load_part2(self, loads:set[str], async_:bool, frm:LoadingBox):
         self.state = res = DetectFiles(self.folder)
-        self.title(f"{_loc['TITLE']} - {self.folder}")
+        self.title(f"{_L['TITLE']} - {self.folder}")
         # Check if grid exists
         if not res.grid: 
             with open(self.folder+"/"+DEFAULT_GRID_NAME,"w") as f:
@@ -1100,7 +1071,7 @@ class MainBox(Tk):
         # Load traffic generator
         if LOAD_GEN in loads:
             threading.Thread(target = self._load_tg, args=(
-                lambda:frm.setText(LOAD_GEN, _loc['DONE']),
+                lambda:frm.setText(LOAD_GEN, _L['DONE']),
             ), daemon = True).start()
 
         # Load SUMO config
@@ -1113,27 +1084,27 @@ class MainBox(Tk):
                 self.entry_start.insert(0, str(st))
                 self.entry_end.delete(0, END)
                 self.entry_end.insert(0, str(et))
-            frm.setText(LOAD_CFG, _loc['DONE'])
+            frm.setText(LOAD_CFG, _L['DONE'])
         
         # Load FCS
         if LOAD_FCS in loads:
             self._load_fcs(async_, 
-                lambda: frm.setText(LOAD_FCS, _loc['DONE']))
+                lambda: frm.setText(LOAD_FCS, _L['DONE']))
 
         # Load SCS
         if LOAD_SCS in loads:
             self._load_scs(async_, 
-                lambda: frm.setText(LOAD_SCS, _loc['DONE']))
+                lambda: frm.setText(LOAD_SCS, _L['DONE']))
         
         # Load CSCSV
         if LOAD_CSCSV in loads:
             self._load_cscsv(async_, 
-                lambda: frm.setText(LOAD_CSCSV, _loc['DONE']))
+                lambda: frm.setText(LOAD_CSCSV, _L['DONE']))
         
         # Load plugins
         if LOAD_PLG in loads:
             self._load_plugins()
-            frm.setText(LOAD_PLG,_loc['DONE'])
+            frm.setText(LOAD_PLG,_L['DONE'])
         
         self.rb_veh_src2.configure(state="normal" if "poly" in res else "disabled")
         self.rb_veh_src1.configure(state="normal" if "taz" in res else "disabled")
@@ -1143,7 +1114,7 @@ class MainBox(Tk):
         if LOAD_NET in loads:
             self.cv_net.clear()
             self._load_network(self.tabs.select(), async_, 
-                lambda: frm.setText(LOAD_NET, _loc['DONE']))
+                lambda: frm.setText(LOAD_NET, _L['DONE']))
         
         def setText(lb:Label, itm:str, must:bool = False):
             if itm in res:
@@ -1165,7 +1136,7 @@ class MainBox(Tk):
         setText(self.lb_poly, "poly")
         setText(self.lb_cscsv, "cscsv")
 
-        self.setStatus(_loc["STA_READY"])
+        self.setStatus(_L["STA_READY"])
         if len(loads) == 0: frm.destroy()
     
     def _load_plugins(self):
@@ -1254,13 +1225,13 @@ class MainBox(Tk):
             self.tabs.select(self.tab_Net)
             time.sleep(0.01)
             self.tabs.select(tab_ret)
-            self.lb_gridsave.config(text=_loc["SAVED"],foreground="green")
+            self.lb_gridsave.config(text=_L["SAVED"],foreground="green")
             def work():
                 assert self.state is not None and self.state.net is not None
                 if self.state.grid:
                     self.cv_net.setGrid(PowerGrid.fromFile(self.state.grid))
                 assert self.cv_net.Grid is not None
-                self.lb_puvalues.configure(text=_loc["PU_VALS"].format(self.cv_net.Grid.Ub,self.cv_net.Grid.Sb_MVA))
+                self.lb_puvalues.configure(text=_L["PU_VALS"].format(self.cv_net.Grid.Ub,self.cv_net.Grid.Sb_MVA))
                 self.cv_net.setRoadNet(ELGraph(self.state.net,
                     self.state.fcs if self.state.fcs else "",
                     self.state.scs if self.state.scs else "",
@@ -1363,7 +1334,7 @@ class MainBox(Tk):
     def draw(self):
         if not self.__checkFolderOpened(): return
         self.cv_net.UnlocateAllEdges()
-        s = set(x.strip() for x in self.entry_locedges.get().split(','))
+        s = set(x.strip() for x in self.entry_Ledges.get().split(','))
         self.cv_net.LocateEdges(s)
 
     def CSCSVDownloadWorker(self):
@@ -1384,9 +1355,9 @@ class MainBox(Tk):
         self.sbar.config(text=text)
 
     def _win(self):
-        self.title(_loc["TITLE"])
+        self.title(_L["TITLE"])
 
 if __name__ == "__main__":
-    _loc.DefaultLanguage = Lang.get_lang_code()
+    _L.DefaultLanguage = Lang.get_lang_code()
     win = MainBox()
     win.mainloop()

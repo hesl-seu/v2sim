@@ -24,13 +24,13 @@ ITEM_ALL_V2G = "<All V2G stations>"
 ITEM_LOADING = "Loading..."
 
 class OptionBox(Frame):
-    def __init__(self, master, options:dict[str, str], **kwargs):
+    def __init__(self, master, options:dict[str, tuple[str, bool]], **kwargs):
         super().__init__(master, **kwargs)
         self._bools:list[BooleanVar] = []
         self._ctls:list[Checkbutton] = []
         self._mp:dict[str, BooleanVar] = {}
-        for id, text in options.items():
-            bv = BooleanVar(self,True,id)
+        for id, (text, v) in options.items():
+            bv = BooleanVar(self, v, id)
             self._bools.append(bv)
             self._mp[id] = bv
             self._ctls.append(Checkbutton(self,text=text,variable=bv))
@@ -137,9 +137,9 @@ class PlotBox(Tk):
         self.panel_fcs = LabelFrame(self.tab_curve, text=_L["FCS_TITLE"])
         self.panel_fcs.pack(side='top',fill='x',padx=3,pady=5)
         self.fcs_opts = OptionBox(self.panel_fcs, {
-            "wcnt": _L["FCS_NVEH"],
-            "pc": _L["FCS_PC"],
-            "price": _L["FCS_PRICE"]
+            "wcnt": (_L["FCS_NVEH"], True),
+            "pc": (_L["FCS_PC"], True),
+            "price": (_L["FCS_PRICE"], False),
         })
         self.fcs_opts.pack(side='top',fill='x',padx=3)
         self.fcs_pad = PlotPad(self.panel_fcs, self.plotFCSCurve, True, self.plotFCSAccum)
@@ -148,13 +148,13 @@ class PlotBox(Tk):
         self.panel_scs = LabelFrame(self.tab_curve, text=_L["SCS_TITLE"])
         self.panel_scs.pack(side='top',fill='x',padx=3,pady=5)
         self.scs_opts = OptionBox(self.panel_scs, {
-            "wcnt": _L["SCS_NVEH"],
-            "pc": _L["SCS_PC"],
-            "pd": _L["SCS_PD"],
-            "ppure": _L["SCS_PPURE"],
-            "pv2g": _L["SCS_PV2G"],
-            "pricebuy": _L["SCS_PBUY"],
-            "pricesell": _L["SCS_PSELL"]
+            "wcnt": (_L["SCS_NVEH"], True), 
+            "pc": (_L["SCS_PC"], True), 
+            "pd": (_L["SCS_PD"], True), 
+            "ppure": (_L["SCS_PPURE"], True), 
+            "pv2g": (_L["SCS_PV2G"], True), 
+            "pricebuy": (_L["SCS_PBUY"], False), 
+            "pricesell": (_L["SCS_PSELL"], False), 
         })
         self.scs_opts.pack(side='top',fill='x',padx=3)
         self.scs_pad = PlotPad(self.panel_scs, self.plotSCSCurve, True, self.plotSCSAccum)
@@ -163,11 +163,11 @@ class PlotBox(Tk):
         self.panel_ev = LabelFrame(self.tab_curve,text=_L["EV_TITLE"],)
         self.panel_ev.pack(side='top',fill='x',padx=3,pady=5)
         self.ev_opts = OptionBox(self.panel_ev, {
-            "soc": "SoC",
-            "sta": "Status",
-            "cost": "Charging cost",
-            "earn": "V2G earn",
-            "cpure": "Net cost"
+            "soc": ("SoC", True),
+            "sta": ("Status", False),
+            "cost": ("Charging cost", True),
+            "earn": ("V2G earn", True),
+            "cpure": ("Net cost", True),
         })
         self.ev_opts.pack(side='top',fill='x',padx=3)
         self.ev_pad = PlotPad(self.panel_ev, self.plotEVCurve, useEntry=True)
@@ -176,11 +176,11 @@ class PlotBox(Tk):
         self.panel_bus = LabelFrame(self.tab_curve,text=_L["BUS_TITLE"],)
         self.panel_bus.pack(side='top',fill='x',padx=3,pady=5)
         self.bus_opts = OptionBox(self.panel_bus, {
-            "pd": "Active load",
-            "qd": "Reactive load",
-            "v": "Voltage",
-            "pg": "Active gen.",
-            "qg": "Reactive gen."
+            "pd": ("Active load", True),
+            "qd": ("Reactive load", True),
+            "v": ("Voltage", True),
+            "pg": ("Active gen.", True),
+            "qg": ("Reactive gen.", True),
         })
         self.bus_opts.pack(side='top',fill='x',padx=3)
         self.bus_pad = PlotPad(self.panel_bus, self.plotBusCurve, True, self.plotBTotal, False, True)
@@ -191,9 +191,9 @@ class PlotBox(Tk):
         self.panel_gen = LabelFrame(self.frA,text=_L["GEN_TITLE"],)
         self.panel_gen.grid(column=0,row=0,padx=3,pady=5,sticky="nsew")
         self.gen_opts = OptionBox(self.panel_gen, {
-            "p": "Active power",
-            "q": "Reactive power",
-            "cost": "Avg. cost"
+            "p": ("Active power", True),
+            "q": ("Reactive power", True),
+            "cost": ("Avg. cost", True),
         })
         self.gen_opts.pack(side='top',fill='x',padx=3)
         self.gen_pad = PlotPad(self.panel_gen, self.plotGCurve, True, self.plotGTotal, False, True)
@@ -202,9 +202,9 @@ class PlotBox(Tk):
         self.panel_line = LabelFrame(self.frA, text=_L["LINE_TITLE"],)
         self.panel_line.grid(column=1,row=0,padx=3,pady=5,sticky="nsew")
         self.line_opts = OptionBox(self.panel_line, {
-            "p": "Active power",
-            "q": "Reactive power",
-            "cur": "Current"
+            "p": ("Active power", True),
+            "q": ("Reactive power", True),
+            "cur": ("Current", True),
         })
         self.line_opts.pack(side='top',fill='x',padx=3)
         self.line_pad = PlotPad(self.panel_line, self.plotLineCurve)
@@ -213,8 +213,8 @@ class PlotBox(Tk):
         self.panel_pvw = LabelFrame(self.frA, text=_L["PVW_TITLE"],)
         self.panel_pvw.grid(column=0,row=1,padx=3,pady=5,sticky="nsew")
         self.pvw_opts = OptionBox(self.panel_pvw, {
-            "p": "Active power",
-            "cr": "Curtailed rate",
+            "p": ("Active power", True),
+            "cr": ("Curtailed rate", True),
         })
         self.pvw_opts.pack(side='top',fill='x',padx=3)
         self.pvw_pad = PlotPad(self.panel_pvw, self.plotPVWCurve)
@@ -223,8 +223,8 @@ class PlotBox(Tk):
         self.panel_ess = LabelFrame(self.frA, text=_L["ESS_TITLE"],)
         self.panel_ess.grid(column=1,row=1,padx=3,pady=5,sticky="nsew")
         self.ess_opts = OptionBox(self.panel_ess, {
-            "p": "Active power",
-            "soc": "SoC",
+            "p": ("Active power", True),
+            "soc": ("SoC", True),
         })
         self.ess_opts.pack(side='top',fill='x',padx=3)
         self.ess_pad = PlotPad(self.panel_ess, self.plotESSCurve)

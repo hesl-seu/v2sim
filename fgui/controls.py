@@ -83,6 +83,40 @@ class EditModeDirection(StrEnum):
     COL = "col"
     CELL = "cell"
 
+class LogItemPad(LabelFrame):
+    def __init__(self, master, title:str, items:dict[str,str], **kwargs):
+        super().__init__(master, text=title, **kwargs)
+        self._bvs:dict[str,BooleanVar] = {}
+        self._cbs:dict[str,Checkbutton] = {}
+        for id, val in items.items():
+            bv = BooleanVar(self, True)
+            self._bvs[id] = bv
+            cb = Checkbutton(self, text=val, variable=bv)
+            cb.pack(anchor='w', side='left')
+            self._cbs[id] = cb
+            
+    def __getitem__(self, key:str):
+        return self._bvs[key].get()
+    
+    def __setitem__(self, key:str, val:bool):
+        self._bvs[key].set(val)
+    
+    def enable(self, key:str):
+        return self._cbs[key].configure(state="enabled")
+
+    def disable(self, key:str):
+        return self._cbs[key].configure(state="disabled")
+    
+    def setEnabled(self, key:str, v:bool):
+        if v:
+            return self._cbs[key].configure(state="enabled")
+        else:
+            return self._cbs[key].configure(state="disabled")
+    
+    def getSelected(self):
+        return [k for k, v in self._bvs.items() if v.get()]
+    
+    
 # Double click to edit the cell: https://blog.csdn.net/falwat/article/details/127494533
 class ScrollableTreeView(Frame):
     def show_title(self, title:str):

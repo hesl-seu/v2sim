@@ -8,7 +8,8 @@ from .controls import (
     PDFuncEditor,
     PropertyPanel,
     EditMode,
-    EditModeDirection
+    EditModeDirection,
+    LogItemPad,
 )
 from .trips import TripsFrame
 from .network import NetworkPanel

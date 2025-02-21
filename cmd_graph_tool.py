@@ -22,7 +22,7 @@ if __name__ == "__main__":
     print("Checking SCC...")
     elg.checkBadCS()
     elg.checkSCCSize()
-    print("FCS edges:",elg.cs_names)
+    print("FCS edges:",elg.CSNames)
     
     locate_edges = list(map(lambda x: x.strip(),locate_edgestr.split(",")))
     if len(locate_edges)>=1 and locate_edges[0]!="":

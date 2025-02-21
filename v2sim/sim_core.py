@@ -104,6 +104,7 @@ class V2SimInstance:
         gen_veh_command:str = "", 
         gen_fcs_command:str = "", 
         gen_scs_command:str = "", 
+        alt_command:Optional[dict[str,str]] = None,
         plot_command:str = "",
         traffic_step: int = 10,      
         start_time: int = 0,        
@@ -236,7 +237,7 @@ class V2SimInstance:
         if not proj_cfg.fcs:
             raise FileNotFoundError(Lang.ERROR_FCS_FILE_NOT_FOUND)
         fcs_file = proj_cfg.fcs
-        fcs_obj = CSList(vehicles, filePath = fcs_file, csType = FCS)
+        fcs_obj:CSList[FCS] = CSList(vehicles, filePath = fcs_file, csType = FCS)
         self.__print(Lang.INFO_FCS.format(fcs_file,len(fcs_obj)))
         if fcs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
 
@@ -244,7 +245,7 @@ class V2SimInstance:
         if not proj_cfg.scs:
             raise FileNotFoundError(Lang.ERROR_SCS_FILE_NOT_FOUND)
         scs_file = proj_cfg.scs
-        scs_obj = CSList(vehicles, filePath = scs_file, csType = SCS)
+        scs_obj:CSList[SCS] = CSList(vehicles, filePath = scs_file, csType = SCS)
         self.__print(Lang.INFO_SCS.format(scs_file,len(scs_obj)))
         if scs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
 
@@ -313,6 +314,21 @@ class V2SimInstance:
         self.__working_flag = False
         self.save_on_abort = save_on_abort
         self.save_on_finish = save_on_finish
+
+        if alt_command is not None:
+            for k,v in alt_command.items():
+                if k == "start_time":
+                    self.__start_time = int(v)
+                elif k == "end_time":
+                    self.__end_time = int(v)
+                elif k == "traffic_step":
+                    self.__steplen = int(v)
+                elif k == "scs_slots":
+                    for s in scs_obj:
+                        s._slots = int(v)
+                elif k == "fcs_slots":
+                    for f in fcs_obj:
+                        f._slots = int(v)
 
     @property
     def project_dir(self):

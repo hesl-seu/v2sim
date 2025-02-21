@@ -25,7 +25,7 @@ def error_exit(err=None, print_help: bool = False):
     sys.exit()
 
 
-def work(pars:Optional[dict] = None, clntID:int = -1, q=None):
+def work(pars:Optional[dict] = None, clntID:int = -1, q=None, alt:Optional[dict[str,str]] = None):
     if pars is not None:
         args = ArgChecker(pars=pars, force_parametric=["gen-veh", "gen-scs", "gen-fcs", "plot"])
     else:
@@ -94,7 +94,8 @@ def work(pars:Optional[dict] = None, clntID:int = -1, q=None):
 
     kwargs.update({
         "clntID": clntID,
-        "mpQ": q
+        "mpQ": q,
+        "alt_command": alt,
     })
     
     if visible:
