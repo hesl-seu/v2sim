@@ -65,11 +65,17 @@ Click the `Project` menu and open the folder you have created. You will see some
 
 ![alt text](docs/5.png)
 
-4. **Generate vehicles**: Switch to `Vehicles` page to generate vehicles. We strongly recommend you to generate trips from the buildings' contours and types if you are using a real-world road network. 
+4. **Edit grid**: Switch to `Network` page to view the road netowrk (in blue) and distribution network (in black). Hold the mouse's right button to pan. Distribution network can be moved and edited by left click. **However, editing road network is not available here. Please use SUMO NetEdit.**
+
+![alt text](docs/11.png)
+
+(Slim rectangle = Bus, Triangle = PV / Wind turbine, Square = Energy Stoarge, Circle = Generator)
+
+5. **Generate vehicles**: Switch to `Vehicles` page to generate vehicles. We strongly recommend you to generate trips from the buildings' contours and types if you are using a real-world road network. 
 
 + Do **NOT** click `Generate` repeatedly even if it seems not working. The progress will be shown in the command prompt instead of popping up another window.
 
-5. **Start simulation**: Make sure the `FCS`, `SCS`,` Road Network`, and `Vehicles` are not `None` in the left column. Then go back to `Simulation` page, tick your desired statistic items, and click `Start Simulation!`.
+6. **Start simulation**: Make sure the `FCS`, `SCS`,` Road Network`, and `Vehicles` are not `None` in the left column. Then go back to `Simulation` page, tick your desired statistic items, and click `Start Simulation!`.
 
 
 ### C. Simulation
