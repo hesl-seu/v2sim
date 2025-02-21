@@ -1,0 +1,12 @@
+TITLE=案例比较器
+ERROR=错误
+OPEN_FOLDER1=打开文件夹1
+OPEN_FOLDER2=打开文件夹2
+TO_BE_SELECTED=未选择
+LB_FOLDER1=文件夹1: {}
+LB_FOLDER2=文件夹2: {}
+AD_TITLE1=选择文件夹1
+AD_TITLE2=选择文件夹2
+NO_FIG=所选文件夹中没有figures文件夹! 请先使用gui_viewer.py画图!
+LOAD_FAILED=无法加载图片: {}
+NO_IMAGE=无图像

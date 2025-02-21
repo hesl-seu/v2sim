@@ -1,0 +1,12 @@
+TITLE=Case comparer
+ERROR=Error
+OPEN_FOLDER1=Open folder 1
+OPEN_FOLDER2=Open folder 2
+TO_BE_SELECTED=(To be selected)
+LB_FOLDER1=Folder 1: {}
+LB_FOLDER2=Folder 2: {}
+AD_TITLE1=Select folder 1
+AD_TITLE2=Select folder 2
+NO_FIG=No 'figures' folder in the selected folder! Please plot the data with gui_viewer.py first!
+LOAD_FAILED=Cannot load image: {}
+NO_IMAGE=(No image)
