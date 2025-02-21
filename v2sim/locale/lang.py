@@ -282,17 +282,14 @@ Example:
     save "test.png"
 The series name should be in the format of "<results>:<attribute>:<instances>:<starting_time>", where
     "results" is the result folder, 
-    "attribute" is the atrribute to be plotted, can be ["cs_load", "cs_wait_count", "cs_net_load", 
-        "cs_price_buy", "cs_price_sell", "cs_discahrge_load", "cs_v2g_cap", "ev_soc", "ev_cost", 
-        "ev_status", "ev_cpure", "ev_earn", "gen_active", "gen_reactive", "gen_costp", "bus_active_gen", 
-        "bus_reactive_gen", "bus_active_load", "bus_reactive_load", "bus_shadow_price"],
+    "attribute" is the attribute to be plotted,
     "instances" is the instance name, such as 
         "CS1", "CS2", "<all>", "<fast>", "<slow>" for CS,
         "v1", "v2" for EV,
         "G1", "G2" for generator,
         "B1", "B2" for bus, 
         etc.,
-    "starting_time" is the starting time of the series. "86400" by default. This is optional.
+    "starting_time" is the starting time of the series. "0" by default. This is optional.
 You can load the commands from a file as an argument in the command prompt/terminal.
 '''
     ADV_PLOT_NO_SERIES = "Series not provided"

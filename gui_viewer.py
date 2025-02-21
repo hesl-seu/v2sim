@@ -236,7 +236,7 @@ class PlotPage(Frame):
         self.panel_ess = Frame(self.frA, border=1, relief='groove')
         self.panel_ess.grid(row=3,column=1,sticky="nsew",padx=(20,3),pady=(0,5))
         self.ess_opts = OptionBox(self.panel_ess, {
-            "p": (_L["ACTIVE_POWER"], True),
+            "P": (_L["ACTIVE_POWER"], True),
             "soc": (_L["SOC"], True),
         })
         self.ess_opts.pack(side='top',fill='x',padx=3)
@@ -404,7 +404,6 @@ class PlotBox(Tk):
         }
         self._Q = Queue()
         self.disable_all()
-        threading.Thread(target=self.reload,daemon=True,args=("results",)).start()
 
         self.after(100,self._upd)
     
@@ -516,35 +515,30 @@ class PlotBox(Tk):
         while not self._Q.empty():
             op,*par=self._Q.get()
             if op=='L':
-                self._sta,self._npl=par
-                assert isinstance(self._sta,ReadOnlyStatistics)
+                self._sta, self._npl = par
+                assert isinstance(self._sta, ReadOnlyStatistics)
+                self._npl.load_series(self._sta)
+                for x in AVAILABLE_ITEMS:
+                    self._ava[x] = getattr(self._sta, f"has_{x.upper()}")()
                 if self._sta.has_FCS():
-                    self._ava["fcs"] = True
                     self._pp.fcs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.FCS_head)
                     self.cb_fcs_query['values'] = self._sta.FCS_head
                     if self._sta.FCS_head:
                         self.cb_fcs_query.set(self._sta.FCS_head[0])
                 if self._sta.has_SCS():
-                    self._ava["scs"] = True
                     self._pp.scs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.SCS_head)
                     self.cb_scs_query['values'] = self._sta.SCS_head
                     if self._sta.SCS_head:
                         self.cb_scs_query.set(self._sta.SCS_head[0])
-                self._ava["ev"] = self._sta.has_EV()
                 if self._sta.has_GEN():
-                    self._ava["gen"] = True
                     self._pp.gen_pad.setValues([ITEM_ALL_G,ITEM_ALL_V2G,ITEM_ALL] + self._sta.gen_head)
                 if self._sta.has_BUS():
-                    self._ava["bus"] = True
                     self._pp.bus_pad.setValues([ITEM_ALL] + self._sta.bus_head)
                 if self._sta.has_LINE():
-                    self._ava["line"] = True
                     self._pp.line_pad.setValues([ITEM_ALL] + self._sta.line_head)
                 if self._sta.has_PVW():
-                    self._ava["pvw"] = True
                     self._pp.pvw_pad.setValues([ITEM_ALL] + self._sta.pvw_head)
                 if self._sta.has_ESS():
-                    self._ava["ess"] = True
                     self._pp.ess_pad.setValues([ITEM_ALL] + self._sta.ess_head)
                 self.set_status(_L["STA_READY"])
                 self.enable_all()
@@ -571,15 +565,16 @@ class PlotBox(Tk):
         p.mkdir(parents=True,exist_ok=True)
         return filedialog.askdirectory(
             title="Please select the result folder",
-            initialdir=str(p)
+            initialdir=str(p),
+            mustexist=True,
         )
     
     def force_reload(self):
         res_path = self.askdir()
         if res_path=="": return
-        self.reload(res_path)
+        threading.Thread(target=self.reload,daemon=True,args=(res_path,)).start()
 
-    def reload(self,res_path):
+    def reload(self, res_path):
         try:
             first = True
             while True:
@@ -593,14 +588,17 @@ class PlotBox(Tk):
                 if res_path=="":
                     self._Q.put(('Q',None))
                     return
+            cproc = res_path / "cproc.clog"
+            if cproc.exists():
+                self.tab_trip.load(str(cproc))
+            else:
+                MB.showerror("Error loading", "cproc.clog not found!")
+                return
             self.title(f'{_L["TITLE"]} - {res_path.absolute()}')
             self.disable_all()
             sta = ReadOnlyStatistics(str(res_path))
             nplt = AdvancedPlot()
             self._Q.put(('L',sta,nplt))
-            cproc = res_path / "cproc.clog"
-            if cproc.exists():
-                self.tab_trip.load(str(cproc))
             state_path = res_path / "saved_state" / "inst.gz"
             if state_path.exists():
                 try:

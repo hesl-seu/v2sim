@@ -39,12 +39,14 @@ def split_string_except_quotes(string:str,delim:str,trim_quotes:bool=True) -> li
 class AdvancedPlot:
     def __init__(self,tl:int=0,tr:int=-1,w:int=12,h:int=3,remove_edge:bool=True,double_side:bool=False):
         self.__series:dict[str,ReadOnlyStatistics] = {}
+        self.fig = None
         self.new_fig(tl,tr,w,h,remove_edge,double_side)
         self.max_tr = -1
 
     def new_fig(self,tl:int=0,tr:int=-1,w:int=12,h:int=3,remove_edge:bool=True,double_side:bool=False):
         self.tl = tl
         self.tr = tr
+        if self.fig is not None: plt.close(self.fig)
         self.fig, self.ax = plt.subplots(figsize=(w, h), dpi=128, constrained_layout=True)
         self.ax: Axes
         if remove_edge:
@@ -114,6 +116,18 @@ class AdvancedPlot:
         x,y = TimeSeg.cross_interpolate(d)
         return x,y,se.FCS_head if domain.startswith("fcs") else se.SCS_head
 
+    def load_series(self, path:Union[str, ReadOnlyStatistics]):
+        if isinstance(path, str):
+            try:
+                t = ReadOnlyStatistics(path)
+                self.__series[path] = t
+                self.max_tr = max(self.max_tr, t.LastTime)
+            except:
+                raise RuntimeError(f"Fail to load results directory '{path}'")
+        else:
+            self.__series[path.root] = path
+            self.max_tr = max(self.max_tr, path.LastTime)
+    
     def get_series(self, series:str) -> TimeSeg:
         s = series.split("|")
         if len(s) == 2:
@@ -311,6 +325,7 @@ class AdvancedPlot:
         self.ax.set_yticks(ticks,labels)
 
     def legend(self,loc:str="upper right",ncol:int=1):
+        assert self.fig is not None
         self.fig.legend(loc=loc, bbox_to_anchor=(1, 1), bbox_transform=self.ax.transAxes,ncol=ncol)
 
     def hline(self,y:float,color:str="black",linestyle:str="--",linewidth:float=1.5):
@@ -327,6 +342,7 @@ class AdvancedPlot:
             self.ax.margins(x=0)
         y_formatter = ScalarFormatter(useOffset=False)
         self.ax.yaxis.set_major_formatter(y_formatter)
+        assert self.fig is not None
         self.fig.savefig(save_to)
         plt.close()
     
@@ -681,12 +697,12 @@ class AdvancedPlot:
         if save_to == "": save_to = str(p / f"pvw_{pvw_name}.png")
         self.save(save_to)
     
-    def quick_ess(self,tl:int,tr:int,ess_name:str,P:bool,cr:bool,save_to:str="",res_path:str="results"):
+    def quick_ess(self,tl:int,tr:int,ess_name:str,P:bool,soc:bool,save_to:str="",res_path:str="results"):
         self.new_fig(tl,tr)
         if P:
             self.add_data("{"+f"{res_path}|ess_p|{ess_name}"+"}","Active Power",color="blue")
             self.yleft_label(Lang.PLOT_YLABEL_POWERMW)
-        if cr:
+        if soc:
             side = "right" if P else "left"
             self.add_data("{"+f"{res_path}|ess_soc|{ess_name}"+"}","SoC",color="red")
             self.y_label(Lang.PLOT_YLABEL_SOC, side=side)

@@ -276,19 +276,16 @@ class _locale:
     yleftlabel "Load/kWh"
     legend
     save "test.png"
-序列名称的格式为"<results>:<attribute>:<instances>:<starting_time>", 其中
+序列名称的格式为"<results>:<attribute>:<instances>:<start_time>", 其中
     "results"是结果文件夹名,
-    "attribute"是要绘制的属性, 可选["cs_load", "cs_wait_count", "cs_net_load", 
-        "cs_price_buy", "cs_price_sell", "cs_discahrge_load", "cs_v2g_cap", "ev_soc", "ev_cost", 
-        "ev_status", "ev_cpure", "ev_earn", "gen_active", "gen_reactive", "gen_costp", "bus_active_gen", 
-        "bus_reactive_gen", "bus_active_load", "bus_reactive_load", "bus_shadow_price"],
+    "attribute"是要绘制的属性,
     "instances"是实例名称，例如
         充电站(CS): "CS1", "CS2", "<all>", "<fast>", "<slow>"
         电动汽车(EV): "v1", "v2"
         发电机: "G1", "G2"
         母线: "B1", "B2"
-        etc.,
-    "starting_time"是绘图的起始时间, 默认为0, 该项可以省略
+        等,
+    "start_time"是绘图的起始时间, 默认为0, 该项可以省略
 你可以从文件中读取命令。通过将文件名作为命令行参数传递给程序来实现。
 '''
 
