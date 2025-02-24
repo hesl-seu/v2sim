@@ -26,7 +26,7 @@ def _find_grid_plugin(plugins:dict[str,PluginBase])->IGridPlugin:
     for plg in plugins.values():
         if isinstance(plg, IGridPlugin):
             return plg
-    raise ValueError("未找到可以导出电网数据的插件")
+    raise ValueError("No plugin for grid found.")
 
 class StaGen(StaBase):
     def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):

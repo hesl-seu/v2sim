@@ -276,11 +276,18 @@ class _CSVTable:
         lastTime:dict[str,int] = defaultdict(lambda:-1)
         lt = -1
         with open(filename, "r") as f:
-            header = f.readline().strip().split(",")
+            head = f.readline().strip()
+            _mp = None
+            if head == "C":
+                head = f.readline().strip().split(",")
+                _mp = {to_base62(i):item for i, item in enumerate(head)}
+                head = f.readline().strip()
+            header = head.split(",")
             assert len(header) == 3 and header[0] == "Time" and header[1] == "Item" and header[2] == "Value"
             data = f.readlines()
             for i, line in enumerate(data,2):
                 time, item, value = line.strip().split(",")
+                if _mp is not None: item = _mp[item]
                 time = int(time) if time != "" else lt
                 assert time > lastTime[item], f"Item {item} @ line {i}: Time must be increasing, but value to add ({time}) is smaller or equal to the last time ({lastTime[item]})"
                 lastTime[item] = time
