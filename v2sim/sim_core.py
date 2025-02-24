@@ -59,6 +59,7 @@ def get_sim_params(
         kwargs = {
             "cfgdir":           args.pop_str("d"),
             "outdir":           args.pop_str("o", "results/"),
+            "outdir_direct":    args.pop_str("od", ""),
             "traffic_step":     args.pop_int("l", 10),
             "start_time":       args.pop_int("b", -1),
             "end_time":         args.pop_int("e", -1),
@@ -99,6 +100,7 @@ class V2SimInstance:
         cfgdir: str,
         outdir: str = "./results",
         *,
+        outdir_direct: str = "",
         plg_pool: Optional[PluginPool] = None,
         sta_pool: Optional[StaPool] = None,
         gen_veh_command:str = "", 
@@ -125,7 +127,8 @@ class V2SimInstance:
         '''
         Initialization
             cfgdir: Configuration folder
-            outdir: Output folder
+            outdir: Output folder. Actual results will be saved in a subfolder named by the configuration folder
+            outdir_direct: Direct output folder
             plg_pool: Available plugin pool
             sta_pool: Available statistical item pool
             gen_veh_command: command to generate vehicle
@@ -161,8 +164,13 @@ class V2SimInstance:
             self.__silent = True
             self.__vb = None
 
-        # Check if there is a previous results
-        pres = Path(outdir) / Path(cfgdir).name
+        # Check if there is a previous results        
+        if outdir_direct != "":
+            pres = Path(outdir_direct)
+        else:
+            pres = Path(outdir) / Path(cfgdir).name
+        self.__outdir_direct = str(pres)
+        self.__outdir = str(pres.parent)
         if pres.is_dir() and (pres / "cproc.clog").exists():
             tm = time.strftime("%Y%m%d_%H%M%S", time.localtime(pres.stat().st_mtime))
             tm2 = time.time_ns() % int(1e9)
@@ -310,7 +318,6 @@ class V2SimInstance:
         self.__plg_file = plg_file
         self.__proj_cfg = proj_cfg
         self.__proj_dir = proj_dir
-        self.__outdir = outdir
         self.__working_flag = False
         self.save_on_abort = save_on_abort
         self.save_on_finish = save_on_finish
@@ -339,6 +346,11 @@ class V2SimInstance:
     def result_dir(self):
         '''Folder of results'''
         return self.__outdir
+    
+    @property
+    def result_dir_direct(self):
+        '''Direct output folder'''
+        return self.__outdir_direct
     
     @property
     def plot_command(self):

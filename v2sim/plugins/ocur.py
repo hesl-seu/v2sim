@@ -1,0 +1,88 @@
+from collections import defaultdict
+from itertools import chain
+
+from ..traffic.cs import CS
+from ..locale import CustomLocaleLib
+from fpowerkit import IslandResult
+from .pdn import PluginPDN
+from .base import *
+
+_locale = CustomLocaleLib(["zh_CN","en"])
+_locale.SetLanguageLib("zh_CN",
+    DESCRIPTION = "过流保护",
+    ERROR_NO_PDN = "过流保护依赖于PDN插件",
+    ERROR_SMART_CHARGE = "启用有序充电时过流保护不可用",
+)
+_locale.SetLanguageLib("en",
+    DESCRIPTION = "Over-current protection",
+    ERROR_NO_PDN = "Over-current protection depends on PDN plugin",
+    ERROR_SMART_CHARGE = "Over-current protection is not available when smart charging is enabled",
+)
+
+class PluginOvercurrent(PluginBase[None]):
+    @property
+    def Description(self)->str:
+        return _locale["DESCRIPTION"]
+    
+    def _save_state(self) -> object:
+        '''Save the plugin state'''
+        return None
+    
+    def _load_state(self,state:object) -> None:
+        '''Load the plugin state'''
+
+    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plg_deps:'list[PluginBase]')->None:
+        self.__file = open(str(res_dir / "current_protect.log"), "w")
+        self.SetPreStep(self._work)
+        self.SetPostSimulation(self.__file.close)
+        assert len(plg_deps) == 1 and isinstance(plg_deps[0], PluginPDN), _locale["ERROR_NO_PDN"]
+        self.__pdn = plg_deps[0]
+        if self.__pdn.isSmartChargeEnabled():
+            raise RuntimeError(_locale["ERROR_SMART_CHARGE"])
+        self.__csatb:dict[str, list[CS]] = defaultdict(list)
+        for cs in chain(inst.SCSList, inst.FCSList):
+            self.__csatb[cs.node].append(cs)
+        self.__csatb_closed:dict[str, bool] = {
+            b:False for b in self.__csatb
+        }
+    
+    def _close(self, b:str):
+        '''
+        Force shutdown all charging stations at bus b
+        '''
+        if self.__csatb_closed[b]: return
+        for cs in self.__csatb[b]:
+            cs.force_shutdown()
+        print(f"CS {','.join(map(lambda x:x.name, self.__csatb[b]))} forced shutdown at bus {b}.", file=self.__file)
+
+    def _work(self,_t:int,/,sta:PluginStatus)->tuple[bool, None]:
+        '''
+        Get the V2G demand power of all bus with slow charging stations at time _t, unit kWh/s, 3.6MW=3600kW=1kWh/s
+        '''
+        
+        if sta == PluginStatus.EXECUTE:
+            p = self.__pdn
+            if p.LastPreStepSucceed:
+                svr = p.Solver
+                if len(svr.OverflowLines) > 0:
+                    print(f"[{_t}] Overcurrent protection triggered: ", svr.OverflowLines, file=self.__file)
+                    for l in svr.OverflowLines:
+                        ln = p.Grid.Line(l)
+                        ln.P = 0.
+                        ln.Q = 0.
+                        ln.I = 0.
+                    svr.UpdateGrid(cut_overflow_lines=True)
+                    self.__island_closed = [False] * len(svr.Islands)
+                    svr.solve(_t)
+                for i, (il, (res, val)) in enumerate(zip(svr.Islands, svr.IslandResults)):
+                    if res == IslandResult.Failed and not self.__island_closed[i]:
+                        self.__island_closed[i] = True
+                        for b in il.Buses: self._close(b)
+                ret = True, None
+            else:
+                ret = False, None
+        elif sta == PluginStatus.OFFLINE:
+            ret = True, None
+        elif sta == PluginStatus.HOLD:
+            ret = True, self.LastPreStepResult
+        return ret

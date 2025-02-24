@@ -44,6 +44,8 @@ class PluginV2G(PluginBase[V2GRes]):
         for i,pk in enumerate(inst.SCSList):
             self.__pdn.Grid.AddGen(Generator("V2G_"+pk.name,pk.node,0.,pk.psell*(self.__pdn.Grid.Sb*1000),0.,
                 0.,ComFunc(self.__get_cap(i)),0.,0.,))
+        if isinstance(self.__pdn, PluginPDN):
+            self.__pdn.Solver.UpdateGrid()
         self.SetPreStep(self._work)
         return []
     

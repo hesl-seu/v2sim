@@ -97,7 +97,7 @@ class CSEditorGUI(Frame):
         self.tree.heading("Bus", text=_L["CSE_BUS"])
         self.tree.heading("x", text=_L["CSE_X"])
         self.tree.heading("y", text=_L["CSE_Y"])
-        self.tree.heading("Online", text=_L["CSE_ONLINE"])
+        self.tree.heading("Online", text=_L["CSE_OFFLINE"])
         self.tree.heading("MaxPc", text=_L["CSE_MAXPC"])
         self.tree.heading("PriceBuy", text=_L["CSE_PRICEBUY"])
         self.tree.heading("PcAlloc", text=_L["CSE_PCALLOC"])

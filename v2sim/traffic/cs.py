@@ -139,6 +139,7 @@ class CS(ABC):
         self._slots: int = slots
         self._node: str = bus
         self._offline: RangeList = RangeList(offline)
+        self._manual_offline: Optional[bool] = None
         self._pbuy: OverrideFunc = OverrideFunc(makeFunc(*price_buy))
         self._psell: Optional[OverrideFunc] = (
             None if price_sell == () else OverrideFunc(makeFunc(*price_sell))
@@ -209,7 +210,21 @@ class CS(ABC):
         Return:
             True if available, False if not available (fault)
         """
+        if self._manual_offline is not None:
+            return not self._manual_offline
         return not t in self._offline
+    
+    def force_shutdown(self):
+        """Manually shut down the charging station"""
+        self._manual_offline = True
+    
+    def force_reopen(self):
+        """Manually reopen the charging station"""
+        self._manual_offline = False
+    
+    def clear_manual_offline(self):
+        """Clear manual shutdown status"""
+        self._manual_offline = None
 
     @abstractmethod
     def add_veh(self, veh_id: str) -> bool:

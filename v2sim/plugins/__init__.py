@@ -1,10 +1,12 @@
 from .base import *
 from .pdn import PluginPDN
 from .v2g import PluginV2G
+from .ocur import PluginOvercurrent
 
 _internal_plugins = {
     "pdn": (PluginPDN,[]),
     "v2g": (PluginV2G,["pdn"]),
+    "ocur": (PluginOvercurrent,["pdn"]),
 }
 
 class PluginError(Exception):
