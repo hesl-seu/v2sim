@@ -5,6 +5,8 @@ from typing import Optional
 from xml.etree import ElementTree as ET
 from ..locale import Lang
 
+IntPairList = list[tuple[int, int]]
+PriceList = tuple[list[int], list[float]]
 TWeights = tuple[float, float, float]
 _letters = string.ascii_letters + string.digits
 

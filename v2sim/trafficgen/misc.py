@@ -1,9 +1,18 @@
+from dataclasses import dataclass
 import gzip, random
 from typing import Any, Optional, Sequence, Union
 from feasytools.pdf import *
 from ..locale import Lang
 from ..traffic import EV,Trip
 
+@dataclass
+class VehicleType:
+    bcap_kWh:float
+    range_km:float
+    efc_rate_kW:float
+    esc_rate_kW:float
+    max_V2G_kW:float
+    
 def random_diff(seq:Sequence[Any], exclude:Any):
     """
     Choose a random element from `seq` that is not equal to `exclude`
@@ -45,7 +54,7 @@ class _EV:
     EV class used to generate trips
     """
 
-    def __init__(self, veh_id: str, vT:dict, soc:float, v2g_prop:float, 
+    def __init__(self, veh_id: str, vT:VehicleType, soc:float, v2g_prop:float, 
         omega:Optional[PDFunc] = None, krel:Optional[PDFunc] = None,
         ksc:Optional[PDFunc] = None, kfc:Optional[PDFunc] = None, 
         kv2g:Optional[PDFunc] = None
@@ -53,7 +62,7 @@ class _EV:
         '''
         Initialize EV object
             veh_id: Vehicle ID
-            vT: Vehicle type dictionary, must include keys: bcap_kWh, range_km, efc_rate_kW, esc_rate_kW, max_V2G_kW
+            vT: Vehicle type
             soc: State of charge
             v2g_prop: Proportion of V2G capable vehicles
             omega: PDF for omega. None for random uniform between 5 and 10.
@@ -68,12 +77,12 @@ class _EV:
                 kv2g indicates the SoC threshold of the battery that can be used for V2G.
         '''
         self.vehicle_id = veh_id
-        self.bcap = vT["bcap_kWh"]
+        self.bcap = vT.bcap_kWh
         self.soc = soc
-        self.consump_Whpm = vT["bcap_kWh"] / vT["range_km"]  # kWh/km = Wh/m
-        self.efc_rate_kW = vT["efc_rate_kW"]
-        self.esc_rate_kW = vT["esc_rate_kW"]
-        self.max_v2g_rate_kW = vT["max_V2G_kW"]
+        self.consump_Whpm = vT.bcap_kWh / vT.range_km  # kWh/km = Wh/m
+        self.efc_rate_kW = vT.efc_rate_kW
+        self.esc_rate_kW = vT.esc_rate_kW
+        self.max_v2g_rate_kW = vT.max_V2G_kW
         self.omega = omega.sample() if omega else random.uniform(5.0, 10.0)
         self.krel = krel.sample() if krel else random.uniform(1.0, 1.2)
         self.ksc = ksc.sample() if ksc else random.uniform(0.4, 0.6)

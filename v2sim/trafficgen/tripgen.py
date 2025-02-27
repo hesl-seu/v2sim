@@ -5,7 +5,7 @@ import numpy as np
 
 from ..locale import Lang
 from ..traffic import EV, EVDict, readXML, DetectFiles
-from .misc import random_diff, TripInner, _EV, _xmlSaver
+from .misc import VehicleType, random_diff, TripInner, _EV, _xmlSaver
 from .poly import PolygonMan
 
 
@@ -28,7 +28,7 @@ class EVsGenerator:
         """
         _fn = DetectFiles(PNAME)
         random.seed(seed)
-        self.vTypes = ReadOnlyTable(CROOT + "/ev_types.csv",dtype=np.float32).to_list_of_dict()
+        self.vTypes = [VehicleType(**x) for x in ReadOnlyTable(CROOT + "/ev_types.csv",dtype=np.float32).to_list_of_dict()]
         # Define various functional area types
         self.dic_taz = {}
         self.net:sumolib.net.Net = sumolib.net.readNet(_fn["net"])

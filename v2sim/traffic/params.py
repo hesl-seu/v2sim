@@ -97,3 +97,9 @@ DEFAULT_BUS_NAME = "BusAny"
 # 默认电动车充电功率修正函数
 # Default electric vehicle charging power correction function
 DEFAULT_RMOD = "Linear"
+
+# Default maximum slow charge cost for an EV
+DEFAULT_MAX_SC_COST = 100.0
+
+# Default minimum V2G earning for an EV
+DEFAULT_MIN_V2G_EARN = 0.0

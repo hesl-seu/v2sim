@@ -1,6 +1,8 @@
 from __future__ import annotations
 import enum, math
-from typing import Callable, Iterable, Union
+from typing import Callable, Iterable, Union, Optional
+from feasytools import RangeList, CreateRangeList
+from .utils import IntPairList
 
 
 class Trip:
@@ -88,7 +90,11 @@ class EV:
         kf: float,
         ks: float,
         kv: float,
-        rmod: str = "Linear"
+        rmod: str = "Linear",
+        sc_time: Union[None, IntPairList, RangeList] = None,
+        max_sc_cost: float = 100.0,
+        v2g_time: Union[None, IntPairList, RangeList] = None,
+        min_v2g_earn: float = 0.0,
     ):
         self._id = id                   # Vehicle ID
         self._sta = VehStatus.Parking   # Vehicle status
@@ -96,7 +102,6 @@ class EV:
         self._cost = 0                  # Total charging cost of the vehicle, $
         self._earn = 0                  # Total discharge revenue of the vehicle, $
 
-        # 静态电池参数
         self._bcap = bcap               # Battery capacity, kWh
         assert 0.0 <= soc <= 1.0
         self._elec = soc * bcap         # Current battery capacity, kWh
@@ -106,18 +111,23 @@ class EV:
         self._v2g_rate = rv / 3600      # Maximum reverse power, kWh/s
         self._eta_charge = eta_c        # Charging efficiency
         self._eta_discharge = eta_d     # Discharge efficiency
-        self._chrate_mod = ChargeRatePool.get(rmod)# Charging rate correction function
+        self._chrate_mod = ChargeRatePool.get(rmod)
+                                        # Charging rate correction function
+        self._sc_time = CreateRangeList(sc_time) 
+                                        # RangeList of slow charging time, None means all day
+        self._max_sc_cost = max_sc_cost # Maximum slow charging cost, $/kWh
+        self._v2g_time = CreateRangeList(v2g_time)
+                                        # RangeList of V2G time, None means all day
+        self._min_v2g_earn = min_v2g_earn
+                                        # Minimum V2G cost, $/kWh
 
-        # 动态电池参数
         self._rate = 0                  # Actual charging power, kWh/s
         self._chtar = bcap              # When fast charging, how much kWh to charge before leaving
 
-        # 行程参数
         self._dis = 0                   # Distance traveled, m
         self._trips = tuple(trips)      # Vehicle trip list
         self._trip_index = 0            # Current trip number (index)
 
-        # 用户决策参数
         self._w = omega                 # Decision parameter
         assert 1 <= kr <= 2
         self._krel = kr                 # Tolerance coefficient
@@ -281,6 +291,26 @@ class EV:
         """
         return self._dis
 
+    @property
+    def minimum_v2g_earn(self) -> float:
+        """The minimum V2G earn user willing to join V2G, $/kWh"""
+        return self._min_v2g_earn
+    
+    @property
+    def maximum_slow_charge_cost(self) -> float:
+        """The maximum slow charging cost willing to join slow charge, $/kWh"""
+        return self._max_sc_cost
+    
+    @property
+    def v2g_time(self) -> RangeList:
+        """The time range that the user is willing to join V2G. None means all day"""
+        return self._v2g_time
+    
+    @property
+    def slow_charge_time(self) -> RangeList:
+        """The time range that the user is willing to join slow charge. None means all day"""
+        return self._sc_time
+    
     def clear_odometer(self):
         """Before the trip starts, clear the odometer"""
         self._dis = 0
@@ -326,6 +356,22 @@ class EV:
         self._earn += delta_elec * unit_earn
         return delta_elec
 
+    def willing_to_v2g(self, t:int, e:float) -> bool:
+        """
+        User determines whether the vehicle is willing to v2g
+            t: current time
+            e: current V2G earn, $/kWh
+        """
+        return self.SOC > self._kv2g and e >= self._min_v2g_earn and (t in self._v2g_time if self._v2g_time else True)
+    
+    def willing_to_slow_charge(self, t:int, c:float) -> bool:
+        """
+        User determines whether the vehicle is willing to slow charge
+            t: current time
+            c: current slow charge cost, $/kWh
+        """
+        return c <= self._max_sc_cost and t in self._sc_time
+    
     @property
     def trips(self) -> tuple[Trip, ...]:
         '''Get the list of trips for the vehicle'''

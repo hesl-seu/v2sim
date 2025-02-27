@@ -6,9 +6,8 @@ from typing import Callable, Optional, Sequence
 from feasytools import RangeList, makeFunc, OverrideFunc, TimeFunc, ConstFunc, SegFunc
 from ordered_set import OrderedSet
 from .evdict import EVDict
+from .utils import IntPairList, PriceList
 
-IntPairList = list[tuple[int, int]]
-PriceList = tuple[list[int], list[float]]
 
 def _get_price_xml(t: TimeFunc, elem:str) -> str:
     if isinstance(t, ConstFunc):
@@ -380,7 +379,7 @@ class SCS(CS):
     def add_veh(self, veh_id: str) -> bool:
         if veh_id in self._chi or veh_id in self._free:
             return False
-        if len(self._chi) + len(self._free) < self._slots:
+        if self._chi.__len__() + len(self._free) < self._slots:
             self._chi.add(veh_id)
             return True
         else:
@@ -397,13 +396,13 @@ class SCS(CS):
         return True
 
     def __contains__(self, veh_id: str) -> bool:
-        return veh_id in self._chi or veh_id in self._free
+        return self._chi.__contains__(veh_id) or veh_id in self._free
 
     def __len__(self) -> int:
         return self._chi.__len__() + len(self._free)
 
     def is_charging(self, veh_id: str) -> bool:
-        return veh_id in self._chi
+        return self._chi.__contains__(veh_id)
 
     def veh_count(self, only_charging:bool = False) -> int:
         # __len__ and len(): Performance consideration
@@ -413,12 +412,13 @@ class SCS(CS):
             return self._chi.__len__() + len(self._free)
 
     def get_V2G_cap(self, ev_dict: EVDict, _t:int) -> float:
-        if not self.is_online(_t):
-            return 0.0
+        if not self.is_online(_t): return 0.0
         tot_rate_ava = 0.0
+        # Do not check if psell is None due to performance considerations
+        v2gp = self._psell(_t) # type: ignore
         for veh_id in chain(self._chi, self._free):
             ev = ev_dict[veh_id]
-            if ev.SOC > ev.kv2g:
+            if ev.willing_to_v2g(_t, v2gp):
                 tot_rate_ava += ev.max_v2g_rate * ev.eta_discharge
         self._cur_v2g_cap = tot_rate_ava
         return tot_rate_ava
@@ -438,15 +438,18 @@ class SCS(CS):
         self._pc_actual = self._pc_alloc(AllocEnv(self,self._chi,ev_dict,cur_time), len(self._chi), self._pc_lim1, self._pc_limtot)
         for i, veh_id in enumerate(self._chi):
             ev = ev_dict[veh_id]
-            # If V2G discharge is in progress, don't charge to full
-            Wcharge += ev.charge(sec, self.pbuy(cur_time), min(self._pc_actual[i], ev._esc_rate))
-            k = min(1, ev.kv2g) if v2g_k > 0 else 1
-            if ev.elec >= ev.charge_target * k:
-                ret.append(veh_id)
+            if ev.willing_to_slow_charge(cur_time, self._pbuy(cur_time)):
+                # If V2G discharge is in progress, don't charge to full
+                Wcharge += ev.charge(sec, self._pbuy(cur_time), min(self._pc_actual[i], ev._esc_rate))
+                k = min(1, ev._kv2g) if v2g_k > 0 else 1
+                if ev._elec >= ev._chtar * k:
+                    ret.append(veh_id)
         self._chi.difference_update(ret)
         self._free.update(ret)
         if v2g_k > 0:
-            v2g_cars = [veh_id for veh_id in self._free if ev_dict[veh_id].SOC > ev_dict[veh_id].kv2g]
+            assert self._psell is not None, "V2G not supported in %s." % self.name
+            v2gp = self._psell(cur_time)
+            v2g_cars = [veh_id for veh_id in self._free if ev_dict[veh_id].willing_to_v2g(cur_time, v2gp)]
             self._pd_actual = self._pd_alloc(AllocEnv(self, v2g_cars, ev_dict, cur_time), v2g_k)
             for veh_id, ratio in zip(v2g_cars, self._pd_actual):
                 Wdischarge += ev_dict[veh_id].discharge(v2g_k * ratio, sec, self.psell(cur_time))
