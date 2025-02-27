@@ -9,7 +9,7 @@ from fgui import ScrollableTreeView, TripsFrame
 from v2sim import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
 from tkinter import filedialog
 from tkinter import messagebox as MB
-
+from PIL import Image, ImageTk
 from v2sim.traffic.cs import CS
 from v2sim.traffic.cslist import CSList
 from v2sim.traffic.ev import EV
@@ -26,17 +26,28 @@ ITEM_ALL_V2G = "<All V2G stations>"
 ITEM_LOADING = "Loading..."
 
 class OptionBox(Frame):
-    def __init__(self, master, options:dict[str, tuple[str, bool]], **kwargs):
+    def __init__(self, master, options:dict[str, tuple[str, bool]], lcnt:int = -1, **kwargs):
         super().__init__(master, **kwargs)
         self._bools:list[BooleanVar] = []
         self._ctls:list[Checkbutton] = []
         self._mp:dict[str, BooleanVar] = {}
+        self._fr:list[Frame] = []
+        if lcnt <= 0: 
+            fr = Frame(self)
+            fr.pack(side = "top", anchor = "w")
+            self._fr.append(fr)
+        i = 0
         for id, (text, v) in options.items():
             bv = BooleanVar(self, v)
             self._bools.append(bv)
             self._mp[id] = bv
-            self._ctls.append(Checkbutton(self,text=text,variable=bv))
+            if lcnt > 0 and i % lcnt == 0:
+                fr = Frame(self)
+                fr.pack(side = "top", anchor = "w")
+                self._fr.append(fr)
+            self._ctls.append(Checkbutton(self._fr[-1],text=text,variable=bv))
             self._ctls[-1].pack(side='left',anchor="w")
+            i+=1
     
     def disable(self):
         for c in self._ctls:
@@ -105,27 +116,29 @@ class PlotPage(Frame):
     
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
+        self.columnconfigure(index=0,weight=1)
+        self.columnconfigure(index=1,weight=1)
         self.panel_time = LabelFrame(self, text=_L["TIME"])
-        self.panel_time.pack(side='top',fill='x',padx=3,pady=5)
+        self.panel_time.grid(row=0,column=0,padx=3,pady=5, columnspan=2, sticky="nsew")
         self.lb_time = Label(self.panel_time, text=_L["START_TIME"])
-        self.lb_time.grid(row=0,column=0)
+        self.lb_time.pack(side="left")
         self.entry_time = Entry(self.panel_time)
         self.entry_time.insert(0,"86400")
-        self.entry_time.grid(row=0,column=1,sticky='ew')
+        self.entry_time.pack(side="left")
         self.lb_end_time = Label(self.panel_time, text=_L["END_TIME"])
-        self.lb_end_time.grid(row=0,column=2)
+        self.lb_end_time.pack(side="left")
         self.entry_end_time = Entry(self.panel_time)
         self.entry_end_time.insert(0,"-1")
-        self.entry_end_time.grid(row=0,column=3,sticky='ew')
+        self.entry_end_time.pack(side="left")
         self.accum_plotmax = BooleanVar(self.panel_time,False)
         self.cb_accum_plotmax = Checkbutton(self.panel_time,text=_L["PLOT_MAX"],variable=self.accum_plotmax)
-        self.cb_accum_plotmax.grid(row=0,column=4)
+        self.cb_accum_plotmax.pack(side="left")
 
         self.plot_fcs = BooleanVar(self, False)
         self.cb_fcs = Checkbutton(self, text=_L["FCS_TITLE"], variable=self.plot_fcs)
-        self.cb_fcs.pack(side='top',padx=3,pady=5,anchor='w')
+        self.cb_fcs.grid(row=1,column=0,padx=3,pady=5,sticky='w')
         self.panel_fcs = Frame(self, border=1, relief='groove')
-        self.panel_fcs.pack(side='top',fill='x',padx=(30,3),pady=(0,5))
+        self.panel_fcs.grid(row=2,column=0,sticky="nsew",padx=(5,3),pady=(0,5))
         self.fcs_opts = OptionBox(self.panel_fcs, {
             "wcnt": (_L["FCS_NVEH"], True),
             "load": (_L["FCS_PC"], True),
@@ -137,9 +150,9 @@ class PlotPage(Frame):
 
         self.plot_scs = BooleanVar(self, False)
         self.cb_scs = Checkbutton(self, text=_L["SCS_TITLE"], variable=self.plot_scs)
-        self.cb_scs.pack(side='top',padx=3,pady=5,anchor='w')
+        self.cb_scs.grid(row=3,column=0,padx=3,pady=5,sticky='w')
         self.panel_scs = Frame(self, border=1, relief='groove')
-        self.panel_scs.pack(side='top',fill='x',padx=(30,3),pady=(0,5))
+        self.panel_scs.grid(row=4,column=0,sticky="nsew",padx=(5,3),pady=(0,5))
         self.scs_opts = OptionBox(self.panel_scs, {
             "wcnt": (_L["SCS_NVEH"], True), 
             "cload": (_L["SCS_PC"], True), 
@@ -148,16 +161,16 @@ class PlotPage(Frame):
             "v2gcap": (_L["SCS_PV2G"], True), 
             "pricebuy": (_L["SCS_PBUY"], False), 
             "pricesell": (_L["SCS_PSELL"], False), 
-        })
+        }, lcnt = 4)
         self.scs_opts.pack(side='top',fill='x',padx=3)
         self.scs_pad = PlotPad(self.panel_scs, True)
         self.scs_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
 
         self.plot_ev = BooleanVar(self, False)
         self.cb_ev = Checkbutton(self, text=_L["EV_TITLE"], variable=self.plot_ev)
-        self.cb_ev.pack(side='top',padx=3,pady=5,anchor='w')
+        self.cb_ev.grid(row=1,column=1,padx=3,pady=5,sticky='w')
         self.panel_ev = Frame(self, border=1, relief='groove')
-        self.panel_ev.pack(side='top',fill='x',padx=(30,3),pady=(0,5))
+        self.panel_ev.grid(row=2,column=1,sticky="nsew",padx=(5,3),pady=(0,5))
         self.ev_opts = OptionBox(self.panel_ev, {
             "soc": (_L["SOC"], True),
             "status": (_L["EV_STA"], False),
@@ -171,29 +184,25 @@ class PlotPage(Frame):
 
         self.plot_bus = BooleanVar(self, False)
         self.cb_bus = Checkbutton(self, text=_L["BUS_TITLE"], variable=self.plot_bus)
-        self.cb_bus.pack(side='top',padx=3,pady=5,anchor='w')
+        self.cb_bus.grid(row=3,column=1,padx=3,pady=5,sticky='w')
         self.panel_bus = Frame(self, border=1, relief='groove')
-        self.panel_bus.pack(side='top',fill='x',padx=(20,3),pady=(0,5))
+        self.panel_bus.grid(row=4,column=1,sticky="nsew",padx=(5,3),pady=(0,5))
         self.bus_opts = OptionBox(self.panel_bus, {
             "activel": (_L["BUS_PD"], True),
             "reactivel": (_L["BUS_QD"], True),
             "volt": (_L["BUS_V"], True),
             "activeg": (_L["BUS_PG"], True),
             "reactiveg": (_L["BUS_QG"], True),
-        })
+        },lcnt=3)
         self.bus_opts.pack(side='top',fill='x',padx=3)
         self.bus_pad = PlotPad(self.panel_bus, True, False, True)
         self.bus_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
 
-        self.frA = Frame(self)
-        self.frA.pack(side='top',fill='x')
-        self.frA.grid_columnconfigure(0,weight=1)
-        self.frA.grid_columnconfigure(1,weight=1)
         self.plot_gen = BooleanVar(self, False)
-        self.cb_gen = Checkbutton(self.frA, text=_L["GEN_TITLE"], variable=self.plot_gen)
-        self.cb_gen.grid(row=0,column=0,padx=3,pady=5,sticky='w')
-        self.panel_gen = Frame(self.frA, border=1, relief='groove')
-        self.panel_gen.grid(row=1,column=0,sticky="nsew",padx=(20,3),pady=(0,5))
+        self.cb_gen = Checkbutton(self, text=_L["GEN_TITLE"], variable=self.plot_gen)
+        self.cb_gen.grid(row=5,column=0,padx=3,pady=5,sticky='w')
+        self.panel_gen = Frame(self, border=1, relief='groove')
+        self.panel_gen.grid(row=6,column=0,sticky="nsew",padx=(5,3),pady=(0,5))
         self.gen_opts = OptionBox(self.panel_gen, {
             "active": (_L["ACTIVE_POWER"], True),
             "reactive": (_L["REACTIVE_POWER"], True),
@@ -204,10 +213,10 @@ class PlotPage(Frame):
         self.gen_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
 
         self.plot_line = BooleanVar(self, False)
-        self.cb_line = Checkbutton(self.frA, text=_L["LINE_TITLE"], variable=self.plot_line)
-        self.cb_line.grid(row=0,column=1,padx=3,pady=5,sticky='w')
-        self.panel_line = Frame(self.frA, border=1, relief='groove')
-        self.panel_line.grid(row=1,column=1,sticky="nsew",padx=(20,3),pady=(0,5))
+        self.cb_line = Checkbutton(self, text=_L["LINE_TITLE"], variable=self.plot_line)
+        self.cb_line.grid(row=5,column=1,padx=3,pady=5,sticky='w')
+        self.panel_line = Frame(self, border=1, relief='groove')
+        self.panel_line.grid(row=6,column=1,sticky="nsew",padx=(5,3),pady=(0,5))
         self.line_opts = OptionBox(self.panel_line, {
             "active": (_L["ACTIVE_POWER"], True),
             "reactive": (_L["REACTIVE_POWER"], True),
@@ -218,10 +227,10 @@ class PlotPage(Frame):
         self.line_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
 
         self.plot_pvw = BooleanVar(self, False)
-        self.cb_pvw = Checkbutton(self.frA, text=_L["PVW_TITLE"], variable=self.plot_pvw)
-        self.cb_pvw.grid(row=2,column=0,padx=3,pady=5,sticky='w')
-        self.panel_pvw = Frame(self.frA, border=1, relief='groove')
-        self.panel_pvw.grid(row=3,column=0,sticky="nsew",padx=(20,3),pady=(0,5))
+        self.cb_pvw = Checkbutton(self, text=_L["PVW_TITLE"], variable=self.plot_pvw)
+        self.cb_pvw.grid(row=7,column=0,padx=3,pady=5,sticky='w')
+        self.panel_pvw = Frame(self, border=1, relief='groove')
+        self.panel_pvw.grid(row=8,column=0,sticky="nsew",padx=(5,3),pady=(0,5))
         self.pvw_opts = OptionBox(self.panel_pvw, {
             "P": (_L["ACTIVE_POWER"], True),
             "cr": (_L["PVW_CR"], True),
@@ -231,10 +240,10 @@ class PlotPage(Frame):
         self.pvw_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
 
         self.plot_ess = BooleanVar(self, False)
-        self.cb_ess = Checkbutton(self.frA, text=_L["ESS_TITLE"], variable=self.plot_ess)
-        self.cb_ess.grid(row=2,column=1,padx=3,pady=5,sticky='w')
-        self.panel_ess = Frame(self.frA, border=1, relief='groove')
-        self.panel_ess.grid(row=3,column=1,sticky="nsew",padx=(20,3),pady=(0,5))
+        self.cb_ess = Checkbutton(self, text=_L["ESS_TITLE"], variable=self.plot_ess)
+        self.cb_ess.grid(row=7,column=1,padx=3,pady=5,sticky='w')
+        self.panel_ess = Frame(self, border=1, relief='groove')
+        self.panel_ess.grid(row=8,column=1,sticky="nsew",padx=(5,3),pady=(0,5))
         self.ess_opts = OptionBox(self.panel_ess, {
             "P": (_L["ACTIVE_POWER"], True),
             "soc": (_L["SOC"], True),
@@ -303,7 +312,9 @@ class PlotBox(Tk):
 
     def __init__(self):
         super().__init__()
-        self._win()
+        self.title(_L["TITLE"])
+        self.geometry("1024x840")
+        self.original_image = None
         
         self.menu = Menu(self)
         self.config(menu=self.menu)
@@ -324,10 +335,27 @@ class PlotBox(Tk):
         self.tab_state = Frame(self.tab)
         self.tab.add(self.tab_state,text=_L["TAB_STATE"], sticky='nsew')
 
-        self._pp = PlotPage(self.tab_curve)
-        self._pp.pack(fill='x',padx=3,pady=5)
-        self.btn_draw = Button(self.tab_curve, text=_L["BTN_PLOT"], command=self.plotSelected)
-        self.btn_draw.pack(anchor='w',padx=3,pady=5)
+        self.fr_pic = Frame(self.tab_curve)
+        self.fr_pic.pack(side="top",fill=BOTH, expand=False)
+        self.lb_pic = Label(self.fr_pic,text=_L["NO_IMAGE"])
+        self.lb_pic.pack(side="left",fill=BOTH, expand=True,anchor='w')
+        self.pic_list = Listbox(self.fr_pic)
+        self.pic_list.pack(side="right",fill=Y,anchor='e')
+        self.pic_list.bind("<<ListboxSelect>>", self.on_file_select)
+
+        self.fr_draw = Frame(self.tab_curve)
+        self.fr_draw.pack(side="bottom",fill=BOTH, expand=True)
+        self._ppc = Canvas(self.fr_draw)
+        self._ppc.pack(side="left", fill="both", expand=True)
+        self.scrollbar = Scrollbar(self.fr_draw, orient="vertical", command=self._ppc.yview)
+        self.scrollbar.pack(side="right", fill="y")
+        self._pp = PlotPage(self._ppc)
+        self._pp.bind("<Configure>", lambda e: self._ppc.configure(scrollregion=self._ppc.bbox("all")))
+        self.btn_draw = Button(self._pp.panel_time, text=_L["BTN_PLOT"], command=self.plotSelected)
+        self.btn_draw.pack(side='right')
+        self._ppc.create_window((0, 0), window=self._pp, anchor="nw")
+        self._ppc.configure(yscrollcommand=self.scrollbar.set)
+        
         
         self.panel_time2 = Frame(self.tab_grid)
         self.panel_time2.pack(side='top',fill='x',padx=3,pady=5)
@@ -369,7 +397,7 @@ class PlotBox(Tk):
         self.grline.column("q",width=100)
         self.grline.column("i",width=100)
 
-        self._sbar=Label(self,text=ITEM_LOADING)
+        self._sbar=Label(self,text=_L["STA_READY"])
         self._sbar.pack(side='bottom',anchor='w',padx=3,pady=3)
 
         self.plt = AdvancedPlot()
@@ -404,9 +432,52 @@ class PlotBox(Tk):
         }
         self._Q = Queue()
         self.disable_all()
-
+        self.bind("<Configure>", self.on_resize)
+        self.resize_timer = None
         self.after(100,self._upd)
     
+    def display_images(self, file_name:str):
+        if self.folder is None: return
+        img1_path = os.path.join(self.folder, file_name)
+        
+        try:
+            if os.path.exists(img1_path):
+                self.original_image = Image.open(img1_path)
+            else:
+                self.original_image = None
+        except Exception as e:
+            messagebox.showerror(_L["ERROR"], _L["LOAD_FAILED"].format(str(e)))
+        
+        self.resize()
+    
+    def resize(self):
+        sz = (self.winfo_width() - 200, self.winfo_height() // 2 - 20)
+        if self.original_image is not None:
+            resized_image = self.original_image.copy()
+            resized_image.thumbnail(sz)
+            image = ImageTk.PhotoImage(resized_image)
+
+            self.lb_pic.config(image=image,text="")
+            self.image = image
+        else:
+            self.lb_pic.config(image='',text=_L["NO_IMAGE"])
+            self.image = None
+
+
+    def on_resize(self, event):
+        if self.resize_timer is not None:
+            self.after_cancel(self.resize_timer)
+        self.resize_timer = self.after(100, self.resize_end)
+    
+    def resize_end(self):
+        self.resize()
+    
+    def on_file_select(self, event):
+        selected_index = self.pic_list.curselection()
+        if selected_index:
+            file_name = self.pic_list.get(selected_index)
+            self.display_images(file_name)
+
     def set_qres(self,text:str):
         self.text_qres.delete(0.0,END)
         self.text_qres.insert(END,text)
@@ -469,15 +540,6 @@ class PlotBox(Tk):
                 f"Money:\n  Charging cost: {veh._cost}\n  V2G earn: {veh._earn}\n  Net cost: {veh._cost-veh._earn}\n"
             )
         self.set_qres(res)
-    
-    def _win(self):
-        self.title(_L["TITLE"])
-        width = 1024
-        height = 840
-        screenwidth = self.winfo_screenwidth()
-        screenheight = self.winfo_screenheight()
-        geometry = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
-        self.geometry(geometry)
 
     def collectgrid(self):
         self.grbus.clear()
@@ -511,6 +573,14 @@ class PlotBox(Tk):
     def set_status(self,text:str):
         self._sbar.configure(text=text)
 
+    def update_file_list(self):
+        self.pic_list.delete(0, END)
+        if self.folder and os.path.exists(self.folder):
+            files = set(os.listdir(self.folder))
+            for file in sorted(files):
+                if file.lower().endswith(('png', 'jpg', 'jpeg', 'gif')):  # 只列出图片文件
+                    self.pic_list.insert(END, file)
+
     def _upd(self):
         while not self._Q.empty():
             op,*par=self._Q.get()
@@ -540,6 +610,7 @@ class PlotBox(Tk):
                     self._pp.pvw_pad.setValues([ITEM_ALL] + self._sta.pvw_head)
                 if self._sta.has_ESS():
                     self._pp.ess_pad.setValues([ITEM_ALL] + self._sta.ess_head)
+                self.update_file_list()
                 self.set_status(_L["STA_READY"])
                 self.enable_all()
             elif op=='I':
@@ -551,6 +622,7 @@ class PlotBox(Tk):
                 self.set_status(par[0])
                 break
             elif op=='D':
+                self.update_file_list()
                 self.set_status(_L["STA_READY"])
                 self.enable_all()
             elif op=='Q':
@@ -582,7 +654,7 @@ class PlotBox(Tk):
                 if res_path.exists():
                     break
                 else: 
-                    if not first: MB.showerror("Error loading", "Folder not found!")
+                    if not first: MB.showerror(_L["ERROR"], "Folder not found!")
                 first = False
                 res_path = self.askdir()
                 if res_path=="":
@@ -592,8 +664,9 @@ class PlotBox(Tk):
             if cproc.exists():
                 self.tab_trip.load(str(cproc))
             else:
-                MB.showerror("Error loading", "cproc.clog not found!")
+                MB.showerror(_L["ERROR"], "cproc.clog not found!")
                 return
+            self.folder = str(res_path.absolute() / "figures")
             self.title(f'{_L["TITLE"]} - {res_path.absolute()}')
             self.disable_all()
             sta = ReadOnlyStatistics(str(res_path))
@@ -605,7 +678,7 @@ class PlotBox(Tk):
                     with gzip.open(state_path,'rb') as f:
                         self.__inst = pickle.load(f)
                 except:
-                    MB.showerror("Error loading", "Failed to load saved state!")
+                    MB.showerror(_L["ERROR"], "Failed to load saved state!")
                     self.__inst = None
         except Exception as e:
             self._Q.put(('LE',e))
@@ -617,7 +690,7 @@ class PlotBox(Tk):
         for a in AVAILABLE_ITEMS2:
             if cfg[a]: break
         else:
-            MB.showerror("Error", "Nothing to plot!")
+            MB.showerror(_L["ERROR"], "Nothing to plot!")
             self.enable_all()
         def work(cfg):
             for a in AVAILABLE_ITEMS2:

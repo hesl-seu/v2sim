@@ -52,3 +52,6 @@ TIME=时间
 TIME_POINT=时间点:
 GRID_COLLECT=收集
 TAB_QUERIES=查询
+NO_IMAGE=未加载图像
+ERROR=错误
+LOAD_FAILED=无法加载图片: {}

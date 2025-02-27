@@ -52,3 +52,6 @@ TIME=Time
 TIME_POINT=Time point:
 GRID_COLLECT=Collect
 TAB_QUERIES=Queries
+NO_IMAGE=No image
+ERROR=Error
+LOAD_FAILED=Cannot load image: {}
