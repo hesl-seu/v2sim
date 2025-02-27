@@ -484,10 +484,10 @@ class PlotBox(Tk):
     
     def __queryCS(self,cstype:Literal["fcs","scs"], q:str):
         if self.__inst is None: 
-            self.set_qres("No instance loaded!")
+            self.set_qres(_L["NO_SAVED_STATE"])
             return
         if q.strip()=="":
-            self.set_qres("Query cannot be empty!")
+            self.set_qres(_L["EMPTY_QUERY"])
             return
         cslist = self.__inst[cstype]
         assert isinstance(cslist, CSList)
@@ -519,11 +519,11 @@ class PlotBox(Tk):
     
     def queryEV(self):
         if self.__inst is None: 
-            self.set_qres("No instance loaded!")
+            self.set_qres(_L["NO_SAVED_STATE"])
             return
         q = self.entry_ev_query.get()
         if q.strip()=="":
-            self.set_qres("Query cannot be empty!")
+            self.set_qres(_L["EMPTY_QUERY"])
             return
         vehs = self.__inst["VEHs"]
         assert isinstance(vehs, EVDict)
@@ -667,7 +667,7 @@ class PlotBox(Tk):
                 MB.showerror(_L["ERROR"], "cproc.clog not found!")
                 return
             self.folder = str(res_path.absolute() / "figures")
-            self.title(f'{_L["TITLE"]} - {res_path.absolute()}')
+            self.title(f'{_L["TITLE"]} - {res_path.name}')
             self.disable_all()
             sta = ReadOnlyStatistics(str(res_path))
             nplt = AdvancedPlot()

@@ -1061,7 +1061,7 @@ class MainBox(Tk):
     
     def __load_part2(self, loads:set[str], async_:bool, frm:LoadingBox):
         self.state = res = DetectFiles(self.folder)
-        self.title(f"{_L['TITLE']} - {self.folder}")
+        self.title(f"{_L['TITLE']} - {Path(self.folder).name}")
         # Check if grid exists
         if not res.grid: 
             with open(self.folder+"/"+DEFAULT_GRID_NAME,"w") as f:

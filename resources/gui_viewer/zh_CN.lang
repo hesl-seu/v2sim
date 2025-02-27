@@ -55,3 +55,5 @@ TAB_QUERIES=查询
 NO_IMAGE=未加载图像
 ERROR=错误
 LOAD_FAILED=无法加载图片: {}
+NO_SAVED_STATE=没有保存的状态！需要在仿真时保存状态以使用该功能。
+EMPTY_QUERY=查询项目不能为空！

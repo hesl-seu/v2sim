@@ -55,3 +55,5 @@ TAB_QUERIES=Queries
 NO_IMAGE=No image
 ERROR=Error
 LOAD_FAILED=Cannot load image: {}
+NO_SAVED_STATE=No saved state! Please save a state in the simulation to use this function.
+EMPTY_QUERY=Queries cannot be empty!
