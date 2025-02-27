@@ -12,6 +12,7 @@ temp
 # Sensitive files
 amap_key.txt
 flocale/lang.txt
+*.json
 
 # Logs
 *.log

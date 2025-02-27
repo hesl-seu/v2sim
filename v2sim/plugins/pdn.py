@@ -3,7 +3,6 @@ from itertools import chain
 from feasytools import TimeImplictFunc
 from fpowerkit import Grid, FloatVar, GridSolveResult, DistFlowSolver, LoadReduceModule
 
-from v2sim.plugins.base import Getter, Setter, Validator
 from ..locale import CustomLocaleLib
 from ..traffic import DetectFiles, CS
 from .base import *
@@ -64,7 +63,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         '''Initialize the plugin from the XML element'''
         self.__inst = inst
         self.SetPreStep(self.PreStep)
-        self.__fh = open(res_dir/"pdn_res.log","w")
+        self.__fh = open(res_dir / "pdn_res.log", "w")
         self.SetPostSimulation(self.__fh.close)
 
         res = DetectFiles(str(work_dir))
@@ -76,7 +75,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         self.__sol = DistFlowSolver(self.__gr,
             mlrp=float(elem.get("MLRP","0.5")),
         )
-        self.__sol.SetErrorSaveTo(str(work_dir))
+        self.__sol.SetErrorSaveTo(str(res_dir / "pdn_logs"))
         self.__badcnt = 0
         self.__pds:dict[str, list[CS]] = defaultdict(list)
         for c in chain(inst.FCSList,inst.SCSList):

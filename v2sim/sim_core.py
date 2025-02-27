@@ -1,7 +1,7 @@
 import importlib
 import queue, shutil, signal, time, sys
 from typing import Any, Optional
-from feasytools import ArgChecker, time2str
+from feasytools import ArgChecker, time2str#, FEasyTimer
 from pathlib import Path
 from .plotkit import AdvancedPlot
 from .plugins import *
@@ -469,6 +469,7 @@ class V2SimInstance:
         if load_from != "":
             self.load_state(load_from)
     
+    #@FEasyTimer
     def step(self) -> int:
         '''
         Simulation steps. 
@@ -528,6 +529,7 @@ class V2SimInstance:
             shutil.copy(self.__plg_file, self.__pres / ("plg.xml"))
         self.__working_flag = False
     
+    #@FEasyTimer
     def simulate(self):
         '''
         Main simulation function
@@ -616,7 +618,7 @@ class V2SimInstance:
                     self.__last_mp_time = ctime
                 self.__last_print_time = ctime
 
-
+#@FEasyTimer
 def simulate_single(vb=None, **kwargs)->bool:
     '''
     Single process simulation

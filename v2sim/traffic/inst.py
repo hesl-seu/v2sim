@@ -5,7 +5,8 @@ import numpy as np
 import pickle, gzip
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
-from feasytools import PQueue, Point
+from feasytools import PQueue, Point#, FEasyTimer
+
 from .trip import TripsLogger
 from .cslist import *
 from .ev import *
@@ -26,6 +27,7 @@ TC = traci.constants
 
 class TrafficInst:
     @staticmethod
+    #@FEasyTimer
     def __find_route(e1: str, e2: str) -> Stage:
         ret:Stage = traci.simulation.findRoute(
             e1, e2, routingMode=TC.ROUTING_MODE_AGGREGATED
@@ -398,6 +400,7 @@ class TrafficInst:
                 min_cs_stage = route
         return min_cs_name, min_cs_dist, min_cs_stage
 
+    #@FEasyTimer
     def __batch_depart(self) -> dict[str, Optional[TWeights]]:
         """
         All vehicles that arrive at the departure queue are sent out
@@ -433,6 +436,7 @@ class TrafficInst:
                     self.__logger.depart_failed(self.__ctime, veh, batt_req, cs_name, trT)
         return ret
 
+    #@FEasyTimer
     def __FCS_update(self, sec: int):
         """
         Charging station update: Charge all vehicles in the charging station, and send out the vehicles that have completed charging
@@ -443,6 +447,7 @@ class TrafficInst:
         for i in veh_ids:
             self.__end_charging_FCS(self._VEHs[i])
 
+    #@FEasyTimer
     def __SCS_update(self, sec: int):
         """
         Parking vehicle update: Charge and V2G all parked vehicles in the charging station
@@ -497,6 +502,11 @@ class TrafficInst:
         self.__ctime = int(traci.simulation.getTime())
         self.__batch_depart()
 
+    #@FEasyTimer
+    #def __sumo_step(self, _t):
+    #    traci.simulationStep(_t)
+
+    #@FEasyTimer
     def simulation_step(self, step_len: int):
         """
         Simulation step.
@@ -504,6 +514,7 @@ class TrafficInst:
             v2g_demand: V2G demand list (kWh/s)
         """
         traci.simulationStep(self.__ctime + step_len)
+        #self.__sumo_step(self.__ctime + step_len)
         new_time = int(traci.simulation.getTime())
         deltaT = new_time - self.__ctime
         self.__ctime = new_time

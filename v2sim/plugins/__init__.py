@@ -1,3 +1,4 @@
+#from feasytools import FEasyTimer
 from .base import *
 from .pdn import PluginPDN
 from .v2g import PluginV2G
@@ -108,6 +109,7 @@ class PluginMan:
         for p in self.__curPlugins.values():
             p._postsim()
 
+    #@FEasyTimer
     def PreStepAll(self,_t:int)->dict[str,object]:
         '''Execute all plugins PreStep, return all plugins return value'''
         ret:dict[str,object] = {}
@@ -115,6 +117,7 @@ class PluginMan:
             ret[k] = p._precall(_t)
         return ret
     
+    #@FEasyTimer
     def PostStepAll(self,_t:int)->dict[str,object]:
         '''Execute all plugins PreStep, return all plugins return value'''
         ret:dict[str,object] = {}

@@ -4,6 +4,7 @@ import math
 import os
 import bisect
 from pathlib import Path
+#from feasytools import FEasyTimer
 from typing import Type, Optional
 from ..plugins import *
 from .logcs import *
@@ -71,6 +72,7 @@ class StaWriter:
             self.__path, self.__inst, self.__plug
         )
 
+    #@FEasyTimer
     def Log(self, time: int):
         for item in self.__items.values():
             try:

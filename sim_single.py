@@ -8,7 +8,7 @@ from v2sim import (
     get_sim_params,
 )
 import threading, sys, logging, platform
-from feasytools import ArgChecker, KeyNotSpecifiedError
+from feasytools import ArgChecker, KeyNotSpecifiedError#, FEasyTimer
 
 
 def error_exit(err=None, print_help: bool = False):
@@ -24,7 +24,7 @@ def error_exit(err=None, print_help: bool = False):
         print(Lang.MAIN_HELP_STR.format(sys.argv[0]))
     sys.exit()
 
-
+#@FEasyTimer
 def work(pars:Optional[dict] = None, clntID:int = -1, q=None, alt:Optional[dict[str,str]] = None):
     if pars is not None:
         args = ArgChecker(pars=pars, force_parametric=["gen-veh", "gen-scs", "gen-fcs", "plot"])
@@ -118,6 +118,14 @@ def work(pars:Optional[dict] = None, clntID:int = -1, q=None, alt:Optional[dict[
     else:
         if clntID == -1: print(Lang.MAIN_SIM_START)
         simulate_single(**kwargs)
+'''
+def print_perf_data():
+    with open(f"output_{time.time()}.txt", "w") as f:
+        for k, v in FEasyTimer.RES.items():
+            f.write(f"{k}: {v:.2f}\n")
+        v2sim_time = FEasyTimer.RES["simulation_step"]-FEasyTimer.RES["__sumo_step"]
+        f.write(f"V2Sim: {v2sim_time:.2f}\n")
+'''
 
 if __name__ == "__main__":
     work()
