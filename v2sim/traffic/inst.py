@@ -71,6 +71,7 @@ class TrafficInst:
         self,
         road_net_file: str,
         start_time: int,
+        step_len: int,
         end_time: int,
         clogfile: str,
         seed: int = 0, *,
@@ -100,6 +101,7 @@ class TrafficInst:
         self.__scsfile = scsfile
         self.__ctime: int = start_time
         self.__stime: int = start_time
+        self.__step_len: int = step_len
         self.__etime: int = end_time
         
         # Read road network
@@ -164,6 +166,11 @@ class TrafficInst:
         """Simulation end time"""
         return self.__etime
 
+    @property
+    def step_len(self):
+        """Simulation step length"""
+        return self.__step_len
+    
     @property
     def current_time(self):
         """Current time"""

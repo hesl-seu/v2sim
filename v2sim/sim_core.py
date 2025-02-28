@@ -271,7 +271,7 @@ class V2SimInstance:
 
         # Create a simulation instance
         self.__inst = TrafficInst(
-            rnet_file, start_time, end_time, str(pres / "cproc.clog"), seed,
+            rnet_file, start_time, traffic_step, end_time, str(pres / "cproc.clog"), seed,
             vehfile = veh_file, veh_obj = vehicles,
             fcsfile = fcs_file, fcs_obj = fcs_obj,
             scsfile = scs_file, scs_obj = scs_obj,
@@ -477,10 +477,11 @@ class V2SimInstance:
             Follow the start - step - stop paradigm.
         Return the simulation time after this step.
         '''
-        self.__plgman.PreStepAll(self.__inst.current_time)
+        t = self.__inst.current_time
+        self.__plgman.PreStepAll(t)
         self.__inst.simulation_step(self.__steplen)
-        self.__plgman.PostStepAll(self.__inst.current_time)
-        self.__sta.Log(self.__inst.current_time)
+        self.__plgman.PostStepAll(t)
+        self.__sta.Log(t)
         return self.__inst.current_time
     
     def step_until(self, t:int) -> int:

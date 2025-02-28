@@ -288,10 +288,11 @@ class _CSVTable:
         if self.__head is None: self.__head = list(self.__data.keys())
         self.__lt = lt
         self.__f.close()
+        self.__loaded = True
 
     def __init__(self, filename:str, preload:bool=False):
         self.__data:dict[str,TimeSeg] = defaultdict(TimeSeg)
-        
+        self.__loaded = False
         self.__f = open(filename, "r")
         head = self.__f.readline().strip()
         self._mp = None
@@ -308,11 +309,11 @@ class _CSVTable:
         if preload: self.force_load()
     
     def __getitem__(self, key:str)->TimeSeg:
-        if self.__head is None: self.force_load()
+        if not self.__loaded: self.force_load()
         return self.__data[key]
     
     def __contains__(self, key:str)->bool:
-        if self.__head is None: self.force_load()
+        if not self.__loaded: self.force_load()
         return key in self.__data
     
     def keys(self) -> list[str]:
@@ -321,7 +322,7 @@ class _CSVTable:
     
     @property
     def LastTime(self)->int:
-        if self.__head is None: self.force_load()
+        if not self.__loaded: self.force_load()
         return self.__lt
     
 class StaReader:

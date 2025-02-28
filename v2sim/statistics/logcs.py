@@ -32,10 +32,10 @@ class StaSCS(StaBase):
         t = inst.current_time
         cnt = (cs.__len__() for cs in IL)
         Pc = (cs._cload * 3600 for cs in IL) # Performance problem: do not call property
-        pb = (cs.pbuy(t) for cs in IL)
+        pb = (cs._pbuy(t) for cs in IL)
         if self.supv2g:
             v2g = self.hasv2g and plugins["v2g"].IsOnline(t)
-            ps = (cs.psell(t) for cs in IL)
+            ps = (cs._psell(t) for cs in IL) # type: ignore
             Pd = (cs._dload * 3600 for cs in IL) if v2g else repeat(0, L)
             Pv2g = (cs._cur_v2g_cap * 3600 for cs in IL) if v2g else repeat(0, L)
         else:

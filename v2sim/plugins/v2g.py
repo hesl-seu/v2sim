@@ -32,7 +32,9 @@ class PluginV2G(PluginBase[V2GRes]):
 
     def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plg_deps:'list[PluginBase]')->V2GRes:
         self.__inst = inst
+        self.__step_len = inst.step_len
         self.SetPreStep(self._work)
+        self.SetPostStep(self._work_post)
 
         assert len(plg_deps) == 1 and isinstance(plg_deps[0], IGridPlugin), _locale["ERROR_NO_PDN"]
         self.__pdn = plg_deps[0]
@@ -46,7 +48,6 @@ class PluginV2G(PluginBase[V2GRes]):
                 0.,ComFunc(self.__get_cap(i)),0.,0.,))
         if isinstance(self.__pdn, PluginPDN):
             self.__pdn.Solver.UpdateGrid()
-        self.SetPreStep(self._work)
         return []
     
     def __get_cap(self,i:int):
@@ -54,14 +55,23 @@ class PluginV2G(PluginBase[V2GRes]):
             if not self.IsOnline(t): return 0.
             return self._cap[i]
         return func
-   
+    
+    def _work_post(self, _t:int, /, sta:PluginStatus)->tuple[bool,list[float]]:
+        if sta == PluginStatus.EXECUTE or (sta == PluginStatus.OFFLINE and self.IsOnline(_t + self.__step_len)):
+            self._cap = [x*3.6/self.__pdn.Grid.Sb for x in self.__inst.SCSList.get_V2G_cap(_t)]
+            ret = True, self._cap
+        elif sta == PluginStatus.OFFLINE:
+            ret = True, []
+        elif sta == PluginStatus.HOLD:
+            ret = True, self.LastPreStepResult
+        return ret
+    
     def _work(self,_t:int,/,sta:PluginStatus)->tuple[bool,list[float]]:
         '''
         Get the V2G demand power of all bus with slow charging stations at time _t, unit kWh/s, 3.6MW=3600kW=1kWh/s
         '''
         if sta == PluginStatus.EXECUTE:
             if self.__pdn.LastPreStepSucceed:
-                self._cap = [x*3.6/self.__pdn.Grid.Sb for x in self.__inst.SCSList.get_V2G_cap(_t)]
                 f = lambda x: (0.0 if x is None else x)*self.__pdn.Grid.Sb/3.6
                 ret1 = [f(self.__pdn.Grid.Gen("V2G_"+pk.name).P) for pk in self.__inst.SCSList]
                 if sum(ret1)>1e-8: ret = True, ret1

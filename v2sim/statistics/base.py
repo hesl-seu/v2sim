@@ -19,7 +19,7 @@ class StaBase:
     '''Base class for statistics recorder'''
     @abstractmethod
     def __init__(self, name:str, path:str, items:list[str], tinst:TrafficInst, 
-            plugins:dict[str,PluginBase], precision:dict[str, int]={}, compress:bool=False):
+            plugins:dict[str,PluginBase], precision:dict[str, int]={}, compress:bool=True):
         self._name=name
         self._inst=tinst
         self._plug=plugins
