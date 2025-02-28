@@ -273,42 +273,56 @@ class TimeSeg:
         return times, [seg.values_at(times) for seg in segs]
 
 class _CSVTable:
-    def __init__(self, filename:str):
-        self.__data:dict[str,TimeSeg] = defaultdict(TimeSeg)
+    def force_load(self):
         lastTime:dict[str,int] = defaultdict(lambda:-1)
+        data = self.__f.readlines()
         lt = -1
-        with open(filename, "r") as f:
-            head = f.readline().strip()
-            _mp = None
-            if head == "C":
-                head = f.readline().strip().split(",")
-                _mp = {to_base62(i):item for i, item in enumerate(head)}
-                head = f.readline().strip()
-            header = head.split(",")
-            assert len(header) == 3 and header[0] == "Time" and header[1] == "Item" and header[2] == "Value"
-            data = f.readlines()
-            for i, line in enumerate(data,2):
-                time, item, value = line.strip().split(",")
-                if _mp is not None: item = _mp[item]
-                time = int(time) if time != "" else lt
-                assert time > lastTime[item], f"Item {item} @ line {i}: Time must be increasing, but value to add ({time}) is smaller or equal to the last time ({lastTime[item]})"
-                lastTime[item] = time
-                lt = time
-                self.__data[item].add(time, float(value))
-        self.lastTime = lt
+        for i, line in enumerate(data,2):
+            time, item, value = line.strip().split(",")
+            if self._mp is not None: item = self._mp[item]
+            time = int(time) if time != "" else lt
+            assert time > lastTime[item], f"Item {item} @ line {i}: Time must be increasing, but value to add ({time}) is smaller or equal to the last time ({lastTime[item]})"
+            lastTime[item] = time
+            lt = time
+            self.__data[item].add(time, float(value))
+        if self.__head is None: self.__head = list(self.__data.keys())
+        self.__lt = lt
+        self.__f.close()
+
+    def __init__(self, filename:str, preload:bool=False):
+        self.__data:dict[str,TimeSeg] = defaultdict(TimeSeg)
+        
+        self.__f = open(filename, "r")
+        head = self.__f.readline().strip()
+        self._mp = None
+        if head == "C":
+            head = self.__f.readline().strip().split(",")
+            self.__head = head
+            self._mp = {to_base62(i):item for i, item in enumerate(head)}
+            head = self.__f.readline().strip()
+        else:
+            self.__head = None
+        header = head.split(",")
+        assert len(header) == 3 and header[0] == "Time" and header[1] == "Item" and header[2] == "Value"
+        self.__lt = -1
+        if preload: self.force_load()
     
     def __getitem__(self, key:str)->TimeSeg:
+        if self.__head is None: self.force_load()
         return self.__data[key]
     
     def __contains__(self, key:str)->bool:
+        if self.__head is None: self.force_load()
         return key in self.__data
     
-    def keys(self):
-        return self.__data.keys()
+    def keys(self) -> list[str]:
+        if self.__head is None: self.force_load()
+        return self.__head # type: ignore
     
     @property
     def LastTime(self)->int:
-        return self.lastTime
+        if self.__head is None: self.force_load()
+        return self.__lt
     
 class StaReader:
     """Readonly statistics reader, created from a folder"""

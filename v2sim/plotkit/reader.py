@@ -17,6 +17,8 @@ def _parse_val(x:str)->list[Any]:
     if v0>0: v.append(v0)
     return v
 
+TO_BE_LOADED = True
+
 class ReadOnlyStatistics(StaReader):
     def has_FCS(self)->bool: return self.__fcs_head is not None
     def has_SCS(self)->bool: return self.__scs_head is not None
@@ -27,111 +29,105 @@ class ReadOnlyStatistics(StaReader):
     def has_PVW(self)->bool: return FILE_PVW in self
     def has_ESS(self)->bool: return FILE_ESS in self
     
-    def __init__(self,path:str):
-        super().__init__(path)
-        self.root = path
+    def __loadhead(self, name:str) -> list[str]:
         def __trans(x:str):
             p = x.rfind("#")
             if p>=0: return x[:p]
             return x
-            
-        if FILE_FCS not in self:
-            self.__fcs_head = None
-        else:
-            self.__fcs_head = list(set(__trans(x) for x in self.GetTable(FILE_FCS).keys()))
-            self.__fcs_head.sort(key=_parse_val)
-        if FILE_SCS not in self:
-            self.__scs_head = None
-        else:
-            self.__scs_head = list(set(__trans(x) for x in self.GetTable(FILE_SCS).keys()))
-            self.__scs_head.sort(key=_parse_val)
-        if FILE_EV not in self:
-            self.__ev_head = None
-        else:
-            self.__ev_head = list(set(__trans(x) for x in self.GetTable(FILE_EV).keys()))
-            self.__ev_head.sort(key=_parse_val)
-        if FILE_GEN not in self:
-            self.__gen_head = None
-        else:
-            self.__gen_head = list(set(__trans(x) for x in self.GetTable(FILE_GEN).keys()))
-            for itm in GEN_TOT_ATTRIB:
-                if itm in self.__gen_head:
-                    self.__gen_head.remove(itm)
-            self.__gen_head.sort(key=_parse_val)
-        if FILE_BUS not in self:
-            self.__bus_head = None
-        else:
-            self.__bus_head = list(set(__trans(x) for x in self.GetTable(FILE_BUS).keys()))
-            for itm in BUS_TOT_ATTRIB:
-                if itm in self.__bus_head:
-                    self.__bus_head.remove(itm)
-            self.__bus_head.sort(key=_parse_val)
-        if FILE_LINE not in self:
-            self.__line_head = None
-        else:
-            self.__line_head = list(set(__trans(x) for x in self.GetTable(FILE_LINE).keys()))
-            for itm in LINE_ATTRIB:
-                if itm in self.__line_head:
-                    self.__line_head.remove(itm)
-            self.__line_head.sort(key=_parse_val)
-        if FILE_PVW not in self:
-            self.__pvw_head = None
-        else:
-            self.__pvw_head = list(set(__trans(x) for x in self.GetTable(FILE_PVW).keys()))
-            for itm in PVW_ATTRIB:
-                if itm in self.__pvw_head:
-                    self.__pvw_head.remove(itm)
-            self.__pvw_head.sort(key=_parse_val)
-        if FILE_ESS not in self:
-            self.__ess_head = None
-        else:
-            self.__ess_head = list(set(__trans(x) for x in self.GetTable(FILE_ESS).keys()))
-            for itm in ESS_ATTRIB:
-                if itm in self.__ess_head:
-                    self.__ess_head.remove(itm)
-            self.__ess_head.sort(key=_parse_val)
+        return list(set(__trans(x) for x in self.GetTable(name).keys()))
+    
+    def __init__(self, path:str):
+        super().__init__(path)
+        self.root = path
+        self.__fcs_head = None if FILE_FCS not in self else TO_BE_LOADED
+        self.__scs_head = None if FILE_SCS not in self else TO_BE_LOADED
+        self.__ev_head  = None if FILE_EV  not in self else TO_BE_LOADED
+        self.__gen_head = None if FILE_GEN not in self else TO_BE_LOADED
+        self.__bus_head = None if FILE_BUS not in self else TO_BE_LOADED
+        self.__line_head = None if FILE_LINE not in self else TO_BE_LOADED
+        self.__pvw_head = None if FILE_PVW not in self else TO_BE_LOADED
+        self.__ess_head = None if FILE_ESS not in self else TO_BE_LOADED
         
     @property
     def FCS_head(self)->list[str]: 
         assert self.__fcs_head is not None, "CS properties not supported"
+        if not isinstance(self.__fcs_head, list):
+            self.__fcs_head = self.__loadhead(FILE_FCS)
+            self.__fcs_head.sort(key=_parse_val)
         return self.__fcs_head
 
     @property
     def SCS_head(self)->list[str]: 
         assert self.__scs_head is not None, "CS properties not supported"
+        if not isinstance(self.__scs_head, list):
+            self.__scs_head = self.__loadhead(FILE_SCS)
+            self.__scs_head.sort(key=_parse_val)
         return self.__scs_head
     
     @property
     def veh_head(self)->list[str]:
         assert self.__ev_head is not None, "Vehicle properties not supported"
+        if not isinstance(self.__ev_head, list):
+            self.__ev_head = self.__loadhead(FILE_EV)
+            self.__ev_head.sort(key=_parse_val)
         return self.__ev_head
     
     @property
     def gen_head(self)->list[str]:
         assert self.__gen_head is not None, "Generator properties not supported"
+        if not isinstance(self.__gen_head, list):
+            self.__gen_head = self.__loadhead(FILE_GEN)
+            for itm in GEN_TOT_ATTRIB:
+                if itm in self.__gen_head:
+                    self.__gen_head.remove(itm)
+            self.__gen_head.sort(key=_parse_val)
         return self.__gen_head
     
     @property
     def bus_head(self)->list[str]:
         assert self.__bus_head is not None, "Bus properties not supported"
+        if not isinstance(self.__bus_head, list):
+            self.__bus_head = self.__loadhead(FILE_BUS)
+            for itm in BUS_TOT_ATTRIB:
+                if itm in self.__bus_head:
+                    self.__bus_head.remove(itm)
+            self.__bus_head.sort(key=_parse_val)
         return self.__bus_head
     
     @property
     def line_head(self)->list[str]:
         assert self.__line_head is not None, "Line properties not supported"
+        if not isinstance(self.__line_head, list):
+            self.__line_head = self.__loadhead(FILE_LINE)
+            for itm in LINE_ATTRIB:
+                if itm in self.__line_head:
+                    self.__line_head.remove(itm)
+            self.__line_head.sort(key=_parse_val)
         return self.__line_head
     
     @property
     def pvw_head(self)->list[str]:
         assert self.__pvw_head is not None, "PV & Wind properties not supported"
+        if not isinstance(self.__pvw_head, list):
+            self.__pvw_head = self.__loadhead(FILE_PVW)
+            for itm in PVW_ATTRIB:
+                if itm in self.__pvw_head:
+                    self.__pvw_head.remove(itm)
+            self.__pvw_head.sort(key=_parse_val)
         return self.__pvw_head
 
     @property
     def ess_head(self)->list[str]:
         assert self.__ess_head is not None, "ESS properties not supported"
+        if not isinstance(self.__ess_head, list):
+            self.__ess_head = self.__loadhead(FILE_ESS)
+            for itm in ESS_ATTRIB:
+                if itm in self.__ess_head:
+                    self.__ess_head.remove(itm)
+            self.__ess_head.sort(key=_parse_val)
         return self.__ess_head
 
-    def FCS_attrib_of(self,cs:str,attrib:str)->TimeSeg: 
+    def FCS_attrib_of(self,cs:str, attrib:str)->TimeSeg: 
         '''Charging station information'''
         assert attrib in CS_ATTRIB, f"Invalid CS property: {attrib}"
         if cs == "<sum>":
