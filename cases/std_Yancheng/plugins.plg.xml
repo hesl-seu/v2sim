@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+<pdn interval="300" enabled="YES" SmartCharge="NO" DecBuses="" MLRP="0.5" />
+<v2g interval="300" enabled="YES" />
+</root>

@@ -7,6 +7,7 @@ from ..traffic import EV,Trip
 
 @dataclass
 class VehicleType:
+    id:int
     bcap_kWh:float
     range_km:float
     efc_rate_kW:float

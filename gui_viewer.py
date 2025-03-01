@@ -585,8 +585,9 @@ class PlotBox(Tk):
         while not self._Q.empty():
             op,*par=self._Q.get()
             if op=='L':
-                self._sta, self._npl = par
-                assert isinstance(self._sta, ReadOnlyStatistics)
+                assert isinstance(par[0], str), f"Invalid path: {par[0]}"
+                self._sta = ReadOnlyStatistics(par[0])
+                self._npl = AdvancedPlot()
                 self._npl.load_series(self._sta)
                 for x in AVAILABLE_ITEMS:
                     self._ava[x] = getattr(self._sta, f"has_{x.upper()}")()
@@ -628,7 +629,7 @@ class PlotBox(Tk):
             elif op=='Q':
                 self.destroy()
             else:
-                self.set_status("Internal Error!")
+                self.set_status(_L["INTERNAL_ERR"])
                 break
         self.after(100,self._upd)
     
@@ -636,7 +637,7 @@ class PlotBox(Tk):
         p = Path(os.getcwd()) / "results"
         p.mkdir(parents=True,exist_ok=True)
         return filedialog.askdirectory(
-            title="Please select the result folder",
+            title=_L["TITLE_SEL_FOLDER"],
             initialdir=str(p),
             mustexist=True,
         )
@@ -664,21 +665,20 @@ class PlotBox(Tk):
             if cproc.exists():
                 self.tab_trip.load(str(cproc))
             else:
-                MB.showerror(_L["ERROR"], "cproc.clog not found!")
+                MB.showerror(_L["ERROR"], _L["NO_CPROC"])
                 return
+            self.set_status(_L["LOADING"])
             self.folder = str(res_path.absolute() / "figures")
             self.title(f'{_L["TITLE"]} - {res_path.name}')
             self.disable_all()
-            sta = ReadOnlyStatistics(str(res_path))
-            nplt = AdvancedPlot()
-            self._Q.put(('L',sta,nplt))
+            self._Q.put(('L',str(res_path)))
             state_path = res_path / "saved_state" / "inst.gz"
             if state_path.exists():
                 try:
                     with gzip.open(state_path,'rb') as f:
                         self.__inst = pickle.load(f)
                 except:
-                    MB.showerror(_L["ERROR"], "Failed to load saved state!")
+                    MB.showerror(_L["ERROR"], _L["SAVED_STATE_LOAD_FAILED"])
                     self.__inst = None
         except Exception as e:
             self._Q.put(('LE',e))
@@ -690,7 +690,7 @@ class PlotBox(Tk):
         for a in AVAILABLE_ITEMS2:
             if cfg[a]: break
         else:
-            MB.showerror(_L["ERROR"], "Nothing to plot!")
+            MB.showerror(_L["ERROR"], _L["NOTHING_PLOT"])
             self.enable_all()
         def work(cfg):
             for a in AVAILABLE_ITEMS2:
