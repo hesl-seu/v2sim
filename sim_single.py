@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Optional
 from v2sim import (
     Lang, PluginPool, StaPool,
-    WINDOWS_VISSUALIZE,
+    WINDOWS_VISUALIZE,
     load_external_components,
     simulate_single,
     get_sim_params,
@@ -69,7 +69,7 @@ def work(pars:Optional[dict] = None, clntID:int = -1, q=None, alt:Optional[dict[
             if "show" in args.keys():
                 print(Lang.WARN_MAIN_SHOW_MEANINGLESS)
                 args.pop_bool("show")
-            visible = WINDOWS_VISSUALIZE
+            visible = WINDOWS_VISUALIZE
         else:
             visible = args.pop_bool("show")
 

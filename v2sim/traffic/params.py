@@ -1,7 +1,3 @@
-# 在Windows操作系统下，如果需要可视化仿真结果，请将WINDOWS_VISSUALIZE设置为True，此项对于Linux系统无效
-# If you need to visualize the simulation results on the Windows operating system, please set WINDOWS_VISSUALIZE to True, this item is invalid for the Linux system
-WINDOWS_VISSUALIZE = False
-
 # 关闭找不到路径的错误提示
 # Suppress route not found error
 SUPPRESS_ROUTE_NOT_FOUND = True

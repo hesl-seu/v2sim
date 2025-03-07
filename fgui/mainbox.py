@@ -8,6 +8,7 @@ from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, 
 from .network import NetworkPanel, OAfter
 from tkinter import filedialog
 from tkinter import messagebox as MB
+import v2sim
 from v2sim import *
 from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
@@ -750,15 +751,24 @@ class MainBox(Tk):
         self.entry_seed = Entry(self.sim_time)
         self.entry_seed.insert(0, "0")
         self.entry_seed.grid(row=3, column=1, padx=3, pady=3, sticky="w")
+        self.ralgo = StringVar(self, "CH")
+        self.lb_route_algo = Label(self.sim_time, text=_L["SIM_ROUTE_ALGO"])
+        self.lb_route_algo.grid(row=4, column=0, padx=3, pady=3, sticky="w")
+        self.combo_ralgo = Combobox(self.sim_time, textvariable=self.ralgo, values=["dijkstra", "astar", "CH", "CHWrapper"])
+        self.combo_ralgo.grid(row=4, column=1, padx=3, pady=3, sticky="w")
+
         self.sim_load_last_state = BooleanVar(self, False)
         self.sim_cb_load_last_state = Checkbutton(self.sim_time, text=_L["SIM_LOAD_LAST_STATE"], variable=self.sim_load_last_state)
-        self.sim_cb_load_last_state.grid(row=4, column=0, padx=3, pady=3, sticky="w", columnspan=2)
+        self.sim_cb_load_last_state.grid(row=0, column=2, padx=3, pady=3, sticky="w")
         self.sim_save_on_abort = BooleanVar(self, False)
         self.sim_cb_save_on_abort = Checkbutton(self.sim_time, text=_L["SIM_SAVE_ON_ABORT"], variable=self.sim_save_on_abort)
-        self.sim_cb_save_on_abort.grid(row=5, column=0, padx=3, pady=3, sticky="w", columnspan=2)
+        self.sim_cb_save_on_abort.grid(row=1, column=2, padx=3, pady=3, sticky="w")
         self.sim_save_on_finish = BooleanVar(self, False)
         self.sim_cb_save_on_finish = Checkbutton(self.sim_time, text=_L["SIM_SAVE_ON_FINISH"], variable=self.sim_save_on_finish)
-        self.sim_cb_save_on_finish.grid(row=6, column=0, padx=3, pady=3, sticky="w", columnspan=2)
+        self.sim_cb_save_on_finish.grid(row=2, column=2, padx=3, pady=3, sticky="w")
+        self.sim_visualize = BooleanVar(self, False)
+        self.sim_cb_visualize = Checkbutton(self.sim_time, text=_L["SIM_VISUALIZE"], variable=self.sim_visualize)
+        self.sim_cb_visualize.grid(row=3, column=2, padx=3, pady=3, sticky="w")
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
         self.sim_plglist = PluginEditor(self.sim_plugins, self._OnPDNEnabledSet())
@@ -971,7 +981,15 @@ class MainBox(Tk):
                     "--load-last-state" if self.sim_load_last_state.get() else "",
                     "--save-on-abort" if self.sim_save_on_abort.get() else "",
                     "--save-on-finish" if self.sim_save_on_finish.get() else "",
+                    "--route-algo", self.ralgo.get()
                 ]
+        
+        visualize = self.sim_visualize.get()
+        if platform.system() == "Windows":
+            with open(v2sim.traffic.win_vis.__file__,"w") as f:
+                f.write(f"WINDOWS_VISUALIZE = {visualize}")
+        else:
+            if visualize: commands.append("--show")
         self.destroy()
         try:
             os.system(" ".join(commands))

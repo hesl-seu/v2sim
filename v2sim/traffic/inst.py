@@ -10,13 +10,13 @@ from feasytools import PQueue, Point#, FEasyTimer
 from .trip import TripsLogger
 from .cslist import *
 from .ev import *
-from .params import WINDOWS_VISSUALIZE
+from .win_vis import WINDOWS_VISUALIZE
 from .utils import random_string, TWeights
 
 if platform.system() == "Linux":
     import libsumo as traci
 else:  # Windows & Mac
-    if WINDOWS_VISSUALIZE:
+    if WINDOWS_VISUALIZE:
         import traci
     else:
         import libsumo as traci
@@ -78,7 +78,8 @@ class TrafficInst:
         vehfile: str, veh_obj:Optional[EVDict] = None,
         fcsfile: str, fcs_obj:Optional[CSList] = None,
         scsfile: str, scs_obj:Optional[CSList] = None,
-        initial_state_folder: str = ""
+        initial_state_folder: str = "",
+        routing_algo:str = "CH",
     ):
         """
         TrafficInst initialization
@@ -90,11 +91,14 @@ class TrafficInst:
             vehfile: Vehicle information and itinerary file
             fcsfile: Fast charging station list file
             scsfile: Slow charging station list file
-            initial_state_folder: Initial state folder path
+            initial_state_folder: Initial state folder path]
+            routing_algo: Routing algorithm
         """
         random.seed(seed)
         self.__gui = None
         self.__logger = TripsLogger(clogfile)
+        self.__ralgo = routing_algo
+        assert self.__ralgo in ["CH", "dijkstra", "astar", "CHWrapper"], f"Invalid routing algorithm: {self.__ralgo}"
         
         self.__vehfile = vehfile
         self.__fcsfile = fcsfile
@@ -490,13 +494,10 @@ class TrafficInst:
         self.__gui = gui
         sumoCmd = [
             "sumo-gui" if self.__gui else "sumo",
-            "-c",
-            sumocfg_file,
-            "-n",
-            net_file,
+            "-c", sumocfg_file,
+            "-n", net_file,
             "--no-warnings",
-            "--routing-algorithm",
-            "CH",
+            "--routing-algorithm", self.__ralgo,
         ]
         if start_time is not None:
             sumoCmd.extend(["-b", str(start_time)])
@@ -520,7 +521,7 @@ class TrafficInst:
             step_len: Step length (seconds)
             v2g_demand: V2G demand list (kWh/s)
         """
-        traci.simulationStep(self.__ctime + step_len)
+        traci.simulationStep(float(self.__ctime + step_len))
         #self.__sumo_step(self.__ctime + step_len)
         new_time = int(traci.simulation.getTime())
         deltaT = new_time - self.__ctime
@@ -541,23 +542,25 @@ class TrafficInst:
         for veh_id in cur_vehs:
             veh = self._VEHs[veh_id]
             veh.drive(traci.vehicle.getDistance(veh_id))
-            if veh.battery <= 0:
+            if veh._elec <= 0:
                 # Vehicles with depleted batteries will be sent to the nearest fast charging station (time * 2)
-                veh.status = VehStatus.Depleted
+                veh._sta = VehStatus.Depleted
                 cur_edge = traci.vehicle.getRoadID(veh_id)
-                veh.target_CS, _, cs_stage = self.__get_nearest_CS(cur_edge)
+                veh._cs, _, cs_stage = self.__get_nearest_CS(cur_edge)
                 assert cs_stage is not None and veh.target_CS is not None
                 trT = int(self.__ctime + 2 * cs_stage.travelTime)
                 self._fQ.push(trT, veh_id)
                 traci.vehicle.remove(veh_id)
                 self.__logger.fault_deplete(self.__ctime, veh, veh.target_CS, trT)
-            if veh.status == VehStatus.Driving:
+            if veh._sta == VehStatus.Pending:
+                veh._sta = VehStatus.Driving
+            if veh._sta == VehStatus.Driving:
                 if veh.target_CS is not None and not self._fcs[veh.target_CS].is_online(self.__ctime):
                     # Target FCS is offline, redirected to the nearest FCS
                     route, weights = self.__sel_best_CS(veh, veh.omega)
                     if len(route) == 0:  
                         # The power is not enough to drive to any charging station, remove from the network
-                        veh.status = VehStatus.Depleted
+                        veh._sta = VehStatus.Depleted
                         traci.vehicle.remove(veh_id)
                         self._fQ.push(self.__ctime, veh_id)
                         self.__logger.fault_nocharge(self.__ctime, veh, veh.target_CS)
@@ -567,6 +570,8 @@ class TrafficInst:
                         traci.vehicle.setRoute(veh_id, route)
                         self.__logger.fault_redirect(self.__ctime, veh, veh.target_CS, new_cs)
                         veh.target_CS = new_cs
+            else:
+                print(f"Error: {veh.brief()}, {veh._sta}")
 
         # Process vehicles in charging stations and parked vehicles
         self.__FCS_update(deltaT)

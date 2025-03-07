@@ -77,6 +77,7 @@ def get_sim_params(
             "load_last_state":  args.pop_bool("load-last-state"),
             "save_on_abort":    args.pop_bool("save-on-abort"),
             "save_on_finish":   args.pop_bool("save-on-finish"),
+            "route_algo":       args.pop_str("route-algo", "CH"),
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
@@ -123,6 +124,7 @@ class V2SimInstance:
         load_last_state: bool = False,
         save_on_abort: bool = False,
         save_on_finish: bool = False,
+        route_algo: str = "CH",
     ):
         '''
         Initialization
@@ -150,6 +152,7 @@ class V2SimInstance:
             load_last_state: Load the state in result dir if there is a state folder
             save_on_abort: Whether to save the state when Ctrl+C is pressed
             save_on_finish: Whether to save the state when the simulation ends
+            route_algo: SUMO Routing algorithm, can be dijsktra, astar, CH or CHWrapper
         '''
 
         if plg_pool is None: plg_pool = PluginPool()
@@ -275,7 +278,8 @@ class V2SimInstance:
             vehfile = veh_file, veh_obj = vehicles,
             fcsfile = fcs_file, fcs_obj = fcs_obj,
             scsfile = scs_file, scs_obj = scs_obj,
-            initial_state_folder = initial_state
+            initial_state_folder = initial_state,
+            routing_algo = route_algo
         )
 
         # Enable plugins
@@ -321,6 +325,7 @@ class V2SimInstance:
         self.__working_flag = False
         self.save_on_abort = save_on_abort
         self.save_on_finish = save_on_finish
+        self.routing_algo = route_algo
 
         if alt_command is not None:
             for k,v in alt_command.items():
@@ -556,14 +561,17 @@ class V2SimInstance:
         self.start()
 
         while self.__inst.current_time < self.__end_time:
-            self.step()
-            self._istep()
+            try:
+                self.step()
+            except traci.FatalTraCIError as e:
+                self.__stopsig = True
             if self.__stopsig:
                 if self.save_on_abort:
                     p = self.__pres / "saved_state"
                     p.mkdir(parents=True, exist_ok=True)
                     self.save_state(str(p))
                 break
+            self._istep()
         
         dur = time.time() - self.__st_time
         print(Lang.MAIN_SIM_DONE.format(time2str(dur)),file=self.__out)
@@ -581,8 +589,8 @@ class V2SimInstance:
         # Visualization
         if self.__vb is not None:
             counter = [0, 0, 0, 0, 0]
-            for veh in self.__inst.vehicles.values():
-                counter[veh.status] += 1
+            for veh in self.__inst._VEHs.values():
+                counter[veh._sta] += 1
             upd = {
                 "Driving": counter[VehStatus.Driving],
                 "Pending": counter[VehStatus.Pending],

@@ -62,8 +62,9 @@ class _locale:
     load-last-state: 加载上次仿真保存的状态, 启用该项将使initial-state失效
     save-on-abort: 当仿真意外中断时, 保存仿真状态
     save-on-finish: 当仿真完成时, 保存仿真状态
+    route-algo: 寻路算法，默认为"CH"，可选项有"astar", "dijkstra", "CH"和"CHWrapper".
 以下参数用于图形化仿真:
-    show: 启用该选项以GUI模式启动. 该选项仅在Linux下有用, 在Windows下请调整ftraffic/params.py的WINDOWS_VISSUALIZE来改变可见性级别
+    show: 启用该选项以GUI模式启动. 该选项仅在Linux下有用, 在Windows下请调整v2sim/traffic/win_vis.py的WINDOWS_VISUALIZE来改变可见性级别
     no-daemon: 启用该选项以将仿真线程与显示窗口分离, 不启用时显示窗口一旦关闭, 仿真也会停止
     debug: 针对图形仿真启用调试模式, 图形仿真出错时会输出详细的错误信息
 """
@@ -130,7 +131,7 @@ class _locale:
     WARN_EXT_LOAD_FAILED = "警告: {0}是Python文件, 但无法作为包加载: {1}"
     WARN_EXT_INVALID_PLUGIN = "警告: {0}的plugin_exports无效, 无法作为插件导入: {1}"
     WARN_EXT_INVALID_STA = "警告: {0}的sta_exports无效, 无法作为统计项导入: {1}"
-    WARN_MAIN_SHOW_MEANINGLESS = "警告: show选项在Windows下没有意义, 请在ftraffic/params.py中调整WINDOWS_VISSUALIZE来改变可见性级别."
+    WARN_MAIN_SHOW_MEANINGLESS = "警告: show选项在Windows下没有意义, 请在v2sim/traffic/win_vis.py中调整WINDOWS_VISUALIZE来改变可见性级别."
     WARN_MAIN_DEBUG_MEANINGLESS = "警告: debug选项在命令行模式下没有意义, 将自动关闭."
     WARN_MAIN_GUI_NOT_FOUND = "警告: 未找到GUI模块, 请检查是否安装了tkinter库. 将切换到命令行模式."
     WARN_SIM_COMM_FAILED = "警告: 与主进程通信失败."

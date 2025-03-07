@@ -66,8 +66,9 @@ The following parameters are used for single simulation:
     load-last-state: Load the saved state of last simulation of this case. If this option is enabled, the initial-state option will be ignored.
     save-on-abort: Whether to save the state when the simulation is aborted.
     save-on-finish: Whether to save the state when the simulation is finished.
+    route-algo: Route algorithm, default is "CH". Other options are "astar", "dijkstra", "CH", and "CHWrapper".
 The following parameters are used for graphical simulation:
-    show: Enable this option to start in GUI mode. This option is only useful in Linux. In Windows, please adjust WINDOWS_VISSUALIZE in ftraffic/params.py to change the visibility level
+    show: Enable this option to start in GUI mode. This option is only useful in Linux. In Windows, please adjust WINDOWS_VISUALIZE in v2sim/traffic/win_vis.py to change the visibility level
     no-daemon: Enable this option to separate the simulation thread from the display window. When not enabled, the simulation will stop once the display window is closed
     debug: Enable debug mode for graphical simulation, detailed error information will be output when graphical simulation fails
 """
@@ -135,7 +136,7 @@ Usage: python {} -i <input_file> -o <output_file> [-t <data_type>] [-h/help]
     WARN_EXT_LOAD_FAILED = "Warning: {0} is a Python file, but cannot be loaded as a package: {1}"
     WARN_EXT_INVALID_PLUGIN = "Warning: {0}'s plugin_exports is invalid, cannot be imported as a plugin: {1}"
     WARN_EXT_INVALID_STA = "Warning: {0}'s sta_exports is invalid, cannot be imported as a statistic item: {1}"
-    WARN_MAIN_SHOW_MEANINGLESS = "Warning: 'show' option is meaningless in Windows, please adjust WINDOWS_VISSUALIZE in ftraffic/params.py to change visibility level"
+    WARN_MAIN_SHOW_MEANINGLESS = "Warning: 'show' option is meaningless in Windows, please adjust WINDOWS_VISUALIZE in v2sim/traffic/win_vis.py to change visibility level"
     WARN_MAIN_DEBUG_MEANINGLESS = "Warning: 'debug' option is meaningless in command line mode, will be turned off automatically."
     WARN_MAIN_GUI_NOT_FOUND = "Warning: GUI module not found, please check if tkinter library is installed. Will switch to command line mode."
     WARN_SIM_COMM_FAILED = "Warning: Failed to communicate with simulation process."
