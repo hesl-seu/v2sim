@@ -8,8 +8,6 @@ from setuptools import setup, find_packages
 with open("readme.md", "r", encoding="utf8") as f:
     long_description = f.read()
 
-print(find_packages(include=["v2sim", "v2sim.*"]))
-
 setup(
     name="v2sim",
     version="1.0.0",
@@ -25,8 +23,8 @@ setup(
     ],
     python_requires=">=3.12",
     install_requires=[
-        "feasytools>=0.0.22",
-        "fpowerkit>=0.1.3",
+        "feasytools>=0.0.24",
+        "fpowerkit>=0.1.5",
         "gurobipy",
         "numpy",
         "matplotlib",

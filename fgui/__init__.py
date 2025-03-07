@@ -10,6 +10,7 @@ from .controls import (
     EditMode,
     EditModeDirection,
     LogItemPad,
+    empty_postfunc,
 )
 from .trips import TripsFrame
-from .network import NetworkPanel
+from .network import NetworkPanel, OAfter
