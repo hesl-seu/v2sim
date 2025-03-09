@@ -506,7 +506,6 @@ class NetworkPanel(Frame):
     def _onRelease(self, event):
         if not self.__en: return
         i = self._drag["item"]
-        self._drag["item"] = None
         if isinstance(i,int):
             assert self._g is not None
             self.saved = False
@@ -534,7 +533,9 @@ class NetworkPanel(Frame):
             elif self._items[i].type == 'ess':
                 e = self._g.ESS(self._items[i].desc)
                 self.__move_gen(i, e, nLon, nLat, False)
-    
+            self._onLClick(event)
+        self._drag["item"] = None
+        
     def _onMouseWheel(self, event):
         if not self.__en: return
         if event.delta > 0 and self._scale_cnt < 50:
