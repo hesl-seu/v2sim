@@ -3,7 +3,7 @@ numpy
 matplotlib
 gurobipy
 feasytools>=0.0.24
-fpowerkit>=0.1.5
+fpowerkit>=0.1.6
 pyproj
 requests
 ordered-set

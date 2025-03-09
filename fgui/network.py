@@ -79,6 +79,8 @@ class NetworkPanel(Frame):
             grid:Optional[fGrid]=None, save_callback:Optional[Callable[[bool],None]]=None, **kwargs):
         super().__init__(master, **kwargs)
 
+        self._item_editing = None
+        self._item_editing_id = -1
         self._cv = Canvas(self, bg='white')
         self._cv.pack(side='left',anchor='center',fill=BOTH, expand=1)
         self._cv.bind("<MouseWheel>", self._onMouseWheel)

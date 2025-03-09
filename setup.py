@@ -24,7 +24,7 @@ setup(
     python_requires=">=3.12",
     install_requires=[
         "feasytools>=0.0.24",
-        "fpowerkit>=0.1.5",
+        "fpowerkit>=0.1.6",
         "gurobipy",
         "numpy",
         "matplotlib",
