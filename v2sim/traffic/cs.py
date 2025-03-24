@@ -356,6 +356,14 @@ class CS(ABC):
     def Pv2g_MW(self) -> float:
         """Current maximum V2G discharge power, MW, 3.6MW = 1kWh/s"""
         return self._cur_v2g_cap * 3.6
+    
+    def vehicles(self):
+        """Get an iterator of all vehicles in the charging station"""
+        raise NotImplementedError
+    
+    def averageSOC(self, ev_dict:EVDict) -> float:
+        """Average SOC of all vehicles in the charging station"""
+        raise NotImplementedError
 
 
 class SCS(CS):
@@ -423,6 +431,13 @@ class SCS(CS):
         self._cur_v2g_cap = tot_rate_ava
         return tot_rate_ava
 
+    def vehicles(self):
+        return chain(self._chi, self._free)
+    
+    def averageSOC(self, ev_dict:EVDict) -> float:
+        if len(self._chi) == 0: return 0.0
+        return sum([ev_dict[veh_id].SOC for veh_id in self._chi]) / len(self._chi)
+    
     def update(
         self, ev_dict: EVDict, sec: int, cur_time: int, v2g_k: float
     ) -> list[str]:
@@ -511,6 +526,15 @@ class FCS(CS):
         
     def _cntva(self):
         return self._chi.__len__() + len(self._buf)
+    
+    def vehicles(self):
+        return chain(self._chi, self._buf)
+    
+    def averageSOC(self, ev_dict:EVDict, include_waiting:bool = True) -> float:
+        n = self._cntva()
+        if n == 0: return 0.0
+        lst = chain(self._chi, self._buf) if include_waiting else self._chi
+        return sum([ev_dict[veh_id].SOC for veh_id in lst]) / n
     
     def wait_count(self) -> int:
         '''Number of vehicles waiting for charging'''
