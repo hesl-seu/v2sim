@@ -78,6 +78,7 @@ def get_sim_params(
             "save_on_abort":    args.pop_bool("save-on-abort"),
             "save_on_finish":   args.pop_bool("save-on-finish"),
             "route_algo":       args.pop_str("route-algo", "CH"),
+            "static_routing":   args.pop_bool("static-routing"),
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
@@ -125,6 +126,7 @@ class V2SimInstance:
         save_on_abort: bool = False,
         save_on_finish: bool = False,
         route_algo: str = "CH",
+        static_routing: bool = False,
     ):
         '''
         Initialization
@@ -153,6 +155,7 @@ class V2SimInstance:
             save_on_abort: Whether to save the state when Ctrl+C is pressed
             save_on_finish: Whether to save the state when the simulation ends
             route_algo: SUMO Routing algorithm, can be dijsktra, astar, CH or CHWrapper
+            static_routing: Static routing, default is False
         '''
 
         if plg_pool is None: plg_pool = PluginPool()
@@ -274,12 +277,14 @@ class V2SimInstance:
 
         # Create a simulation instance
         self.__inst = TrafficInst(
-            rnet_file, start_time, traffic_step, end_time, str(pres / "cproc.clog"), seed,
+            rnet_file, start_time, traffic_step, 
+            end_time, str(pres / "cproc.clog"), seed,
             vehfile = veh_file, veh_obj = vehicles,
             fcsfile = fcs_file, fcs_obj = fcs_obj,
             scsfile = scs_file, scs_obj = scs_obj,
             initial_state_folder = initial_state,
-            routing_algo = route_algo
+            routing_algo = route_algo,
+            force_static_routing=static_routing,
         )
 
         # Enable plugins

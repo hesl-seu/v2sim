@@ -26,9 +26,9 @@ from traci._simulation import Stage
 TC = traci.constants
 
 class TrafficInst:
-    @staticmethod
     #@FEasyTimer
-    def __find_route(e1: str, e2: str) -> Stage:
+    def __find_route(self, e1: str, e2: str) -> Stage:
+        if self.__force_static_routing: return self.__find_route_static(e1, e2)
         ret:Stage = traci.simulation.findRoute(
             e1, e2, routingMode=TC.ROUTING_MODE_AGGREGATED
         )
@@ -40,16 +40,22 @@ class TrafficInst:
                 raise RuntimeError(Lang.ERROR_ROUTE_NOT_FOUND.format(e1, e2))
         return ret
 
-    def __find_route_trip(self, t: Trip) -> Stage:
-        einst:list[Edge] = [self.__rnet.getEdge(e) for e in t.route]
-        k = f"{t.depart_edge}|{t.arrive_edge}"
-        st = Stage(
-            edges = t.route,
-            length = sum(e.getLength() for e in einst),
-            travelTime = sum(e.getLength() / e.getSpeed() for e in einst),
-        )
-        self.__shortest_paths[k] = st
-        return st
+    def __find_route_trip(self, t: Trip, cache_route:bool = False) -> Stage:
+        if t.fixed_route:
+            einst:list[Edge] = [self.__rnet.getEdge(e) for e in t.route]
+            k = f"{t.route[0]}|{t.route[-1]}"
+            st = Stage(
+                edges = t.route,
+                length = sum(e.getLength() for e in einst),
+                travelTime = sum(e.getLength() / e.getSpeed() for e in einst),
+            )
+            self.__shortest_paths[k] = st
+            return st
+        else:
+            st = self.__find_route(t.route[0], t.route[-1])
+            if cache_route:
+                t.route = st.edges
+            return st
     
     def __find_route_static(self, e1: str, e2: str) -> Stage:
         k = f"{e1}|{e2}"
@@ -80,6 +86,7 @@ class TrafficInst:
         scsfile: str, scs_obj:Optional[CSList] = None,
         initial_state_folder: str = "",
         routing_algo:str = "CH",
+        force_static_routing:bool = False,
     ):
         """
         TrafficInst initialization
@@ -93,6 +100,7 @@ class TrafficInst:
             scsfile: Slow charging station list file
             initial_state_folder: Initial state folder path]
             routing_algo: Routing algorithm
+            force_static_routing: Always use static routing to accelerate
         """
         random.seed(seed)
         self.__gui = None
@@ -100,6 +108,7 @@ class TrafficInst:
         self.__ralgo = routing_algo
         assert self.__ralgo in ["CH", "dijkstra", "astar", "CHWrapper"], f"Invalid routing algorithm: {self.__ralgo}"
         
+        self.__force_static_routing = force_static_routing
         self.__vehfile = vehfile
         self.__fcsfile = fcsfile
         self.__scsfile = scsfile
@@ -285,14 +294,14 @@ class TrafficInst:
         direct_depart = True
 
         if ENABLE_DIST_BASED_CHARGING_DECISION:
-            stage = self.__find_route(trip.depart_edge, trip.arrive_edge)
+            stage = self.__find_route_trip(trip, veh._cache_route)
             # Determine whether the battery is sufficient
             direct_depart = veh.is_batt_enough(stage.length)
         else:
             # Determine whether the EV needs to be fast charged
             direct_depart = veh.SOC >= veh.kfc
             if direct_depart:
-                stage = self.__find_route(trip.depart_edge, trip.arrive_edge)
+                stage = self.__find_route_trip(trip, veh._cache_route)
         if direct_depart:  # Direct departure
             veh.target_CS = None
             veh.charge_target = veh.full_battery

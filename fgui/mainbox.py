@@ -769,6 +769,9 @@ class MainBox(Tk):
         self.sim_visualize = BooleanVar(self, False)
         self.sim_cb_visualize = Checkbutton(self.sim_time, text=_L["SIM_VISUALIZE"], variable=self.sim_visualize)
         self.sim_cb_visualize.grid(row=3, column=2, padx=3, pady=3, sticky="w")
+        self.sim_static_route = BooleanVar(self, False)
+        self.sim_cb_static_route = Checkbutton(self.sim_time, text=_L["SIM_STATIC_ROUTE"], variable=self.sim_static_route)
+        self.sim_cb_static_route.grid(row=4, column=2, padx=3, pady=3, sticky="w")
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
         self.sim_plglist = PluginEditor(self.sim_plugins, self._OnPDNEnabledSet())
@@ -879,6 +882,17 @@ class MainBox(Tk):
         self.rb_veh_src1.grid(row=1, column=0, padx=3, pady=3, sticky="w")
         self.rb_veh_src2 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODPOLY"], value=2, variable=self.veh_gen_src)
         self.rb_veh_src2.grid(row=2, column=0, padx=3, pady=3, sticky="w")
+
+        self.veh_route_cache = IntVar(self, 0)
+        self.fr_veh_route_cache = LabelFrame(self.tab_Veh,text=_L["VEH_ROUTE_CACHE"])
+        self.fr_veh_route_cache.pack(fill="x", expand=False)
+        self.rb_veh_route_cache0 = Radiobutton(self.fr_veh_route_cache, text=_L["VEH_ROUTE_NO_CACHE"], value=0, variable=self.veh_route_cache)
+        self.rb_veh_route_cache0.grid(row=0, column=0, padx=3, pady=3, sticky="w")
+        self.rb_veh_route_cache1 = Radiobutton(self.fr_veh_route_cache, text=_L["VEH_ROUTE_RUNTIME_CACHE"], value=1, variable=self.veh_route_cache)
+        self.rb_veh_route_cache1.grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.rb_veh_route_cache2 = Radiobutton(self.fr_veh_route_cache, text=_L["VEH_ROUTE_STATIC_CACHE"], value=2, variable=self.veh_route_cache)
+        self.rb_veh_route_cache2.grid(row=2, column=0, padx=3, pady=3, sticky="w")
+
         self.btn_genveh = Button(self.tab_Veh, text=_L["VEH_GEN"], command=self.generateVeh)
         self.btn_genveh.pack(anchor="w")
         self.tabs.add(self.tab_Veh, text=_L["TAB_VEH"])
@@ -981,7 +995,8 @@ class MainBox(Tk):
                     "--load-last-state" if self.sim_load_last_state.get() else "",
                     "--save-on-abort" if self.sim_save_on_abort.get() else "",
                     "--save-on-finish" if self.sim_save_on_finish.get() else "",
-                    "--route-algo", self.ralgo.get()
+                    "--route-algo", self.ralgo.get(),
+                    "--static-routing" if self.sim_static_route.get() else "",
                 ]
         
         visualize = self.sim_visualize.get()
@@ -1331,16 +1346,17 @@ class MainBox(Tk):
             showerr("Invalid Vehicle parameters")
             return
         if self.veh_gen_src.get() == 0:
-            mode = "Auto"
+            mode = TripsGenMode.AUTO
         elif self.veh_gen_src.get() == 1:
-            mode = "TAZ"
+            mode = TripsGenMode.TAZ
         else:
-            mode = "Poly"
+            mode = TripsGenMode.POLY
+        route_cache = RoutingCacheMode(self.veh_route_cache.get())
         self.btn_genveh.config(state = DISABLED)
         def work():
             try:
                 assert self.tg
-                self.tg.EVTrips(carcnt, carseed, mode = mode, **new_pars)
+                self.tg.EVTrips(carcnt, carseed, mode = mode, route_cache = route_cache, **new_pars)
                 self._load([])
                 self._Q.put(("DoneOK", None))
             except Exception as e:

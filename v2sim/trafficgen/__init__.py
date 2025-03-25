@@ -1,5 +1,5 @@
 from collections import defaultdict
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from itertools import repeat
 from pathlib import Path
 from feasytools import ArgChecker, KDTree
@@ -13,11 +13,10 @@ from ..locale import Lang
 from ..traffic import DetectFiles, get_sim_config, Point
 from .graph import ELGraph, plot_graph
 from .poly import PolygonMan
-from .tripgen import EVsGenerator
+from .tripgen import EVsGenerator, RoutingCacheMode, TripsGenMode
 from .csquery import csQuery
 
 DEFAULT_CNAME = str(Path(__file__).parent.parent / "probtable")
-
 
 class ProcExisting(IntEnum):
     """How to handle existing files"""
@@ -134,13 +133,18 @@ class TrafficGenerator:
         v2g_prop = args.pop_float("v", 1.0)
         return self.EVTrips(N_cnt, seed, cname, v2g_prop=v2g_prop)
     
-    def EVTrips(self, n: int, seed: int, cname: str = DEFAULT_CNAME, mode: Literal["Auto","TAZ","Poly"]="Auto", **kwargs):
+    def EVTrips(self, n: int, seed: int,
+            cname: str = DEFAULT_CNAME,
+            mode: TripsGenMode = TripsGenMode.AUTO, 
+            route_cache: RoutingCacheMode = RoutingCacheMode.NONE,
+        **kwargs):
         """
         Generate trips
             n: Number of vehicles
             seed: Randomization seed
             cname: Trip parameter folder
             mode: Generation mode, "Auto" for automatic, "TAZ" for TAZ-based, "Poly" for polygon-based
+            routing_cache: Routing cache mode
             v2g_prop: Proportion of users willing to participate in V2G
             omega: PDFunc | None = None,
             krel: PDFunc | None = None,
@@ -151,7 +155,7 @@ class TrafficGenerator:
         if "veh" in self.__cfg:
             self.__existing.do(self.__cfg["veh"])
         fname = f"{self.__root}/{self.__name}.veh.xml.gz"
-        return EVsGenerator(cname, self.__root, seed, mode).genEVs(n, fname, self.__silent, **kwargs)
+        return EVsGenerator(cname, self.__root, seed, mode, route_cache).genEVs(n, fname, self.__silent, **kwargs)
 
     def _CS(
         self,

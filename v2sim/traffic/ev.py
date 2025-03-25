@@ -7,7 +7,7 @@ from .utils import IntPairList
 
 class Trip:
     def __init__(
-        self, trip_id: str, depart_time: int, fromTAZ: str, toTAZ: str, route: list[str]
+        self, trip_id: str, depart_time: int, fromTAZ: str, toTAZ: str, route: list[str], fixed_route: Optional[bool] = None
     ):
         self.ID = trip_id
         self.depart_time = depart_time
@@ -15,6 +15,13 @@ class Trip:
         self.to_TAZ = toTAZ
         assert isinstance(route, list) and len(route) >= 2, "Route should be a list with at least 2 elements"
         self.route = route
+        if fixed_route:
+            self.fixed_route = True
+        else:
+            if fixed_route is None:
+                self.fixed_route = len(route)>=2
+            else:
+                self.fixed_route = True
     
     @property
     def depart_edge(self):
@@ -95,6 +102,7 @@ class EV:
         max_sc_cost: float = 100.0,
         v2g_time: Union[None, IntPairList, RangeList] = None,
         min_v2g_earn: float = 0.0,
+        cache_route: bool = False,
     ):
         self._id = id                   # Vehicle ID
         self._sta = VehStatus.Parking   # Vehicle status
@@ -137,6 +145,8 @@ class EV:
         self._ksc = ks                  # User selects SoC for slow charging
         assert ks < kv
         self._kv2g = kv                 # SoC where the user is willing to join V2G
+
+        self._cache_route = cache_route # Whether to cache the route
 
     @property
     def estimated_charge_time(self) -> float:

@@ -27,7 +27,7 @@ def random_diff(seq:Sequence[Any], exclude:Any):
 
 class TripInner:
     def __init__(self, trip_id:str, depart_time:Union[str,int], from_TAZ:str, from_EDGE:str,
-            to_TAZ:str, to_EDGE:str, route:list[str], next_type_place:str):
+            to_TAZ:str, to_EDGE:str, route:list[str], next_type_place:str, fixed_route:Optional[bool]=None):
         self.id = trip_id
         self.DPTT = int(depart_time)
         self.frE = from_EDGE
@@ -37,14 +37,12 @@ class TripInner:
         assert isinstance(route, list) and len(route) >= 2, "Route should be a list with at least 2 elements"
         self.route = route
         self.NTP = next_type_place
+        self.fixed_route = fixed_route
     
     def to_xml(self, daynum:int) -> str:
-        return "".join(
-            [
-                f'\n<trip id="{self.id}" depart="{(self.DPTT)*60+86400*daynum}" ',
-                f'fromTaz="{self.frTAZ}" toTaz="{self.toTAZ}" route_edges="{" ".join(self.route)}" />',
-            ]
-        )
+        return (f'\n<trip id="{self.id}" depart="{(self.DPTT)*60+86400*daynum}" ' + 
+            f'fromTaz="{self.frTAZ}" toTaz="{self.toTAZ}" route_edges="{" ".join(self.route)}" ' + 
+            f'fixed_route="{self.fixed_route}" />')
     
     def to_Trip(self, daynum:int) -> Trip:
         return Trip(self.id, self.DPTT * 60 + 86400 * daynum, self.frTAZ, self.toTAZ, self.route)
@@ -58,7 +56,7 @@ class _EV:
     def __init__(self, veh_id: str, vT:VehicleType, soc:float, v2g_prop:float, 
         omega:Optional[PDFunc] = None, krel:Optional[PDFunc] = None,
         ksc:Optional[PDFunc] = None, kfc:Optional[PDFunc] = None, 
-        kv2g:Optional[PDFunc] = None
+        kv2g:Optional[PDFunc] = None, cache_route:bool = False,
     ):
         '''
         Initialize EV object
@@ -75,7 +73,8 @@ class _EV:
             kfc: PDF for kfc. None for random uniform between 0.2 and 0.25.
                 kfc indicates the SoC threshold for fast charging halfway.
             kv2g: PDF for kv2g. None for random uniform between 0.65 and 0.75.
-                kv2g indicates the SoC threshold of the battery that can be used for V2G.
+                kv2g indicates the SoC threshold of the battery that can be used for V2G.'
+            cache_route: Wheter remember route for further use.
         '''
         self.vehicle_id = veh_id
         self.bcap = vT.bcap_kWh
@@ -88,6 +87,7 @@ class _EV:
         self.krel = krel.sample() if krel else random.uniform(1.0, 1.2)
         self.ksc = ksc.sample() if ksc else random.uniform(0.4, 0.6)
         self.kfc = kfc.sample() if kfc else random.uniform(0.2, 0.25)
+        self.cache_route = cache_route
         if random.random() < v2g_prop:
             self.kv2g = kv2g.sample() if kv2g else random.uniform(0.65, 0.75)
         else:
@@ -104,7 +104,7 @@ class _EV:
             f'<vehicle id="{self.vehicle_id}" soc="{self.soc:.4f}" bcap="{self.bcap:.4f}" c="{self.consump_Whpm:.8f}"'
             + f' rf="{self.efc_rate_kW:.4f}" rs="{self.esc_rate_kW:.4f}" rv="{self.max_v2g_rate_kW:.4f}" omega="{self.omega:.6f}"'
             + f'\n  kf="{self.kfc:.4f}" ks="{self.ksc:.4f}" kv="{self.kv2g:.4f}" kr="{self.krel:.4f}"'
-            + f' eta_c="0.9" eta_d="0.9" rmod="Linear">'
+            + f' eta_c="0.9" eta_d="0.9" rmod="Linear" cache_route="{self.cache_route}">'
         )
         for d, tr in zip(self.daynum, self.trips):
             ret += tr.to_xml(d)
@@ -129,7 +129,8 @@ class _EV:
             self.kfc,
             self.ksc,
             self.kv2g,
-            "Linear"
+            "Linear",
+            cache_route=self.cache_route,
         )
 
 

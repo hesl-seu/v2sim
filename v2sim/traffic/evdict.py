@@ -3,7 +3,7 @@ from .utils import readXML
 from .params import *
 from .ev import EV, Trip
 
-class FDictWrapper:
+class FloatDictWrapper:
     def __init__(self, d: dict[str, str]):
         self.__d = d
     
@@ -19,6 +19,10 @@ class EVDict(dict[str, EV]):
             trips: list[Trip] = []
             for trip in veh:
                 route = trip.attrib["route_edges"].split(" ")
+                fixed_route = trip.attrib.get("fixed_route", "none")
+                if fixed_route.lower() == "true": fixed_route = True
+                elif fixed_route.lower() == "false": fixed_route = False
+                else: fixed_route = None
                 trips.append(
                     Trip(
                         trip.attrib["id"],
@@ -26,9 +30,10 @@ class EVDict(dict[str, EV]):
                         trip.attrib["fromTaz"],
                         trip.attrib["toTaz"],
                         route,
+                        fixed_route
                     )
                 )
-            attr = FDictWrapper(veh.attrib)
+            attr = FloatDictWrapper(veh.attrib)
             elem_sctime = veh.find("sctime")
             elem_v2gtime = veh.find("v2gtime")
             self.add(EV(
@@ -52,6 +57,7 @@ class EVDict(dict[str, EV]):
                 attr.get("max_sc_cost", DEFAULT_MAX_SC_COST),
                 CreateRangeList(elem_v2gtime),
                 attr.get("min_v2g_earn", DEFAULT_MIN_V2G_EARN),
+                veh.attrib.get("cache_route", "false").lower() == "true",
             ))
 
     def add(self, ev: EV):

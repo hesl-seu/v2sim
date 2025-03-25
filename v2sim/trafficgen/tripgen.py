@@ -1,3 +1,5 @@
+import bisect
+from enum import IntEnum, StrEnum
 import random, time, sumolib
 from typing import Literal, Optional
 from feasytools import ReadOnlyTable, PDFunc
@@ -16,10 +18,36 @@ def _type2strplace(type: int) -> str:
     """
     return TAZ_TYPE_LIST[type]
 
+class RoutingCacheMode(IntEnum):
+    """Routing cache mode"""
+    NONE = 0  # No cache
+    RUNTIME = 1 # Cache during runtime
+    STATIC = 2 # Static cache in generation time
+
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
+    
+class TripsGenMode(StrEnum):
+    """Generation mode"""
+
+    AUTO = "Auto"  # Automatic
+    TAZ = "TAZ"  # TAZ-based
+    POLY = "Poly"  # Polygon-based
+
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
 
 class EVsGenerator:    
     """Class to generate trips"""
-    def __init__(self, CROOT: str, PNAME: str, seed, mode: Literal["Auto", "Poly", "TAZ"] = "Auto"):
+    def __init__(self, CROOT: str, PNAME: str, seed,
+            mode: TripsGenMode = TripsGenMode.AUTO,
+            route_cache: RoutingCacheMode = RoutingCacheMode.NONE):
         """
         Initialization
             CROOT: Trip parameter folder
@@ -30,13 +58,15 @@ class EVsGenerator:
         random.seed(seed)
         self.vTypes = [VehicleType(**x) for x in ReadOnlyTable(CROOT + "/ev_types.csv",dtype=np.float32).to_list_of_dict()]
         # Define various functional area types
+        self._route_cache_mode = route_cache
+        self.__route_cache:dict[tuple[str,str], list[str]] = {}
         self.dic_taz = {}
         self.net:sumolib.net.Net = sumolib.net.readNet(_fn["net"])
-        if mode == "Auto":
-            if _fn.taz and _fn.taz_type: mode = "TAZ"
-            elif _fn.poly and _fn.net and _fn.fcs: mode = "Poly"
+        if mode == TripsGenMode.AUTO:
+            if _fn.taz and _fn.taz_type: mode = TripsGenMode.TAZ
+            elif _fn.poly and _fn.net and _fn.fcs: mode = TripsGenMode.POLY
             else: raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
-        if mode == "TAZ":
+        if mode == TripsGenMode.TAZ:
             assert _fn.taz and _fn.taz_type, Lang.ERROR_NO_TAZ_OR_POLY
             self._mode = "taz"
             self.dic_taztype = {}
@@ -51,7 +81,7 @@ class EVsGenerator:
                     self.dic_taz[taz_id] = taz.attrib["edges"].split(" ")
                 else:
                     self.dic_taz[taz_id] = [edge.attrib["id"] for edge in taz.findall("tazSource")]
-        elif mode == "Poly":
+        elif mode == TripsGenMode.POLY:
             assert _fn.poly and _fn.net and _fn.fcs, Lang.ERROR_NO_TAZ_OR_POLY
             self._mode = "poly"
             from .graph import ELGraph
@@ -95,9 +125,9 @@ class EVsGenerator:
                 dtype=np.float32
             )
 
-        soc_pdf = ReadOnlyTable(f"{CROOT}/soc_dist.csv",dtype=np.int32)
-        self.soc_vals:list[int] = soc_pdf.col("range").tolist()
-        self.soc_freq:list[int] = soc_pdf.col("freq").tolist()
+        soc_pdf:ReadOnlyTable[np.int32] = ReadOnlyTable(f"{CROOT}/soc_dist.csv",dtype=np.int32)
+        self.soc_vals:list[int] = soc_pdf.col("range").tolist() # type: ignore
+        self.soc_freq:list[int] = soc_pdf.col("freq").tolist() # type: ignore
     
     def __getPs(self, is_weekday: bool, dtype: str) -> ReadOnlyTable:
         return self.PSweekday[dtype] if is_weekday else self.PSweekend[dtype]
@@ -107,13 +137,6 @@ class EVsGenerator:
 
     def __genSoC(self):
         return random.choices(self.soc_vals, self.soc_freq)[0] / 100.0
-
-    @staticmethod
-    def __find_first_greater_than(lst:np.ndarray, val:float):
-        for i, v in enumerate(lst):
-            if v > val:
-                return i
-        return len(lst)
     
     def __getDest1(self, pfr: str, weekday: bool = True):
         """
@@ -139,7 +162,7 @@ class EVsGenerator:
             if not cdf[3] == 0:
                 break
         x = random.random()
-        next_place = _type2strplace(EVsGenerator.__find_first_greater_than(cdf, x))
+        next_place = _type2strplace(bisect.bisect_right(cdf, x))
         return int(init_time), next_place
 
     def __getDestA(self, from_type:str, init_time_i:int, weekday: bool):
@@ -153,7 +176,7 @@ class EVsGenerator:
         data = self.__getPs(weekday, from_type).col(init_time_i)
         cdf = np.cumsum(data) * 15
         return ("Home" if cdf[3] == 0 else _type2strplace(
-            EVsGenerator.__find_first_greater_than(cdf, random.random())
+            bisect.bisect_right(cdf, random.random())
         ))
 
     def __getNextTAZandPlace(self, from_TAZ:str, from_EDGE:str, next_place_type:str) -> tuple[str,str,list[str]]:
@@ -166,7 +189,22 @@ class EVsGenerator:
                 to_TAZ = random_diff(self.dic_taztype[next_place_type], from_TAZ)
                 to_EDGE = random.choice(self.dic_taz[to_TAZ])
             if from_EDGE != to_EDGE:
-                return to_TAZ, to_EDGE, [from_EDGE, to_EDGE]
+                if self._route_cache_mode == RoutingCacheMode.STATIC:
+                    if (from_EDGE, to_EDGE) in self.__route_cache:
+                        route = self.__route_cache[from_EDGE, to_EDGE]
+                    else:
+                        route0, _ = self.net.getFastestPath(
+                            self.net.getEdge(from_EDGE),
+                            self.net.getEdge(to_EDGE)
+                        )
+                        if route0 is None:
+                            route = [from_EDGE, to_EDGE]
+                        else:
+                            route = [x.getID() for x in route0]
+                        self.__route_cache[from_EDGE, to_EDGE] = route
+                else:
+                    route = [from_EDGE, to_EDGE]
+                return to_TAZ, to_EDGE, route
             trial += 1
             if trial >= 5:
                 raise RuntimeError("from_EDGE == to_EDGE")
@@ -202,7 +240,7 @@ class EVsGenerator:
     def __genStopTime(self, from_type, weekday: bool):
         cdf = np.cumsum(self.__getcdf(weekday, from_type).col("0")) * 15
         # The unit of stay time is 15min, extract the stay time
-        return EVsGenerator.__find_first_greater_than(cdf, random.random()) + 1
+        return bisect.bisect_right(cdf, random.random()) + 1
 
     def __genTripA(
         self, trip_id, from_TAZ, from_type, from_EDGE, start_time, weekday: bool = True
@@ -324,7 +362,8 @@ class EVsGenerator:
         saver = _xmlSaver(fname) if fname else None
         ret = EVDict()
         for i in range(0, N):
-            ev = self.__genEV("v" + str(i), **kwargs)
+            ev = self.__genEV("v" + str(i), 
+                cache_route = self._route_cache_mode == RoutingCacheMode.RUNTIME, **kwargs)
             ret.add(ev.to_EV())
             if saver:
                 saver.write(ev)
