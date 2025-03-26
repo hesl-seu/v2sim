@@ -128,12 +128,34 @@ class TrafficGenerator:
         if isinstance(args, str):
             args = ArgChecker(args)
         N_cnt = args.pop_int("n")
+        day_cnt = args.pop_int("day", 7)
         cname = args.pop_str("c", DEFAULT_CNAME)
         seed = args.pop_int("seed", time.time_ns())
         v2g_prop = args.pop_float("v", 1.0)
-        return self.EVTrips(N_cnt, seed, cname, v2g_prop=v2g_prop)
+        mode_str = args.pop_str("mode", "auto").lower()
+        if mode_str == "auto":
+            mode = TripsGenMode.AUTO
+        elif mode_str == "taz":
+            mode = TripsGenMode.TAZ
+        elif mode_str == "poly":
+            mode = TripsGenMode.POLY
+        else:
+            raise ValueError(Lang.ERROR_INVALID_TRIP_GEN_MODE.format(mode_str))
+        cache_route = args.pop_str("cache-route", "none").lower()
+        if cache_route == "none":
+            rcm = RoutingCacheMode.NONE
+        elif cache_route == "runtime":
+            rcm = RoutingCacheMode.RUNTIME
+        elif cache_route == "static":
+            rcm = RoutingCacheMode.STATIC
+        else:
+            raise ValueError(Lang.ERROR_INVALID_CACHE_ROUTE.format(cache_route))
+        if not args.empty():
+            raise KeyError(Lang.ERROR_ILLEGAL_CMD.format(','.join(args.to_dict().keys())))
+        return self.EVTrips(N_cnt, seed, day_cnt, cname, mode, rcm, v2g_prop=v2g_prop)
     
     def EVTrips(self, n: int, seed: int,
+            day_count: int = 7,
             cname: str = DEFAULT_CNAME,
             mode: TripsGenMode = TripsGenMode.AUTO, 
             route_cache: RoutingCacheMode = RoutingCacheMode.NONE,
@@ -142,6 +164,7 @@ class TrafficGenerator:
         Generate trips
             n: Number of vehicles
             seed: Randomization seed
+            day_count: Number of days
             cname: Trip parameter folder
             mode: Generation mode, "Auto" for automatic, "TAZ" for TAZ-based, "Poly" for polygon-based
             routing_cache: Routing cache mode
@@ -155,7 +178,7 @@ class TrafficGenerator:
         if "veh" in self.__cfg:
             self.__existing.do(self.__cfg["veh"])
         fname = f"{self.__root}/{self.__name}.veh.xml.gz"
-        return EVsGenerator(cname, self.__root, seed, mode, route_cache).genEVs(n, fname, self.__silent, **kwargs)
+        return EVsGenerator(cname, self.__root, seed, mode, route_cache).genEVs(n, fname, day_count, self.__silent, **kwargs)
 
     def _CS(
         self,

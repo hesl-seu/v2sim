@@ -99,7 +99,7 @@ class _locale:
 
     ERROR_GENERAL = "错误: {}"
     ERROR_BAD_TYPE = "错误: 无效的数据类型{}."
-    ERROR_ILLEGAL_CMD = "错误: 非法的命令行参数'{}'."
+    ERROR_ILLEGAL_CMD = "错误: 非法的命令行参数: {}."
     ERROR_CANNOT_USE_TOGETHER = "错误: 选项'{0}'和'{1}'不能同时使用."
     ERROR_UNKNOWN_CS_TYPE = "错误: 未知的充电站类型{}"
     ERROR_CMD_NOT_SPECIFIED = "错误: 必须指定参数'{}'."
@@ -127,6 +127,8 @@ class _locale:
     ERROR_NO_TAZ_OR_POLY = "错误: 未找到TAZ或POLY文件"
     ERROR_RANDOM_CANNOT_EXCLUDE = "错误: 序列抽样中的所有元素都被排除"
     ERROR_ROUTE_NOT_FOUND = "错误: 无法找到从{0}到{1}的路径"
+    ERROR_INVALID_CACHE_ROUTE = "错误: 无效的寻路缓存模式: {0}"
+    ERROR_INVALID_TRIP_GEN_MODE = "错误: 无效的行程生成模式: {0}"
 
     WARN_EXT_LOAD_FAILED = "警告: {0}是Python文件, 但无法作为包加载: {1}"
     WARN_EXT_INVALID_PLUGIN = "警告: {0}的plugin_exports无效, 无法作为插件导入: {1}"

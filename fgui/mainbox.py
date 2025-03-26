@@ -845,18 +845,23 @@ class MainBox(Tk):
         self.entry_carcnt = Entry(self.fr_veh_basic)
         self.entry_carcnt.insert(0, "10000")
         self.entry_carcnt.grid(row=0, column=1, padx=3, pady=3, sticky="w")
+        self.lb_daycnt = Label(self.fr_veh_basic, text=_L["VEH_DAY_COUNT"])
+        self.lb_daycnt.grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.entry_daycnt = Entry(self.fr_veh_basic)
+        self.entry_daycnt.insert(0, "7")
+        self.entry_daycnt.grid(row=1, column=1, padx=3, pady=3, sticky="w")
         self.lb_v2gprop = Label(self.fr_veh_basic, text=_L["VEH_V2GPROP"])
-        self.lb_v2gprop.grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.lb_v2gprop.grid(row=2, column=0, padx=3, pady=3, sticky="w")
         self.entry_v2gprop = Entry(self.fr_veh_basic)
         self.entry_v2gprop.insert(0, "1.00")
-        self.entry_v2gprop.grid(row=1, column=1, padx=3, pady=3, sticky="w")
+        self.entry_v2gprop.grid(row=2, column=1, padx=3, pady=3, sticky="w")
         self.lb_v2gprop_info = Label(self.fr_veh_basic, text=_L["VEH_V2GPROP_INFO"])
-        self.lb_v2gprop_info.grid(row=1, column=2, padx=3, pady=3, sticky="w")
+        self.lb_v2gprop_info.grid(row=2, column=2, padx=3, pady=3, sticky="w")
         self.lb_carseed = Label(self.fr_veh_basic, text=_L["VEH_SEED"])
-        self.lb_carseed.grid(row=2, column=0, padx=3, pady=3, sticky="w")
+        self.lb_carseed.grid(row=3, column=0, padx=3, pady=3, sticky="w")
         self.entry_carseed = Entry(self.fr_veh_basic)
         self.entry_carseed.insert(0, "0")
-        self.entry_carseed.grid(row=2, column=1, padx=3, pady=3, sticky="w")
+        self.entry_carseed.grid(row=3, column=1, padx=3, pady=3, sticky="w")
 
         self.veh_pars = PropertyPanel(self.tab_Veh, {
             "Omega":repr(PDUniform(5.0, 10.0)),
@@ -1322,15 +1327,24 @@ class MainBox(Tk):
     
     def generateVeh(self):
         if not self.tg:
-            showerr("No traffic generator loaded")
+            showerr(_L["MSG_NO_TRAFFIC_GEN"])
             return
         if not self.__checkFolderOpened(): return
-        self.setStatus("Generating vehicles...")
+        self.setStatus(_L["STA_GEN_VEH"])
         try:
             carcnt = int(self.entry_carcnt.get())
+        except:
+            showerr(_L["MSG_INVALID_VEH_CNT"])
+            return
+        try:
             carseed = int(self.entry_carseed.get())
         except:
-            showerr("Invalid input")
+            showerr(_L["MSG_INVALID_VEH_SEED"])
+            return
+        try:
+            day_count = int(self.entry_daycnt.get())
+        except:
+            showerr(_L["MSG_INVALID_VEH_DAY_CNT"])
             return
         try:
             pars = self.veh_pars.getAllData()
@@ -1356,7 +1370,7 @@ class MainBox(Tk):
         def work():
             try:
                 assert self.tg
-                self.tg.EVTrips(carcnt, carseed, mode = mode, route_cache = route_cache, **new_pars)
+                self.tg.EVTrips(carcnt, carseed, day_count, mode = mode, route_cache = route_cache, **new_pars)
                 self._load([])
                 self._Q.put(("DoneOK", None))
             except Exception as e:
