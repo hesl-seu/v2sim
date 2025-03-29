@@ -1,4 +1,3 @@
-import bisect
 from enum import IntEnum, StrEnum
 import random, time, sumolib
 from typing import Optional, Union
@@ -71,6 +70,7 @@ class EVsGenerator:
                     name, lst = ln.split(":")
                     self.dic_taztype[name.strip()] = [x.strip() for x in lst.split(",")]
             root = readXML(_fn.taz).getroot()
+            if root is None: raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
             for taz in root.findall("taz"):
                 taz_id = taz.attrib["id"]
                 if "edges" in taz.attrib:
@@ -347,7 +347,7 @@ class EVsGenerator:
         ret = EVDict()
         for i in range(0, N):
             ev = self.__genEV("v" + str(i), day_count,
-                cache_route = self._route_cache_mode == RoutingCacheMode.STATIC, **kwargs)
+                cache_route = self._route_cache_mode != RoutingCacheMode.NONE, **kwargs)
             ret.add(ev.to_EV())
             if saver:
                 saver.write(ev)

@@ -14,7 +14,9 @@ CS_Type = Type[T_CS]
 def _LoadCSList(filePath:str, csType:CS_Type) -> list:
     assert csType == FCS or csType == SCS
     _cs:list[CS] = []
-    for cs_node in readXML(filePath).getroot():
+    root = readXML(filePath).getroot()
+    if root is None: raise ValueError("Invalid CS file")
+    for cs_node in root:
         par_pbuy = ()
         par_psell = ()
         par_off = []

@@ -534,10 +534,11 @@ class V2SimInstance:
         self.__sta.close()
         self.__out.close()
         if self.__copy:
-            shutil.copy(self.__veh_file, self.__pres / ("veh.xml"))
-            shutil.copy(self.__fcs_file, self.__pres / ("cs.xml"))
-            shutil.copy(self.__scs_file, self.__pres / ("pk.xml"))
-            shutil.copy(self.__plg_file, self.__pres / ("plg.xml"))
+            shutil.copy(self.__veh_file, self.__pres / Path(self.__veh_file).name)
+            shutil.copy(self.__fcs_file, self.__pres / Path(self.__fcs_file).name)
+            shutil.copy(self.__scs_file, self.__pres / Path(self.__scs_file).name)
+            shutil.copy(self.__plg_file, self.__pres / Path(self.__plg_file).name)
+            shutil.copy(self.__sumocfg_file, self.__pres / Path(self.__sumocfg_file).name)
         self.__working_flag = False
     
     #@FEasyTimer

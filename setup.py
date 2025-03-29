@@ -23,7 +23,7 @@ setup(
     ],
     python_requires=">=3.12",
     install_requires=[
-        "feasytools>=0.0.24",
+        "feasytools>=0.0.25",
         "fpowerkit>=0.1.6",
         "gurobipy",
         "numpy",

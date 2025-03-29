@@ -2,7 +2,7 @@ libsumo
 numpy
 matplotlib
 gurobipy
-feasytools>=0.0.24
+feasytools>=0.0.25
 fpowerkit>=0.1.6
 pyproj
 requests

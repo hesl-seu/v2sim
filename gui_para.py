@@ -279,9 +279,10 @@ class ParaBox(tk.Tk):
             ln, text = self.q.get()
             text:str = text.strip()
             if len(text)>0:
-                if text == "done": 
+                if text.startswith("done:"): 
+                    tm = time2str(float(text.removeprefix("done:")))
                     self.done_cnt += 1
-                    self.tr.set(ln, "prog", _L("DONE"))
+                    self.tr.set(ln, "prog", _L("DONE") + f" ({tm})")
                 elif text.startswith("sim:"):
                     self.tr.set(ln, "prog", text.removeprefix("sim:") + "%")
                 else:
@@ -294,8 +295,9 @@ def work(root:str, par:dict[str,str], alt:dict[str,str], out:str, recv:RedirectS
     sys.stdout = recv
     import sim_single
     par.update({"d":root, "od":out})
+    st_time = time.time()
     sim_single.work(par, recv.ln, recv.q, alt)
-    print("done")
+    print(f"done:{time.time()-st_time:.2f}")
 
 if __name__ == "__main__":
     app = ParaBox()
