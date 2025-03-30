@@ -251,8 +251,9 @@ class TrafficInst:
         stages: list[Stage] = []
         for cs_i in self._fcs.select_near(cur_pos,10):
             cs = self._fcs[cs_i]
+            if not cs.is_online(self.__ctime): continue
             stage = self.__find_route(c_edge, cs.name)
-            if cs.is_online(self.__ctime) and veh.is_batt_enough(stage.length):
+            if veh.is_batt_enough(stage.length):
                 cs_names.append(cs.name)
                 veh_cnt.append(cs.veh_count())
                 slots.append(cs.slots)
