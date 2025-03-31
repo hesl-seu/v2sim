@@ -1,15 +1,15 @@
 default_trunc 122400,172800
-plot "{results/37NoV2g_2days_csclose|fcs_load|CS1}-{results/37NoV2g_2days|fcs_load|CS1}",CS1
-plot "{results/37NoV2g_2days_csclose|fcs_load|CS2}-{results/37NoV2g_2days|fcs_load|CS2}",CS2 
-plot "{results/37NoV2g_2days_csclose|fcs_load|CS3}-{results/37NoV2g_2days|fcs_load|CS3}",CS3 
-plot "{results/37NoV2g_2days_csclose|fcs_load|CS4}-{results/37NoV2g_2days|fcs_load|CS4}",CS4 
-plot "{results/37NoV2g_2days_csclose|fcs_load|CS5}-{results/37NoV2g_2days|fcs_load|CS5}",CS5,black,"--" 
-plot "{results/37NoV2g_2days_csclose|fcs_load|CS6}-{results/37NoV2g_2days|fcs_load|CS6}",CS6 
-plot "{results/37NoV2g_2days_csclose|fcs_load|CS7}-{results/37NoV2g_2days|fcs_load|CS7}",CS7 
-plot "{results/37NoV2g_2days_csclose|fcs_load|CS8}-{results/37NoV2g_2days|fcs_load|CS8}",CS8 
-plot "{results/37NoV2g_2days_csclose|fcs_load|CS9}-{results/37NoV2g_2days|fcs_load|CS9}",CS9 
-plot "{results/37NoV2g_2days_csclose|fcs_load|CS10}-{results/37NoV2g_2days|fcs_load|CS10}",CS10 
-title "Load difference when CS5 is offline since 11 am"
+plot "{results/case1|fcs_load|CS1}-{results/case2|fcs_load|CS1}",CS1
+plot "{results/case1|fcs_load|CS2}-{results/case2|fcs_load|CS2}",CS2 
+plot "{results/case1|fcs_load|CS3}-{results/case2|fcs_load|CS3}",CS3 
+plot "{results/case1|fcs_load|CS4}-{results/case2|fcs_load|CS4}",CS4 
+plot "{results/case1|fcs_load|CS5}-{results/case2|fcs_load|CS5}",CS5,black,"--" 
+plot "{results/case1|fcs_load|CS6}-{results/case2|fcs_load|CS6}",CS6 
+plot "{results/case1|fcs_load|CS7}-{results/case2|fcs_load|CS7}",CS7 
+plot "{results/case1|fcs_load|CS8}-{results/case2|fcs_load|CS8}",CS8 
+plot "{results/case1|fcs_load|CS9}-{results/case2|fcs_load|CS9}",CS9 
+plot "{results/case1|fcs_load|CS10}-{results/case2|fcs_load|CS10}",CS10 
+title "Load difference"
 xlabel "Time"
 ylabel "Load/kW"
 legend "upper right",2

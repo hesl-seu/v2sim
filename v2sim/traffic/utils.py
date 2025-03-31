@@ -33,6 +33,8 @@ def readXML(file: str, compressed:Optional[bool]=None) -> ET.ElementTree:
 
 def load_fcs(filename: str) -> set[str]:
     fcs_root = readXML(filename).getroot()
+    if fcs_root is None:
+        raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(filename))
     fcs_edges = set()
     for fcs in fcs_root:
         if fcs.tag == "fcs":
@@ -42,6 +44,8 @@ def load_fcs(filename: str) -> set[str]:
 
 def load_scs(filename: str) -> set[str]:
     scs_root = readXML(filename).getroot()
+    if scs_root is None:
+        raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(filename))
     scs_edges = set()
     for scs in scs_root:
         if scs.tag == "scs":
@@ -51,7 +55,8 @@ def load_scs(filename: str) -> set[str]:
 def get_sim_config(file: str):
     """Parse the SUMO configuration file"""
     root = readXML(file,compressed=False).getroot()
-
+    if root is None:
+        raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(file))
     bt, et = -1, -1
     tnode = root.find("time")
     if isinstance(tnode, ET.Element):
@@ -174,6 +179,8 @@ def FixSUMOCfg(cfg_path: str, start: int=0, end: int=172800) -> tuple[bool, ET.E
     cflag = False
     tr = ET.ElementTree(file = cfg_path)
     cfg = tr.getroot()
+    if cfg is None:
+        raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(cfg_path))
     node_report = cfg.find("report")
     route_file_name = ""
     if node_report is not None:

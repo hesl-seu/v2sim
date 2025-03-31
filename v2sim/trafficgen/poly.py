@@ -51,6 +51,8 @@ class PolygonMan:
     def __init__(self, file:str):
         self.polygons:list[Polygon] = []
         rt = readXML(file).getroot()
+        if rt is None:
+            raise RuntimeError(f"Failed to load polygon file {file}")
         for elem in rt:
             if elem.tag != 'poly': continue
             self.polygons.append(Polygon(elem))
