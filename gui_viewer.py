@@ -118,20 +118,39 @@ class PlotPage(Frame):
         super().__init__(parent, *args, **kwargs)
         self.columnconfigure(index=0,weight=1)
         self.columnconfigure(index=1,weight=1)
-        self.panel_time = LabelFrame(self, text=_L["TIME"])
-        self.panel_time.grid(row=0,column=0,padx=3,pady=5, columnspan=2, sticky="nsew")
+        self.lfra_head = LabelFrame(self, text=_L["TIME"])
+        self.lfra_head.grid(row=0,column=0,padx=3,pady=5, columnspan=2, sticky="nsew")
+        self.panel_time = Frame(self.lfra_head)
+        self.panel_time.pack(side="top",fill="x",anchor='w',pady=2,) 
         self.lb_time = Label(self.panel_time, text=_L["START_TIME"])
         self.lb_time.pack(side="left")
-        self.entry_time = Entry(self.panel_time)
+        self.entry_time = Entry(self.panel_time,width=10)
         self.entry_time.insert(0,"86400")
         self.entry_time.pack(side="left")
         self.lb_end_time = Label(self.panel_time, text=_L["END_TIME"])
         self.lb_end_time.pack(side="left")
-        self.entry_end_time = Entry(self.panel_time)
+        self.entry_end_time = Entry(self.panel_time,width=10)
         self.entry_end_time.insert(0,"-1")
         self.entry_end_time.pack(side="left")
         self.accum_plotmax = BooleanVar(self.panel_time,False)
         self.cb_accum_plotmax = Checkbutton(self.panel_time,text=_L["PLOT_MAX"],variable=self.accum_plotmax)
+        self.cb_accum_plotmax.pack(side="left")
+        self.panel_conf = Frame(self.lfra_head)
+        self.panel_conf.pack(side="top",fill="x",anchor='w',pady=2,)
+        self.lb_conf = Label(self.panel_conf, text=_L["FILE_EXT"])
+        self.lb_conf.pack(side="left")
+        self.cb_ext = Combobox(self.panel_conf,width=5, state="readonly")
+        self.cb_ext['values'] = ["png","jpg","eps","svg","tiff"]
+        self.cb_ext.current(0)
+        self.cb_ext.pack(side="left")
+        self.lb_dpi = Label(self.panel_conf, text=_L["IMAGE_DPI"])
+        self.lb_dpi.pack(side="left")
+        self.entry_dpi = Combobox(self.panel_conf,width=5)
+        self.entry_dpi['values'] = ['128', '192', '256', '300', '400', '600', '1200']
+        self.entry_dpi.current(3)
+        self.entry_dpi.pack(side="left")
+        self.plot_title = BooleanVar(self.panel_conf,True)
+        self.cb_accum_plotmax = Checkbutton(self.panel_conf,text=_L["PLOT_TITLE"],variable=self.plot_title)
         self.cb_accum_plotmax.pack(side="left")
 
         self.plot_fcs = BooleanVar(self, False)
@@ -399,8 +418,6 @@ class PlotBox(Tk):
 
         self._sbar=Label(self,text=_L["STA_READY"])
         self._sbar.pack(side='bottom',anchor='w',padx=3,pady=3)
-
-        self.plt = AdvancedPlot()
 
         self.__inst = None
         self.query_fr = LabelFrame(self.tab_state, text=_L["TAB_QUERIES"])
@@ -687,6 +704,14 @@ class PlotBox(Tk):
         cfg = self._pp.getConfig()
         self.disable_all()
         self.set_status("Plotting all...")
+        self._npl.pic_ext = self._pp.cb_ext.get()
+        self._npl.plot_title = self._pp.plot_title.get()
+        try:
+            self._npl.dpi = int(self._pp.entry_dpi.get())
+        except:
+            MB.showerror(_L["ERROR"], _L["INVALID_DPI"])
+            self.enable_all()
+            return
         for a in AVAILABLE_ITEMS2:
             if cfg[a]: break
         else:
@@ -719,7 +744,7 @@ class PlotBox(Tk):
             cs = [x.strip() for x in t.split(',')]
         for i,c in enumerate(cs,start=1):
             self._Q.put(('I',f'({i} of {len(cs)})Plotting FCS graph...'))
-            self.plt.quick_fcs(
+            self._npl.quick_fcs(
                 cs_name=c, res_path=self._sta.root, 
                 **self._pp.pars("fcs")
             )
@@ -734,7 +759,7 @@ class PlotBox(Tk):
             cs = [x.strip() for x in t.split(',')]
         for i,c in enumerate(cs,start=1):
             self._Q.put(('I',f'({i} of {len(cs)})Plotting SCS graph...'))
-            self.plt.quick_scs(
+            self._npl.quick_scs(
                 cs_name=c, res_path=self._sta.root,
                 **self._pp.pars("scs")
             )
@@ -763,7 +788,7 @@ class PlotBox(Tk):
         else: gen = [x.strip() for x in t.split(',')]
         for i, g in enumerate(gen, start=1):
             self._Q.put(('I',f'({i}/{len(gen)})Plotting generators...'))
-            self.plt.quick_gen(
+            self._npl.quick_gen(
                 gen_name=g,res_path=self._sta.root,
                 **self._pp.pars("gen")
             )

@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 from itertools import chain
+import os
 from queue import Queue
 import queue
 import threading
 from tkinter import messagebox as MB
+import PIL
+import PIL.Image
 from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
 from typing import Any, Callable, Iterable, Optional, Union
 from v2sim import ELGraph, Edge
@@ -104,6 +107,12 @@ class NetworkPanel(Frame):
         
         self.save_callback = save_callback
         self.__saved = True
+    
+    def savefig(self, save_to:str):
+        if save_to.lower().endswith(".eps"):
+            self._cv.postscript(file = save_to)
+            return
+        raise RuntimeError("Only .eps format is supported")
     
     def scale(self, x:float, y:float, s:float, item = 'all'):
         self._cv.scale(item, x, y, s, s)

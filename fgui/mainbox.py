@@ -827,6 +827,8 @@ class MainBox(Tk):
         self.btn_savegrid.pack(side='left',padx=3,pady=3, anchor='w')
         self.lb_puvalues = Label(self.panel_net, text=_L["PU_VALS"].format('Null','Null'))
         self.lb_puvalues.pack(side='left',padx=3,pady=3, anchor='w')
+        self.btn_savenetfig = Button(self.panel_net, text=_L["RNET_SAVE"], command=self.netsave)
+        self.btn_savenetfig.pack(side="right", padx=3, pady=3, anchor="e")
         self.btn_draw = Button(self.panel_net, text=_L["RNET_DRAW"], command=self.draw)
         self.btn_draw.pack(side="right", padx=3, pady=3, anchor="e")
         self.entry_Ledges = Entry(self.panel_net)
@@ -907,6 +909,21 @@ class MainBox(Tk):
         self.protocol("WM_DELETE_WINDOW", self.onDestroy)
         self.after(100, self._loop)
     
+    def netsave(self):
+        ret = filedialog.asksaveasfilename(
+            defaultextension=".eps",
+            filetypes=[
+                (_L["EXT_EPS"],".eps"),             
+            ]
+        )
+        if ret == "": return
+        try:
+            self.cv_net.savefig(ret)
+        except RuntimeError:
+            showerr(_L["RNET_SAVE_ERR"])
+            return
+        self.setStatus("Figure saved")
+
     def veh_par_edit(self, var:StringVar):
         def _f():
             e = PDFuncEditor(var)
@@ -1183,7 +1200,15 @@ class MainBox(Tk):
         self.sim_plglist.clear()
         assert self.state is not None
         if self.state.plg:
-            for p in readXML(self.state.plg).getroot():
+            et = readXML(self.state.plg)
+            if et is None:
+                showerr("Error loading plugins")
+                return
+            rt = et.getroot()
+            if rt is None:
+                showerr("Error loading plugins")
+                return
+            for p in rt:
                 if p.tag.lower() == "pdn": 
                     has_pdn = True
                     attr = DEFAULT_PDN_ATTR.copy()

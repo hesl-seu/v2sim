@@ -2,7 +2,7 @@ import bisect
 from typing import Literal, Optional, Union
 import matplotlib
 matplotlib.use("agg")
-from matplotlib.axes._axes import Axes
+from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, ScalarFormatter
 from .reader import *
@@ -37,9 +37,13 @@ def split_string_except_quotes(string:str,delim:str,trim_quotes:bool=True) -> li
     return result
 
 class AdvancedPlot:
-    def __init__(self,tl:int=0,tr:int=-1,w:int=12,h:int=3,remove_edge:bool=True,double_side:bool=False):
+    def __init__(self,tl:int=0,tr:int=-1,w:int=12,h:int=3,remove_edge:bool=True,double_side:bool=False,
+            pic_ext:str="png",dpi:int=128,quick_plot_title:bool = True):
         self.__series:dict[str,ReadOnlyStatistics] = {}
         self.fig = None
+        self.dpi = dpi
+        self.pic_ext = pic_ext
+        self.plot_title = quick_plot_title
         self.new_fig(tl,tr,w,h,remove_edge,double_side)
         self.max_tr = -1
 
@@ -47,7 +51,7 @@ class AdvancedPlot:
         self.tl = tl
         self.tr = tr
         if self.fig is not None: plt.close(self.fig)
-        self.fig, self.ax = plt.subplots(figsize=(w, h), dpi=128, constrained_layout=True)
+        self.fig, self.ax = plt.subplots(figsize=(w, h), dpi = self.dpi, constrained_layout=True)
         self.ax: Axes
         if remove_edge:
             self.ax.spines["right"].set_visible(False)
@@ -343,7 +347,7 @@ class AdvancedPlot:
         y_formatter = ScalarFormatter(useOffset=False)
         self.ax.yaxis.set_major_formatter(y_formatter)
         assert self.fig is not None
-        self.fig.savefig(save_to)
+        self.fig.savefig(save_to, dpi=self.dpi, bbox_inches="tight")
         plt.close()
     
     def configure(self,commands:Union[str,list[str]]):
@@ -446,24 +450,24 @@ class AdvancedPlot:
         self.new_fig(tl,tr)
         self.add_accum(f"{res_path}|fcs_load", plot_max)
         self.yleft_label(Lang.PLOT_YLABEL_POWERKW)
-        self.title(Lang.PLOT_FCS_ACC_TITLE)
+        if self.plot_title: self.title(Lang.PLOT_FCS_ACC_TITLE)
         self.legend(ncol=2)
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
-        if save_to == "": save_to = str(p / "fcs_total.png")
+        if save_to == "": save_to = str(p / f"fcs_total.{self.pic_ext}")
         self.save(save_to)
     
     def quick_scs_accum(self,tl:int,tr:int,plot_max:bool,save_to:str="",res_path:str="results"):
         self.new_fig(tl,tr)
         self.add_accum(f"{res_path}|scs_load", plot_max)
         self.yleft_label(Lang.PLOT_YLABEL_POWERKW)
-        self.title(Lang.PLOT_SCS_ACC_TITLE)
+        if self.plot_title: self.title(Lang.PLOT_SCS_ACC_TITLE)
         self.legend(ncol=2)
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
-        if save_to == "": save_to = str(p / "scs_total.png")
+        if save_to == "": save_to = str(p / f"scs_total.{self.pic_ext}")
         self.save(save_to)
     
     def quick_fcs(self,tl:int,tr:int,cs_name:str,load:bool,price:bool,wcnt:bool,save_to:str="",res_path:str="results"):
@@ -483,13 +487,13 @@ class AdvancedPlot:
             side = "right" if load or price else "left"
             self.add_data("{"+f"{res_path}|fcs_count|{cs_name}"+"}","Veh. Count",color="green",side=side)
             self.y_label(Lang.PLOT_YLABEL_COUNT,side)
-        self.title(Lang.PLOT_FCS_TITLE.format(cs_name))
+        if self.plot_title: self.title(Lang.PLOT_FCS_TITLE.format(cs_name))
         self.legend()
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
         if cs_name == "<sum>": cs_name = "sum"
-        if save_to == "": save_to = str(p / f"fcs_{cs_name}.png")
+        if save_to == "": save_to = str(p / f"fcs_{cs_name}.{self.pic_ext}")
         self.save(save_to)
     
     def quick_scs(self,tl:int,tr:int,cs_name:str,cload:bool,dload:bool,netload:bool,v2gcap:bool,wcnt:bool,pricebuy:bool,pricesell:bool,save_to:str="",res_path:str="results"):
@@ -521,13 +525,13 @@ class AdvancedPlot:
             side = "right" if has_load or has_price else "left"
             self.add_data("{"+f"{res_path}|scs_count|{cs_name}"+"}","Veh. Count",color="gray",side=side)
             self.y_label(Lang.PLOT_YLABEL_COUNT, side)
-        self.title(Lang.PLOT_SCS_TITLE.format(cs_name))
+        if self.plot_title: self.title(Lang.PLOT_SCS_TITLE.format(cs_name))
         self.legend()
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
         if cs_name == "<sum>": cs_name = "sum"
-        if save_to == "": save_to = str(p / f"scs_{cs_name}.png")
+        if save_to == "": save_to = str(p / f"scs_{cs_name}.{self.pic_ext}")
         self.save(save_to)
     
     def quick_bus(self,tl:int,tr:int,bus_name:str,activel:bool,reactivel:bool,volt:bool,
@@ -552,13 +556,13 @@ class AdvancedPlot:
             side = "right" if volt else "left"
             self.add_data("{"+f"{res_path}|bus_reactive_gen|{bus_name}"+"}","Reactive Gen",color="cyan",side=side)
             self.y_label(Lang.PLOT_YLABEL_POWERMW, side)
-        self.title(Lang.PLOT_BUS.format(bus_name))
+        if self.plot_title: self.title(Lang.PLOT_BUS.format(bus_name))
         self.legend()
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
         if bus_name == "<sum>": bus_name = "sum"
-        if save_to == "": save_to = str(p / f"bus_{bus_name}.png")
+        if save_to == "": save_to = str(p / f"bus_{bus_name}.{self.pic_ext}")
         self.save(save_to)
         
     def quick_gen(self,tl:int,tr:int,gen_name:str,active:bool,reactive:bool,costp:bool,save_to:str="",res_path:str="results"):
@@ -573,13 +577,13 @@ class AdvancedPlot:
             side = "right" if active or reactive else "left"
             self.add_data("{"+f"{res_path}|gen_costp|{gen_name}"+"}","Cost",color="green",side=side)
             self.y_label(Lang.PLOT_YLABEL_COST, side)
-        self.title(Lang.PLOT_GEN.format(gen_name))
+        if self.plot_title: self.title(Lang.PLOT_GEN.format(gen_name))
         self.legend()
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
         if gen_name == "<sum>": gen_name = "sum"
-        if save_to == "": save_to = str(p / f"gen_{gen_name}.png")
+        if save_to == "": save_to = str(p / f"gen_{gen_name}.{self.pic_ext}")
         self.save(save_to)
     
     def quick_ev(self,tl:int,tr:int,ev_name:str,soc:bool,status:bool,cost:bool,earn:bool,cpure:bool,save_to:str="",res_path:str="results"):
@@ -609,11 +613,11 @@ class AdvancedPlot:
             self.legend(ncol=2)
         else:
             self.legend()
-        self.title(Lang.PLOT_EV.format(ev_name))
+        if self.plot_title: self.title(Lang.PLOT_EV.format(ev_name))
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
-        if save_to == "": save_to = str(p / f"ev_{ev_name}.png")
+        if save_to == "": save_to = str(p / f"ev_{ev_name}.{self.pic_ext}")
         self.save(save_to)
         
     def quick_gen_tot(self,tl:int,tr:int,active:bool,reactive:bool,costp:bool,save_to:str="",res_path:str="results"):
@@ -628,12 +632,12 @@ class AdvancedPlot:
             side = "right" if active or reactive else "left"
             self.add_data("{"+f"{res_path}|gen_total_costp|<sum>"+"}","Cost",color="green",side=side)
             self.y_label(Lang.PLOT_YLABEL_COST,side)
-        self.title(Lang.PLOT_GEN_TOTAL)
+        if self.plot_title: self.title(Lang.PLOT_GEN_TOTAL)
         self.legend()
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
-        if save_to == "": save_to = str(p / "gen_total.png")
+        if save_to == "": save_to = str(p / f"gen_total.{self.pic_ext}")
         self.save(save_to)
     
     def quick_bus_tot(self,tl:int,tr:int,active:bool,reactive:bool,active_gen:bool,reactive_gen:bool,save_to:str="",res_path:str="results"):
@@ -650,12 +654,12 @@ class AdvancedPlot:
         if reactive_gen:
             self.add_data("{"+f"{res_path}|bus_total_reactive_gen"+"}","Reactive Gen",color="purple")
             self.y_label(Lang.PLOT_YLABEL_POWERMW)
-        self.title(Lang.PLOT_BUS_TOTAL)
+        if self.plot_title: self.title(Lang.PLOT_BUS_TOTAL)
         self.legend()
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
-        if save_to == "": save_to = str(p / "bus_total.png")
+        if save_to == "": save_to = str(p / f"bus_total.{self.pic_ext}")
         self.save(save_to)
     
     def quick_line(self,tl:int,tr:int,line_name:str,active:bool,reactive:bool,current:bool,save_to:str="",res_path:str="results"):
@@ -670,13 +674,13 @@ class AdvancedPlot:
             side = "right" if active or reactive else "left"
             self.add_data("{"+f"{res_path}|line_current|{line_name}"+"}","Current",color="green",side=side)
             self.y_label(Lang.PLOT_YLABEL_CURRENT, side)
-        self.title(Lang.PLOT_LINE.format(line_name))
+        if self.plot_title: self.title(Lang.PLOT_LINE.format(line_name))
         self.legend()
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
         if line_name == "<sum>": line_name = "sum"
-        if save_to == "": save_to = str(p / f"line_{line_name}.png")
+        if save_to == "": save_to = str(p / f"line_{line_name}.{self.pic_ext}")
         self.save(save_to)
     
     def quick_pvw(self,tl:int,tr:int,pvw_name:str,P:bool,cr:bool,save_to:str="",res_path:str="results"):
@@ -688,13 +692,13 @@ class AdvancedPlot:
             side = "right" if P else "left"
             self.add_data("{"+f"{res_path}|pvw_cr|{pvw_name}"+"}","Curtailment Rate",color="red")
             self.y_label(Lang.PLOT_YLABEL_CURTAIL, side=side)
-        self.title(Lang.PLOT_PVW.format(pvw_name))
+        if self.plot_title: self.title(Lang.PLOT_PVW.format(pvw_name))
         self.legend()
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
         if pvw_name == "<sum>": pvw_name = "sum"
-        if save_to == "": save_to = str(p / f"pvw_{pvw_name}.png")
+        if save_to == "": save_to = str(p / f"pvw_{pvw_name}.{self.pic_ext}")
         self.save(save_to)
     
     def quick_ess(self,tl:int,tr:int,ess_name:str,P:bool,soc:bool,save_to:str="",res_path:str="results"):
@@ -706,11 +710,11 @@ class AdvancedPlot:
             side = "right" if P else "left"
             self.add_data("{"+f"{res_path}|ess_soc|{ess_name}"+"}","SoC",color="red")
             self.y_label(Lang.PLOT_YLABEL_SOC, side=side)
-        self.title(Lang.PLOT_ESS.format(ess_name))
+        if self.plot_title: self.title(Lang.PLOT_ESS.format(ess_name))
         self.legend()
         self.x_label(Lang.PLOT_XLABEL_TIME)
         p = Path(res_path) / "figures"
         p.mkdir(parents=True,exist_ok=True)
         if ess_name == "<sum>": ess_name = "sum"
-        if save_to == "": save_to = str(p / f"ess_{ess_name}.png")
+        if save_to == "": save_to = str(p / f"ess_{ess_name}.{self.pic_ext}")
         self.save(save_to)
