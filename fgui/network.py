@@ -143,7 +143,7 @@ class NetworkPanel(Frame):
     def convXY2LL(self, x:float, y:float) -> tuple[float, float]:
         '''Convert canvas coordinates to longitude and latitude'''
         x = (x - self._scale['x'])/self._scale['k']
-        y = (-y - self._scale['y'])/self._scale['k']
+        y = -(y - self._scale['y'])/self._scale['k']
         if self._r is None: return (x, y)
         try:
             return self._r.Net.convertXY2LonLat(x, y)
