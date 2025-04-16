@@ -346,6 +346,7 @@ class AdvancedPlot:
             self.ax.margins(x=0)
         y_formatter = ScalarFormatter(useOffset=False)
         self.ax.yaxis.set_major_formatter(y_formatter)
+        self.ax.set_xlim(self.tl, self.max_tr if self.tr == -1 else self.tr)
         assert self.fig is not None
         self.fig.savefig(save_to, dpi=self.dpi, bbox_inches="tight")
         plt.close()
