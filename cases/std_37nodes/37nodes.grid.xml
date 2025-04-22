@@ -1,9 +1,9 @@
 <grid Sb="1.0MVA" Ub="10.00kV">
-<bus ID="B1" Lat="31.942127" Lon="118.630643" V="1.0">
+<bus ID="b1" Lat="31.942127" Lon="118.630643" V="1.0">
 <Pd const="0.0MW" />
 <Qd const="0.0Mvar" />
 </bus>
-<bus ID="B2" Lat="31.967248" Lon="118.664141" MinV="0.9" MaxV="1.1">
+<bus ID="b2" Lat="31.967248" Lon="118.664141" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0700MW" />
 <item time="3600" value="0.0650MW" />
@@ -57,7 +57,7 @@
 <item time="82800" value="0.0480Mvar" />
 </Qd>
 </bus>
-<bus ID="B3" Lat="31.997717" Lon="118.698400" MinV="0.9" MaxV="1.1">
+<bus ID="b3" Lat="31.997717" Lon="118.698400" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0630MW" />
 <item time="3600" value="0.0585MW" />
@@ -111,7 +111,7 @@
 <item time="82800" value="0.0320Mvar" />
 </Qd>
 </bus>
-<bus ID="B4" Lat="32.028668" Lon="118.723614" MinV="0.9" MaxV="1.1">
+<bus ID="b4" Lat="32.028668" Lon="118.723614" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0840MW" />
 <item time="3600" value="0.0780MW" />
@@ -165,7 +165,7 @@
 <item time="82800" value="0.0640Mvar" />
 </Qd>
 </bus>
-<bus ID="B5" Lat="32.017919" Lon="118.754535" MinV="0.9" MaxV="1.1">
+<bus ID="b5" Lat="32.017919" Lon="118.754535" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -219,7 +219,7 @@
 <item time="82800" value="0.0240Mvar" />
 </Qd>
 </bus>
-<bus ID="B6" Lat="32.034042" Lon="118.785798" MinV="0.9" MaxV="1.1">
+<bus ID="b6" Lat="32.034042" Lon="118.785798" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -273,7 +273,7 @@
 <item time="82800" value="0.0160Mvar" />
 </Qd>
 </bus>
-<bus ID="B7" Lat="32.050307" Lon="118.824554" MinV="0.9" MaxV="1.1">
+<bus ID="b7" Lat="32.050307" Lon="118.824554" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.1400MW" />
 <item time="3600" value="0.1300MW" />
@@ -327,7 +327,7 @@
 <item time="82800" value="0.0800Mvar" />
 </Qd>
 </bus>
-<bus ID="B8" Lat="32.083778" Lon="118.819081" MinV="0.9" MaxV="1.1">
+<bus ID="b8" Lat="32.083778" Lon="118.819081" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.1400MW" />
 <item time="3600" value="0.1300MW" />
@@ -381,7 +381,7 @@
 <item time="82800" value="0.0800Mvar" />
 </Qd>
 </bus>
-<bus ID="B9" Lat="32.098101" Lon="118.879423" MinV="0.9" MaxV="1.1">
+<bus ID="b9" Lat="32.098101" Lon="118.879423" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -435,7 +435,7 @@
 <item time="82800" value="0.0160Mvar" />
 </Qd>
 </bus>
-<bus ID="B10" Lat="32.127533" Lon="118.862317" MinV="0.9" MaxV="1.1">
+<bus ID="b10" Lat="32.127533" Lon="118.862317" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -489,7 +489,7 @@
 <item time="82800" value="0.0160Mvar" />
 </Qd>
 </bus>
-<bus ID="B11" Lat="32.174252" Lon="118.834643" MinV="0.9" MaxV="1.1">
+<bus ID="b11" Lat="32.174252" Lon="118.834643" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0315MW" />
 <item time="3600" value="0.0292MW" />
@@ -543,7 +543,7 @@
 <item time="82800" value="0.0240Mvar" />
 </Qd>
 </bus>
-<bus ID="B12" Lat="32.183958" Lon="118.788632" MinV="0.9" MaxV="1.1">
+<bus ID="b12" Lat="32.183958" Lon="118.788632" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -597,7 +597,7 @@
 <item time="82800" value="0.0280Mvar" />
 </Qd>
 </bus>
-<bus ID="B13" Lat="32.159418" Lon="118.727673" MinV="0.9" MaxV="1.1">
+<bus ID="b13" Lat="32.159418" Lon="118.727673" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -651,7 +651,7 @@
 <item time="82800" value="0.0280Mvar" />
 </Qd>
 </bus>
-<bus ID="B14" Lat="32.166913" Lon="118.662090" MinV="0.9" MaxV="1.1">
+<bus ID="b14" Lat="32.166913" Lon="118.662090" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0840MW" />
 <item time="3600" value="0.0780MW" />
@@ -705,7 +705,7 @@
 <item time="82800" value="0.0640Mvar" />
 </Qd>
 </bus>
-<bus ID="B15" Lat="32.116042" Lon="118.689727" MinV="0.9" MaxV="1.1">
+<bus ID="b15" Lat="32.116042" Lon="118.689727" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -759,7 +759,7 @@
 <item time="82800" value="0.0080Mvar" />
 </Qd>
 </bus>
-<bus ID="B16" Lat="32.104129" Lon="118.650956" MinV="0.9" MaxV="1.1">
+<bus ID="b16" Lat="32.104129" Lon="118.650956" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -813,7 +813,7 @@
 <item time="82800" value="0.0160Mvar" />
 </Qd>
 </bus>
-<bus ID="B17" Lat="32.088051" Lon="118.620212" MinV="0.9" MaxV="1.1">
+<bus ID="b17" Lat="32.088051" Lon="118.620212" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -867,7 +867,7 @@
 <item time="82800" value="0.0160Mvar" />
 </Qd>
 </bus>
-<bus ID="B18" Lat="32.044958" Lon="118.616180" MinV="0.9" MaxV="1.1">
+<bus ID="b18" Lat="32.044958" Lon="118.616180" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0630MW" />
 <item time="3600" value="0.0585MW" />
@@ -921,7 +921,7 @@
 <item time="82800" value="0.0320Mvar" />
 </Qd>
 </bus>
-<bus ID="B19" Lat="32.003309" Lon="118.618668" MinV="0.9" MaxV="1.1">
+<bus ID="b19" Lat="32.003309" Lon="118.618668" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0630MW" />
 <item time="3600" value="0.0585MW" />
@@ -975,7 +975,7 @@
 <item time="82800" value="0.0320Mvar" />
 </Qd>
 </bus>
-<bus ID="B20" Lat="32.040965" Lon="118.580572" MinV="0.9" MaxV="1.1">
+<bus ID="b20" Lat="32.040965" Lon="118.580572" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0630MW" />
 <item time="3600" value="0.0585MW" />
@@ -1029,7 +1029,7 @@
 <item time="82800" value="0.0320Mvar" />
 </Qd>
 </bus>
-<bus ID="B21" Lat="32.106253" Lon="118.570734" MinV="0.9" MaxV="1.1">
+<bus ID="b21" Lat="32.106253" Lon="118.570734" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0630MW" />
 <item time="3600" value="0.0585MW" />
@@ -1083,7 +1083,7 @@
 <item time="82800" value="0.0320Mvar" />
 </Qd>
 </bus>
-<bus ID="B22" Lat="32.138064" Lon="118.600630" MinV="0.9" MaxV="1.1">
+<bus ID="b22" Lat="32.138064" Lon="118.600630" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0630MW" />
 <item time="3600" value="0.0585MW" />
@@ -1137,7 +1137,7 @@
 <item time="82800" value="0.0320Mvar" />
 </Qd>
 </bus>
-<bus ID="B23" Lat="32.047493" Lon="118.694115" MinV="0.9" MaxV="1.1">
+<bus ID="b23" Lat="32.047493" Lon="118.694115" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0630MW" />
 <item time="3600" value="0.0585MW" />
@@ -1191,7 +1191,7 @@
 <item time="82800" value="0.0400Mvar" />
 </Qd>
 </bus>
-<bus ID="B24" Lat="32.073677" Lon="118.744771" MinV="0.9" MaxV="1.1">
+<bus ID="b24" Lat="32.073677" Lon="118.744771" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.2940MW" />
 <item time="3600" value="0.2730MW" />
@@ -1245,7 +1245,7 @@
 <item time="82800" value="0.1600Mvar" />
 </Qd>
 </bus>
-<bus ID="B25" Lat="32.102007" Lon="118.759111" MinV="0.9" MaxV="1.1">
+<bus ID="b25" Lat="32.102007" Lon="118.759111" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.2940MW" />
 <item time="3600" value="0.2730MW" />
@@ -1299,7 +1299,7 @@
 <item time="82800" value="0.1600Mvar" />
 </Qd>
 </bus>
-<bus ID="B26" Lat="32.003602" Lon="118.828583" MinV="0.9" MaxV="1.1">
+<bus ID="b26" Lat="32.003602" Lon="118.828583" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -1353,7 +1353,7 @@
 <item time="82800" value="0.0200Mvar" />
 </Qd>
 </bus>
-<bus ID="B27" Lat="31.970319" Lon="118.785584" MinV="0.9" MaxV="1.1">
+<bus ID="b27" Lat="31.970319" Lon="118.785584" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -1407,7 +1407,7 @@
 <item time="82800" value="0.0200Mvar" />
 </Qd>
 </bus>
-<bus ID="B28" Lat="31.973905" Lon="118.738560" MinV="0.9" MaxV="1.1">
+<bus ID="b28" Lat="31.973905" Lon="118.738560" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -1461,7 +1461,7 @@
 <item time="82800" value="0.0160Mvar" />
 </Qd>
 </bus>
-<bus ID="B29" Lat="31.941056" Lon="118.769469" MinV="0.9" MaxV="1.1">
+<bus ID="b29" Lat="31.941056" Lon="118.769469" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0840MW" />
 <item time="3600" value="0.0780MW" />
@@ -1515,7 +1515,7 @@
 <item time="82800" value="0.0560Mvar" />
 </Qd>
 </bus>
-<bus ID="B30" Lat="31.951795" Lon="118.867294" MinV="0.9" MaxV="1.1">
+<bus ID="b30" Lat="31.951795" Lon="118.867294" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.1400MW" />
 <item time="3600" value="0.1300MW" />
@@ -1569,7 +1569,7 @@
 <item time="82800" value="0.4800Mvar" />
 </Qd>
 </bus>
-<bus ID="B31" Lat="31.992031" Lon="118.909593" MinV="0.9" MaxV="1.1">
+<bus ID="b31" Lat="31.992031" Lon="118.909593" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.1050MW" />
 <item time="3600" value="0.0975MW" />
@@ -1623,7 +1623,7 @@
 <item time="82800" value="0.0560Mvar" />
 </Qd>
 </bus>
-<bus ID="B32" Lat="32.065973" Lon="118.906657" MinV="0.9" MaxV="1.1">
+<bus ID="b32" Lat="32.065973" Lon="118.906657" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.1470MW" />
 <item time="3600" value="0.1365MW" />
@@ -1677,7 +1677,7 @@
 <item time="82800" value="0.0800Mvar" />
 </Qd>
 </bus>
-<bus ID="B33" Lat="32.126477" Lon="118.945807" MinV="0.9" MaxV="1.1">
+<bus ID="b33" Lat="32.126477" Lon="118.945807" MinV="0.9" MaxV="1.1">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0420MW" />
 <item time="3600" value="0.0390MW" />
@@ -1731,39 +1731,39 @@
 <item time="82800" value="0.0320Mvar" />
 </Qd>
 </bus>
-<line ID="L1" From="B1" To="B2" R="0.092200ohm" X="0.047000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L2" From="B2" To="B3" R="0.493000ohm" X="0.251100ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L3" From="B3" To="B4" R="0.366000ohm" X="0.186400ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L4" From="B4" To="B5" R="0.381100ohm" X="0.194100ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L5" From="B5" To="B6" R="0.819000ohm" X="0.707000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L6" From="B6" To="B7" R="0.187200ohm" X="0.618800ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L7" From="B7" To="B8" R="0.711400ohm" X="0.235100ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L8" From="B8" To="B9" R="1.030000ohm" X="0.740000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L9" From="B9" To="B10" R="1.044000ohm" X="0.740000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L10" From="B10" To="B11" R="0.196600ohm" X="0.065000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L11" From="B11" To="B12" R="0.374400ohm" X="0.123800ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L12" From="B12" To="B13" R="1.468000ohm" X="1.155000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L13" From="B13" To="B14" R="0.541600ohm" X="0.712900ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L14" From="B14" To="B15" R="0.591000ohm" X="0.526000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L15" From="B15" To="B16" R="0.746300ohm" X="0.545000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L16" From="B16" To="B17" R="1.289000ohm" X="1.721000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L17" From="B17" To="B18" R="0.732000ohm" X="0.574000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L18" From="B2" To="B19" R="0.164000ohm" X="0.156500ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L19" From="B19" To="B20" R="1.504200ohm" X="1.355400ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L20" From="B20" To="B21" R="0.409500ohm" X="0.478400ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L21" From="B21" To="B22" R="0.708900ohm" X="0.937300ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L22" From="B3" To="B23" R="0.451200ohm" X="0.308300ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L23" From="B23" To="B24" R="0.898000ohm" X="0.709100ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L24" From="B24" To="B25" R="0.896000ohm" X="0.701100ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L25" From="B6" To="B26" R="0.203000ohm" X="0.103400ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L26" From="B26" To="B27" R="0.284200ohm" X="0.144700ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L27" From="B27" To="B28" R="1.059000ohm" X="0.933700ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L28" From="B28" To="B29" R="0.804200ohm" X="0.700600ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L29" From="B29" To="B30" R="0.507500ohm" X="0.258500ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L30" From="B30" To="B31" R="0.974400ohm" X="0.963000ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L31" From="B31" To="B32" R="0.310500ohm" X="0.361900ohm" MaxIkA="inf" Length_km="-1.0" />
-<line ID="L32" From="B32" To="B33" R="0.341000ohm" X="0.530200ohm" MaxIkA="inf" Length_km="-1.0" />
-<gen ID="G1" Bus="B1" Lat="31.937107" Lon="118.639893">
+<line ID="l1" From="b1" To="b2" R="0.092200ohm" X="0.047000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l2" From="b2" To="b3" R="0.493000ohm" X="0.251100ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l3" From="b3" To="b4" R="0.366000ohm" X="0.186400ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l4" From="b4" To="b5" R="0.381100ohm" X="0.194100ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l5" From="b5" To="b6" R="0.819000ohm" X="0.707000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l6" From="b6" To="b7" R="0.187200ohm" X="0.618800ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l7" From="b7" To="b8" R="0.711400ohm" X="0.235100ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l8" From="b8" To="b9" R="1.030000ohm" X="0.740000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l9" From="b9" To="b10" R="1.044000ohm" X="0.740000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l10" From="b10" To="b11" R="0.196600ohm" X="0.065000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l11" From="b11" To="b12" R="0.374400ohm" X="0.123800ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l12" From="b12" To="b13" R="1.468000ohm" X="1.155000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l13" From="b13" To="b14" R="0.541600ohm" X="0.712900ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l14" From="b14" To="b15" R="0.591000ohm" X="0.526000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l15" From="b15" To="b16" R="0.746300ohm" X="0.545000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l16" From="b16" To="b17" R="1.289000ohm" X="1.721000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l17" From="b17" To="b18" R="0.732000ohm" X="0.574000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l18" From="b2" To="b19" R="0.164000ohm" X="0.156500ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l19" From="b19" To="b20" R="1.504200ohm" X="1.355400ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l20" From="b20" To="b21" R="0.409500ohm" X="0.478400ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l21" From="b21" To="b22" R="0.708900ohm" X="0.937300ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l22" From="b3" To="b23" R="0.451200ohm" X="0.308300ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l23" From="b23" To="b24" R="0.898000ohm" X="0.709100ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l24" From="b24" To="b25" R="0.896000ohm" X="0.701100ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l25" From="b6" To="b26" R="0.203000ohm" X="0.103400ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l26" From="b26" To="b27" R="0.284200ohm" X="0.144700ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l27" From="b27" To="b28" R="1.059000ohm" X="0.933700ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l28" From="b28" To="b29" R="0.804200ohm" X="0.700600ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l29" From="b29" To="b30" R="0.507500ohm" X="0.258500ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l30" From="b30" To="b31" R="0.974400ohm" X="0.963000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l31" From="b31" To="b32" R="0.310500ohm" X="0.361900ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l32" From="b32" To="b33" R="0.341000ohm" X="0.530200ohm" MaxIkA="inf" Length_km="-1.0" />
+<gen ID="g1" Bus="b1" Lat="31.937107" Lon="118.639893">
 <Pmin const="0.0MW" />
 <Pmax const="30.0MW" />
 <Qmin const="-30.0Mvar" />
@@ -1772,7 +1772,7 @@
 <CostB const="0.3$/MWh" />
 <CostC const="10.0$" />
 </gen>
-<gen ID="G2" Bus="B2" Lat="31.966919" Lon="118.676664">
+<gen ID="g2" Bus="b2" Lat="31.966919" Lon="118.676664">
 <Pmin const="0.0MW" />
 <Pmax const="30.0MW" />
 <Qmin const="-30.0Mvar" />
@@ -1781,7 +1781,7 @@
 <CostB const="0.3$/MWh" />
 <CostC const="10.0$" />
 </gen>
-<gen ID="G3" Bus="B3" Lat="31.993744" Lon="118.707835">
+<gen ID="g3" Bus="b3" Lat="31.993744" Lon="118.707835">
 <Pmin const="0.0MW" />
 <Pmax const="30.0MW" />
 <Qmin const="-30.0Mvar" />
@@ -1790,7 +1790,7 @@
 <CostB const="0.3$/MWh" />
 <CostC const="10.0$" />
 </gen>
-<gen ID="G6" Bus="B6" Lat="32.032981" Lon="118.797190">
+<gen ID="g6" Bus="b6" Lat="32.032981" Lon="118.797190">
 <Pmin const="0.0MW" />
 <Pmax const="30.0MW" />
 <Qmin const="-30.0Mvar" />
@@ -1799,7 +1799,7 @@
 <CostB const="0.3$/MWh" />
 <CostC const="10.0$" />
 </gen>
-<gen ID="G8" Bus="B8" Lat="32.076989" Lon="118.833173">
+<gen ID="g8" Bus="b8" Lat="32.076989" Lon="118.833173">
 <Pmin const="0.0MW" />
 <Pmax const="30.0MW" />
 <Qmin const="-30.0Mvar" />

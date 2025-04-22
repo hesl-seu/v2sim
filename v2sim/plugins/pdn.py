@@ -1,7 +1,7 @@
 from collections import defaultdict
 from itertools import chain
 from feasytools import TimeImplictFunc
-from fpowerkit import Grid, FloatVar, GridSolveResult, DistFlowSolver, LoadReduceModule
+from fpowerkit import Grid, FloatVar, GridSolveResult, CombinedSolver, LoadReduceModule
 
 from ..locale import CustomLocaleLib
 from ..traffic import DetectFiles, CS
@@ -9,7 +9,7 @@ from .base import *
 
 _locale = CustomLocaleLib(["zh_CN","en"])
 _locale.SetLanguageLib("zh_CN",
-    DESCRIPTION = "配电网DistFlow模型",
+    DESCRIPTION = "配电网模型",
     ERROR_NO_GRID = "未指定电网文件",
     ERROR_CS_NODE_NOT_EXIST = "错误: 充电站{0}的母线{1}在电网中不存在",
     ERROR_SOLVE_FAILED = "求解失败",
@@ -19,7 +19,7 @@ _locale.SetLanguageLib("zh_CN",
     PDN_SOLVE_OK_SINCE = "[PDN]从时间{0}开始成功求解配电网. 之前总共失败{1}次"
 )
 _locale.SetLanguageLib("en",
-    DESCRIPTION = "DistFlow model of power distribution network",
+    DESCRIPTION = "Power distribution network model",
     ERROR_NO_GRID = "No grid file specified",
     ERROR_CS_NODE_NOT_EXIST = "Error: The bus {1} of charging station {0} does not exist in the grid",
     ERROR_SOLVE_FAILED = "Failed to solve",
@@ -58,6 +58,18 @@ class PluginPDN(PluginBase[float], IGridPlugin):
     def _load_state(self, state:object) -> None:
         '''Load the plugin state'''
 
+    @staticmethod
+    def ElemShouldHave() -> ConfigDict:
+        '''Get the plugin configuration item list'''
+        return ConfigDict([
+            PluginConfigItem("estimator", "combo={'values': ['distflow']}", "Estimator of the solver, must be 'distflow'", "distflow"),
+            PluginConfigItem("calculator", "combo={'values': ['opendss','newton','none']}", "Calculator of the solver, can be 'opendss', 'newton' or 'none'", "none"),
+            PluginConfigItem("MLRP", "entry", "Maximum load reduction percentage", 0.5),
+            PluginConfigItem("source_bus", "entry", "Source bus of the grid", ""),
+            PluginConfigItem("DecBuses", "entry", "List of buses for load reduction, separated by commas", ""),
+            PluginConfigItem("SmartCharge", "combo={'values': ['YES', 'NO']}", "Whether to enable smart charging, 'YES' or 'NO'", "NO"),
+        ])
+    
     def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path,
             res_dir:Path, plg_deps:'list[PluginBase]') -> float:
         '''Initialize the plugin from the XML element'''
@@ -69,11 +81,14 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         res = DetectFiles(str(work_dir))
         assert res.grid, _locale["ERROR_NO_GRID"]
         self.__gr = Grid.fromFile(res.grid, True)
-        decs = elem.get("DecBuses","").split(",")
+        decs = list(map(lambda x:x.strip(), elem.get("DecBuses","").split(",")))
         if elem.get("SmartCharge", "NO") == "NO":
             decs.clear()
-        self.__sol = DistFlowSolver(self.__gr,
+        self.__sol = CombinedSolver(self.__gr,
+            estimator=elem.get("estimator","distflow"),
+            calculator=elem.get("calculator", "none"),
             mlrp=float(elem.get("MLRP","0.5")),
+            source_bus=elem.get("source_bus", ""),
         )
         self.__sol.SetErrorSaveTo(str(res_dir / "pdn_logs"))
         self.__badcnt = 0
@@ -86,13 +101,13 @@ class PluginPDN(PluginBase[float], IGridPlugin):
             v = TimeImplictFunc(self.__create_closure(css, self.__gr.Sb_MVA))
             self.__gr.Bus(b).Pd += v
             if b in decs:
-                self.__sol.AddReduce(b, v)
+                self.__sol.est.AddReduce(b, v)
         self.last_ok = GridSolveResult.Failed
         return 1e100
 
     def isSmartChargeEnabled(self)->bool:
         '''Check if smart charging is enabled'''
-        return len(self.__sol.DecBuses) > 0
+        return len(self.__sol.est.DecBuses) > 0
     
     @property
     def Solver(self):
@@ -121,7 +136,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
                 if self.isSmartChargeEnabled():
                     for c in chain(self.__inst.FCSList,self.__inst.SCSList):
                         c.set_Pc_lim(float("inf"))
-                    for b,x in self.__sol.DecBuses.items():
+                    for b,x in self.__sol.est.DecBuses.items():
                         if x.Reduction:
                             tot = x.Limit(_t)
                             k = (tot - x.Reduction) / tot

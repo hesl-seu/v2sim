@@ -31,6 +31,11 @@ class PluginOvercurrent(PluginBase[None]):
     def _load_state(self,state:object) -> None:
         '''Load the plugin state'''
 
+    @staticmethod
+    def ElemShouldHave() -> ConfigDict:
+        '''Get the plugin configuration item list'''
+        return ConfigDict()
+    
     def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plg_deps:'list[PluginBase]')->None:
         self.__file = open(str(res_dir / "current_protect.log"), "w")
         self.SetPreStep(self._work)
@@ -64,17 +69,17 @@ class PluginOvercurrent(PluginBase[None]):
             p = self.__pdn
             if p.LastPreStepSucceed:
                 svr = p.Solver
-                if len(svr.OverflowLines) > 0:
-                    print(f"[{_t}] Overcurrent protection triggered: ", svr.OverflowLines, file=self.__file)
-                    for l in svr.OverflowLines:
+                if len(svr.est.OverflowLines) > 0:
+                    print(f"[{_t}] Overcurrent protection triggered: ", svr.est.OverflowLines, file=self.__file)
+                    for l in svr.est.OverflowLines:
                         ln = p.Grid.Line(l)
                         ln.P = 0.
                         ln.Q = 0.
                         ln.I = 0.
-                    svr.UpdateGrid(cut_overflow_lines=True)
-                    self.__island_closed = [False] * len(svr.Islands)
+                    svr.est.UpdateGrid(cut_overflow_lines=True)
+                    self.__island_closed = [False] * len(svr.est.Islands)
                     svr.solve(_t)
-                for i, (il, (res, val)) in enumerate(zip(svr.Islands, svr.IslandResults)):
+                for i, (il, (res, val)) in enumerate(zip(svr.est.Islands, svr.est.IslandResults)):
                     if res == IslandResult.Failed and not self.__island_closed[i]:
                         self.__island_closed[i] = True
                         for b in il.Buses: self._close(b)

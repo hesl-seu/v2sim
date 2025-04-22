@@ -43,7 +43,7 @@ class TrafficInst:
     def __find_route_trip(self, t: Trip, cache_route:bool = False) -> Stage:
         if t.fixed_route:
             einst:list[Edge] = [self.__rnet.getEdge(e) for e in t.route]
-            k = f"{t.route[0]}|{t.route[-1]}"
+            k = (t.route[0], t.route[-1])
             st = Stage(
                 edges = t.route,
                 length = sum(e.getLength() for e in einst),
@@ -58,7 +58,7 @@ class TrafficInst:
             return st
     
     def __find_route_static(self, e1: str, e2: str) -> Stage:
-        k = f"{e1}|{e2}"
+        k = (e1, e2)
         if k not in self.__shortest_paths:
             stage:Stage = traci.simulation.findRoute(
                 e1, e2, routingMode=TC.ROUTING_MODE_DEFAULT
@@ -124,7 +124,7 @@ class TrafficInst:
         self.__names: list[str] = [e.getID() for e in self.__edges]
 
         # Load static shortest paths
-        self.__shortest_paths: dict[str, Stage] = {}
+        self.__shortest_paths: dict[tuple[str,str], Stage] = {}
 
         self.__istate_folder = initial_state_folder
 
@@ -209,6 +209,14 @@ class TrafficInst:
         rou_id = random_string(16)
         traci.route.add(rou_id, route)
         traci.vehicle.add(veh_id, rou_id)
+    
+    def __add_veh2(self, veh_id:str, st_edge:str, ed_edge:str, agg_routing:bool = False):
+        self._VEHs[veh_id].clear_odometer()
+        traci.vehicle.add(veh_id, "")
+        traci.vehicle.setRoute(veh_id, [st_edge])
+        if agg_routing:
+            traci.vehicle.setRoutingMode(veh_id, TC.ROUTING_MODE_AGGREGATED)
+        traci.vehicle.changeTarget(veh_id, ed_edge)
 
     @property
     def edges(self) -> list[Edge]:
@@ -300,23 +308,25 @@ class TrafficInst:
             direct_depart = veh.is_batt_enough(stage.length)
         else:
             # Determine whether the EV needs to be fast charged
+            stage = None
             direct_depart = veh.SOC >= veh.kfc
-            if direct_depart:
-                stage = self.__find_route_trip(trip, veh._cache_route)
         if direct_depart:  # Direct departure
             veh.target_CS = None
             veh.charge_target = veh.full_battery
-            self.__add_veh(veh_id, stage.edges)
+            if stage:
+                self.__add_veh(veh_id, stage.edges)
+            else:
+                self.__add_veh2(veh_id, trip.depart_edge, trip.arrive_edge)
         else:  # Charge once on the way
             e:Edge = self.__rnet.getEdge(trip.depart_edge)
             sp = e.getShape()
             assert isinstance(sp, list) and len(sp) > 0
             route, weights = self.__sel_best_CS(veh, veh.omega, trip.depart_edge, Point(*sp[0]))
-            if len(route) == 0:  
+            if len(route) == 0:
                 # The power is not enough to drive to any charging station, you need to charge for a while
                 veh.target_CS = None
                 return False, None
-            else:  # Found a charging station
+            else: # Found a charging station
                 veh.target_CS = route[-1]
                 self.__add_veh(veh_id, route)
         # Stop slow charging of the vehicle and add it to the waiting to depart set
@@ -394,10 +404,7 @@ class TrafficInst:
         trip = veh.trip
         self.__logger.depart_CS(self.__ctime, veh, veh.target_CS)
         
-        self.__add_veh(
-            veh.ID,
-            self.__find_route_static(veh.target_CS, trip.arrive_edge).edges,
-        )
+        self.__add_veh2(veh.ID, veh.target_CS, trip.arrive_edge)
         veh.target_CS = None
         veh.charge_target = veh.full_battery
         veh.status = VehStatus.Pending

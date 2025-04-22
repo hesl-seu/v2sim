@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import enum
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any, Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Callable, Generic, Iterable, Optional, Protocol, TypeVar, runtime_checkable
 from feasytools import RangeList
 from fpowerkit import Grid
 from ..traffic import TrafficInst
@@ -22,6 +22,30 @@ class PluginStatus(enum.IntEnum):
 PIResult = TypeVar('PIResult',covariant=True)
 PIExec = Callable[[int,PluginStatus],tuple[bool,PIResult]]
 PINoRet = Callable[[],None]
+
+@dataclass
+class PluginConfigItem:
+    '''Plugin configuration item'''
+    name:str
+    editor:str
+    desc:str
+    default_value:Optional[Any] = None
+
+class ConfigDict(dict[str, PluginConfigItem]):
+    def __init__(self, items: Optional[Iterable[PluginConfigItem]] = None):
+        if items is None:
+            super().__init__()
+        else:
+            super().__init__((x.name, x) for x in items)
+    
+    def default_value_dict(self):
+        return {k:v.default_value for k, v in self.items()}
+    
+    def desc_dict(self):
+        return {k:v.desc for k, v in self.items()}
+    
+    def editor_dict(self):
+        return {k:v.editor for k, v in self.items()}
 
 @runtime_checkable
 class IGridPlugin(Protocol):
@@ -55,6 +79,12 @@ class PluginBase(Generic[PIResult]):
     @abstractmethod
     def _load_state(self,state:object) -> None:
         '''Load the plugin state'''
+
+    @staticmethod
+    @abstractmethod
+    def ElemShouldHave() -> ConfigDict:
+        '''Get the plugin configuration item list'''
+        return ConfigDict()
 
     def __init__(self, inst:TrafficInst, elem:ET.Element, work_dir:Path, res_dir:Path, enable_time:Optional[RangeList]=None,
             interval:int=0, plg_deps:'Optional[list[PluginBase]]' = None):
@@ -145,8 +175,8 @@ class PluginBase(Generic[PIResult]):
         return self.__respost
     
     @abstractmethod
-    def Init(self, elem:ET.Element, inst:TrafficInst,
-            work_dir:Path, res_dir:Path, plg_deps:'list[PluginBase]') -> PIResult:
+    def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path, 
+             res_dir:Path, plg_deps:'list[PluginBase]') -> PIResult:
         '''
         Initialize the plugin from the XML element, TrafficInst, work path, result path, and plugin dependency.
         Return the result of offline.

@@ -1,5 +1,5 @@
 <root>
-<scs name="scs_gneE0" edge="gneE0" slots="10" bus="B0" v2galloc="Average">
+<scs name="scs_gneE0" edge="gneE0" slots="10" bus="b0" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.1" />
@@ -47,7 +47,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE1" edge="gneE1" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE1" edge="gneE1" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.09" />
@@ -95,7 +95,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE10" edge="gneE10" slots="10" bus="B0" v2galloc="Average">
+<scs name="scs_gneE10" edge="gneE10" slots="10" bus="b0" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.08" />
@@ -143,7 +143,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE11" edge="gneE11" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE11" edge="gneE11" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.1" />
@@ -191,7 +191,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE12" edge="gneE12" slots="10" bus="B0" v2galloc="Average">
+<scs name="scs_gneE12" edge="gneE12" slots="10" bus="b0" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.05" />
@@ -239,7 +239,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE13" edge="gneE13" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE13" edge="gneE13" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.01" />
@@ -287,7 +287,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE14" edge="gneE14" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE14" edge="gneE14" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.02" />
@@ -335,7 +335,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE16" edge="gneE16" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE16" edge="gneE16" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.07" />
@@ -383,7 +383,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE17" edge="gneE17" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE17" edge="gneE17" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.08" />
@@ -431,7 +431,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE18" edge="gneE18" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE18" edge="gneE18" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.05" />
@@ -479,7 +479,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE19" edge="gneE19" slots="10" bus="B0" v2galloc="Average">
+<scs name="scs_gneE19" edge="gneE19" slots="10" bus="b0" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.06" />
@@ -527,7 +527,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE2" edge="gneE2" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE2" edge="gneE2" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.08" />
@@ -575,7 +575,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE20" edge="gneE20" slots="10" bus="B0" v2galloc="Average">
+<scs name="scs_gneE20" edge="gneE20" slots="10" bus="b0" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.03" />
@@ -623,7 +623,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE21" edge="gneE21" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE21" edge="gneE21" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.04" />
@@ -671,7 +671,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE22" edge="gneE22" slots="10" bus="B0" v2galloc="Average">
+<scs name="scs_gneE22" edge="gneE22" slots="10" bus="b0" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.01" />
@@ -719,7 +719,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE23" edge="gneE23" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE23" edge="gneE23" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.03" />
@@ -767,7 +767,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE24" edge="gneE24" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE24" edge="gneE24" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.04" />
@@ -815,7 +815,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE25" edge="gneE25" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE25" edge="gneE25" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.0" />
@@ -863,7 +863,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE26" edge="gneE26" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE26" edge="gneE26" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.01" />
@@ -911,7 +911,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE27" edge="gneE27" slots="10" bus="B0" v2galloc="Average">
+<scs name="scs_gneE27" edge="gneE27" slots="10" bus="b0" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.03" />
@@ -959,7 +959,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE28" edge="gneE28" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE28" edge="gneE28" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.05" />
@@ -1007,7 +1007,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE29" edge="gneE29" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE29" edge="gneE29" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.06" />
@@ -1055,7 +1055,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE3" edge="gneE3" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE3" edge="gneE3" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.0" />
@@ -1103,7 +1103,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE31" edge="gneE31" slots="10" bus="B0" v2galloc="Average">
+<scs name="scs_gneE31" edge="gneE31" slots="10" bus="b0" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.01" />
@@ -1151,7 +1151,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE32" edge="gneE32" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE32" edge="gneE32" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.08" />
@@ -1199,7 +1199,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE33" edge="gneE33" slots="10" bus="B0" v2galloc="Average">
+<scs name="scs_gneE33" edge="gneE33" slots="10" bus="b0" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.07" />
@@ -1247,7 +1247,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE34" edge="gneE34" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE34" edge="gneE34" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.04" />
@@ -1295,7 +1295,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE35" edge="gneE35" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE35" edge="gneE35" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.03" />
@@ -1343,7 +1343,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE36" edge="gneE36" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE36" edge="gneE36" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.02" />
@@ -1391,7 +1391,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE37" edge="gneE37" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE37" edge="gneE37" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.08" />
@@ -1439,7 +1439,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE38" edge="gneE38" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE38" edge="gneE38" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.07" />
@@ -1487,7 +1487,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE39" edge="gneE39" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE39" edge="gneE39" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.05" />
@@ -1535,7 +1535,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE4" edge="gneE4" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE4" edge="gneE4" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.04" />
@@ -1583,7 +1583,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE40" edge="gneE40" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE40" edge="gneE40" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.05" />
@@ -1631,7 +1631,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE42" edge="gneE42" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE42" edge="gneE42" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.03" />
@@ -1679,7 +1679,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE5" edge="gneE5" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE5" edge="gneE5" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.08" />
@@ -1727,7 +1727,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE6" edge="gneE6" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE6" edge="gneE6" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.08" />
@@ -1775,7 +1775,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE7" edge="gneE7" slots="10" bus="B0" v2galloc="Average">
+<scs name="scs_gneE7" edge="gneE7" slots="10" bus="b0" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.06" />
@@ -1823,7 +1823,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE8" edge="gneE8" slots="10" bus="B1" v2galloc="Average">
+<scs name="scs_gneE8" edge="gneE8" slots="10" bus="b1" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.07" />
@@ -1871,7 +1871,7 @@
     <item btime="0" price="1.0" />
   </psell>
 </scs>
-<scs name="scs_gneE9" edge="gneE9" slots="10" bus="B2" v2galloc="Average">
+<scs name="scs_gneE9" edge="gneE9" slots="10" bus="b2" v2galloc="Average">
   <pbuy>
     <item btime="0" price="1.50" />
     <item btime="3600" price="1.07" />

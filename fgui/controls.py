@@ -77,11 +77,41 @@ class EditMode(StrEnum):
     PROP = "prop"
     PDFUNC = "pdfunc"
 
-class EditModeDirection(StrEnum):
-    UNDEFINED = "undefined"
-    ROW = "row"
-    COL = "col"
-    CELL = "cell"
+EditModeLike = Union[EditMode, str]
+
+def parseEditMode(em:str):
+    '''
+    (**Unsafe method**) Parse an EditMode-like string to (EditMode, dict[str, str])
+
+    An EditMode-like string is defined as an EditMode string (the values of EditMode enum) or something like
+        "mode={'key1':value1, 'key2':value2, ...}", where mode is an EditMode string, and keys and values represent the parameters
+    
+    Legal examples:
+    ```
+    rangelist
+    spin={'from': 1, 'to': 2}
+    combo={'values': ['item1', 'item2']}
+    rangelist={'hint_hms': True}
+    prop={
+        'edit_modes':{
+            'prop1': "spin={'from': 1, 'to': 2}",
+            'prop2': "combo={'values': ['item1', 'item2']}",
+        },
+        'default_mode':'entry',
+        'desc':{
+            'prop1': 'description of prop1',
+            'prop2': 'description of prop2',
+        }
+    }
+    ```
+    '''
+    eq_pos = em.find("=")
+    if eq_pos == -1:
+        return EditMode(em), {}
+    mode = em[:eq_pos]
+    pars = eval(em[eq_pos+1:])
+    assert isinstance(pars, dict), "EditMode string must be like 'mode={key1:value1, key2:value2, ...}'"
+    return mode, pars
 
 class LogItemPad(LabelFrame):
     def __init__(self, master, title:str, items:dict[str,str], **kwargs):
@@ -153,7 +183,6 @@ class ScrollableTreeView(Frame):
         self.tree.bind('<Double-1>', func=self.tree_item_edit)
         self.onSave = None
         self.edit_mode:'dict[str, tuple[str, Any, Callable[[tuple[Any,...], str],None]]]' = {}
-        self._emd = EditModeDirection.UNDEFINED
         self.delegate_widget = None
         self.selected_item = None
 
@@ -175,36 +204,46 @@ class ScrollableTreeView(Frame):
         return res
     
     def setColEditMode(self, col:str, mode:EditMode, **kwargs):
-        if self._emd not in [EditModeDirection.COL, EditModeDirection.UNDEFINED]:
-            raise ValueError(f"Cannot set column edit mode when edit mode == {self._emd}")
-        self._emd = EditModeDirection.COL
-        self.__setEditMode(col, mode, **kwargs)
+        self.__setEditMode("COL:" + col, mode, **kwargs)
     
     def setRowEditMode(self, row:str, mode:EditMode, **kwargs):
-        if self._emd not in [EditModeDirection.ROW, EditModeDirection.UNDEFINED]:
-            raise ValueError(f"Cannot set row edit mode when edit mode == {self._emd}")
-        self._emd = EditModeDirection.ROW
-        self.__setEditMode(row, mode, **kwargs)
+        self.__setEditMode("ROW:" + row, mode, **kwargs)
         print(row,mode)
     
     def setCellEditMode(self, row:str, col:str, mode:EditMode, **kwargs):
-        if self._emd not in [EditModeDirection.CELL, EditModeDirection.UNDEFINED]:
-            raise ValueError(f"Cannot set cell edit mode when edit mode == {self._emd}")
-        self._emd = EditModeDirection.CELL
-        self.__setEditMode(row + "@" + col, mode, **kwargs)
+        self.__setEditMode("CELL:" + row + "@" + col, mode, **kwargs)
     
     def clearEditModes(self):
-        self._emd = EditModeDirection.UNDEFINED
         self.edit_mode.clear()
     
-    def __setEditMode(self, label:str, mode:EditMode, *,
+    def __setEditMode(self, label:str, mode:EditModeLike, *,
             spin_from:int=1, spin_to:int=100, 
-            prop_edit_modes:Optional[dict[str, EditMode]] = None, 
-            prop_default_mode:EditMode = EditMode.ENTRY,
+            prop_edit_modes:Optional[dict[str, EditModeLike]] = None, 
+            prop_default_mode:EditModeLike = EditMode.ENTRY,
             prop_desc:Optional[dict[str, str]] = None,
             combo_values:Optional[list[str]] = None,
             rangelist_hint:bool = False, 
             post_func:Callable[[tuple[Any,...], str], None] = empty_postfunc):
+        if not isinstance(mode, EditMode):
+            mode, pars = parseEditMode(mode)
+            if mode == EditMode.SPIN:
+                spin_from = pars.get("from", spin_from)
+                assert isinstance(spin_from, int), "Spin from must be an integer"
+                spin_to = pars.get("to", spin_to)
+                assert isinstance(spin_to, int), "Spin to must be an integer"
+            elif mode == EditMode.COMBO:
+                combo_values = pars.get("values", combo_values)
+                assert isinstance(combo_values, (list, tuple)), "Combo values must be a list or tuple"
+            elif mode == EditMode.RANGELIST:
+                rangelist_hint = pars.get("hint_hms", rangelist_hint)
+                assert isinstance(rangelist_hint, bool), "Rangelist hint_hms must be a boolean"
+            elif mode == EditMode.PROP:
+                prop_edit_modes = pars.get("edit_modes", prop_edit_modes)
+                assert isinstance(prop_edit_modes, dict), "Property edit modes must be a dict[str, EditModeLike]"
+                prop_default_mode = pars.get("default_mode", prop_default_mode)
+                assert isinstance(prop_default_mode, (str, EditMode)), "Property default mode must be an EditMode or a str"
+                prop_desc = pars.get("prop_desc", prop_desc)
+                assert isinstance(prop_desc, dict), "Property description must be a dict[str, str]"
         if mode == EditMode.SPIN:
             self.edit_mode[label] = (mode, (spin_from, spin_to), post_func)
         elif mode == EditMode.COMBO:
@@ -246,18 +285,22 @@ class ScrollableTreeView(Frame):
             text = self.tree.item(self.selected_item, 'text')
         
         self.delegate_var.set(text)
-        if self._emd == EditModeDirection.COL:
-            if self.selected_column not in self.edit_mode or self.selected_column is None: return
-            label = self.selected_column
-        elif self._emd == EditModeDirection.ROW:
-            if selected_row not in self.edit_mode or selected_row is None: return
-            label = selected_row
-        elif self._emd == EditModeDirection.CELL:
-            if selected_row is None or self.selected_column is None: return
-            label = selected_row + "@" + self.selected_column
-            if label not in self.edit_mode: return
-        else:
-            return
+        possible_labels = []
+        if self.selected_column is not None and selected_row is not None:
+            possible_labels.append("CELL:" + selected_row + "@" + self.selected_column)
+        if self.selected_column is not None:
+            possible_labels.append("COL:" + self.selected_column)
+        if selected_row is not None:
+            possible_labels.append("ROW:" + selected_row)
+        
+        label = None
+        for lb in possible_labels:
+            if lb in self.edit_mode:
+                label = lb
+                break
+        
+        if label is None: return
+        
         mode_str, val, self.post_func = self.edit_mode[label]
         if mode_str == EditMode.COMBO:
             assert isinstance(val, (list, tuple))

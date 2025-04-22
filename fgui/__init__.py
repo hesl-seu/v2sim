@@ -8,7 +8,6 @@ from .controls import (
     PDFuncEditor,
     PropertyPanel,
     EditMode,
-    EditModeDirection,
     LogItemPad,
     empty_postfunc,
 )

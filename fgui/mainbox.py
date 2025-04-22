@@ -4,7 +4,7 @@ from queue import Empty, Queue
 import threading
 from typing import Any, Optional
 from .view import *
-from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE
+from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode
 from .network import NetworkPanel, OAfter
 from tkinter import filedialog
 from tkinter import messagebox as MB
@@ -14,11 +14,6 @@ from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
 import xml.etree.ElementTree as ET
 
-DEFAULT_PDN_ATTR = {
-    "SmartCharge": "NO",
-    "DecBuses":"",
-    "MLRP":"0.5",
-}
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
 
@@ -37,11 +32,16 @@ LOAD_NET = "Network"
 LOAD_CSCSV = "CS CSV"
 LOAD_PLG = "Plugins"
 LOAD_GEN = "Instance"
+EXT_COMP = "external_components"
 
     
 class PluginEditor(ScrollableTreeView):
     def __init__(self, master, onEnabledSet:Callable[[tuple[Any,...], str], None] = empty_postfunc, **kwargs):
         super().__init__(master, True, **kwargs)
+        self.sta_pool = StaPool()
+        self.plg_pool = PluginPool()
+        if Path(EXT_COMP).exists():
+            load_external_components(EXT_COMP, self.plg_pool, self.sta_pool)
         self.__onset = onEnabledSet
         self["show"] = 'headings'
         self["columns"] = ("Name", "Interval", "Enabled", "Online", "Extra")
@@ -58,7 +58,19 @@ class PluginEditor(ScrollableTreeView):
         self.setColEditMode("Interval", EditMode.SPIN, spin_from=1, spin_to=86400)
         self.setColEditMode("Enabled", EditMode.COMBO, combo_values=[SIM_YES, SIM_NO], post_func=onEnabledSet)
         self.setColEditMode("Online", EditMode.RANGELIST, rangelist_hint = True)
-        self.setColEditMode("Extra", EditMode.PROP)
+        self.setColEditMode("Extra", EditMode.DISABLED)
+    
+    def add(self, plg_name:str, interval:Union[int, str], enabled:str, online:Union[RangeList, str], extra:dict[str, Any]):
+        self.insert("", "end", values= (
+            plg_name, interval, enabled, online, repr(extra)
+        ))
+        plg_type = self.plg_pool.GetPluginType(plg_name)
+        assert issubclass(plg_type, PluginBase)
+        self.setCellEditMode(plg_name, "Extra", EditMode.PROP, 
+            prop_edit_modes = plg_type.ElemShouldHave().editor_dict(),
+            prop_desc = plg_type.ElemShouldHave().desc_dict(),
+            prop_default_mode = EditMode.ENTRY
+        )
         
 
 class CSEditorGUI(Frame):
@@ -1194,9 +1206,10 @@ class MainBox(Tk):
         if len(loads) == 0: frm.destroy()
     
     def _load_plugins(self):
-        has_pdn = False
-        pdn_enabled = False
-        has_v2g = False
+        
+        plg_set:set[str] = set()
+        plg_enabled_set:set[str] = set()
+
         self.sim_plglist.clear()
         assert self.state is not None
         if self.state.plg:
@@ -1209,36 +1222,48 @@ class MainBox(Tk):
                 showerr("Error loading plugins")
                 return
             for p in rt:
-                if p.tag.lower() == "pdn": 
-                    has_pdn = True
-                    attr = DEFAULT_PDN_ATTR.copy()
-                else:
-                    attr = {}
-                if p.tag.lower() == "v2g": has_v2g = True
+                try:
+                    plg_type = self.sim_plglist.plg_pool.GetPluginType(p.tag.lower())
+                except KeyError:
+                    showerr(f"Unknown plugin type: {p.tag}")
+                    continue
+                assert issubclass(plg_type, PluginBase), "Plugin type is not a subclass of PluginBase"
+
+                attr = plg_type.ElemShouldHave().default_value_dict()
+                plg_set.add(p.tag.lower())
+
+                # Check online attribute
                 olelem = p.find("online")
                 if olelem is not None: ol_str = RangeList(olelem)
                 else: ol_str = ALWAYS_ONLINE
+
+                # Check enabled attribute
                 enabled = p.attrib.pop("enabled", SIM_YES)
                 if enabled.upper() != SIM_NO:
                     enabled = SIM_YES
-                    if p.tag.lower() == "pdn": 
-                        pdn_enabled = True
+                    plg_enabled_set.add(p.tag.lower())
+                
+                # Check interval attribute
                 intv = p.attrib.pop("interval")
                 attr.update(p.attrib)
-                self.sim_plglist.insert("", "end", values=(
-                    p.tag, intv, enabled, ol_str, repr(attr)
-                ))
-        if not has_pdn:
-            self.sim_plglist.insert("", "end", values=("pdn", "300", SIM_YES, ALWAYS_ONLINE, repr(DEFAULT_PDN_ATTR)))
-            has_pdn = True
-            pdn_enabled = True
-        t = has_pdn and pdn_enabled
+                self.sim_plglist.add(p.tag, intv, enabled, ol_str, attr)
+
+        # Check if PDN exists
+        if "pdn" not in plg_set:
+            pdn_attr_default = PluginPDN.ElemShouldHave().default_value_dict()
+            self.sim_plglist.add("pdn", 300, SIM_YES, ALWAYS_ONLINE, pdn_attr_default)
+            plg_set.add("pdn")
+            plg_enabled_set.add("pdn")
+        
+        t = "pdn" in plg_set and "pdn" in plg_enabled_set
+
         for x in ("gen","bus","line","pvw","ess"):
             self.sim_statistic[x] = t
             self.sim_statistic.setEnabled(x, t)
-        if not has_v2g:
-            self.sim_plglist.insert("", "end", values=("v2g", "300", SIM_YES, ALWAYS_ONLINE, "{}"))
-            has_v2g = True
+        
+        # Check if V2G exists
+        if "v2g" not in plg_set:
+            self.sim_plglist.add("v2g", 300, SIM_YES, ALWAYS_ONLINE, {})
         if not self.state.plg:
             self.sim_plglist.save()
         
