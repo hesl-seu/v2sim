@@ -1,9 +1,8 @@
 libsumo
 numpy
 matplotlib
-gurobipy
 feasytools>=0.0.25
-fpowerkit>=0.1.6
+fpowerkit>=0.2.0
 pyproj
 requests
 ordered-set
