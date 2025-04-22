@@ -1,10 +1,28 @@
 # V2Sim: An Open-Source Microscopic V2G Simulation Platform in Urban Power and Transportation Network
 
-Paper on arXiv: https://arxiv.org/abs/2412.09808
+
+Paper link: https://ieeexplore.ieee.org/document/10970754
+
 
 [Click here to read the Wiki](https://github.com/fmy-xfk/v2sim/wiki) 
 
-V2Sim is a microscopic V2G simulation platform in urban power and transportation network. It is open-source under BSD license.
+V2Sim is a microscopic V2G simulation platform in urban power and transportation network. It is open-source under BSD license. 
+
+If you are using this platform, please cite the paper:
+```
+@ARTICLE{10970754,
+  author={Qian, Tao and Fang, Mingyu and Hu, Qinran and Shao, Chengcheng and Zheng, Junyi},
+  journal={IEEE Transactions on Smart Grid}, 
+  title={V2Sim: An Open-Source Microscopic V2G Simulation Platform in Urban Power and Transportation Network}, 
+  year={2025},
+  pages={1-1},
+  keywords={Vehicle-to-grid;Partial discharges;Microscopy;Batteries;Planning;Discharges (electric);Optimization;Vehicle dynamics;Transportation;Roads;EV charging load simulation;microscopic EV behavior;Vehicle-to-grid;charging station fault sensing},
+  doi={10.1109/TSG.2025.3560976}}
+```
+
+Another early version on arXiv is [here](https://arxiv.org/abs/2412.09808).
+
++ **Note**: Current version of V2Sim is ahead of the paper described. The exact older version used in the paper is [here](https://github.com/fmy-xfk/v2sim/commit/940ebd5d988f53fde90f4d83d107f136334952f9). The version used in arXiv is the initial commit.
 
 ## Quick Start
 
