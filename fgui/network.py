@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 from itertools import chain
+import os
 from queue import Queue
 import queue
 import threading
 from tkinter import messagebox as MB
+import PIL
+import PIL.Image
 from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
 from typing import Any, Callable, Iterable, Optional, Union
 from v2sim import ELGraph, Edge
@@ -105,6 +108,12 @@ class NetworkPanel(Frame):
         self.save_callback = save_callback
         self.__saved = True
     
+    def savefig(self, save_to:str):
+        if save_to.lower().endswith(".eps"):
+            self._cv.postscript(file = save_to)
+            return
+        raise RuntimeError("Only .eps format is supported")
+    
     def scale(self, x:float, y:float, s:float, item = 'all'):
         self._cv.scale(item, x, y, s, s)
         self._scale['k'] *= s
@@ -128,12 +137,13 @@ class NetworkPanel(Frame):
                 x, y = lon, lat
         else:
             x, y = lon, lat
+        y = -y
         return x * self._scale['k'] + self._scale['x'], y * self._scale['k'] + self._scale['y']
     
     def convXY2LL(self, x:float, y:float) -> tuple[float, float]:
         '''Convert canvas coordinates to longitude and latitude'''
         x = (x - self._scale['x'])/self._scale['k']
-        y = (y - self._scale['y'])/self._scale['k']
+        y = -(y - self._scale['y'])/self._scale['k']
         if self._r is None: return (x, y)
         try:
             return self._r.Net.convertXY2LonLat(x, y)
@@ -621,6 +631,7 @@ class NetworkPanel(Frame):
             self._cv.after('idle', self.__update_gui)
 
     def _draw_edge(self, shape:PointList, color:str, lw:float, ename:str):
+        shape = [(p[0], -p[1]) for p in shape]
         pid = self._cv.create_line(shape, fill=color, width=lw)
         self._items[pid] = itemdesc("edge", ename)
         self._Redges[ename] = pid

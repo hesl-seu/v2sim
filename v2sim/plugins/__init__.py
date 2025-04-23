@@ -15,7 +15,7 @@ class PluginError(Exception):
 
 class PluginPool:
     '''Plugin pool'''
-    def __init__(self,use_internal_plugins:bool = True):
+    def __init__(self, use_internal_plugins:bool = True):
         '''
         Initialize
             use_internal_plugins: Whether to load internal plugins

@@ -119,7 +119,10 @@ def csQuery(root:str, new_loc:str, ak:str, allyes:bool):
     detects = DetectFiles(root)
     tlbr = None
     if "net" in detects:
-        loc_elem = readXML(detects["net"]).getroot().find("location")
+        tr = readXML(detects["net"]).getroot()
+        if tr is None:
+            raise RuntimeError(f"Failed to load net file {detects['net']}")
+        loc_elem = tr.find("location")
         if loc_elem is not None:
             a,b,c,d = loc_elem.attrib["origBoundary"].split(",")
             tlbr = Rect(float(a),float(b),float(c),float(d))

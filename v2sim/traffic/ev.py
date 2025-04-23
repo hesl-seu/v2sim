@@ -17,11 +17,10 @@ class Trip:
         self.route = route
         if fixed_route:
             self.fixed_route = True
+        elif fixed_route is None:
+            self.fixed_route = len(route)>=2
         else:
-            if fixed_route is None:
-                self.fixed_route = len(route)>=2
-            else:
-                self.fixed_route = True
+            self.fixed_route = True
     
     @property
     def depart_edge(self):

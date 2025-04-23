@@ -1,8 +1,7 @@
-import bisect
 from enum import IntEnum, StrEnum
 import random, time, sumolib
-from typing import Literal, Optional
-from feasytools import ReadOnlyTable, PDFunc
+from typing import Optional, Union
+from feasytools import ReadOnlyTable, CDDiscrete, PDDiscrete, PDGamma
 import numpy as np
 
 from ..locale import Lang
@@ -10,13 +9,9 @@ from ..traffic import EV, EVDict, readXML, DetectFiles
 from .misc import VehicleType, random_diff, TripInner, _EV, _xmlSaver
 from .poly import PolygonMan
 
+DictPDF = dict[int, Union[PDDiscrete[int], None]]
 
-TAZ_TYPE_LIST = ["Home", "Work", "Relax", "Other"]
-def _type2strplace(type: int) -> str:
-    """
-    Convert 0, 1, 2, 3 to "Home", "Work", "Relax", "Other"
-    """
-    return TAZ_TYPE_LIST[type]
+TAZ_TYPE_LIST = ("Home", "Work", "Relax", "Other")
 
 class RoutingCacheMode(IntEnum):
     """Routing cache mode"""
@@ -25,7 +20,7 @@ class RoutingCacheMode(IntEnum):
     STATIC = 2 # Static cache in generation time
 
     def __str__(self):
-        return self.value
+        return ("None", "Runtime", "Static")[self.value]
 
     def __repr__(self):
         return self.value
@@ -75,6 +70,7 @@ class EVsGenerator:
                     name, lst = ln.split(":")
                     self.dic_taztype[name.strip()] = [x.strip() for x in lst.split(",")]
             root = readXML(_fn.taz).getroot()
+            if root is None: raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
             for taz in root.findall("taz"):
                 taz_id = taz.attrib["id"]
                 if "edges" in taz.attrib:
@@ -101,42 +97,43 @@ class EVsGenerator:
                     self.dic_taz[taz_id] = [eid]
         else:
             raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
+        
+        # Start time of first trip
+        self.pdf_start_weekday = PDGamma(6.63, 65.76, 114.54)
+        self.pdf_start_weekend = PDGamma(3.45, 84.37, 197.53)
+        
+        # Spatial transfer probability of weekday and weekend. 
+        # key1 = from_type, key2 = time (0~95, each unit = 15min), value = CDF of (to_type1, to_type2, to_type3, to_type4)
+        self.PSweekday:dict[str, DictPDF] = {}
+        self.PSweekend:dict[str, DictPDF] = {}
+        # Parking duration CDF of weekday and weekend.
+        self.park_cdf_wd:dict[str, CDDiscrete[int]] = {} 
+        self.park_cdf_we:dict[str, CDDiscrete[int]] = {}
 
-        # Read spatial transfer probability
-        self.PSweekday:dict[str,ReadOnlyTable] = {}
-        self.PSweekend:dict[str,ReadOnlyTable] = {}
-        self.cdfweekday:dict[str,ReadOnlyTable] = {}
-        self.cdfweekend:dict[str,ReadOnlyTable] = {}
+        def read_trans_pdfs(path:str) -> DictPDF:
+            tbwd = ReadOnlyTable(path, dtype=np.float32)
+            times = [int(x) for x in tbwd.head[1:]]
+            values = list(map(int, tbwd.col(0)))
+            ret:DictPDF = {}
+            for i in range(1, len(times)+1):
+                weights = list(map(float, tbwd.col(i)))
+                assert len(values) == len(weights)
+                try:
+                    ret[i] = PDDiscrete(values, weights)
+                except ZeroDivisionError:
+                    ret[i] = None
+            return ret
+        
         for dtype in TAZ_TYPE_LIST:
-            self.PSweekday[dtype] = ReadOnlyTable(
-                f"{CROOT}/space_transfer_probability/{dtype[0]}_spr_weekday.csv",
-                dtype=np.float32
-            )
-            self.PSweekend[dtype] = ReadOnlyTable(
-                f"{CROOT}/space_transfer_probability/{dtype[0]}_spr_weekend.csv",
-                dtype=np.float32
-            )
-            self.cdfweekday[dtype] = ReadOnlyTable(
-                f"{CROOT}/duration_of_parking/{dtype[0]}_spr_weekday.csv",
-                dtype=np.float32
-            )
-            self.cdfweekend[dtype] = ReadOnlyTable(
-                f"{CROOT}/duration_of_parking/{dtype[0]}_spr_weekend.csv",
-                dtype=np.float32
-            )
+            self.PSweekday[dtype] = read_trans_pdfs(f"{CROOT}/space_transfer_probability/{dtype[0]}_spr_weekday.csv")
+            self.PSweekend[dtype] = read_trans_pdfs(f"{CROOT}/space_transfer_probability/{dtype[0]}_spr_weekend.csv")
+            self.park_cdf_wd[dtype] = CDDiscrete(f"{CROOT}/duration_of_parking/{dtype[0]}_spr_weekday.csv", True, int)
+            self.park_cdf_we[dtype] = CDDiscrete(f"{CROOT}/duration_of_parking/{dtype[0]}_spr_weekend.csv", True, int)
 
-        soc_pdf:ReadOnlyTable[np.int32] = ReadOnlyTable(f"{CROOT}/soc_dist.csv",dtype=np.int32)
-        self.soc_vals:list[int] = soc_pdf.col("range").tolist() # type: ignore
-        self.soc_freq:list[int] = soc_pdf.col("freq").tolist() # type: ignore
+        self.soc_pdf = PDDiscrete.fromCSVFileI(f"{CROOT}/soc_dist.csv", True)
     
-    def __getPs(self, is_weekday: bool, dtype: str) -> ReadOnlyTable:
-        return self.PSweekday[dtype] if is_weekday else self.PSweekend[dtype]
-
-    def __getcdf(self, is_weekday: bool, dtype: str) -> ReadOnlyTable:
-        return self.cdfweekday[dtype] if is_weekday else self.cdfweekend[dtype]
-
-    def __genSoC(self):
-        return random.choices(self.soc_vals, self.soc_freq)[0] / 100.0
+    def __getPs(self, is_weekday: bool, dtype: str, time_index:int):
+        return self.PSweekday[dtype].get(time_index, None) if is_weekday else self.PSweekend[dtype].get(time_index, None)
     
     def __getDest1(self, pfr: str, weekday: bool = True):
         """
@@ -146,23 +143,13 @@ class EVsGenerator:
         Returns: 
             First trip: First departure time, arrival destination functional area type, such as "Work"
         """
-        while True:
-            while True:
-                if weekday:
-                    init_time = random.gammavariate(6.63, 65.76) + 114.54
-                else:
-                    init_time = random.gammavariate(3.45, 84.37) + 197.53
-                place = pfr
-                init_time_i = int(init_time / 15)
-                ps = self.__getPs(weekday, place)
-                if init_time_i < len(ps.head):
-                    break
-            data = ps.col(init_time_i)
-            cdf = np.cumsum(data)
-            if not cdf[3] == 0:
-                break
-        x = random.random()
-        next_place = _type2strplace(bisect.bisect_right(cdf, x))
+        pdf = None
+        while pdf is None:
+            init_time = self.pdf_start_weekday.sample() if weekday else self.pdf_start_weekend.sample()
+            # Time index (0~95, each unit = 15min)
+            init_time_i = int(init_time / 15)
+            pdf = self.__getPs(weekday, pfr, init_time_i)
+        next_place = TAZ_TYPE_LIST[pdf.sample()]
         return int(init_time), next_place
 
     def __getDestA(self, from_type:str, init_time_i:int, weekday: bool):
@@ -173,11 +160,8 @@ class EVsGenerator:
         Returns:
             Destination type
         """
-        data = self.__getPs(weekday, from_type).col(init_time_i)
-        cdf = np.cumsum(data) * 15
-        return ("Home" if cdf[3] == 0 else _type2strplace(
-            bisect.bisect_right(cdf, random.random())
-        ))
+        cdf = self.__getPs(weekday, from_type, init_time_i)
+        return "Home" if cdf is None else TAZ_TYPE_LIST[cdf.sample()]
 
     def __getNextTAZandPlace(self, from_TAZ:str, from_EDGE:str, next_place_type:str) -> tuple[str,str,list[str]]:
         trial = 0
@@ -237,10 +221,9 @@ class EVsGenerator:
 
     cdf_dict = {}
 
-    def __genStopTime(self, from_type, weekday: bool):
-        cdf = np.cumsum(self.__getcdf(weekday, from_type).col("0")) * 15
-        # The unit of stay time is 15min, extract the stay time
-        return bisect.bisect_right(cdf, random.random()) + 1
+    def __genStopTime(self, from_type:str, weekday: bool):
+        cdf = self.park_cdf_wd[from_type] if weekday else self.park_cdf_we[from_type]
+        return int(cdf.sample() + 1) * 15
 
     def __genTripA(
         self, trip_id, from_TAZ, from_type, from_EDGE, start_time, weekday: bool = True
@@ -319,13 +302,13 @@ class EVsGenerator:
         if trip2_3:
             ev.add_trip(daynum, trip2_3)
 
-    def __genEV(self, veh_id: str, **kwargs) -> _EV:
+    def __genEV(self, veh_id: str, day_count:int, **kwargs) -> _EV:
         '''
         Generate a full week of trips for a vehicle as an inner instance
         '''
-        ev = _EV(veh_id, random.choice(self.vTypes), self.__genSoC(), **kwargs)
+        ev = _EV(veh_id, random.choice(self.vTypes), self.soc_pdf.sample()/100.0, **kwargs)
         self.__genTripsChain1(ev)
-        for j in range(1, 8):
+        for j in range(1, day_count + 1):
             self.__genTripsChainA(ev, j)
         return ev
 
@@ -343,12 +326,13 @@ class EVsGenerator:
         return self.__genEV(veh_id, **kwargs).to_EV()
 
     def genEVs(
-        self, N: int, fname: Optional[str] = None, silent: bool = False, **kwargs
+        self, N: int, fname: Optional[str] = None, day_count: int = 7, silent: bool = False, **kwargs
     ) -> EVDict:
         """
         Generate EV and trips
             N: Number of vehicles
             fname: Saved file name (if None, not saved)
+            day_count: Number of days
             silent: Whether silent mode
             v2g_prop: Proportion of users willing to participate in V2G
             omega: PDFunc | None = None,
@@ -362,8 +346,8 @@ class EVsGenerator:
         saver = _xmlSaver(fname) if fname else None
         ret = EVDict()
         for i in range(0, N):
-            ev = self.__genEV("v" + str(i), 
-                cache_route = self._route_cache_mode == RoutingCacheMode.RUNTIME, **kwargs)
+            ev = self.__genEV("v" + str(i), day_count,
+                cache_route = self._route_cache_mode != RoutingCacheMode.NONE, **kwargs)
             ret.add(ev.to_EV())
             if saver:
                 saver.write(ev)

@@ -15,7 +15,10 @@ class EVDict(dict[str, EV]):
         super().__init__()
         if file_path is None:
             return
-        for veh in readXML(file_path).getroot():
+        rt = readXML(file_path).getroot()
+        if rt is None:
+            raise RuntimeError(f"Failed to load EV file {file_path}")
+        for veh in rt:
             trips: list[Trip] = []
             for trip in veh:
                 route = trip.attrib["route_edges"].split(" ")

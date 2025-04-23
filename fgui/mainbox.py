@@ -4,7 +4,7 @@ from queue import Empty, Queue
 import threading
 from typing import Any, Optional
 from .view import *
-from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE
+from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode
 from .network import NetworkPanel, OAfter
 from tkinter import filedialog
 from tkinter import messagebox as MB
@@ -14,11 +14,6 @@ from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
 import xml.etree.ElementTree as ET
 
-DEFAULT_PDN_ATTR = {
-    "SmartCharge": "NO",
-    "DecBuses":"",
-    "MLRP":"0.5",
-}
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
 
@@ -37,11 +32,16 @@ LOAD_NET = "Network"
 LOAD_CSCSV = "CS CSV"
 LOAD_PLG = "Plugins"
 LOAD_GEN = "Instance"
+EXT_COMP = "external_components"
 
     
 class PluginEditor(ScrollableTreeView):
     def __init__(self, master, onEnabledSet:Callable[[tuple[Any,...], str], None] = empty_postfunc, **kwargs):
         super().__init__(master, True, **kwargs)
+        self.sta_pool = StaPool()
+        self.plg_pool = PluginPool()
+        if Path(EXT_COMP).exists():
+            load_external_components(EXT_COMP, self.plg_pool, self.sta_pool)
         self.__onset = onEnabledSet
         self["show"] = 'headings'
         self["columns"] = ("Name", "Interval", "Enabled", "Online", "Extra")
@@ -58,7 +58,19 @@ class PluginEditor(ScrollableTreeView):
         self.setColEditMode("Interval", EditMode.SPIN, spin_from=1, spin_to=86400)
         self.setColEditMode("Enabled", EditMode.COMBO, combo_values=[SIM_YES, SIM_NO], post_func=onEnabledSet)
         self.setColEditMode("Online", EditMode.RANGELIST, rangelist_hint = True)
-        self.setColEditMode("Extra", EditMode.PROP)
+        self.setColEditMode("Extra", EditMode.DISABLED)
+    
+    def add(self, plg_name:str, interval:Union[int, str], enabled:str, online:Union[RangeList, str], extra:dict[str, Any]):
+        self.insert("", "end", values= (
+            plg_name, interval, enabled, online, repr(extra)
+        ))
+        plg_type = self.plg_pool.GetPluginType(plg_name)
+        assert issubclass(plg_type, PluginBase)
+        self.setCellEditMode(plg_name, "Extra", EditMode.PROP, 
+            prop_edit_modes = plg_type.ElemShouldHave().editor_dict(),
+            prop_desc = plg_type.ElemShouldHave().desc_dict(),
+            prop_default_mode = EditMode.ENTRY
+        )
         
 
 class CSEditorGUI(Frame):
@@ -827,6 +839,8 @@ class MainBox(Tk):
         self.btn_savegrid.pack(side='left',padx=3,pady=3, anchor='w')
         self.lb_puvalues = Label(self.panel_net, text=_L["PU_VALS"].format('Null','Null'))
         self.lb_puvalues.pack(side='left',padx=3,pady=3, anchor='w')
+        self.btn_savenetfig = Button(self.panel_net, text=_L["RNET_SAVE"], command=self.netsave)
+        self.btn_savenetfig.pack(side="right", padx=3, pady=3, anchor="e")
         self.btn_draw = Button(self.panel_net, text=_L["RNET_DRAW"], command=self.draw)
         self.btn_draw.pack(side="right", padx=3, pady=3, anchor="e")
         self.entry_Ledges = Entry(self.panel_net)
@@ -845,18 +859,23 @@ class MainBox(Tk):
         self.entry_carcnt = Entry(self.fr_veh_basic)
         self.entry_carcnt.insert(0, "10000")
         self.entry_carcnt.grid(row=0, column=1, padx=3, pady=3, sticky="w")
+        self.lb_daycnt = Label(self.fr_veh_basic, text=_L["VEH_DAY_COUNT"])
+        self.lb_daycnt.grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.entry_daycnt = Entry(self.fr_veh_basic)
+        self.entry_daycnt.insert(0, "7")
+        self.entry_daycnt.grid(row=1, column=1, padx=3, pady=3, sticky="w")
         self.lb_v2gprop = Label(self.fr_veh_basic, text=_L["VEH_V2GPROP"])
-        self.lb_v2gprop.grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.lb_v2gprop.grid(row=2, column=0, padx=3, pady=3, sticky="w")
         self.entry_v2gprop = Entry(self.fr_veh_basic)
         self.entry_v2gprop.insert(0, "1.00")
-        self.entry_v2gprop.grid(row=1, column=1, padx=3, pady=3, sticky="w")
+        self.entry_v2gprop.grid(row=2, column=1, padx=3, pady=3, sticky="w")
         self.lb_v2gprop_info = Label(self.fr_veh_basic, text=_L["VEH_V2GPROP_INFO"])
-        self.lb_v2gprop_info.grid(row=1, column=2, padx=3, pady=3, sticky="w")
+        self.lb_v2gprop_info.grid(row=2, column=2, padx=3, pady=3, sticky="w")
         self.lb_carseed = Label(self.fr_veh_basic, text=_L["VEH_SEED"])
-        self.lb_carseed.grid(row=2, column=0, padx=3, pady=3, sticky="w")
+        self.lb_carseed.grid(row=3, column=0, padx=3, pady=3, sticky="w")
         self.entry_carseed = Entry(self.fr_veh_basic)
         self.entry_carseed.insert(0, "0")
-        self.entry_carseed.grid(row=2, column=1, padx=3, pady=3, sticky="w")
+        self.entry_carseed.grid(row=3, column=1, padx=3, pady=3, sticky="w")
 
         self.veh_pars = PropertyPanel(self.tab_Veh, {
             "Omega":repr(PDUniform(5.0, 10.0)),
@@ -902,6 +921,21 @@ class MainBox(Tk):
         self.protocol("WM_DELETE_WINDOW", self.onDestroy)
         self.after(100, self._loop)
     
+    def netsave(self):
+        ret = filedialog.asksaveasfilename(
+            defaultextension=".eps",
+            filetypes=[
+                (_L["EXT_EPS"],".eps"),             
+            ]
+        )
+        if ret == "": return
+        try:
+            self.cv_net.savefig(ret)
+        except RuntimeError:
+            showerr(_L["RNET_SAVE_ERR"])
+            return
+        self.setStatus("Figure saved")
+
     def veh_par_edit(self, var:StringVar):
         def _f():
             e = PDFuncEditor(var)
@@ -1172,43 +1206,64 @@ class MainBox(Tk):
         if len(loads) == 0: frm.destroy()
     
     def _load_plugins(self):
-        has_pdn = False
-        pdn_enabled = False
-        has_v2g = False
+        
+        plg_set:set[str] = set()
+        plg_enabled_set:set[str] = set()
+
         self.sim_plglist.clear()
         assert self.state is not None
         if self.state.plg:
-            for p in readXML(self.state.plg).getroot():
-                if p.tag.lower() == "pdn": 
-                    has_pdn = True
-                    attr = DEFAULT_PDN_ATTR.copy()
-                else:
-                    attr = {}
-                if p.tag.lower() == "v2g": has_v2g = True
+            et = readXML(self.state.plg)
+            if et is None:
+                showerr("Error loading plugins")
+                return
+            rt = et.getroot()
+            if rt is None:
+                showerr("Error loading plugins")
+                return
+            for p in rt:
+                try:
+                    plg_type = self.sim_plglist.plg_pool.GetPluginType(p.tag.lower())
+                except KeyError:
+                    showerr(f"Unknown plugin type: {p.tag}")
+                    continue
+                assert issubclass(plg_type, PluginBase), "Plugin type is not a subclass of PluginBase"
+
+                attr = plg_type.ElemShouldHave().default_value_dict()
+                plg_set.add(p.tag.lower())
+
+                # Check online attribute
                 olelem = p.find("online")
                 if olelem is not None: ol_str = RangeList(olelem)
                 else: ol_str = ALWAYS_ONLINE
+
+                # Check enabled attribute
                 enabled = p.attrib.pop("enabled", SIM_YES)
                 if enabled.upper() != SIM_NO:
                     enabled = SIM_YES
-                    if p.tag.lower() == "pdn": 
-                        pdn_enabled = True
+                    plg_enabled_set.add(p.tag.lower())
+                
+                # Check interval attribute
                 intv = p.attrib.pop("interval")
                 attr.update(p.attrib)
-                self.sim_plglist.insert("", "end", values=(
-                    p.tag, intv, enabled, ol_str, repr(attr)
-                ))
-        if not has_pdn:
-            self.sim_plglist.insert("", "end", values=("pdn", "300", SIM_YES, ALWAYS_ONLINE, repr(DEFAULT_PDN_ATTR)))
-            has_pdn = True
-            pdn_enabled = True
-        t = has_pdn and pdn_enabled
+                self.sim_plglist.add(p.tag, intv, enabled, ol_str, attr)
+
+        # Check if PDN exists
+        if "pdn" not in plg_set:
+            pdn_attr_default = PluginPDN.ElemShouldHave().default_value_dict()
+            self.sim_plglist.add("pdn", 300, SIM_YES, ALWAYS_ONLINE, pdn_attr_default)
+            plg_set.add("pdn")
+            plg_enabled_set.add("pdn")
+        
+        t = "pdn" in plg_set and "pdn" in plg_enabled_set
+
         for x in ("gen","bus","line","pvw","ess"):
             self.sim_statistic[x] = t
             self.sim_statistic.setEnabled(x, t)
-        if not has_v2g:
-            self.sim_plglist.insert("", "end", values=("v2g", "300", SIM_YES, ALWAYS_ONLINE, "{}"))
-            has_v2g = True
+        
+        # Check if V2G exists
+        if "v2g" not in plg_set:
+            self.sim_plglist.add("v2g", 300, SIM_YES, ALWAYS_ONLINE, {})
         if not self.state.plg:
             self.sim_plglist.save()
         
@@ -1322,15 +1377,24 @@ class MainBox(Tk):
     
     def generateVeh(self):
         if not self.tg:
-            showerr("No traffic generator loaded")
+            showerr(_L["MSG_NO_TRAFFIC_GEN"])
             return
         if not self.__checkFolderOpened(): return
-        self.setStatus("Generating vehicles...")
+        self.setStatus(_L["STA_GEN_VEH"])
         try:
             carcnt = int(self.entry_carcnt.get())
+        except:
+            showerr(_L["MSG_INVALID_VEH_CNT"])
+            return
+        try:
             carseed = int(self.entry_carseed.get())
         except:
-            showerr("Invalid input")
+            showerr(_L["MSG_INVALID_VEH_SEED"])
+            return
+        try:
+            day_count = int(self.entry_daycnt.get())
+        except:
+            showerr(_L["MSG_INVALID_VEH_DAY_CNT"])
             return
         try:
             pars = self.veh_pars.getAllData()
@@ -1356,7 +1420,7 @@ class MainBox(Tk):
         def work():
             try:
                 assert self.tg
-                self.tg.EVTrips(carcnt, carseed, mode = mode, route_cache = route_cache, **new_pars)
+                self.tg.EVTrips(carcnt, carseed, day_count, mode = mode, route_cache = route_cache, **new_pars)
                 self._load([])
                 self._Q.put(("DoneOK", None))
             except Exception as e:

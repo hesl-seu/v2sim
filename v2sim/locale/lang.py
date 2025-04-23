@@ -104,7 +104,7 @@ Usage: python {} -i <input_file> -o <output_file> [-t <data_type>] [-h/help]
     ERROR_BAD_TYPE = "Error: Invalid data type '{}'."
     ERROR_NO_SUPPORTED_LANG = "Error: No supported language found."
     ERROR_UNSUPPORTED_LANG = "Error: Unsupported language '{}'."
-    ERROR_ILLEGAL_CMD = "Error: Illegal command line parameter '{}'."
+    ERROR_ILLEGAL_CMD = "Error: Illegal command line parameter :{}."
     ERROR_CANNOT_USE_TOGETHER = "Error: Options '{0}' and '{1}' cannot be used together."
     ERROR_UNKNOWN_CS_TYPE = "Error: Unknown charging station (CS) type '{}'"
     ERROR_CMD_NOT_SPECIFIED = "Error: Option '{}' must be specified."
@@ -132,6 +132,8 @@ Usage: python {} -i <input_file> -o <output_file> [-t <data_type>] [-h/help]
     ERROR_NO_TAZ_OR_POLY = "Error: No TAZ or polygon file found."
     ERROR_RANDOM_CANNOT_EXCLUDE = "Error: No element in the sequence is different from the excluded value"
     ERROR_ROUTE_NOT_FOUND = "Error: Unable to find a path from {0} to {1}"
+    ERROR_INVALID_CACHE_ROUTE = "Error: Invalid cache route: {0}"
+    ERROR_INVALID_TRIP_GEN_MODE = "Error: Invalid trip generation mode: {0}"
 
     WARN_EXT_LOAD_FAILED = "Warning: {0} is a Python file, but cannot be loaded as a package: {1}"
     WARN_EXT_INVALID_PLUGIN = "Warning: {0}'s plugin_exports is invalid, cannot be imported as a plugin: {1}"

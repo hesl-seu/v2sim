@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <root>
-<scs name="edge10_1" edge="edge10_1" slots="10" bus="B17" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge10_1" edge="edge10_1" slots="10" bus="b17" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -8,7 +8,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge10_6" edge="edge10_6" slots="10" bus="B25" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge10_6" edge="edge10_6" slots="10" bus="b25" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -16,7 +16,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge10_7" edge="edge10_7" slots="10" bus="B4" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge10_7" edge="edge10_7" slots="10" bus="b4" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -24,7 +24,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge11_12" edge="edge11_12" slots="10" bus="B30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge11_12" edge="edge11_12" slots="10" bus="b30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -32,7 +32,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge11_3" edge="edge11_3" slots="10" bus="B14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge11_3" edge="edge11_3" slots="10" bus="b14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -40,7 +40,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge11_8" edge="edge11_8" slots="10" bus="B27" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge11_8" edge="edge11_8" slots="10" bus="b27" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -48,7 +48,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge12_11" edge="edge12_11" slots="10" bus="B19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge12_11" edge="edge12_11" slots="10" bus="b19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -56,7 +56,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge12_13" edge="edge12_13" slots="10" bus="B6" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge12_13" edge="edge12_13" slots="10" bus="b6" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -64,7 +64,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge12_17" edge="edge12_17" slots="10" bus="B20" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge12_17" edge="edge12_17" slots="10" bus="b20" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -72,7 +72,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge12_35" edge="edge12_35" slots="10" bus="B24" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge12_35" edge="edge12_35" slots="10" bus="b24" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -80,7 +80,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge13_12" edge="edge13_12" slots="10" bus="B1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge13_12" edge="edge13_12" slots="10" bus="b1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -88,7 +88,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge13_14" edge="edge13_14" slots="10" bus="B18" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge13_14" edge="edge13_14" slots="10" bus="b18" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -96,7 +96,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge13_21" edge="edge13_21" slots="10" bus="B12" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge13_21" edge="edge13_21" slots="10" bus="b12" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -104,7 +104,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge13_8" edge="edge13_8" slots="10" bus="B5" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge13_8" edge="edge13_8" slots="10" bus="b5" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -112,7 +112,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge14_13" edge="edge14_13" slots="10" bus="B10" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge14_13" edge="edge14_13" slots="10" bus="b10" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -120,7 +120,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge14_15" edge="edge14_15" slots="10" bus="B22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge14_15" edge="edge14_15" slots="10" bus="b22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -128,7 +128,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge14_17" edge="edge14_17" slots="10" bus="B9" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge14_17" edge="edge14_17" slots="10" bus="b9" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -136,7 +136,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge15_14" edge="edge15_14" slots="10" bus="B16" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge15_14" edge="edge15_14" slots="10" bus="b16" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -144,7 +144,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge15_16" edge="edge15_16" slots="10" bus="B1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge15_16" edge="edge15_16" slots="10" bus="b1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -152,7 +152,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge15_20" edge="edge15_20" slots="10" bus="B31" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge15_20" edge="edge15_20" slots="10" bus="b31" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -160,7 +160,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge16_15" edge="edge16_15" slots="10" bus="B11" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge16_15" edge="edge16_15" slots="10" bus="b11" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -168,7 +168,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge16_17" edge="edge16_17" slots="10" bus="B33" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge16_17" edge="edge16_17" slots="10" bus="b33" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -176,7 +176,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge16_19" edge="edge16_19" slots="10" bus="B7" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge16_19" edge="edge16_19" slots="10" bus="b7" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -184,7 +184,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge16_31" edge="edge16_31" slots="10" bus="B1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge16_31" edge="edge16_31" slots="10" bus="b1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -192,7 +192,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge17_12" edge="edge17_12" slots="10" bus="B28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge17_12" edge="edge17_12" slots="10" bus="b28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -200,7 +200,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge17_14" edge="edge17_14" slots="10" bus="B3" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge17_14" edge="edge17_14" slots="10" bus="b3" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -208,7 +208,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge17_16" edge="edge17_16" slots="10" bus="B25" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge17_16" edge="edge17_16" slots="10" bus="b25" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -216,7 +216,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge17_32" edge="edge17_32" slots="10" bus="B31" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge17_32" edge="edge17_32" slots="10" bus="b31" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -224,7 +224,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge17_35" edge="edge17_35" slots="10" bus="B9" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge17_35" edge="edge17_35" slots="10" bus="b9" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -232,7 +232,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge18_19" edge="edge18_19" slots="10" bus="B28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge18_19" edge="edge18_19" slots="10" bus="b28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -240,7 +240,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge18_29" edge="edge18_29" slots="10" bus="B27" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge18_29" edge="edge18_29" slots="10" bus="b27" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -248,7 +248,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge18_37" edge="edge18_37" slots="10" bus="B8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge18_37" edge="edge18_37" slots="10" bus="b8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -256,7 +256,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge19_16" edge="edge19_16" slots="10" bus="B24" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge19_16" edge="edge19_16" slots="10" bus="b24" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -264,7 +264,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge19_18" edge="edge19_18" slots="10" bus="B20" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge19_18" edge="edge19_18" slots="10" bus="b20" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -272,7 +272,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge19_20" edge="edge19_20" slots="10" bus="B2" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge19_20" edge="edge19_20" slots="10" bus="b2" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -280,7 +280,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge19_25" edge="edge19_25" slots="10" bus="B24" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge19_25" edge="edge19_25" slots="10" bus="b24" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -288,7 +288,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge1_10" edge="edge1_10" slots="10" bus="B2" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge1_10" edge="edge1_10" slots="10" bus="b2" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -296,7 +296,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge1_2" edge="edge1_2" slots="10" bus="B11" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge1_2" edge="edge1_2" slots="10" bus="b11" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -304,7 +304,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge1_5" edge="edge1_5" slots="10" bus="B13" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge1_5" edge="edge1_5" slots="10" bus="b13" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -312,7 +312,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge20_15" edge="edge20_15" slots="10" bus="B28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge20_15" edge="edge20_15" slots="10" bus="b28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -320,7 +320,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge20_19" edge="edge20_19" slots="10" bus="B28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge20_19" edge="edge20_19" slots="10" bus="b28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -328,7 +328,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge20_21" edge="edge20_21" slots="10" bus="B12" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge20_21" edge="edge20_21" slots="10" bus="b12" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -336,7 +336,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge20_25" edge="edge20_25" slots="10" bus="B19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge20_25" edge="edge20_25" slots="10" bus="b19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -344,7 +344,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge21_13" edge="edge21_13" slots="10" bus="B7" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge21_13" edge="edge21_13" slots="10" bus="b7" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -352,7 +352,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge21_20" edge="edge21_20" slots="10" bus="B30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge21_20" edge="edge21_20" slots="10" bus="b30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -360,7 +360,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge21_22" edge="edge21_22" slots="10" bus="B3" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge21_22" edge="edge21_22" slots="10" bus="b3" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -368,7 +368,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge21_24" edge="edge21_24" slots="10" bus="B19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge21_24" edge="edge21_24" slots="10" bus="b19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -376,7 +376,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge22_21" edge="edge22_21" slots="10" bus="B15" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge22_21" edge="edge22_21" slots="10" bus="b15" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -384,7 +384,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge22_23" edge="edge22_23" slots="10" bus="B14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge22_23" edge="edge22_23" slots="10" bus="b14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -392,7 +392,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge22_7" edge="edge22_7" slots="10" bus="B12" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge22_7" edge="edge22_7" slots="10" bus="b12" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -400,7 +400,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge23_22" edge="edge23_22" slots="10" bus="B8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge23_22" edge="edge23_22" slots="10" bus="b8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -408,7 +408,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge23_24" edge="edge23_24" slots="10" bus="B22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge23_24" edge="edge23_24" slots="10" bus="b22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -416,7 +416,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge23_28" edge="edge23_28" slots="10" bus="B5" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge23_28" edge="edge23_28" slots="10" bus="b5" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -424,7 +424,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge23_6" edge="edge23_6" slots="10" bus="B4" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge23_6" edge="edge23_6" slots="10" bus="b4" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -432,7 +432,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge24_21" edge="edge24_21" slots="10" bus="B27" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge24_21" edge="edge24_21" slots="10" bus="b27" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -440,7 +440,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge24_23" edge="edge24_23" slots="10" bus="B14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge24_23" edge="edge24_23" slots="10" bus="b14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -448,7 +448,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge24_25" edge="edge24_25" slots="10" bus="B15" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge24_25" edge="edge24_25" slots="10" bus="b15" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -456,7 +456,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge24_27" edge="edge24_27" slots="10" bus="B31" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge24_27" edge="edge24_27" slots="10" bus="b31" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -464,7 +464,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge25_19" edge="edge25_19" slots="10" bus="B15" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge25_19" edge="edge25_19" slots="10" bus="b15" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -472,7 +472,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge25_20" edge="edge25_20" slots="10" bus="B6" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge25_20" edge="edge25_20" slots="10" bus="b6" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -480,7 +480,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge25_24" edge="edge25_24" slots="10" bus="B7" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge25_24" edge="edge25_24" slots="10" bus="b7" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -488,7 +488,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge25_26" edge="edge25_26" slots="10" bus="B31" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge25_26" edge="edge25_26" slots="10" bus="b31" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -496,7 +496,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge25_29" edge="edge25_29" slots="10" bus="B19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge25_29" edge="edge25_29" slots="10" bus="b19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -504,7 +504,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge26_25" edge="edge26_25" slots="10" bus="B20" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge26_25" edge="edge26_25" slots="10" bus="b20" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -512,7 +512,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge26_27" edge="edge26_27" slots="10" bus="B1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge26_27" edge="edge26_27" slots="10" bus="b1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -520,7 +520,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge26_30" edge="edge26_30" slots="10" bus="B32" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge26_30" edge="edge26_30" slots="10" bus="b32" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -528,7 +528,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge27_24" edge="edge27_24" slots="10" bus="B3" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge27_24" edge="edge27_24" slots="10" bus="b3" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -536,7 +536,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge27_26" edge="edge27_26" slots="10" bus="B15" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge27_26" edge="edge27_26" slots="10" bus="b15" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -544,7 +544,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge27_28" edge="edge27_28" slots="10" bus="B32" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge27_28" edge="edge27_28" slots="10" bus="b32" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -552,7 +552,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge28_23" edge="edge28_23" slots="10" bus="B28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge28_23" edge="edge28_23" slots="10" bus="b28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -560,7 +560,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge28_27" edge="edge28_27" slots="10" bus="B30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge28_27" edge="edge28_27" slots="10" bus="b30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -568,7 +568,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge28_5" edge="edge28_5" slots="10" bus="B14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge28_5" edge="edge28_5" slots="10" bus="b14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -576,7 +576,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge29_18" edge="edge29_18" slots="10" bus="B14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge29_18" edge="edge29_18" slots="10" bus="b14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -584,7 +584,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge29_25" edge="edge29_25" slots="10" bus="B23" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge29_25" edge="edge29_25" slots="10" bus="b23" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -592,7 +592,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge29_30" edge="edge29_30" slots="10" bus="B21" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge29_30" edge="edge29_30" slots="10" bus="b21" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -600,7 +600,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge29_37" edge="edge29_37" slots="10" bus="B7" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge29_37" edge="edge29_37" slots="10" bus="b7" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -608,7 +608,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge2_1" edge="edge2_1" slots="10" bus="B33" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge2_1" edge="edge2_1" slots="10" bus="b33" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -616,7 +616,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge2_3" edge="edge2_3" slots="10" bus="B5" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge2_3" edge="edge2_3" slots="10" bus="b5" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -624,7 +624,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge2_8" edge="edge2_8" slots="10" bus="B26" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge2_8" edge="edge2_8" slots="10" bus="b26" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -632,7 +632,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge30_26" edge="edge30_26" slots="10" bus="B28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge30_26" edge="edge30_26" slots="10" bus="b28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -640,7 +640,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge30_29" edge="edge30_29" slots="10" bus="B33" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge30_29" edge="edge30_29" slots="10" bus="b33" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -648,7 +648,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge30_9" edge="edge30_9" slots="10" bus="B30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge30_9" edge="edge30_9" slots="10" bus="b30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -656,7 +656,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge31_16" edge="edge31_16" slots="10" bus="B8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge31_16" edge="edge31_16" slots="10" bus="b8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -664,7 +664,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge31_32" edge="edge31_32" slots="10" bus="B1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge31_32" edge="edge31_32" slots="10" bus="b1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -672,7 +672,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge31_37" edge="edge31_37" slots="10" bus="B19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge31_37" edge="edge31_37" slots="10" bus="b19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -680,7 +680,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge31_9" edge="edge31_9" slots="10" bus="B5" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge31_9" edge="edge31_9" slots="10" bus="b5" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -688,7 +688,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge32_17" edge="edge32_17" slots="10" bus="B10" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge32_17" edge="edge32_17" slots="10" bus="b10" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -696,7 +696,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge32_31" edge="edge32_31" slots="10" bus="B10" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge32_31" edge="edge32_31" slots="10" bus="b10" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -704,7 +704,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge32_33" edge="edge32_33" slots="10" bus="B30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge32_33" edge="edge32_33" slots="10" bus="b30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -712,7 +712,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge32_34" edge="edge32_34" slots="10" bus="B8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge32_34" edge="edge32_34" slots="10" bus="b8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -720,7 +720,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge33_32" edge="edge33_32" slots="10" bus="B7" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge33_32" edge="edge33_32" slots="10" bus="b7" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -728,7 +728,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge33_34" edge="edge33_34" slots="10" bus="B19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge33_34" edge="edge33_34" slots="10" bus="b19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -736,7 +736,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge33_35" edge="edge33_35" slots="10" bus="B30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge33_35" edge="edge33_35" slots="10" bus="b30" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -744,7 +744,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge33_4" edge="edge33_4" slots="10" bus="B18" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge33_4" edge="edge33_4" slots="10" bus="b18" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -752,7 +752,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge34_32" edge="edge34_32" slots="10" bus="B19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge34_32" edge="edge34_32" slots="10" bus="b19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -760,7 +760,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge34_33" edge="edge34_33" slots="10" bus="B32" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge34_33" edge="edge34_33" slots="10" bus="b32" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -768,7 +768,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge34_36" edge="edge34_36" slots="10" bus="B23" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge34_36" edge="edge34_36" slots="10" bus="b23" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -776,7 +776,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge35_12" edge="edge35_12" slots="10" bus="B5" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge35_12" edge="edge35_12" slots="10" bus="b5" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -784,7 +784,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge35_17" edge="edge35_17" slots="10" bus="B21" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge35_17" edge="edge35_17" slots="10" bus="b21" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -792,7 +792,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge35_33" edge="edge35_33" slots="10" bus="B1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge35_33" edge="edge35_33" slots="10" bus="b1" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -800,7 +800,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge35_4" edge="edge35_4" slots="10" bus="B20" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge35_4" edge="edge35_4" slots="10" bus="b20" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -808,7 +808,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge36_34" edge="edge36_34" slots="10" bus="B13" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge36_34" edge="edge36_34" slots="10" bus="b13" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -816,7 +816,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge36_9" edge="edge36_9" slots="10" bus="B8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge36_9" edge="edge36_9" slots="10" bus="b8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -824,7 +824,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge37_18" edge="edge37_18" slots="10" bus="B22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge37_18" edge="edge37_18" slots="10" bus="b22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -832,7 +832,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge37_29" edge="edge37_29" slots="10" bus="B22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge37_29" edge="edge37_29" slots="10" bus="b22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -840,7 +840,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge37_31" edge="edge37_31" slots="10" bus="B12" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge37_31" edge="edge37_31" slots="10" bus="b12" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -848,7 +848,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge3_11" edge="edge3_11" slots="10" bus="B18" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge3_11" edge="edge3_11" slots="10" bus="b18" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -856,7 +856,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge3_2" edge="edge3_2" slots="10" bus="B11" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge3_2" edge="edge3_2" slots="10" bus="b11" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -864,7 +864,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge3_4" edge="edge3_4" slots="10" bus="B13" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge3_4" edge="edge3_4" slots="10" bus="b13" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -872,7 +872,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge4_3" edge="edge4_3" slots="10" bus="B22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge4_3" edge="edge4_3" slots="10" bus="b22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -880,7 +880,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge4_33" edge="edge4_33" slots="10" bus="B19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge4_33" edge="edge4_33" slots="10" bus="b19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -888,7 +888,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge4_35" edge="edge4_35" slots="10" bus="B19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge4_35" edge="edge4_35" slots="10" bus="b19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -896,7 +896,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge5_1" edge="edge5_1" slots="10" bus="B8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge5_1" edge="edge5_1" slots="10" bus="b8" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -904,7 +904,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge5_28" edge="edge5_28" slots="10" bus="B11" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge5_28" edge="edge5_28" slots="10" bus="b11" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -912,7 +912,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge5_6" edge="edge5_6" slots="10" bus="B2" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge5_6" edge="edge5_6" slots="10" bus="b2" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -920,7 +920,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge6_10" edge="edge6_10" slots="10" bus="B4" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge6_10" edge="edge6_10" slots="10" bus="b4" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -928,7 +928,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge6_23" edge="edge6_23" slots="10" bus="B18" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge6_23" edge="edge6_23" slots="10" bus="b18" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -936,7 +936,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge6_5" edge="edge6_5" slots="10" bus="B3" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge6_5" edge="edge6_5" slots="10" bus="b3" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -944,7 +944,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge6_7" edge="edge6_7" slots="10" bus="B14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge6_7" edge="edge6_7" slots="10" bus="b14" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -952,7 +952,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge7_10" edge="edge7_10" slots="10" bus="B33" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge7_10" edge="edge7_10" slots="10" bus="b33" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -960,7 +960,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge7_22" edge="edge7_22" slots="10" bus="B9" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge7_22" edge="edge7_22" slots="10" bus="b9" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -968,7 +968,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge7_6" edge="edge7_6" slots="10" bus="B11" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge7_6" edge="edge7_6" slots="10" bus="b11" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -976,7 +976,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge7_8" edge="edge7_8" slots="10" bus="B23" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge7_8" edge="edge7_8" slots="10" bus="b23" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -984,7 +984,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge8_11" edge="edge8_11" slots="10" bus="B9" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge8_11" edge="edge8_11" slots="10" bus="b9" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -992,7 +992,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge8_13" edge="edge8_13" slots="10" bus="B22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge8_13" edge="edge8_13" slots="10" bus="b22" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -1000,7 +1000,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge8_2" edge="edge8_2" slots="10" bus="B19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge8_2" edge="edge8_2" slots="10" bus="b19" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -1008,7 +1008,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge8_7" edge="edge8_7" slots="10" bus="B27" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge8_7" edge="edge8_7" slots="10" bus="b27" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -1016,7 +1016,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge9_30" edge="edge9_30" slots="10" bus="B28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge9_30" edge="edge9_30" slots="10" bus="b28" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -1024,7 +1024,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge9_31" edge="edge9_31" slots="10" bus="B25" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge9_31" edge="edge9_31" slots="10" bus="b25" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>
@@ -1032,7 +1032,7 @@
   <item btime="0" price="0.9" />
 </psell>
 </scs>
-<scs name="edge9_36" edge="edge9_36" slots="10" bus="B20" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
+<scs name="edge9_36" edge="edge9_36" slots="10" bus="b20" x="inf" y="inf" max_pc="200.00" max_pd="1000.00" pc_alloc="Average" pd_alloc="Average">
 <pbuy>
   <item btime="0" price="0.8" />
 </pbuy>

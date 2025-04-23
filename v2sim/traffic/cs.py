@@ -523,15 +523,12 @@ class FCS(CS):
             return self._chi.__len__()
         else:
             return self._chi.__len__() + len(self._buf)
-        
-    def _cntva(self):
-        return self._chi.__len__() + len(self._buf)
     
     def vehicles(self):
         return chain(self._chi, self._buf)
     
     def averageSOC(self, ev_dict:EVDict, include_waiting:bool = True) -> float:
-        n = self._cntva()
+        n = self.__len__()
         if n == 0: return 0.0
         lst = chain(self._chi, self._buf) if include_waiting else self._chi
         return sum([ev_dict[veh_id].SOC for veh_id in lst]) / n

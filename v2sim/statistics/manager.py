@@ -163,6 +163,30 @@ class TimeSeg:
             ret.vals.extend(self.vals[l:r+1])
         return ret
     
+    def average(self, tl:int, tr:int)->float:
+        if len(self.vals) == 0:
+            return 0
+        if tl == tr:
+            return self.value_at(tl)
+        lp = bisect.bisect_left(self.time, tl)
+        rp = bisect.bisect_right(self.time, tr)
+        if lp == len(self.time):
+            return 0
+        if rp == 0:
+            return 0
+        if lp == rp:
+            return self.vals[lp]
+        s = 0
+        if self.time[lp] > tl and lp > 0:
+            s = self.vals[lp - 1] * (self.time[lp] - tl)
+        for i in range(lp,rp):
+            if len(self.time) <= i+1:
+                s += self.vals[i] * (tr - self.time[i])
+            else:
+                s += self.vals[i] * (self.time[i+1] - self.time[i])
+        s/=(tr-tl)
+        return s
+    
     @staticmethod
     def quicksum(*v:'TimeSeg')->'TimeSeg':
         ret = TimeSeg()
