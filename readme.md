@@ -22,7 +22,9 @@ If you are using this platform, please cite the paper:
 
 Another early version on arXiv is [here](https://arxiv.org/abs/2412.09808).
 
-+ **Note**: Current version of V2Sim is ahead of the paper described. The exact older version used in the paper is [here](https://github.com/fmy-xfk/v2sim/commit/940ebd5d988f53fde90f4d83d107f136334952f9). The version used in arXiv is the initial commit.
++ **Note**: Current code of V2Sim is ahead of the paper described. The exact older code used in the paper is [here](https://github.com/fmy-xfk/v2sim/commit/940ebd5d988f53fde90f4d83d107f136334952f9). The code used in arXiv is the initial commit.
+
++ **Note 2**: Code of PDN part is not included in the repository, it is stored in another repository: [FPowerKit](https://gitee.com/fmy_xfk/fpowerkit).
 
 ## Quick Start
 
