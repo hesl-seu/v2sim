@@ -1,7 +1,7 @@
 from collections import defaultdict
 from itertools import chain
 from feasytools import TimeImplictFunc
-from fpowerkit import Grid, FloatVar, GridSolveResult, CombinedSolver, LoadReduceModule
+from fpowerkit import Grid, FloatVar, GridSolveResult, CombinedSolver, Estimator, Calculator
 
 from ..locale import CustomLocaleLib
 from ..traffic import DetectFiles, CS
@@ -85,8 +85,8 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         if elem.get("SmartCharge", "NO") == "NO":
             decs.clear()
         self.__sol = CombinedSolver(self.__gr,
-            estimator=elem.get("estimator","distflow"),
-            calculator=elem.get("calculator", "none"),
+            estimator=Estimator(elem.get("estimator","DistFlow")),
+            calculator=Calculator(elem.get("calculator", "None")),
             mlrp=float(elem.get("MLRP","0.5")),
             source_bus=elem.get("source_bus", ""),
         )
