@@ -5,6 +5,7 @@ External Plugin Example:
 '''
 from v2sim import CustomLocaleLib
 from v2sim.plugins import *
+from v2sim.statistics import *
 
 _locale = CustomLocaleLib(["zh_CN","en"])
 _locale.SetLanguageLib("zh_CN",
@@ -33,6 +34,20 @@ class DemoExternalPlugin(PluginBase):
         '''The execution function of the plugin at time _t'''
         raise NotImplementedError
 
+class DemoStatisticItem(StaBase):
+    @property
+    def Description(self)->str:
+        return _locale["DESCRIPTION"]
+    
+    def __init__(self, name:str, path:str, items:list[str], tinst:TrafficInst, 
+            plugins:dict[str,PluginBase], precision:dict[str, int]={}, compress:bool=True):
+        super().__init__(name, path, items, tinst, plugins, precision, compress)
+        raise NotImplementedError
+
+    def GetData(self, inst:TrafficInst, plugins:dict[str,PluginBase]) -> Iterable[Any]: 
+        '''Get Data'''
+        raise NotImplementedError
+
 '''
 Set export variables
   plugin_exports = (Plugin name, Plugin class, Plugin dependency list(can be empty))
@@ -41,3 +56,4 @@ If you don't export the statistic item, please don't set sta_exports
 '''
 
 plugin_exports = ("demo", DemoExternalPlugin, ["pdn"])
+sta_exports = ("demo", DemoStatisticItem)

@@ -61,9 +61,11 @@ class PluginPDN(PluginBase[float], IGridPlugin):
     @staticmethod
     def ElemShouldHave() -> ConfigDict:
         '''Get the plugin configuration item list'''
+        EST = f"'{Estimator.DistFlow.value}'"
+        CAL = f"'{Calculator.OpenDSS.value}','{Calculator.Newton.value}','{Calculator.NoneSolver.value}'"
         return ConfigDict([
-            PluginConfigItem("estimator", "combo={'values': ['distflow']}", "Estimator of the solver, must be 'distflow'", "distflow"),
-            PluginConfigItem("calculator", "combo={'values': ['opendss','newton','none']}", "Calculator of the solver, can be 'opendss', 'newton' or 'none'", "none"),
+            PluginConfigItem("estimator", "combo={'values': ["+EST+"]}", f"Estimator of the solver, must be {EST}", Estimator.DistFlow.value),
+            PluginConfigItem("calculator", "combo={'values': ["+CAL+"]}", f"Calculator of the solver, can be {CAL}", Calculator.NoneSolver.value),
             PluginConfigItem("MLRP", "entry", "Maximum load reduction percentage", 0.5),
             PluginConfigItem("source_bus", "entry", "Source bus of the grid", ""),
             PluginConfigItem("DecBuses", "entry", "List of buses for load reduction, separated by commas", ""),
