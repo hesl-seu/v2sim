@@ -30,13 +30,13 @@ Another early version on arXiv is [here](https://arxiv.org/abs/2412.09808).
 
 ### A. Setup the environment
 
-1. Setup Python: Visit `https://www.python.org/download` to get Python (version 3.12 or above recommended).
+1. Setup Python: Visit `https://www.python.org/download` to get Python (version 3.12 is recommended. Newer version may meet libsumo compability problem, and older version cannot run this program noramlly).
 
-2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get the newest version of SUMO.
+2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get SUMO (version 1.20 and above are recommended. Some users have reported that SUMO 1.23.1 may have difficulty calling libsumo).
 
 3. Setup cvxpy and ECOS if you want to use power grid simulation within V2Sim, using `pip install cvxpy ecos`. Note that these two packages are not included in the requirements.txt.
 
-4. Setup necessary packages. Ensure you have installed `pip` together with Python.
+4. Setup necessary packages. Ensure you have installed `pip` together with Python. Note: As for package `libsumo`, its version must be same as the vesion of SUMO!
 ```bash
 pip install -r requirements.txt
 ```
