@@ -30,7 +30,7 @@ Another early version on arXiv is [here](https://arxiv.org/abs/2412.09808).
 
 ### A. Setup the environment
 
-1. Setup Python: Visit `https://www.python.org/download` to get Python (version 3.12 is recommended. Newer version may meet libsumo compability problem, and older version cannot run this program noramlly).
+1. Setup Python: Visit `https://www.python.org/download` to get Python (version 3.12 is recommended. Newer version may meet libsumo compability problem, and older version cannot run this program normally).
 
 2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get SUMO (version 1.20 and above are recommended. Some users have reported that SUMO 1.23.1 may have difficulty calling libsumo).
 
