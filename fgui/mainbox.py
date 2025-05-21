@@ -1062,6 +1062,9 @@ class MainBox(Tk):
                     for d in data:
                         attr = {"interval":str(d[1]), "enabled":str(d[2])}
                         attr.update(eval(d[4]))
+                        for k,v in attr.items():
+                            if not isinstance(v, str):
+                                attr[k] = str(v)
                         e = ET.Element(d[0], attr)
                         if d[3] != ALWAYS_ONLINE:
                             ol = ET.Element("online")
