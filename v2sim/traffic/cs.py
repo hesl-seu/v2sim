@@ -171,6 +171,16 @@ class CS(ABC):
     def to_xml(self) -> str: ...
 
     @property
+    def x(self) -> float:
+        """X-coordinate of the charging station"""
+        return self._x
+    
+    @property
+    def y(self) -> float:
+        """Y-coordinate of the charging station"""
+        return self._y
+    
+    @property
     def name(self) -> str:
         """Charging station name"""
         return self._name

@@ -1,8 +1,8 @@
 import gzip
-from pathlib import Path
-import pickle
-from queue import Queue
 import threading, os
+import pickle
+from pathlib import Path
+from queue import Queue
 from typing import Literal, Optional
 from fgui.view import *
 from fgui import ScrollableTreeView, TripsFrame
@@ -10,10 +10,7 @@ from v2sim import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
 from tkinter import filedialog
 from tkinter import messagebox as MB
 from PIL import Image, ImageTk
-from v2sim.traffic.cs import CS
-from v2sim.traffic.cslist import CSList
-from v2sim.traffic.ev import EV
-from v2sim.traffic.evdict import EVDict
+from v2sim import CS, CSList, EV, EVDict
 
 _L = CustomLocaleLib.LoadFromFolder("resources/gui_viewer")
 

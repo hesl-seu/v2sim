@@ -4,8 +4,7 @@ from typing import Any, Callable, Iterable, Optional
 from feasytools import RangeList, SegFunc, CreatePDFunc
 from feasytools.pdf import *
 from tkinter import messagebox as MB
-from v2sim import CustomLocaleLib, PDFunc
-from fpowerkit import Bus, Line, Generator, PVWind
+from v2sim import CustomLocaleLib
 
 _loc = CustomLocaleLib(["zh_CN","en"])
 _loc.SetLanguageLib("zh_CN",

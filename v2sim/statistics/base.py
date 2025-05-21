@@ -1,6 +1,8 @@
 from abc import abstractmethod
 from typing import Any, Iterable
+from pathlib import Path
 from ..plugins import *
+from ..traffic import TrafficInst
 
 def cross_list(a:Iterable[str],b:Iterable[str])->list[str]:
     '''Generate cross table header'''

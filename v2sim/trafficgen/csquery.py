@@ -1,7 +1,7 @@
 from typing import Any, Optional, Union, overload
 from pathlib import Path
 import time, json, requests
-from ..traffic import CheckFile, DetectFiles, readXML
+from ..traffic import CheckFile, DetectFiles, ReadXML
 
 
 class CS:
@@ -119,7 +119,7 @@ def csQuery(root:str, new_loc:str, ak:str, allyes:bool):
     detects = DetectFiles(root)
     tlbr = None
     if "net" in detects:
-        tr = readXML(detects["net"]).getroot()
+        tr = ReadXML(detects["net"]).getroot()
         if tr is None:
             raise RuntimeError(f"Failed to load net file {detects['net']}")
         loc_elem = tr.find("location")

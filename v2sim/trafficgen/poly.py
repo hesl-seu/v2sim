@@ -1,7 +1,8 @@
 import random
 from typing import Optional
 from xml.etree.ElementTree import Element
-from ..traffic import Point, readXML
+from feasytools import Point
+from ..traffic import ReadXML
 
 class Polygon:
     def __init__(self, elem:Element):
@@ -50,7 +51,7 @@ class Polygon:
 class PolygonMan:
     def __init__(self, file:str):
         self.polygons:list[Polygon] = []
-        rt = readXML(file).getroot()
+        rt = ReadXML(file).getroot()
         if rt is None:
             raise RuntimeError(f"Failed to load polygon file {file}")
         for elem in rt:

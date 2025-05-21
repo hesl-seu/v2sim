@@ -5,7 +5,7 @@ from feasytools import ReadOnlyTable, CDDiscrete, PDDiscrete, PDGamma
 import numpy as np
 
 from ..locale import Lang
-from ..traffic import EV, EVDict, readXML, DetectFiles
+from ..traffic import EV, EVDict, ReadXML, DetectFiles
 from .misc import VehicleType, random_diff, TripInner, _EV, _xmlSaver
 from .poly import PolygonMan
 
@@ -69,7 +69,7 @@ class EVsGenerator:
                 for ln in fp.readlines():
                     name, lst = ln.split(":")
                     self.dic_taztype[name.strip()] = [x.strip() for x in lst.split(",")]
-            root = readXML(_fn.taz).getroot()
+            root = ReadXML(_fn.taz).getroot()
             if root is None: raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
             for taz in root.findall("taz"):
                 taz_id = taz.attrib["id"]

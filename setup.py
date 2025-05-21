@@ -10,7 +10,7 @@ with open("readme.md", "r", encoding="utf8") as f:
 
 setup(
     name="v2sim",
-    version="1.0.0",
+    version="1.1.0",
     author="fmy_xfk",
     packages=find_packages(include=["v2sim", "v2sim.*"]),
     description="V2Sim: An Open-Source Microscopic V2G Simulation Platform in Urban Power and Transportation Network",
@@ -23,7 +23,7 @@ setup(
     ],
     python_requires=">=3.12",
     install_requires=[
-        "feasytools>=0.0.29",
+        "feasytools>=0.0.30",
         "fpowerkit>=0.3.2",
         "gurobipy",
         "numpy",

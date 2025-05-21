@@ -1,11 +1,16 @@
+
+from pathlib import Path
+from typing import Literal, Optional, Union, Iterable
 import bisect
-from typing import Literal, Optional, Union
+from warnings import warn
 import matplotlib
 matplotlib.use("agg")
-from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 from matplotlib.ticker import MultipleLocator, ScalarFormatter
+from feasytools import SegFunc
 from .reader import *
+from ..locale import Lang
 
 PLOT_ALL_CHARGE = Lang.PLOT_STR_ALL
 PLOT_FAST_CHARGE = Lang.PLOT_STR_FAST
@@ -117,7 +122,7 @@ class AdvancedPlot:
             d = se.SCS_net_load_all(tl,tr)
         else:
             raise ValueError(f"Unsupported domain '{domain}'")
-        x,y = TimeSeg.cross_interpolate(d)
+        x,y = SegFunc.cross_interpolate(d)
         return x,y,se.FCS_head if domain.startswith("fcs") else se.SCS_head
 
     def load_series(self, path:Union[str, ReadOnlyStatistics]):
@@ -132,7 +137,7 @@ class AdvancedPlot:
             self.__series[path.root] = path
             self.max_tr = max(self.max_tr, path.LastTime)
     
-    def get_series(self, series:str) -> TimeSeg:
+    def get_series(self, series:str) -> SegFunc:
         s = series.split("|")
         if len(s) == 2:
             path,domain = s
@@ -260,13 +265,13 @@ class AdvancedPlot:
         if linewidth is not None:
             kwargs["linewidth"] = linewidth
         data = self.calc_expr(expr)
-        assert isinstance(data, TimeSeg)
+        assert isinstance(data, SegFunc)
         if side == "left":
-            self.ax.plot(*data(), **kwargs)
+            self.ax.plot(data.time, data.data, **kwargs)
         else:
             self.check_right()
             assert isinstance(self.ax2, Axes)
-            self.ax2.plot(*data(), **kwargs)
+            self.ax2.plot(data.time, data.data, **kwargs)
         self.__setticks()
     
     def __setticks(self):
@@ -330,7 +335,10 @@ class AdvancedPlot:
 
     def legend(self,loc:str="upper right",ncol:int=1):
         assert self.fig is not None
-        self.fig.legend(loc=loc, bbox_to_anchor=(1, 1), bbox_transform=self.ax.transAxes,ncol=ncol)
+        if len(self.ax.get_legend_handles_labels()[1]) > 100:
+            warn("Too many legend entries (>100). The legend will not be shown.")
+        else:
+            self.fig.legend(loc=loc, bbox_to_anchor=(1, 1), bbox_transform=self.ax.transAxes,ncol=ncol)
 
     def hline(self,y:float,color:str="black",linestyle:str="--",linewidth:float=1.5):
         self.ax.axhline(y=y,color=color,linestyle=linestyle,linewidth=linewidth)

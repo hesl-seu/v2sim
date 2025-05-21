@@ -1,5 +1,5 @@
 from feasytools import CreateRangeList
-from .utils import readXML
+from .utils import ReadXML
 from .params import *
 from .ev import EV, Trip
 
@@ -15,7 +15,7 @@ class EVDict(dict[str, EV]):
         super().__init__()
         if file_path is None:
             return
-        rt = readXML(file_path).getroot()
+        rt = ReadXML(file_path).getroot()
         if rt is None:
             raise RuntimeError(f"Failed to load EV file {file_path}")
         for veh in rt:
