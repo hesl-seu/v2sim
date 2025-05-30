@@ -4,12 +4,13 @@ import random, string, gzip
 from typing import Optional
 from xml.etree import ElementTree as ET
 from ..locale import Lang
+from typing import List, Tuple
 
-IntPairList = list[tuple[int, int]]
+IntPairList = List[Tuple[int, int]]
 #IntPairList.__doc__ = "List of int pairs, like [(1, 2), (3, 4)]"
-PriceList = tuple[list[int], list[float]]
+PriceList = Tuple[List[int], List[float]]
 #PriceList.__doc__ = "Price list, like ([1, 2], [3.0, 4.0]), where the first list is the time and the second list is the price"
-TWeights = tuple[float, float, float]
+TWeights = Tuple[float, float, float]
 #TWeights.__doc__ = "Tuple of three weights, like (1.0, 2.0, 3.0)"
 _letters = string.ascii_letters + string.digits
 

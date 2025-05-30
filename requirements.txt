@@ -1,7 +1,7 @@
 libsumo
 numpy
 matplotlib
-feasytools>=0.0.30
+feasytools>=0.1.0rc2
 fpowerkit>=0.3.2
 pyproj
 requests

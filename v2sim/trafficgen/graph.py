@@ -1,4 +1,4 @@
-from typing import DefaultDict, List, Dict
+from typing import DefaultDict, List, Dict, Set, Tuple
 import threading
 import sumolib
 from feasytools import EdgeFinder, Point
@@ -8,8 +8,6 @@ Node = sumolib.net.node.Node
 Conn = sumolib.net.connection.Connection
 import matplotlib
 matplotlib.use('Agg')
-from matplotlib.axes import Axes
-import matplotlib.pyplot as plt
 from ..locale import Lang
 from ..traffic import LoadFCS, LoadSCS
 
@@ -22,7 +20,7 @@ def _largeStackExec(func, *args):
     th.join()
 
 class _TarjanSCC:
-    def __init__(self, n:int, gl:list[list[int]]):
+    def __init__(self, n:int, gl:List[List[int]]):
         self.dfn: List[int] = [0] * n
         self.low: List[int] = [0] * n
         self.dfncnt = 0
@@ -85,7 +83,7 @@ class RoadNetConnectivityChecker:
         self.all_edges:List[Edge] = self._net.getEdges()
         self.all_edgeIDs:List[str] = [e.getID() for e in self.all_edges]
         self._id2num:dict[str, int] = {e:i for i,e in enumerate(self.all_edgeIDs)}
-        gl:list[list[int]] = [[] for _ in range(len(self.all_edges))]
+        gl:List[List[int]] = [[] for _ in range(len(self.all_edges))]
         for e in self.all_edges:
             e: Edge
             if not e.allows("passenger"): continue
@@ -99,9 +97,9 @@ class RoadNetConnectivityChecker:
         self.edgeIDs:List[str] = [self.all_edgeIDs[x] for x in tscc.max_scc]
         self.edges:List[Edge] = [self._net.getEdge(e) for e in self.edgeIDs]
         
-        self.edgeIDset:set[str] = set(self.edgeIDs)
-        bad_fcs:set[str] = set()
-        bad_scs:set[str] = set()
+        self.edgeIDset:Set[str] = set(self.edgeIDs)
+        bad_fcs:Set[str] = set()
+        bad_scs:Set[str] = set()
         for e in self._net.getEdges():
             eid:str = e.getID()
             if eid in self._fcs_names and eid not in self.edgeIDset:
@@ -202,4 +200,4 @@ class RoadNetConnectivityChecker:
         '''CS edges that are not in the largest strongly connected component'''
         return self.unreachable_CS
 
-PointList = list[tuple[float, float]]
+PointList = List[Tuple[float, float]]

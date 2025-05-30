@@ -176,9 +176,7 @@ class StaReader:
         if table_name not in self.__items:
             raise ValueError(f"Table '{table_name}' not found")
         if item not in self.__items[table_name]:
-            ts = SegFunc()
-            ts.add(0,0)
-            return ts
+            return SegFunc([(0, 0.0)])
             #raise ValueError(f"Item '{item}' not found in table '{table_name}'")
         return self.__items[table_name][item]
     

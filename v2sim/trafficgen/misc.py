@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import gzip, random
-from typing import Any, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Union
 from feasytools.pdf import *
 from ..locale import Lang
 from ..traffic import EV,Trip
@@ -25,11 +25,11 @@ def random_diff(seq:Sequence[Any], exclude:Any):
         ret = random.choice(seq)
     return ret
 
-class TripInner:
+class _TripInner:
     def __init__(self, trip_id:str, depart_time:Union[str,int], from_TAZ:str, from_EDGE:str,
-            to_TAZ:str, to_EDGE:str, route:list[str], next_type_place:str, fixed_route:Optional[bool]=None):
+            to_TAZ:str, to_EDGE:str, route:List[str], next_type_place:str, fixed_route:Optional[bool]=None):
         self.id = trip_id
-        self.DPTT = int(depart_time)
+        self.DPTT = int(depart_time) # departure time in seconds since midnight
         self.frE = from_EDGE
         self.frTAZ = from_TAZ
         self.toE = to_EDGE
@@ -39,31 +39,40 @@ class TripInner:
         self.NTP = next_type_place
         self.fixed_route = fixed_route
     
-    def to_xml(self, daynum:int) -> str:
-        return (f'\n<trip id="{self.id}" depart="{(self.DPTT)*60+86400*daynum}" ' + 
+    def toXML(self, daynum:int) -> str:
+        return (f'\n<trip id="{self.id}" depart="{self.DPTT + 86400 * daynum}" ' + 
             f'fromTaz="{self.frTAZ}" toTaz="{self.toTAZ}" route_edges="{" ".join(self.route)}" ' + 
             f'fixed_route="{self.fixed_route}" />')
     
-    def to_Trip(self, daynum:int) -> Trip:
+    def toTrip(self, daynum:int) -> Trip:
         return Trip(self.id, self.DPTT * 60 + 86400 * daynum, self.frTAZ, self.toTAZ, self.route)
+
+PDFuncLike = Union[None, float, PDFunc]
+def _impl_PDFuncLike(x:PDFuncLike, default:PDFunc) -> float:
+    if x is None:
+        return default.sample()
+    elif isinstance(x, float):
+        return x
+    elif isinstance(x, PDFunc):
+        return x.sample()
+    raise TypeError("x must be None, float or PDFunc")
     
-    
-class _EV:
+class _EVInner:
     """
     EV class used to generate trips
     """
 
-    def __init__(self, veh_id: str, vT:VehicleType, soc:float, v2g_prop:float, 
-        omega:Optional[PDFunc] = None, krel:Optional[PDFunc] = None,
-        ksc:Optional[PDFunc] = None, kfc:Optional[PDFunc] = None, 
-        kv2g:Optional[PDFunc] = None, cache_route:bool = False,
+    def __init__(self, veh_id: str, vT:VehicleType, soc:float, v2g_prop:float = 1.0+1e-4, 
+        omega:PDFuncLike = None, krel:PDFuncLike = None,
+        ksc:PDFuncLike = None, kfc:PDFuncLike = None, 
+        kv2g:PDFuncLike = None, cache_route:bool = False,
     ):
         '''
         Initialize EV object
             veh_id: Vehicle ID
             vT: Vehicle type
             soc: State of charge
-            v2g_prop: Proportion of V2G capable vehicles
+            v2g_prop: Vehicle's probability of being able to V2G. Value >= 1.0 means always V2G.
             omega: PDF for omega. None for random uniform between 5 and 10.
                 omega indicates the user's sensitivity to the cost of charging. Bigger omega means less sensitive.
             krel: PDF for krel. None for random uniform between 1 and 1.2.
@@ -83,23 +92,55 @@ class _EV:
         self.efc_rate_kW = vT.efc_rate_kW
         self.esc_rate_kW = vT.esc_rate_kW
         self.max_v2g_rate_kW = vT.max_V2G_kW
-        self.omega = omega.sample() if omega else random.uniform(5.0, 10.0)
-        self.krel = krel.sample() if krel else random.uniform(1.0, 1.2)
-        self.ksc = ksc.sample() if ksc else random.uniform(0.4, 0.6)
-        self.kfc = kfc.sample() if kfc else random.uniform(0.2, 0.25)
+        self.omega = _impl_PDFuncLike(omega, PDUniform(5.0, 10.0))
+        self.krel = _impl_PDFuncLike(krel, PDUniform(1.0, 1.2))
+        self.ksc = _impl_PDFuncLike(ksc, PDUniform(0.4, 0.6))
+        self.kfc = _impl_PDFuncLike(kfc, PDUniform(0.2, 0.25))
         self.cache_route = cache_route
-        if random.random() < v2g_prop:
-            self.kv2g = kv2g.sample() if kv2g else random.uniform(0.65, 0.75)
+        if v2g_prop >= 1.0 or random.random() < v2g_prop:
+            self.kv2g = _impl_PDFuncLike(kv2g, PDUniform(0.65, 0.75))
         else:
             self.kv2g = 1 + 1e-4
-        self.trips:list[TripInner] = []
-        self.daynum:list[int] = []
-
-    def add_trip(self, daynum: int, trip_dict: TripInner):
+        self.trips:List[_TripInner] = []
+        self.daynum:List[int] = []
+    
+    def _add_trip(self, daynum: int, trip_dict: _TripInner):
         self.daynum.append(daynum)
         self.trips.append(trip_dict)
+    
+    def addTrip(self, trip_id:str, depart_time:int, from_TAZ:str, from_edge:str, to_TAZ:str, to_edge:str,
+            route:List[str], fixed_route:Optional[bool] = None, daynum:int = -1):
+        '''
+        Add a trip to the EV.
+            trip_id: Unique trip ID
+            depart_time: Departure time in seconds since midnight of the day.
+                When it is less than 86400 and `daynum` >= 0, it is considered as in the day specified by `daynum`.
+                Otherwise, it is considered as the exact time in seconds since simulation start.
+            from_TAZ: Origin TAZ ID
+            from_EDGE: Origin edge ID
+            to_TAZ: Destination TAZ ID
+            to_EDGE: Destination edge ID
+            route: List of edge IDs representing the route, should have at least 2 elements.
+                When the route has only 2 elements, it is considered only the start and end edges.
+            fixed_route: Whether the route is fixed or not.
+                True means the route is fixed.
+                False means the route is not fixed and must be recalculated every time the trip is used.
+                None means it is not specified. Whether the route is fixed or not will be determined by the simulation.
+            daynum: Day number, starting from 0. -1 means the trip is not in a specific day and `depart_time` is the exact time since simulation start.
+        Raises:
+            AssertionError: If `daynum` is specified and `depart_time` is not less than 86400.
+        '''
+        if daynum < 0:
+            daynum = depart_time // 86400
+            depart_time = depart_time % 86400
+        else:
+            assert 0 <= depart_time and depart_time < 86400, "When daynum is specified, depart_time must be less than 86400."
+        self.daynum.append(daynum)
+        depart_time = int(depart_time) if isinstance(depart_time, str) else depart_time
+        self.trips.append(_TripInner(trip_id, depart_time, from_TAZ, from_edge, 
+            to_TAZ, to_edge, route, "", fixed_route))
 
-    def to_xml(self) -> str:
+    def toXML(self) -> str:
         ret = (
             f'<vehicle id="{self.vehicle_id}" soc="{self.soc:.4f}" bcap="{self.bcap:.4f}" c="{self.consump_Whpm:.8f}"'
             + f' rf="{self.efc_rate_kW:.4f}" rs="{self.esc_rate_kW:.4f}" rv="{self.max_v2g_rate_kW:.4f}" omega="{self.omega:.6f}"'
@@ -107,12 +148,12 @@ class _EV:
             + f' eta_c="0.9" eta_d="0.9" rmod="Linear" cache_route="{self.cache_route}">'
         )
         for d, tr in zip(self.daynum, self.trips):
-            ret += tr.to_xml(d)
+            ret += tr.toXML(d)
         ret += "\n</vehicle>\n"
         return ret
 
-    def to_EV(self) -> EV:
-        trips = [m.to_Trip(daynum) for m, daynum in zip(self.trips, self.daynum)]
+    def toEV(self) -> EV:
+        trips = [m.toTrip(daynum) for m, daynum in zip(self.trips, self.daynum)]
         return EV(
             self.vehicle_id,
             trips,
@@ -144,8 +185,8 @@ class _xmlSaver:
             self.a = open(path, "w")
         self.a.write("<root>\n")
 
-    def write(self, e: _EV):
-        self.a.write(e.to_xml())
+    def write(self, e: _EVInner):
+        self.a.write(e.toXML())
 
     def close(self):
         self.a.write("</root>")

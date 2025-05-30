@@ -1,4 +1,4 @@
-from feasytools import CreateRangeList
+from feasytools import RangeList
 from .utils import ReadXML
 from .params import *
 from .ev import EV, Trip
@@ -56,9 +56,9 @@ class EVDict(dict[str, EV]):
                 attr.get("ks", DEFAULT_SLOW_CHARGE_THRESHOLD),
                 attr.get("kv", DEFAULT_KV2G),
                 veh.attrib.get("rmod", DEFAULT_RMOD),
-                CreateRangeList(elem_sctime),
+                RangeList(elem_sctime),
                 attr.get("max_sc_cost", DEFAULT_MAX_SC_COST),
-                CreateRangeList(elem_v2gtime),
+                RangeList(elem_v2gtime),
                 attr.get("min_v2g_earn", DEFAULT_MIN_V2G_EARN),
                 veh.attrib.get("cache_route", "false").lower() == "true",
             ))

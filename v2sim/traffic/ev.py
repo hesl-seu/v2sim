@@ -1,7 +1,7 @@
 from __future__ import annotations
 import enum, math
 from typing import Callable, Iterable, Union, Optional
-from feasytools import RangeList, CreateRangeList
+from feasytools import RangeList
 from .utils import IntPairList
 
 
@@ -120,10 +120,10 @@ class EV:
         self._eta_discharge = eta_d     # Discharge efficiency
         self._chrate_mod = ChargeRatePool.get(rmod)
                                         # Charging rate correction function
-        self._sc_time = CreateRangeList(sc_time) 
+        self._sc_time = sc_time if isinstance(sc_time, RangeList) else RangeList(sc_time)
                                         # RangeList of slow charging time, None means all day
         self._max_sc_cost = max_sc_cost # Maximum slow charging cost, $/kWh
-        self._v2g_time = CreateRangeList(v2g_time)
+        self._v2g_time = v2g_time if isinstance(v2g_time, RangeList) else RangeList(v2g_time)
                                         # RangeList of V2G time, None means all day
         self._min_v2g_earn = min_v2g_earn
                                         # Minimum V2G cost, $/kWh

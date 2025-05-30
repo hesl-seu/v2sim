@@ -4,4 +4,7 @@ from .core import (
 )
 from .csquery import csQuery
 from .graph import RoadNetConnectivityChecker
-from .tripgen import EVsGenerator, RoutingCacheMode, TripsGenMode
+from .tripgen import (
+    EVsGenerator, ManualEVsGenerator,
+    RoutingCacheMode, TripsGenMode,
+)
