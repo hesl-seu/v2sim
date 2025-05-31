@@ -1,6 +1,6 @@
 from __future__ import annotations
 import enum, math
-from typing import Callable, Iterable, Union, Optional
+from typing import Callable, Iterable, List, Tuple, Union, Optional
 from feasytools import RangeList
 from .utils import IntPairList
 

@@ -1,5 +1,5 @@
 from itertools import repeat
-from typing import Iterable, Type, Union, Optional, TypeVar, Generic, List
+from typing import Iterable, Sequence, Type, Union, Optional, TypeVar, Generic, List
 from feasytools import RangeList, KDTree, Point
 from ..locale import Lang
 from .utils import ReadXML
@@ -11,9 +11,9 @@ T_CS = TypeVar("T_CS", FCS, SCS)
 CS_Type = Type[T_CS]
 
 
-def _LoadCSList(filePath:str, csType:CS_Type) -> List[CS]:
+def _LoadCSList(filePath:str, csType:CS_Type) -> List[T_CS]:
     assert csType == FCS or csType == SCS
-    _cs:List[CS] = []
+    _cs = []
     root = ReadXML(filePath).getroot()
     if root is None: raise ValueError("Invalid CS file")
     for cs_node in root:
@@ -56,7 +56,7 @@ LoadCSList = _LoadCSList
 
 class CSList(Generic[T_CS]):
     """CS List. Index starts from 0."""
-    _cs: list[T_CS]
+    _cs: List[T_CS]
 
     def __iter__(self):
         return self._cs.__iter__()
@@ -65,7 +65,7 @@ class CSList(Generic[T_CS]):
         self,
         ev_dict_to_bind: EVDict,
         *,
-        csList: Optional[list[T_CS]] = None,
+        csList: Optional[List[T_CS]] = None,
         filePath: Optional[str] = None,
         csType: CS_Type = FCS,
     ):
