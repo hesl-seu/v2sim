@@ -1,6 +1,7 @@
-import importlib
-import queue, shutil, signal, time, sys
-from typing import Any, Optional
+import gzip
+import pickle
+import importlib, os, queue, shutil, signal, time, sys
+from typing import Any, Optional, Union
 from feasytools import ArgChecker, time2str#, FEasyTimer
 from pathlib import Path
 from .plotkit import AdvancedPlot
@@ -8,7 +9,8 @@ from .plugins import *
 from .statistics import *
 from .traffic import *
 from .locale import Lang
-from .trafficgen import TrafficGenerator, ELGraph
+from .trafficgen import TrafficGenerator, RoadNetConnectivityChecker
+from .traffic.inst import traci
 
 def load_external_components(
     external_plugin_dir: str, plugin_pool: PluginPool, sta_pool: StaPool
@@ -220,7 +222,7 @@ class V2SimInstance:
         if not proj_cfg.cfg:
             raise FileNotFoundError(Lang.ERROR_SUMO_CONFIG_NOT_SPECIFIED)
         sumocfg_file = proj_cfg.cfg
-        _stt, _edt, _rnet = get_sim_config(sumocfg_file)
+        _stt, _edt, _rnet = GetTimeAndNetwork(sumocfg_file)
         self.__print(f"  SUMO: {sumocfg_file}")
 
         # Detect road network file
@@ -235,7 +237,7 @@ class V2SimInstance:
                 rnet_file = str(rnet_file)
             else:
                 raise FileNotFoundError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
-        elg = ELGraph(rnet_file)
+        elg = RoadNetConnectivityChecker(rnet_file)
         elg.checkBadCS()
         self.__print(Lang.INFO_NET.format(rnet_file))
         

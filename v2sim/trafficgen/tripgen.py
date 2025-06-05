@@ -1,12 +1,12 @@
 from enum import IntEnum, StrEnum
 import random, time, sumolib
-from typing import Optional, Union
-from feasytools import ReadOnlyTable, CDDiscrete, PDDiscrete, PDGamma
+from typing import Dict, List, Optional, Union
+from feasytools import ReadOnlyTable, CDDiscrete, PDDiscrete, PDGamma, DTypeEnum
 import numpy as np
 
 from ..locale import Lang
-from ..traffic import EV, EVDict, readXML, DetectFiles
-from .misc import VehicleType, random_diff, TripInner, _EV, _xmlSaver
+from ..traffic import EV, EVDict, ReadXML, DetectFiles
+from .misc import VehicleType, random_diff, _TripInner, _EVInner, _xmlSaver
 from .poly import PolygonMan
 
 DictPDF = dict[int, Union[PDDiscrete[int], None]]
@@ -51,7 +51,7 @@ class EVsGenerator:
         """
         _fn = DetectFiles(PNAME)
         random.seed(seed)
-        self.vTypes = [VehicleType(**x) for x in ReadOnlyTable(CROOT + "/ev_types.csv",dtype=np.float32).to_list_of_dict()]
+        self.vTypes = [VehicleType(**x) for x in ReadOnlyTable(CROOT + "/ev_types.csv",dtype=DTypeEnum.FLOAT32).to_list_of_dict()]
         # Define various functional area types
         self._route_cache_mode = route_cache
         self.__route_cache:dict[tuple[str,str], list[str]] = {}
@@ -69,7 +69,7 @@ class EVsGenerator:
                 for ln in fp.readlines():
                     name, lst = ln.split(":")
                     self.dic_taztype[name.strip()] = [x.strip() for x in lst.split(",")]
-            root = readXML(_fn.taz).getroot()
+            root = ReadXML(_fn.taz).getroot()
             if root is None: raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
             for taz in root.findall("taz"):
                 taz_id = taz.attrib["id"]
@@ -80,8 +80,8 @@ class EVsGenerator:
         elif mode == TripsGenMode.POLY:
             assert _fn.poly and _fn.net and _fn.fcs, Lang.ERROR_NO_TAZ_OR_POLY
             self._mode = "poly"
-            from .graph import ELGraph
-            net = ELGraph(_fn.net, _fn.fcs)
+            from .graph import RoadNetConnectivityChecker
+            net = RoadNetConnectivityChecker(_fn.net, _fn.fcs)
             polys = PolygonMan(_fn.poly)
             self.dic_taztype = {k:[] for k in TAZ_TYPE_LIST}
             for poly in polys:
@@ -111,7 +111,7 @@ class EVsGenerator:
         self.park_cdf_we:dict[str, CDDiscrete[int]] = {}
 
         def read_trans_pdfs(path:str) -> DictPDF:
-            tbwd = ReadOnlyTable(path, dtype=np.float32)
+            tbwd = ReadOnlyTable(path, dtype=DTypeEnum.FLOAT32)
             times = [int(x) for x in tbwd.head[1:]]
             values = list(map(int, tbwd.col(0)))
             ret:DictPDF = {}
@@ -216,7 +216,7 @@ class EVsGenerator:
         # Get departure time and destination area type
         depart_time, next_place_type = self.__getDest1("Home", weekday)  
         to_TAZ, to_EDGE, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place_type)
-        return TripInner(trip_id, depart_time, from_TAZ, from_EDGE,
+        return _TripInner(trip_id, depart_time * 60, from_TAZ, from_EDGE,
             to_TAZ, to_EDGE, route, next_place_type)
 
     cdf_dict = {}
@@ -227,13 +227,13 @@ class EVsGenerator:
 
     def __genTripA(
         self, trip_id, from_TAZ, from_type, from_EDGE, start_time, weekday: bool = True
-    )->TripInner:
+    )->_TripInner:
         """Generate the second trip"""
         stop_duration = self.__genStopTime(from_type, weekday)
         depart_time = start_time + stop_duration * 15 + 20
         next_place2 = self.__getDestA(from_type, stop_duration, weekday)
         taz_choose2, edge_choose2, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place2)
-        return TripInner(trip_id, depart_time, from_TAZ, from_EDGE,
+        return _TripInner(trip_id, depart_time * 60, from_TAZ, from_EDGE,
             taz_choose2, edge_choose2, route, next_place2)
 
     def __genTripF(
@@ -245,12 +245,12 @@ class EVsGenerator:
             return None
         stop_time = self.__genStopTime(from_type, weekday)
         depart_time = start_time + stop_time + 20
-        return TripInner(
-            trip_id, depart_time, from_TAZ, from_EDGE, first_TAZ, first_EDGE,
+        return _TripInner(
+            trip_id, depart_time * 60, from_TAZ, from_EDGE, first_TAZ, first_EDGE,
             [from_EDGE, first_EDGE], "Home"
         )
 
-    def __genTripsChain1(self, ev:_EV):  # vehicle_trip
+    def __genTripsChain1(self, ev:_EVInner):  # vehicle_trip
         """
         Generate a full day of trips on the first day
             ev: vehicle instance
@@ -264,12 +264,12 @@ class EVsGenerator:
             trip_2.NTP,trip_2.toE,trip_2.DPTT,
             trip_1.frTAZ,trip_1.route[0],weekday)
         
-        ev.add_trip(daynum, trip_1)
-        ev.add_trip(daynum, trip_2)
+        ev._add_trip(daynum, trip_1)
+        ev._add_trip(daynum, trip_2)
         if trip_3: # Trip3: if O==D, don't generate trip 3
-            ev.add_trip(daynum, trip_3)
+            ev._add_trip(daynum, trip_3)
 
-    def __genFirstTripA(self, trip_id, ev: _EV, weekday: bool = True):
+    def __genFirstTripA(self, trip_id, ev: _EVInner, weekday: bool = True):
         """
         Generate the first trip of a non-first day
             trip_id: Trip ID
@@ -282,10 +282,10 @@ class EVsGenerator:
         # Get departure time and destination area type
         depart_time, next_place_type = self.__getDest1("Home", weekday)
         to_TAZ, to_EDGE, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place_type)
-        return TripInner(trip_id, depart_time, from_TAZ, from_EDGE,
+        return _TripInner(trip_id, depart_time * 60, from_TAZ, from_EDGE,
             to_TAZ, to_EDGE, route, next_place_type)
 
-    def __genTripsChainA(self, ev: _EV, daynum: int = 1):  # vehicle_trip
+    def __genTripsChainA(self, ev: _EVInner, daynum: int = 1):  # vehicle_trip
         """
         Generate a full day of trips on a non-first day
         """
@@ -297,16 +297,16 @@ class EVsGenerator:
             trip2_2.toTAZ,trip2_2.NTP,trip2_2.toE,
             trip2_2.DPTT,trip2_1.frTAZ,trip2_1.route[0],weekday)
                     
-        ev.add_trip(daynum, trip2_1)
-        ev.add_trip(daynum, trip2_2)
+        ev._add_trip(daynum, trip2_1)
+        ev._add_trip(daynum, trip2_2)
         if trip2_3:
-            ev.add_trip(daynum, trip2_3)
+            ev._add_trip(daynum, trip2_3)
 
-    def __genEV(self, veh_id: str, day_count:int, **kwargs) -> _EV:
+    def __genEV(self, veh_id: str, day_count:int, **kwargs) -> _EVInner:
         '''
         Generate a full week of trips for a vehicle as an inner instance
         '''
-        ev = _EV(veh_id, random.choice(self.vTypes), self.soc_pdf.sample()/100.0, **kwargs)
+        ev = _EVInner(veh_id, random.choice(self.vTypes), self.soc_pdf.sample()/100.0, **kwargs)
         self.__genTripsChain1(ev)
         for j in range(1, day_count + 1):
             self.__genTripsChainA(ev, j)
@@ -314,7 +314,8 @@ class EVsGenerator:
 
     def genEV(self, veh_id: str, **kwargs) -> EV:
         """
-        Generate a full week of trips for a vehicle
+        Generate a full week of trips for a vehicle.
+        The generated vehicle is returned as an EV instance, and will not be held in the buffer.
             veh_id: ID of the vehicle
             v2g_prop: Proportion of users willing to participate in V2G
             omega: PDFunc | None = None,
@@ -323,13 +324,15 @@ class EVsGenerator:
             kfc: PDFunc | None = None,
             kv2g: PDFunc | None = None
         """
-        return self.__genEV(veh_id, **kwargs).to_EV()
+        return self.__genEV(veh_id, **kwargs).toEV()
 
     def genEVs(
         self, N: int, fname: Optional[str] = None, day_count: int = 7, silent: bool = False, **kwargs
     ) -> EVDict:
         """
-        Generate EV and trips
+        Generate EV and trips of N vehicles.
+        The generated vehicles are returned as an EVDict instance, and will be saved to the file if fname is provided.
+        The vehicles will not be held in the buffer.
             N: Number of vehicles
             fname: Saved file name (if None, not saved)
             day_count: Number of days
@@ -348,7 +351,7 @@ class EVsGenerator:
         for i in range(0, N):
             ev = self.__genEV("v" + str(i), day_count,
                 cache_route = self._route_cache_mode != RoutingCacheMode.NONE, **kwargs)
-            ret.add(ev.to_EV())
+            ret.add(ev.toEV())
             if saver:
                 saver.write(ev)
             if not silent and time.time()-last_print_time>1:
@@ -359,4 +362,45 @@ class EVsGenerator:
             print(Lang.INFO_DONE_WITH_SECOND.format(round(time.time() - st_time, 1)))
         if saver:
             saver.close()
+        return ret
+
+class ManualEVsGenerator:
+    """Class to manually add EVs to the buffer"""
+    def __init__(self):
+        self.__evs:Dict[str, _EVInner] = {}
+    
+    def addEV(self, vid:str, bcap_kWh:float, range_km:float, efc_rate_kW:float, 
+            esc_rate_kW:float, max_V2G_kW:float, soc:float, omega:float, 
+            krel:float, ksc:float, kfc:float, kv2g:float, cache_route:bool = False) -> _EVInner:
+        """
+        Add an EV to the generator's buffer
+            vid: Vehicle ID
+            vtype: Vehicle type
+            soc: State of charge (0.0~1.0)
+        """
+        if vid in self.__evs:
+            raise ValueError(f"Vehicle ID {vid} already exists.")
+        ev = _EVInner(vid, VehicleType(id=-1, bcap_kWh=bcap_kWh, range_km=range_km,
+            efc_rate_kW=efc_rate_kW, esc_rate_kW=esc_rate_kW, max_V2G_kW=max_V2G_kW), 
+            soc, omega=omega, krel=krel, ksc=ksc, kfc=kfc, kv2g=kv2g, cache_route=cache_route)
+        self.__evs[vid] = ev
+        return ev
+    
+    def dumpEVs(self, fname: str):
+        """
+        Dump all EVs in the buffer to a file
+            fname: File name
+        """
+        saver = _xmlSaver(fname)
+        for ev in self.__evs.values():
+            saver.write(ev)
+        saver.close()
+    
+    def getEVs(self) -> EVDict:
+        """
+        Get all EVs in the buffer as an EVDict instance
+        """
+        ret = EVDict()
+        for ev in self.__evs.values():
+            ret.add(ev.toEV())
         return ret

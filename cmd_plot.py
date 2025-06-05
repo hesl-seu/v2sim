@@ -1,4 +1,6 @@
 from pathlib import Path
+import shutil
+from feasytools import ArgChecker
 from v2sim import *
 
 def clear_all(p:str):
@@ -84,6 +86,9 @@ def recursive_plot_all(config:dict, p:str, q:bool, npl:AdvancedPlot):
             recursive_plot_all(config, str(i), q, npl)
 
 if __name__ == "__main__":
+    from version_checker import check_requirements
+    check_requirements()
+    
     args = ArgChecker()
     input_dir = args.pop_str("d")
     config = {

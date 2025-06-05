@@ -1,6 +1,5 @@
 from itertools import chain
-from typing import Protocol, runtime_checkable
-from fpowerkit import Grid
+from typing import Optional
 from feasytools import TimeFunc
 from .base import *
 

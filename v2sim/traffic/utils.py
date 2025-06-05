@@ -4,10 +4,14 @@ import random, string, gzip
 from typing import Optional
 from xml.etree import ElementTree as ET
 from ..locale import Lang
+from typing import List, Tuple
 
-IntPairList = list[tuple[int, int]]
-PriceList = tuple[list[int], list[float]]
-TWeights = tuple[float, float, float]
+IntPairList = List[Tuple[int, int]]
+#IntPairList.__doc__ = "List of int pairs, like [(1, 2), (3, 4)]"
+PriceList = Tuple[List[int], List[float]]
+#PriceList.__doc__ = "Price list, like ([1, 2], [3.0, 4.0]), where the first list is the time and the second list is the price"
+TWeights = Tuple[float, float, float]
+#TWeights.__doc__ = "Tuple of three weights, like (1.0, 2.0, 3.0)"
 _letters = string.ascii_letters + string.digits
 
 
@@ -15,7 +19,7 @@ def random_string(length: int):
     return "".join(random.choice(_letters) for _ in range(length))
 
 
-def readXML(file: str, compressed:Optional[bool]=None) -> ET.ElementTree:
+def ReadXML(file: str, compressed:Optional[bool]=None) -> ET.ElementTree:
     '''
     Read XML file, support compressed GZ file
         file: file path
@@ -30,9 +34,9 @@ def readXML(file: str, compressed:Optional[bool]=None) -> ET.ElementTree:
     else:
         raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(file))
 
-
-def load_fcs(filename: str) -> set[str]:
-    fcs_root = readXML(filename).getroot()
+def LoadFCS(filename: str) -> set[str]:
+    '''Load FCS file and return a set of edge names'''
+    fcs_root = ReadXML(filename).getroot()
     if fcs_root is None:
         raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(filename))
     fcs_edges = set()
@@ -41,9 +45,9 @@ def load_fcs(filename: str) -> set[str]:
             fcs_edges.add(fcs.attrib["edge"])
     return fcs_edges
 
-
-def load_scs(filename: str) -> set[str]:
-    scs_root = readXML(filename).getroot()
+def LoadSCS(filename: str) -> set[str]:
+    '''Load SCS file and return a set of edge names'''
+    scs_root = ReadXML(filename).getroot()
     if scs_root is None:
         raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(filename))
     scs_edges = set()
@@ -52,9 +56,15 @@ def load_scs(filename: str) -> set[str]:
             scs_edges.add(scs.attrib["edge"])
     return scs_edges
     
-def get_sim_config(file: str):
-    """Parse the SUMO configuration file"""
-    root = readXML(file,compressed=False).getroot()
+def GetTimeAndNetwork(file: str):
+    """
+    Parse the SUMO configuration file to get the simulation time and network file.
+    Returns:
+        bt (int): Begin time
+        et (int): End time
+        nf (str): Net file path
+    """
+    root = ReadXML(file,compressed=False).getroot()
     if root is None:
         raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(file))
     bt, et = -1, -1
@@ -73,19 +83,9 @@ def get_sim_config(file: str):
             nf = nfnode.attrib.get("value")
     
     assert nf != None, "Net file must be defined!"
-    return bt,et,nf
+    return bt, et, nf
 
-@dataclass
-class SUMOConfig:
-    BeginTime: int
-    EndTime: int
-    NetFile: str
-
-def GetSUMOConfig(file: str) -> SUMOConfig:
-    return SUMOConfig(*get_sim_config(file))
-
-
-def _checkFile(file: str):
+def CheckFile(file: str):
     p = Path(file)
     if p.exists():
         i = 1
@@ -96,16 +96,12 @@ def _checkFile(file: str):
                 break
         Path(file).rename(str(p))
 
-CheckFile = _checkFile
-
-def _clearBakFiles(dir: str):
+def ClearBakFiles(dir: str):
     for x in Path(dir).iterdir():
         if not x.is_file():
             continue
         if x.suffix == ".bak":
-            x.unlink()   
-
-ClearBakFiles = _clearBakFiles
+            x.unlink()
 
 @dataclass
 class FileDetectResult:
@@ -136,7 +132,27 @@ class FileDetectResult:
     def __contains__(self, key: str) -> bool:
         return hasattr(self, key) and getattr(self, key) != None
 
+def ReadSUMONet(file: str):
+    """
+    Read SUMO net file and return a sumolib.net.Net object.
+    Args:
+        file (str): Path to the SUMO net file
+    Returns:
+        sumolib.net.Net: A sumolib.net.Net object
+    """
+    import sumolib
+    ret = sumolib.net.readNet(file)
+    assert isinstance(ret, sumolib.net.Net), "Failed to read SUMO net file"
+    return ret
+
 def DetectFiles(dir: str) -> FileDetectResult:
+    """
+    Detect simulation-realted files (SUMO config, SCS, FCS, power grid, etc.) in the given directory.
+    Args:
+        dir (str): Directory path
+    Returns:
+        FileDetectResult: A dictionary containing the detected files
+    """
     p = Path(dir)
     ret: dict[str, str] = {"name": p.name}
     def add(name: str, filename: str):
@@ -175,7 +191,19 @@ def DetectFiles(dir: str) -> FileDetectResult:
             add("cscsv", filename)
     return FileDetectResult(**ret)
 
-def FixSUMOCfg(cfg_path: str, start: int=0, end: int=172800) -> tuple[bool, ET.ElementTree, str]:
+def FixSUMOConfig(cfg_path: str, start: int=0, end: int=172800) -> tuple[bool, ET.ElementTree, str]:
+    """
+    Fix the SUMO configuration file by adding time and removing report and routing nodes.
+    Args:
+        cfg_path (str): Path to the SUMO configuration file
+        start (int): Start time (default: 0)
+        end (int): End time (default: 172800)
+    Returns:
+        tuple[bool, ET.ElementTree, str]: A tuple containing:
+            - cflag (bool): Whether the configuration file was modified
+            - tr (ET.ElementTree): The modified configuration file as an ElementTree object
+            - route_file_name (str): The name of the route file
+    """
     cflag = False
     tr = ET.ElementTree(file = cfg_path)
     cfg = tr.getroot()

@@ -1,5 +1,8 @@
 from ..plugins import *
 from ..statistics import *
+from typing import Any
+from feasytools import SegFunc
+import math
     
 class StatisticsNotSupportedError(Exception): pass
 
@@ -127,122 +130,122 @@ class ReadOnlyStatistics(StaReader):
             self.__ess_head.sort(key=_parse_val)
         return self.__ess_head
 
-    def FCS_attrib_of(self,cs:str, attrib:str)->TimeSeg: 
+    def FCS_attrib_of(self,cs:str, attrib:str)->SegFunc: 
         '''Charging station information'''
         assert attrib in CS_ATTRIB, f"Invalid CS property: {attrib}"
         if cs == "<sum>":
             d = [self.GetColumn(FILE_FCS,c+"#"+attrib) for c in self.FCS_head]
-            return TimeSeg.quicksum(*d)
+            return SegFunc.qs(d)
         return self.GetColumn(FILE_FCS,cs+"#"+attrib)
     
-    def SCS_attrib_of(self,cs:str,attrib:str)->TimeSeg: 
+    def SCS_attrib_of(self,cs:str,attrib:str)->SegFunc: 
         '''Charging station information'''
         assert attrib in CS_ATTRIB, f"Invalid CS property: {attrib}"
         if cs == "<sum>":
             d = [self.GetColumn(FILE_SCS,c+"#"+attrib) for c in self.SCS_head]
-            return TimeSeg.quicksum(*d)
+            return SegFunc.qs(d)
         return self.GetColumn(FILE_SCS,cs+"#"+attrib)
     
-    def FCS_load_of(self,cs:str)->TimeSeg:
+    def FCS_load_of(self,cs:str)->SegFunc:
         '''Charging power'''
         return self.FCS_attrib_of(cs,"c")
     
-    def FCS_load_all(self,tl=-math.inf,tr=math.inf)->list[TimeSeg]:
+    def FCS_load_all(self,tl=-math.inf,tr=math.inf)->list[SegFunc]:
         '''Charging power of all CS'''
         return [self.FCS_load_of(cs).slice(tl,tr) for cs in self.FCS_head]
     
-    def FCS_count_of(self,cs:str)->TimeSeg:
+    def FCS_count_of(self,cs:str)->SegFunc:
         '''Number of vehicles in the CS'''
         return self.FCS_attrib_of(cs,"cnt")
     
-    def FCS_pricebuy_of(self,cs:str)->TimeSeg:
+    def FCS_pricebuy_of(self,cs:str)->SegFunc:
         '''Buy price'''
         return self.FCS_attrib_of(cs,"pb")
     
-    def SCS_charge_load_of(self,cs:str)->TimeSeg:
+    def SCS_charge_load_of(self,cs:str)->SegFunc:
         '''Charging power'''
         return self.SCS_attrib_of(cs,"c")
     
-    def SCS_charge_load_all(self,tl=-math.inf,tr=math.inf)->list[TimeSeg]:
+    def SCS_charge_load_all(self,tl=-math.inf,tr=math.inf)->list[SegFunc]:
         '''Charging power of all CS'''
         return [self.SCS_charge_load_of(cs).slice(tl,tr) for cs in self.SCS_head]
     
-    def SCS_v2g_load_of(self,cs:str)->TimeSeg:
+    def SCS_v2g_load_of(self,cs:str)->SegFunc:
         '''Discharging power (V2G)'''
         return self.SCS_attrib_of(cs,"d")
     
-    def SCS_v2g_load_all(self,tl=-math.inf,tr=math.inf)->list[TimeSeg]:
+    def SCS_v2g_load_all(self,tl=-math.inf,tr=math.inf)->list[SegFunc]:
         '''Discharging power (V2G) of all CS'''
         return [self.SCS_v2g_load_of(cs).slice(tl,tr) for cs in self.SCS_head]
     
-    def SCS_v2g_cap_of(self,cs:str)->TimeSeg:
+    def SCS_v2g_cap_of(self,cs:str)->SegFunc:
         '''V2G capacity'''
         return self.SCS_attrib_of(cs,"v2g")
     
-    def SCS_v2g_cap_all(self,tl=-math.inf,tr=math.inf)->list[TimeSeg]:
+    def SCS_v2g_cap_all(self,tl=-math.inf,tr=math.inf)->list[SegFunc]:
         '''V2G capacity of all CS'''
         return [self.SCS_v2g_cap_of(cs).slice(tl,tr) for cs in self.SCS_head]
     
-    def SCS_net_load_of(self,cs:str)->TimeSeg:
+    def SCS_net_load_of(self,cs:str)->SegFunc:
         '''Net charging power'''
         return self.SCS_charge_load_of(cs) - self.SCS_v2g_load_of(cs)
     
-    def SCS_net_load_all(self,tl=-math.inf,tr=math.inf)->list[TimeSeg]:
+    def SCS_net_load_all(self,tl=-math.inf,tr=math.inf)->list[SegFunc]:
         '''Net charging power of all CS'''
         return [self.SCS_net_load_of(cs).slice(tl,tr) for cs in self.SCS_head]
     
-    def SCS_count_of(self,cs:str)->TimeSeg:
+    def SCS_count_of(self,cs:str)->SegFunc:
         '''Number of vehicles in the CS'''
         return self.SCS_attrib_of(cs,"cnt")
     
-    def SCS_pricebuy_of(self,cs:str)->TimeSeg:
+    def SCS_pricebuy_of(self,cs:str)->SegFunc:
         '''Buy price'''
         return self.SCS_attrib_of(cs,"pb")
     
-    def SCS_pricesell_of(self,cs:str)->TimeSeg:
+    def SCS_pricesell_of(self,cs:str)->SegFunc:
         '''Sell price'''
         return self.SCS_attrib_of(cs,"ps")
     
-    def EV_attrib_of(self,veh:str,attrib:str)->TimeSeg: 
+    def EV_attrib_of(self,veh:str,attrib:str)->SegFunc: 
         '''EV information'''
         assert attrib in EV_ATTRIB, f"Invalid EV property: {attrib}"
         return self.GetColumn(FILE_EV,veh+"#"+attrib)
     
-    def EV_net_cost_of(self,veh:str)->TimeSeg: 
+    def EV_net_cost_of(self,veh:str)->SegFunc: 
         '''EV net cost'''
         return self.GetColumn(FILE_EV,veh+"#cost")-self.GetColumn(FILE_EV,veh+"#earn")
     
-    def G_attrib_of(self,g:str,attrib:str)->TimeSeg: 
+    def G_attrib_of(self,g:str,attrib:str)->SegFunc: 
         '''Generator information'''
         assert attrib in GEN_ATTRIB
         return self.GetColumn(FILE_GEN,g+"#"+attrib)
     
-    def G_total(self,attrib:str)->TimeSeg:
+    def G_total(self,attrib:str)->SegFunc:
         '''Total generation data'''
         assert attrib in GEN_TOT_ATTRIB
         return self.GetColumn(FILE_GEN,attrib)
     
-    def bus_attrib_of(self,b:str,attrib:str)->TimeSeg: 
+    def bus_attrib_of(self,b:str,attrib:str)->SegFunc: 
         '''Bus information'''
         assert attrib in BUS_ATTRIB
         return self.GetColumn(FILE_BUS,b+"#"+attrib)
     
-    def bus_total(self,attrib:str)->TimeSeg:
+    def bus_total(self,attrib:str)->SegFunc:
         '''Total bus data'''
         assert attrib in BUS_TOT_ATTRIB
         return self.GetColumn(FILE_BUS,attrib)
     
-    def line_attrib_of(self,l:str,attrib:str)->TimeSeg: 
+    def line_attrib_of(self,l:str,attrib:str)->SegFunc: 
         '''Line information'''
         assert attrib in LINE_ATTRIB
         return self.GetColumn(FILE_LINE,l+"#"+attrib)
     
-    def pvw_attrib_of(self,p:str,attrib:str)->TimeSeg:
+    def pvw_attrib_of(self,p:str,attrib:str)->SegFunc:
         '''PV and wind information'''
         assert attrib in PVW_ATTRIB
         return self.GetColumn(FILE_PVW,p+"#"+attrib)
     
-    def ess_attrib_of(self,e:str,attrib:str)->TimeSeg:
+    def ess_attrib_of(self,e:str,attrib:str)->SegFunc:
         '''ESS information'''
         assert attrib in ESS_ATTRIB
         return self.GetColumn(FILE_ESS,e+"#"+attrib)

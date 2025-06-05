@@ -4,6 +4,9 @@ from v2sim import csQuery
 
 
 if __name__ == '__main__':
+    from version_checker import check_requirements
+    check_requirements()
+    
     args = ArgChecker()
     root = args.pop_str("d")
     new_loc = args.pop_str("p","")

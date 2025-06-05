@@ -1,15 +1,13 @@
 from dataclasses import dataclass
 from itertools import chain
-import os
 from queue import Queue
 import queue
 import threading
 from tkinter import messagebox as MB
-import PIL
-import PIL.Image
 from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
 from typing import Any, Callable, Iterable, Optional, Union
-from v2sim import ELGraph, Edge
+import sumolib
+from v2sim import RoadNetConnectivityChecker as ELGraph
 from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy
 from fpowerkit import Grid as fGrid
 from .controls import EditMode, PropertyPanel
@@ -670,7 +668,7 @@ class NetworkPanel(Frame):
             minx, miny, maxx, maxy = self._r.Net.getBoundary()
             edges = self._r.Net.getEdges()
             for e in edges:
-                assert isinstance(e, Edge)
+                assert isinstance(e, sumolib.net.edge.Edge)
                 ename:str = e.getID()
                 shape = e.getShape() # type: ignore
                 if shape is None:

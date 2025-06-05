@@ -1,18 +1,22 @@
 import os
+import queue
+import threading
 from pathlib import Path
 from queue import Empty, Queue
-import threading
-from typing import Any, Optional
-from .view import *
-from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode
-from .network import NetworkPanel, OAfter
+import time
+from typing import Any, Optional, Callable, Union
 from tkinter import filedialog
 from tkinter import messagebox as MB
-import v2sim
-from v2sim import *
 from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
 import xml.etree.ElementTree as ET
+
+import v2sim
+from v2sim import *
+
+from .view import *
+from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode
+from .network import NetworkPanel, OAfter
 
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
@@ -1009,7 +1013,7 @@ class MainBox(Tk):
             showerr("No SUMO config file detected")
             return
         
-        cflag, tr, route_file_name = FixSUMOCfg(self.state.cfg, start, end)
+        cflag, tr, route_file_name = FixSUMOConfig(self.state.cfg, start, end)
         if cflag:
             if MB.askyesno(_L["MB_INFO"],_L["MB_CFG_MODIFY"]):
                 tr.write(self.state.cfg)
@@ -1146,7 +1150,7 @@ class MainBox(Tk):
         # Load SUMO config
         if LOAD_CFG in loads:
             if res.cfg:
-                st,et,x = get_sim_config(res.cfg)
+                st,et,x = GetTimeAndNetwork(res.cfg)
                 if st == -1: st = 0
                 if et == -1: et = 172800
                 self.entry_start.delete(0, END)
@@ -1216,7 +1220,7 @@ class MainBox(Tk):
         self.sim_plglist.clear()
         assert self.state is not None
         if self.state.plg:
-            et = readXML(self.state.plg)
+            et = ReadXML(self.state.plg)
             if et is None:
                 showerr("Error loading plugins")
                 return
@@ -1322,7 +1326,7 @@ class MainBox(Tk):
                     self.cv_net.setGrid(PowerGrid.fromFile(self.state.grid))
                 assert self.cv_net.Grid is not None
                 self.lb_puvalues.configure(text=_L["PU_VALS"].format(self.cv_net.Grid.Ub,self.cv_net.Grid.Sb_MVA))
-                self.cv_net.setRoadNet(ELGraph(self.state.net,
+                self.cv_net.setRoadNet(RoadNetConnectivityChecker(self.state.net,
                     self.state.fcs if self.state.fcs else "",
                     self.state.scs if self.state.scs else "",
                 ), async_ = async_, after=after)

@@ -2,6 +2,9 @@ from v2sim import AdvancedPlot
 import sys
 
 if __name__ == "__main__":
+    from version_checker import check_requirements
+    check_requirements()
+    
     plt = AdvancedPlot()
     if len(sys.argv)>1:
         with open(sys.argv[1], "r") as f:

@@ -32,6 +32,7 @@ class PluginConfigItem:
     default_value:Optional[Any] = None
 
 class ConfigDict(dict[str, PluginConfigItem]):
+    '''Plugin configuration item dictionary'''
     def __init__(self, items: Optional[Iterable[PluginConfigItem]] = None):
         if items is None:
             super().__init__()

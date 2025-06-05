@@ -44,6 +44,8 @@ def main(par):
     win.mainloop()
 
 if __name__ == "__main__":
+    from version_checker import check_requirements_gui
+    check_requirements_gui()
     par, chd = mp.Pipe()
     mp.Process(target=welcome, args=(chd,)).start()
     main(par)

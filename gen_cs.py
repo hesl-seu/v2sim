@@ -10,6 +10,9 @@ def print_help(err:str = ""):
     sys.exit()
 
 if __name__ == "__main__":
+    from version_checker import check_requirements
+    check_requirements()
+    
     params = ArgChecker()
     if params.pop_bool("h") or params.pop_bool("help"):
         print_help()

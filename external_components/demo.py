@@ -3,7 +3,10 @@ External Plugin Example:
   Please put the external plugin in the external_plugins folder, 
   and the plugin file name is "plugin_name.py"
 '''
-from v2sim import CustomLocaleLib
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import Iterable, Any
+from v2sim import CustomLocaleLib, TrafficInst
 from v2sim.plugins import *
 from v2sim.statistics import *
 
