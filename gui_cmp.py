@@ -144,5 +144,7 @@ class ImageComparerApp(Tk):
 
     
 if __name__ == "__main__":
+    from version_checker import check_requirements_gui
+    check_requirements_gui()
     app = ImageComparerApp()
     app.mainloop()

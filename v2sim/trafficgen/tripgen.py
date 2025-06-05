@@ -380,7 +380,8 @@ class ManualEVsGenerator:
         """
         if vid in self.__evs:
             raise ValueError(f"Vehicle ID {vid} already exists.")
-        ev = _EVInner(vid, VehicleType(-1, bcap_kWh, range_km, efc_rate_kW, esc_rate_kW, max_V2G_kW), 
+        ev = _EVInner(vid, VehicleType(id=-1, bcap_kWh=bcap_kWh, range_km=range_km,
+            efc_rate_kW=efc_rate_kW, esc_rate_kW=esc_rate_kW, max_V2G_kW=max_V2G_kW), 
             soc, omega=omega, krel=krel, ksc=ksc, kfc=kfc, kv2g=kv2g, cache_route=cache_route)
         self.__evs[vid] = ev
         return ev

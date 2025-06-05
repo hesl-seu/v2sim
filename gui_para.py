@@ -305,5 +305,7 @@ def work(root:str, par:dict[str,str], alt:dict[str,str], out:str, recv:RedirectS
     print(f"done:{time.time()-st_time:.2f}")
 
 if __name__ == "__main__":
+    from version_checker import check_requirements_gui
+    check_requirements_gui()
     app = ParaBox()
     app.mainloop()

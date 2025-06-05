@@ -242,6 +242,8 @@ def parallel_sim(parallel: int, results_root: str, commands: list[SimCommand]):
 
 
 if __name__ == "__main__":
+    from version_checker import check_requirements
+    check_requirements()
     args = ArgChecker(force_parametric=["p","d","r","c","n","f"])
     if args.pop_bool("h") or args.pop_bool("help"):
         print(Lang.PARA_HELP_STR.format(sys.argv[0]))

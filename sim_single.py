@@ -118,14 +118,8 @@ def work(pars:Optional[dict] = None, clntID:int = -1, q=None, alt:Optional[dict[
     else:
         if clntID == -1: print(Lang.MAIN_SIM_START)
         simulate_single(**kwargs)
-'''
-def print_perf_data():
-    with open(f"output_{time.time()}.txt", "w") as f:
-        for k, v in FEasyTimer.RES.items():
-            f.write(f"{k}: {v:.2f}\n")
-        v2sim_time = FEasyTimer.RES["simulation_step"]-FEasyTimer.RES["__sumo_step"]
-        f.write(f"V2Sim: {v2sim_time:.2f}\n")
-'''
 
 if __name__ == "__main__":
+    from version_checker import check_requirements
+    check_requirements()
     work()

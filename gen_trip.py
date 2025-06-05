@@ -7,6 +7,9 @@ def print_help():
     sys.exit()
 
 if __name__ == "__main__":
+    from version_checker import check_requirements
+    check_requirements()
+    
     params = ArgChecker()
     if params.pop_bool("h"):
         print_help()
