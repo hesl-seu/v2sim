@@ -471,7 +471,7 @@ class TrafficInst:
             sec: Simulation seconds
         """
         veh_ids = self._fcs.update(sec, self.__ctime)
-        veh_ids.sort()
+        #veh_ids.sort()
         for i in veh_ids:
             self.__end_charging_FCS(self._VEHs[i])
 
@@ -569,6 +569,7 @@ class TrafficInst:
                 self._fQ.push(trT, veh_id)
                 traci.vehicle.remove(veh_id)
                 self.__logger.fault_deplete(self.__ctime, veh, veh.target_CS, trT)
+                continue
             if veh._sta == VehStatus.Pending:
                 veh._sta = VehStatus.Driving
             if veh._sta == VehStatus.Driving:
