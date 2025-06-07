@@ -28,6 +28,19 @@ def random_diff(seq:Sequence[Any], exclude:Any):
 class _TripInner:
     def __init__(self, trip_id:str, depart_time:Union[str,int], from_TAZ:str, from_EDGE:str,
             to_TAZ:str, to_EDGE:str, route:List[str], next_type_place:str, fixed_route:Optional[bool]=None):
+        '''
+        Initialize a trip object.
+            trip_id: Unique trip ID
+            depart_time: Departure time in seconds since midnight of the day.
+                Can be a string or an integer. If it is a string, it should be convertible to an integer.
+            from_TAZ: Origin TAZ ID
+            from_EDGE: Origin edge ID
+            to_TAZ: Destination TAZ ID
+            to_EDGE: Destination edge ID
+            route: List of edge IDs representing the route, should have at least 2 elements.
+            next_type_place: The type of place where the trip will end.
+            fixed_route: Whether the route is fixed or not.
+        '''
         self.id = trip_id
         self.DPTT = int(depart_time) # departure time in seconds since midnight
         self.frE = from_EDGE
@@ -45,7 +58,7 @@ class _TripInner:
             f'fixed_route="{self.fixed_route}" />')
     
     def toTrip(self, daynum:int) -> Trip:
-        return Trip(self.id, self.DPTT * 60 + 86400 * daynum, self.frTAZ, self.toTAZ, self.route)
+        return Trip(self.id, self.DPTT + 86400 * daynum, self.frTAZ, self.toTAZ, self.route)
 
 PDFuncLike = Union[None, float, PDFunc]
 def _impl_PDFuncLike(x:PDFuncLike, default:PDFunc) -> float:
