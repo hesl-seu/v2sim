@@ -156,7 +156,8 @@ class EVsGenerator:
         """
         Get the destination of the next trip for non-first trips
             from_type: Departure type, such as "Home"
-            depart_time: Departure time
+            init_time_i: Time index (0~95, each unit = 15min)
+            weekday: Whether it is weekday or weekend
         Returns:
             Destination type
         """
@@ -214,39 +215,57 @@ class EVsGenerator:
         from_TAZ = random.choice(self.dic_taztype["Home"])
         from_EDGE = random.choice(self.dic_taz[from_TAZ])
         # Get departure time and destination area type
-        depart_time, next_place_type = self.__getDest1("Home", weekday)  
+        depart_time_min, next_place_type = self.__getDest1("Home", weekday)  
         to_TAZ, to_EDGE, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place_type)
-        return _TripInner(trip_id, depart_time * 60, from_TAZ, from_EDGE,
+        return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE,
             to_TAZ, to_EDGE, route, next_place_type)
 
     cdf_dict = {}
 
-    def __genStopTime(self, from_type:str, weekday: bool):
+    def __genStopTimeIdx(self, from_type:str, weekday: bool):
         cdf = self.park_cdf_wd[from_type] if weekday else self.park_cdf_we[from_type]
-        return int(cdf.sample() + 1) * 15
+        return int(cdf.sample() + 1)
 
     def __genTripA(
-        self, trip_id, from_TAZ, from_type, from_EDGE, start_time, weekday: bool = True
+        self, trip_id:str, from_TAZ:str, from_type:str, from_EDGE:str, start_time:int, weekday: bool = True
     )->_TripInner:
-        """Generate the second trip"""
-        stop_duration = self.__genStopTime(from_type, weekday)
-        depart_time = start_time + stop_duration * 15 + 20
-        next_place2 = self.__getDestA(from_type, stop_duration, weekday)
+        """
+        Generate the second trip
+            trip_id: Trip ID
+            from_TAZ: Departure area TAZ type, such as "TAZ1"
+            from_type: Departure area type, such as "Home"
+            from_EDGE: Departure roadside, such as "gnE29"
+            start_time: Departure time of the first trip, in seconds since midnight
+            weekday: Whether it is weekday or weekend
+        """
+        stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
+        depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
+        next_place2 = self.__getDestA(from_type, stop_time_idx, weekday)
         taz_choose2, edge_choose2, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place2)
-        return _TripInner(trip_id, depart_time * 60, from_TAZ, from_EDGE,
+        return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE,
             taz_choose2, edge_choose2, route, next_place2)
 
     def __genTripF(
         self, trip_id:str, from_TAZ:str, from_type, from_EDGE:str,
         start_time:int, first_TAZ:str, first_EDGE:str, weekday: bool = True,
     ):
-        """Generate the third trip"""
+        """
+        Generate the third trip
+            trip_id: Trip ID
+            from_TAZ: Departure area TAZ type, such as "TAZ1"
+            from_type: Departure area type, such as "Home"
+            from_EDGE: Departure roadside, such as "gnE29"
+            start_time: Departure time of the first trip, in seconds since midnight
+            first_TAZ: First trip's destination area TAZ type, such as "TAZ2"
+            first_EDGE: First trip's destination roadside, such as "gnE2"
+            weekday: Whether it is weekday or weekend
+        """
         if first_EDGE == from_EDGE:
             return None
-        stop_time = self.__genStopTime(from_type, weekday)
-        depart_time = start_time + stop_time + 20
+        stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
+        depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
         return _TripInner(
-            trip_id, depart_time * 60, from_TAZ, from_EDGE, first_TAZ, first_EDGE,
+            trip_id, depart_time_min * 60, from_TAZ, from_EDGE, first_TAZ, first_EDGE,
             [from_EDGE, first_EDGE], "Home"
         )
 
@@ -267,7 +286,11 @@ class EVsGenerator:
         ev._add_trip(daynum, trip_1)
         ev._add_trip(daynum, trip_2)
         if trip_3: # Trip3: if O==D, don't generate trip 3
-            ev._add_trip(daynum, trip_3)
+            if trip_3.DPTT < 86400:  # If the departure time is after midnight, it is not valid
+                ev._add_trip(daynum, trip_3)
+            else:
+                trip_2.toTAZ = trip_1.frTAZ
+                trip_2.toE = trip_1.frE
 
     def __genFirstTripA(self, trip_id, ev: _EVInner, weekday: bool = True):
         """
@@ -280,9 +303,9 @@ class EVsGenerator:
         from_EDGE = trip_last.route[-1]
         from_TAZ = trip_last.toTAZ
         # Get departure time and destination area type
-        depart_time, next_place_type = self.__getDest1("Home", weekday)
+        depart_time_min, next_place_type = self.__getDest1("Home", weekday)
         to_TAZ, to_EDGE, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place_type)
-        return _TripInner(trip_id, depart_time * 60, from_TAZ, from_EDGE,
+        return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE,
             to_TAZ, to_EDGE, route, next_place_type)
 
     def __genTripsChainA(self, ev: _EVInner, daynum: int = 1):  # vehicle_trip
@@ -300,8 +323,12 @@ class EVsGenerator:
         ev._add_trip(daynum, trip2_1)
         ev._add_trip(daynum, trip2_2)
         if trip2_3:
-            ev._add_trip(daynum, trip2_3)
-
+            if trip2_3.DPTT < 86400:  # If the departure time is after midnight, it is not valid
+                ev._add_trip(daynum, trip2_3)
+            else:
+                trip2_2.toTAZ = trip2_1.frTAZ
+                trip2_2.toE = trip2_1.frE
+        
     def __genEV(self, veh_id: str, day_count:int, **kwargs) -> _EVInner:
         '''
         Generate a full week of trips for a vehicle as an inner instance
