@@ -10,4 +10,5 @@ from .sim_core import (
     simulate_multi,
     simulate_single,
     V2SimInstance,
+    MsgPack
 )

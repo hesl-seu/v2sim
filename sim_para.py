@@ -16,6 +16,7 @@ from v2sim import (
     simulate_multi,
     load_external_components,
     simulate_single,
+    MsgPack
 )
 
 
@@ -94,7 +95,7 @@ def work(
     cmd: SimCommand,
     plg_pool: PluginPool,
     sta_pool: StaPool,
-    mpQ: Optional[queue.Queue[tuple[int, str]]] = None,
+    mpQ: Optional[queue.Queue[MsgPack]] = None,
 ) -> bool:
     """
     Run a simulation task.
@@ -141,7 +142,7 @@ def parallel_sim(parallel: int, results_root: str, commands: list[SimCommand]):
     if Path("external_components").exists():
         load_external_components("external_components", plg_pool, sta_pool)
     pool = ProcessPoolExecutor(parallel)
-    mpQ = mp.Manager().Queue()
+    mpQ:queue.Queue[MsgPack] = mp.Manager().Queue()
 
     skip_list: list[int] = []
     work_list: list[Future] = []
@@ -188,9 +189,9 @@ def parallel_sim(parallel: int, results_root: str, commands: list[SimCommand]):
 
     while not all_done():
         try:
-            clnt, con = mpQ.get(timeout=1)
-            clnt: int
-            con: str
+            t = mpQ.get(timeout=1)
+            clnt = t.clntID
+            con = t.cmd
             obj, sta = con.split(":")
             if obj == "sim":
                 if sta == "done":

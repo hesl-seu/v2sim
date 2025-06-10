@@ -1,6 +1,7 @@
 import gzip
 import pickle
 import importlib, os, queue, shutil, signal, time, sys
+from dataclasses import dataclass
 from typing import Any, Optional, Union
 from feasytools import ArgChecker, time2str#, FEasyTimer
 from pathlib import Path
@@ -11,6 +12,14 @@ from .traffic import *
 from .locale import Lang
 from .trafficgen import TrafficGenerator, RoadNetConnectivityChecker
 from .traffic.inst import traci
+
+
+@dataclass
+class MsgPack:
+    clntID:int
+    cmd:str
+    obj:Any = None
+
 
 def load_external_components(
     external_plugin_dir: str, plugin_pool: PluginPool, sta_pool: StaPool
@@ -88,10 +97,10 @@ def get_sim_params(
     return kwargs
 
 class V2SimInstance:
-    def __mpwrite(self, con:str):
+    def __mpsend(self, con:str, obj:Any = None):
         if self.__mpQ:
             try:
-                self.__mpQ.put_nowait((self.__clntID, con))
+                self.__mpQ.put_nowait(MsgPack(self.__clntID, con, obj))
             except:
                 print(Lang.WARN_SIM_COMM_FAILED)
     
@@ -121,7 +130,7 @@ class V2SimInstance:
         copy: bool = False,
         vb = None,                
         silent: bool = False,           
-        mpQ: Optional[queue.Queue[tuple[int, str]]] = None, 
+        mpQ: Optional[queue.Queue[MsgPack]] = None, 
         clntID: int = -1,
         initial_state: str = "",
         load_last_state: bool = False,
@@ -199,15 +208,15 @@ class V2SimInstance:
             if gen_fcs_command != "":
                 traff_gen.FCSFromArgs(gen_fcs_command)
                 self.__print(Lang.INFO_REGEN_FCS)
-                self.__mpwrite("fcs:done")
+                self.__mpsend("fcs:done")
             if gen_scs_command != "":
                 traff_gen.SCSFromArgs(gen_scs_command)
                 self.__print(Lang.INFO_REGEN_SCS)
-                self.__mpwrite("scs:done")
+                self.__mpsend("scs:done")
             if gen_veh_command != "":
                 vehicles = traff_gen.EVTripsFromArgs(gen_veh_command)
                 self.__print(Lang.INFO_REGEN_VEH)
-                self.__mpwrite("veh:done")
+                self.__mpsend("veh:done")
         else:
             vehicles = None
         
@@ -464,10 +473,10 @@ class V2SimInstance:
         '''Power grid plugin'''
         return self.__gridplg
     
-    def send_to_host(self, msg:str):
+    def send_to_host(self, command:str, obj:Any = None):
         '''Send message to host process'''
         assert self.__mpQ is not None, "Not working in multiprocessing mode. No host exists."
-        self.__mpwrite(msg)
+        self.__mpsend(command, obj)
     
     def start(self, load_from:str = ""):
         '''
@@ -556,7 +565,7 @@ class V2SimInstance:
         def eh(signum, frame):
             self.__print()
             self.__print(Lang.MAIN_SIGINT)
-            self.__mpwrite("exit")
+            self.__mpsend("exit")
             self.__stopsig = True
         
         if self.__vb is None and self.__clntID == -1:
@@ -565,7 +574,7 @@ class V2SimInstance:
         self.__st_time = time.time()
         self.__last_print_time = 0
         self.__last_mp_time = 0
-        self.__mpwrite("sim:start")
+        self.__mpsend("sim:start")
         self.start()
 
         while self.__inst.current_time < self.__end_time:
@@ -587,10 +596,10 @@ class V2SimInstance:
         self.stop(str(self.__pres / "saved_state") if self.save_on_finish else "")
         self.__print()
         self.__print(Lang.MAIN_SIM_DONE.format(time2str(dur)))
-        self.__mpwrite("sim:done")
+        self.__mpsend("sim:done")
         if self.__plot_cmd != "" and not self.__stopsig:
             AdvancedPlot().configure(self.__plot_cmd)
-        self.__mpwrite("plot:done")
+        self.__mpsend("plot:done")
         return not self.__stopsig, self.__inst, self.__sta
 
     def _istep(self):
@@ -631,7 +640,7 @@ class V2SimInstance:
                 )
                 if ctime - self.__last_mp_time > 5:
                     # Communicate with the main process every 5 seconds in multi-process mode
-                    self.__mpwrite(f"sim:{progress:.2f}")
+                    self.__mpsend(f"sim:{progress:.2f}")
                     self.__last_mp_time = ctime
                 self.__last_print_time = ctime
 
@@ -644,7 +653,7 @@ def simulate_single(vb=None, **kwargs)->bool:
     '''
     return V2SimInstance(**kwargs, vb=vb, silent=False).simulate()[0]
 
-def simulate_multi(mpQ:Optional[queue.Queue[tuple[int, str]]], clntID:int, **kwargs)->bool:
+def simulate_multi(mpQ:Optional[queue.Queue[MsgPack]], clntID:int, **kwargs)->bool:
     '''
     Multi-process simulation
         mpQ: Queue for communication with the main process.
