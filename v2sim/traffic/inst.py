@@ -209,6 +209,7 @@ class TrafficInst:
         rou_id = random_string(16)
         traci.route.add(rou_id, route)
         traci.vehicle.add(veh_id, rou_id)
+        traci.vehicle.subscribe(veh_id, (TC.VAR_DISTANCE,))
     
     def __add_veh2(self, veh_id:str, st_edge:str, ed_edge:str, agg_routing:bool = False):
         self._VEHs[veh_id].clear_odometer()
@@ -217,6 +218,7 @@ class TrafficInst:
         if agg_routing:
             traci.vehicle.setRoutingMode(veh_id, TC.ROUTING_MODE_AGGREGATED)
         traci.vehicle.changeTarget(veh_id, ed_edge)
+        traci.vehicle.subscribe(veh_id, (TC.VAR_DISTANCE,))
 
     @property
     def edges(self) -> list[Edge]:
@@ -543,11 +545,10 @@ class TrafficInst:
         new_time = int(traci.simulation.getTime())
         deltaT = new_time - self.__ctime
         self.__ctime = new_time
-
-        cur_vehs: list[str] = traci.vehicle.getIDList()
-        arr_vehs: list[str] = traci.simulation.getArrivedIDList()
         
         # Process arrived vehicles
+        arr_vehs: List[str] = traci.simulation.getArrivedIDList()
+
         for v in arr_vehs:
             veh = self._VEHs[v]
             if veh.target_CS is None:
@@ -556,9 +557,11 @@ class TrafficInst:
                 self.__start_charging_FCS(self._VEHs[v])
 
         # Process driving vehicles
+        cur_vehs: List[str] = traci.vehicle.getIDList()
+
         for veh_id in cur_vehs:
             veh = self._VEHs[veh_id]
-            veh.drive(traci.vehicle.getDistance(veh_id))
+            veh.drive(traci.vehicle.getSubscriptionResults(veh_id)[TC.VAR_DISTANCE])
             if veh._elec <= 0:
                 # Vehicles with depleted batteries will be sent to the nearest fast charging station (time * 2)
                 veh._sta = VehStatus.Depleted
@@ -614,7 +617,7 @@ class TrafficInst:
         """
         f = Path(folder)
         f.mkdir(parents=True, exist_ok=True)
-        traci.simulation_saveState(str(f / "traffic.xml.gz"))
+        traci.simulation.saveState(str(f / "traffic.xml.gz"))
         with gzip.open(str(f / "inst.gz"), "wb") as f:
             pickle.dump({
                 "ctime":self.__ctime,
@@ -647,7 +650,7 @@ class TrafficInst:
         traffic = Path(folder) / "traffic.xml.gz"
         if not traffic.exists():
             raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(traffic))
-        traci.simulation_loadState(str(traffic))
+        traci.simulation.loadState(str(traffic))
 
     def load_state(self, folder: str):
         """
