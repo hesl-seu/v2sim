@@ -561,7 +561,7 @@ class TrafficInst:
 
         for veh_id in cur_vehs:
             veh = self._VEHs[veh_id]
-            veh.drive(traci.vehicle.getSubscriptionResults(veh_id)[TC.VAR_DISTANCE])
+            veh.drive(traci.vehicle.getDistance(veh_id))
             if veh._elec <= 0:
                 # Vehicles with depleted batteries will be sent to the nearest fast charging station (time * 2)
                 veh._sta = VehStatus.Depleted
@@ -651,6 +651,9 @@ class TrafficInst:
         if not traffic.exists():
             raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(traffic))
         traci.simulation.loadState(str(traffic))
+        #cur_vehs = traci.vehicle.getIDList()
+        #for veh_id in cur_vehs:
+        #    traci.vehicle.subscribe(veh_id, (TC.VAR_DISTANCE,))
 
     def load_state(self, folder: str):
         """
