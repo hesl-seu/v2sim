@@ -261,7 +261,7 @@ class ParaBox(tk.Tk):
         if self.item_cnt == 0:
             mb.showinfo(_L("INFO"),_L("NO_CASE"))
             return
-        self.q = mp.Queue()
+        self.q:mp.Queue[MsgPack] = mp.Queue()
         self.start_t = time.time()
         self.lb_time["text"] = "00:00:00"
         self.done_cnt = 0
@@ -281,8 +281,9 @@ class ParaBox(tk.Tk):
     
     def check(self):
         while not self.q.empty():
-            ln, text = self.q.get()
-            text:str = text.strip()
+            t = self.q.get()
+            ln = t.clntID
+            text = t.cmd.strip()
             if len(text)>0:
                 if text.startswith("done:"): 
                     tm = time2str(float(text.removeprefix("done:")))

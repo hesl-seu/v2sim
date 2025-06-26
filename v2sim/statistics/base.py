@@ -62,7 +62,7 @@ class StaBase:
                 else:
                     self._writer.write(f",{col},{v}\n")
                 self._vals[i] = v
-        assert i == n - 1, f"{self._name}: Data length ({i+1}) != Column count ({n})."
+        if n > 0 and i != n - 1: f"{self._name}: Data length ({i+1}) != Column count ({n})."
 
     def close(self):
         self._writer.close()

@@ -30,7 +30,7 @@ class WelcomeBox(Tk):
     def show(self):
         self.update()
         self.deiconify()
-        self.after(1000, self._checkdone)
+        self.after(500, self._checkdone)
         self.mainloop()
 
 def welcome(chd_pipe):
