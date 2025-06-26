@@ -1,7 +1,19 @@
-from typing import Literal, Optional
+from typing import Callable, List, Literal, Optional
 from ..locale import Lang
 from .utils import TWeights
 from .ev import EV
+
+
+_ArriveListener = Callable[[int, EV, Literal[0, 1, 2]], None]
+_ArriveCSListener = Callable[[int, EV, str], None]
+_DepartListener = Callable[[int, EV, int, Optional[str], Optional[TWeights]], None]
+_DepartDelayListener = Callable[[int, EV, float, int], None]
+_DepartCSListener = Callable[[int, EV, str], None]
+_DepartFailedListener = Callable[[int, EV, float, str, int], None]
+_FaultDepleteListener = Callable[[int, EV, str, int], None]
+_FaultNoChargeListener = Callable[[int, EV, str], None]
+_FaultRedirectListener = Callable[[int, EV, str, str], None]
+_WarnSmallCapListener = Callable[[int, EV, float], None]
 
 
 class TripsLogger:
@@ -10,6 +22,46 @@ class TripsLogger:
     ARRIVAL_CHARGE_FAILED = 2
     def __init__(self, file_name:str):
         self.__ostream = open(file_name, 'w', encoding='utf-8')
+        self.__arrive_listeners:List[_ArriveListener] = []
+        self.__arrive_cs_listeners:List[_ArriveCSListener] = []
+        self.__depart_listeners:List[_DepartListener] = []
+        self.__depart_delay_listeners:List[_DepartDelayListener] = []
+        self.__depart_cs_listeners:List[_DepartCSListener] = []
+        self.__depart_failed_listeners:List[_DepartFailedListener] = []
+        self.__fault_deplete_listeners:List[_FaultDepleteListener] = []
+        self.__fault_nocharge_listeners:List[_FaultNoChargeListener] = []
+        self.__fault_redirect_listeners:List[_FaultRedirectListener] = []
+        self.__warn_smallcap_listeners:List[_WarnSmallCapListener] = []
+    
+    def add_arrive_listener(self, func: _ArriveListener):
+        self.__arrive_listeners.append(func)
+    
+    def add_arrive_cs_listener(self, func: _ArriveCSListener):
+        self.__arrive_cs_listeners.append(func)
+    
+    def add_depart_listener(self, func: _DepartListener):
+        self.__depart_listeners.append(func)
+    
+    def add_depart_delay_listener(self, func: _DepartDelayListener):
+        self.__depart_delay_listeners.append(func)
+    
+    def add_depart_cs_listener(self, func: _DepartCSListener):
+        self.__depart_cs_listeners.append(func)
+    
+    def add_depart_failed_listener(self, func: _DepartFailedListener):
+        self.__depart_failed_listeners.append(func)
+    
+    def add_fault_deplete_listener(self, func: _FaultDepleteListener):
+        self.__fault_deplete_listeners.append(func)
+    
+    def add_fault_nocharge_listener(self, func: _FaultNoChargeListener):
+        self.__fault_nocharge_listeners.append(func)
+    
+    def add_fault_redirect_listener(self, func: _FaultRedirectListener):
+        self.__fault_redirect_listeners.append(func)
+    
+    def add_warn_smallcap_listener(self, func: _WarnSmallCapListener):
+        self.__warn_smallcap_listeners.append(func)
     
     def __pr(self, *args):
         print(*args, file=self.__ostream, sep="|")
@@ -21,9 +73,13 @@ class TripsLogger:
         else:
             nt = None
         self.__pr(simT, 'A', veh.brief(), status, veh.trip.arrive_edge, nt)
+        for l in self.__arrive_listeners:
+            l(simT, veh, status)
 
     def arrive_CS(self, simT: int, veh: EV, cs: str):
         self.__pr(simT, 'AC', veh.brief(), cs)
+        for l in self.__arrive_cs_listeners:
+            l(simT, veh, cs)
 
     def depart(self, simT: int, veh: EV, delay:int = 0, cs: Optional[str] = None, cs_param:Optional[TWeights] = None):
         if cs_param:
@@ -31,27 +87,43 @@ class TripsLogger:
         else:
             cs_param_str = ''
         self.__pr(simT, 'D', veh.brief(), veh.trip, delay, cs, cs_param_str)
+        for l in self.__depart_listeners:
+            l(simT, veh, delay, cs, cs_param)
 
     def depart_delay(self, simT: int, veh: EV, batt_req: float, delay:int):
         self.__pr(simT, 'DD', veh.brief(), veh.battery, batt_req, delay)
+        for l in self.__depart_delay_listeners:
+            l(simT, veh, batt_req, delay)
     
     def depart_CS(self, simT: int, veh: EV, cs: str):
         self.__pr(simT, 'DC', veh.brief(), cs, veh.trip.arrive_edge)
+        for l in self.__depart_cs_listeners:
+            l(simT, veh, cs)
     
     def depart_failed(self, simT: int, veh: EV, batt_req: float, cs: str, trT:int):
         self.__pr(simT, 'DF', veh.brief(), veh.battery, batt_req, cs, trT)
+        for l in self.__depart_failed_listeners:
+            l(simT, veh, batt_req, cs, trT)
     
     def fault_deplete(self, simT: int, veh: EV, cs: str, trT:int):
         self.__pr(simT, 'FD', veh.brief(), cs, trT)
+        for l in self.__fault_deplete_listeners:
+            l(simT, veh, cs, trT)
     
     def fault_nocharge(self, simT: int, veh: EV, cs: str):
         self.__pr(simT, 'FN', veh.brief(), veh.battery, cs)
+        for l in self.__fault_nocharge_listeners:
+            l(simT, veh, cs)
     
     def fault_redirect(self, simT: int, veh: EV, cs_old: str, cs_new: str):
         self.__pr(simT, 'FR', veh.brief(), veh.battery, cs_old, cs_new)
+        for l in self.__fault_redirect_listeners:
+            l(simT, veh, cs_old, cs_new)
 
     def warn_smallcap(self, simT: int, veh: EV, batt_req: float):
         self.__pr(simT, 'WC', veh.brief(), veh.battery, batt_req)
+        for l in self.__warn_smallcap_listeners:
+            l(simT, veh, batt_req)
     
     def close(self):
         self.__ostream.close()

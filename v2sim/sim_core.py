@@ -472,6 +472,11 @@ class V2SimInstance:
     def pdn(self) -> Optional[PluginPDN]:
         '''Power grid plugin'''
         return self.__gridplg
+
+    @property
+    def trips_logger(self) -> TripsLogger:
+        '''Trip logger'''
+        return self.__inst.trips_logger
     
     def send_to_host(self, command:str, obj:Any = None):
         '''Send message to host process'''

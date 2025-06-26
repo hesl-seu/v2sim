@@ -155,6 +155,11 @@ class TrafficInst:
                 self.__start_charging_SCS(veh)
 
     @property
+    def trips_logger(self) -> TripsLogger:
+        """Trip logger"""
+        return self.__logger
+    
+    @property
     def veh_file(self):
         """Vehicle information and itinerary file"""
         return self.__vehfile
