@@ -47,3 +47,5 @@ DELETE=Del
 CLEAR=Clear
 SAVE_AND_CLOSE=Save
 OTHER_PARAMS=Other params
+EXIT=Exit
+OPERS=Operations

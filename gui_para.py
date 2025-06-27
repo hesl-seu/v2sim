@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 from tkinter import filedialog as fd
 from tkinter import messagebox as mb
-from fgui import ScrollableTreeView, LogItemPad, EditMode
+from fgui import ScrollableTreeView, LogItemPad, EditMode, add_lang_menu
 from feasytools import time2str
 from v2sim import *
 
@@ -28,7 +28,6 @@ class RedirectStdout:
 class ParamsEditor(tk.Toplevel):
     def __init__(self, data:dict[str,str]):
         super().__init__()
-        self.title(_L["PARAMS_EDITOR"])
         self.data = data
         self.tree = ScrollableTreeView(self, allowSave=False)
         self.tree['show'] = 'headings'
@@ -154,6 +153,19 @@ class LoadGroupBox(tk.Toplevel):
 class ParaBox(tk.Tk):
     def __init__(self):
         super().__init__()
+        self.title(_L["PARAMS_EDITOR"])
+        self.menu = tk.Menu(self)
+        self.config(menu=self.menu)
+        self.filemenu = tk.Menu(self.menu, tearoff=0)
+        self.filemenu.add_command(label=_L("LOAD_CASE"), command=self.load)
+        self.filemenu.add_command(label=_L("REMOVE_CASE"), command=self.remove)
+        self.filemenu.add_separator()
+        self.filemenu.add_command(label=_L("RUN"), command=self.run)
+        self.filemenu.add_separator()
+        self.filemenu.add_command(label=_L("EXIT"), command=self.destroy)
+        self.menu.add_cascade(label=_L("OPERS"), menu=self.filemenu)
+        add_lang_menu(self.menu)
+
         self.title(_L("TITLE"))
         self.geometry('1024x576')
         self.tr = ScrollableTreeView(self)

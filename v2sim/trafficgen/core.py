@@ -3,7 +3,6 @@ from enum import IntEnum
 from itertools import repeat
 from pathlib import Path
 from feasytools import ArgChecker, KDTree, Point
-from feasytools.pdf import *
 from fpowerkit import Grid
 from sumolib.net import readNet, Net
 from typing import IO, Any, Literal, TypeVar, Union
@@ -14,6 +13,7 @@ from ..traffic import DetectFiles, GetTimeAndNetwork
 from .graph import RoadNetConnectivityChecker as ELGraph
 from .poly import PolygonMan
 from .tripgen import EVsGenerator, RoutingCacheMode, TripsGenMode
+from .misc import *
 
 DEFAULT_CNAME = str(Path(__file__).parent.parent / "probtable")
 

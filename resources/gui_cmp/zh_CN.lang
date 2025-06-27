@@ -10,3 +10,5 @@ AD_TITLE2=选择文件夹2
 NO_FIG=所选文件夹中没有figures文件夹! 请先使用gui_viewer.py画图!
 LOAD_FAILED=无法加载图片: {}
 NO_IMAGE=无图像
+EXIT=退出
+FILE=文件

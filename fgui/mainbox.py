@@ -10,10 +10,9 @@ from tkinter import messagebox as MB
 from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
 import xml.etree.ElementTree as ET
-
 import v2sim
 from v2sim import *
-
+from .langhelper import add_lang_menu
 from .view import *
 from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode
 from .network import NetworkPanel, OAfter
@@ -625,15 +624,6 @@ class LoadingBox(Toplevel):
     
 
 class MainBox(Tk):
-    @staticmethod
-    def setLang(lang_code:str):
-        def _f():
-            _L.DefaultLanguage = lang_code
-            Lang.load(lang_code)
-            Lang.save_lang_code(lang_code == "<auto>")
-            MB.showinfo(_L["MB_INFO"],_L["LANG_RESTART"])
-        return _f
-    
     def _OnPDNEnabledSet(self):
         def _setSimStat(itm:tuple[Any,...], v:str):
             if itm[0] != "pdn": return
@@ -661,11 +651,7 @@ class MainBox(Tk):
         self.menuFile.add_separator()
         self.menuFile.add_command(label=_L["MENU_EXIT"], command=self.onDestroy, accelerator='Ctrl+Q')
         self.bind("<Control-q>", lambda e: self.onDestroy())
-        self.menuLang = Menu(self.menu, tearoff=False)
-        self.menu.add_cascade(label=_L["MENU_LANG"], menu=self.menuLang)
-        self.menuLang.add_command(label=_L["MENU_LANG_AUTO"], command=self.setLang("<auto>"))
-        self.menuLang.add_command(label=_L["MENU_LANG_EN"], command=self.setLang("en"))
-        self.menuLang.add_command(label=_L["MENU_LANG_ZHCN"], command=self.setLang("zh_CN"))
+        add_lang_menu(self.menu)
         self.config(menu=self.menu)
         self.rowconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)

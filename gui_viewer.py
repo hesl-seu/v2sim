@@ -4,6 +4,7 @@ import pickle
 from pathlib import Path
 from queue import Queue
 from typing import Literal, Optional
+from fgui import add_lang_menu
 from fgui.view import *
 from fgui import ScrollableTreeView, TripsFrame
 from v2sim import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
@@ -339,6 +340,7 @@ class PlotBox(Tk):
         self.filemenu.add_command(label=_L["MENU_OPEN"], command=self.force_reload)
         self.filemenu.add_separator()
         self.filemenu.add_command(label=_L["MENU_EXIT"], command=self.destroy)
+        add_lang_menu(self.menu)
 
         self.tab = Notebook(self)
         self.tab.pack(expand=True,fill='both',padx=20,pady=3)
