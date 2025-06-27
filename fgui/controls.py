@@ -1,8 +1,8 @@
-from enum import StrEnum
+from enum import Enum
 from .view import *
 from typing import Any, Callable, Iterable, Optional
 from feasytools import RangeList, SegFunc, CreatePDFunc
-from feasytools.pdf import *
+from v2sim.trafficgen.misc import * # import PDFuncs
 from tkinter import messagebox as MB
 from v2sim import CustomLocaleLib
 
@@ -66,7 +66,7 @@ _loc.SetLanguageLib("en",
 ALWAYS_ONLINE = _loc['ALWAYS_ONLINE']
 def empty_postfunc(itm:tuple[Any,...], val:str): pass
 
-class EditMode(StrEnum):
+class EditMode(Enum):
     DISABLED = "disabled"
     ENTRY = "entry"
     SPIN = "spin"
@@ -181,7 +181,7 @@ class ScrollableTreeView(Frame):
         self.delegate_var = StringVar()
         self.tree.bind('<Double-1>', func=self.tree_item_edit)
         self.onSave = None
-        self.edit_mode:'dict[str, tuple[str, Any, Callable[[tuple[Any,...], str],None]]]' = {}
+        self.edit_mode:'dict[str, tuple[EditModeLike, Any, Callable[[tuple[Any,...], str],None]]]' = {}
         self.delegate_widget = None
         self.selected_item = None
 

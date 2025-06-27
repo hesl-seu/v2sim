@@ -76,11 +76,11 @@ class PluginOvercurrent(PluginBase[None]):
                         ln.P = 0.
                         ln.Q = 0.
                         ln.I = 0.
-                    svr.est.UpdateGrid(cut_overflow_lines=True)
+                    svr.est.UpdateGrid(p.Grid, cut_overflow_lines=True)
                     self.__island_closed = [False] * len(svr.est.Islands)
                     svr.solve(_t)
-                for i, (il, (res, val)) in enumerate(zip(svr.est.Islands, svr.est.IslandResults)):
-                    if res == IslandResult.Failed and not self.__island_closed[i]:
+                for i, il in enumerate(svr.est.Islands):
+                    if il.result == IslandResult.Failed and not self.__island_closed[i]:
                         self.__island_closed[i] = True
                         for b in il.Buses: self._close(b)
                 ret = True, None

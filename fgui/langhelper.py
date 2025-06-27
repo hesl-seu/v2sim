@@ -20,6 +20,7 @@ _L.SetLanguageLib("en",
 
 def setLang(lang_code:str):
     def _f():
+        nonlocal lang_code
         _L.DefaultLanguage = lang_code
         Lang.load(lang_code)
         Lang.save_lang_code(lang_code == "<auto>")

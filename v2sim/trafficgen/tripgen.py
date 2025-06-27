@@ -1,8 +1,7 @@
-from enum import IntEnum, StrEnum
+from enum import Enum
 import random, time, sumolib
 from typing import Dict, List, Optional, Union
 from feasytools import ReadOnlyTable, CDDiscrete, PDDiscrete, PDGamma, DTypeEnum
-import numpy as np
 
 from ..locale import Lang
 from ..traffic import EV, EVDict, ReadXML, DetectFiles
@@ -13,7 +12,7 @@ DictPDF = dict[int, Union[PDDiscrete[int], None]]
 
 TAZ_TYPE_LIST = ("Home", "Work", "Relax", "Other")
 
-class RoutingCacheMode(IntEnum):
+class RoutingCacheMode(Enum):
     """Routing cache mode"""
     NONE = 0  # No cache
     RUNTIME = 1 # Cache during runtime
@@ -25,7 +24,7 @@ class RoutingCacheMode(IntEnum):
     def __repr__(self):
         return self.value
     
-class TripsGenMode(StrEnum):
+class TripsGenMode(Enum):
     """Generation mode"""
 
     AUTO = "Auto"  # Automatic

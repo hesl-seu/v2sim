@@ -1,7 +1,6 @@
 from itertools import chain
 from pathlib import Path
 import platform, random
-import numpy as np
 import pickle, gzip
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
@@ -24,6 +23,20 @@ else:  # Windows & Mac
 from traci._simulation import Stage
 
 TC = traci.constants
+
+def _mean(x: Sequence[float]) -> float:
+    """Calculate the mean of a list of floats."""
+    return sum(x) / len(x) if x else 0.0
+
+def _argmin(x: Iterable[float]) -> int:
+    """Find the index of the minimum value in a list of floats."""
+    minv_i = -1
+    minv = float('inf')
+    for i, v in enumerate(x):
+        if v < minv:
+            minv = v
+            minv_i = i
+    return minv_i
 
 class TrafficInst:
     #@FEasyTimer
@@ -278,23 +291,17 @@ class TrafficInst:
         if len(cs_names) == 0:
             return [], (-1, -1, -1)
 
-        t_drive = np.array([t.travelTime for t in stages]) / 60  # Convert travel time to minutes
-        t_wait = (
-            np.array([max(t - lim, 0) for t, lim in zip(veh_cnt, slots)]) * 30
-        )  # Queue time: 30 minutes per vehicle
+        t_drive = [t.travelTime/60 for t in stages]  # Convert travel time to minutes
+        t_wait = [max((t-lim)*30, 0) for t, lim in zip(veh_cnt, slots)]  # Queue time: 30 minutes per vehicle
 
         # Total weight
-        weight = np.sum(
-            [
-                omega * (t_drive + t_wait),  # Driving time and queue time weight
-                to_charge * np.array(prices),  # Electricity price weight
-            ],
-            axis=0,
-        ).tolist()
+        weight = [
+            omega * (td + tw) + to_charge * p for td, tw, p in zip(t_drive, t_wait, prices)
+        ]
 
-        wret = tuple(map(lambda x: float(np.mean(x)), (t_drive, t_wait, prices)))
+        wret = (_mean(t_drive), _mean(t_wait), _mean(prices))
         # Return the path and weight to the charging station with the minimum weight
-        return stages[np.argmin(weight)].edges, wret  # type: ignore
+        return stages[_argmin(weight)].edges, wret  # type: ignore
 
     def __start_trip(self, veh_id: str) -> tuple[bool, Optional[TWeights]]:
         """

@@ -15,9 +15,12 @@ If you are using this platform, please cite the paper:
   journal={IEEE Transactions on Smart Grid}, 
   title={V2Sim: An Open-Source Microscopic V2G Simulation Platform in Urban Power and Transportation Network}, 
   year={2025},
-  pages={1-1},
-  keywords={Vehicle-to-grid;Partial discharges;Microscopy;Batteries;Planning;Discharges (electric);Optimization;Vehicle dynamics;Transportation;Roads;EV charging load simulation;microscopic EV behavior;Vehicle-to-grid;charging station fault sensing},
+  volume={16},
+  number={4},
+  pages={3167-3178},
+  keywords={Vehicle-to-grid;Partial discharges;Microscopy;Batteries;Planning;Discharges (electric);Optimization;Vehicle dynamics;Transportation;Roads;EV charging load simulation;microscopic EV behavior;vehicle-to-grid;charging station fault sensing},
   doi={10.1109/TSG.2025.3560976}}
+
 ```
 
 Another early version on arXiv is [here](https://arxiv.org/abs/2412.09808).
@@ -32,7 +35,7 @@ Another early version on arXiv is [here](https://arxiv.org/abs/2412.09808).
 
 NOTE: We do not recommend use conda or other virtual environment, because some users have reported that libsumo may not work normally in these environments. 
 
-1. Setup Python: Visit `https://www.python.org/download` to get Python (version 3.12 is recommended. Newer version may meet libsumo compability problem, and older version cannot run this program normally).
+1. Setup Python: Visit `https://www.python.org/download` to get Python (version >=3.12 is recommended. Older version cannot run this program normally).
 
 2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get SUMO (version 1.20 and above are recommended).
 
