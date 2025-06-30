@@ -1,5 +1,6 @@
 import os
 import queue
+import sys
 import threading
 from pathlib import Path
 from queue import Empty, Queue
@@ -79,6 +80,12 @@ class PluginEditor(ScrollableTreeView):
             prop_desc = plg_type.ElemShouldHave().desc_dict(),
             prop_default_mode = EditMode.ENTRY
         )
+    
+    def is_enabled(self, plg_name:str):
+        for i in self.get_children():
+            if self.item(i, 'values')[0] == "pdn":
+                return self.item(i, 'values')[2] == SIM_YES
+        return False       
         
 
 class CSEditorGUI(Frame):
@@ -993,7 +1000,7 @@ class MainBox(Tk):
             if self.sim_statistic[x]:
                 logs.append(x)
         if not logs:
-            showerr("No statistics selected")
+            showerr(_L["NO_STA"])
             return
         if not self.saved:
             if not MB.askyesno(_L["MB_INFO"],_L["MB_SAVE_AND_SIM"]): return
@@ -1001,7 +1008,7 @@ class MainBox(Tk):
 
         #Check SUMOCFG
         if not self.state.cfg:
-            showerr("No SUMO config file detected")
+            showerr(_L["NO_SUMO_CFG"])
             return
         
         cflag, tr, route_file_name = FixSUMOConfig(self.state.cfg, start, end)
@@ -1014,6 +1021,17 @@ class MainBox(Tk):
             else:
                 return
         
+        # If PDN is enabled, check if cvxpy and ecos are installed
+        if self.sim_plglist.is_enabled("pdn"):
+            try:
+                import cvxpy # type: ignore
+                import ecos # type: ignore
+            except ImportError as e:
+                if MB.askyesno(_L["MB_INFO"], _L["MB_PDN_REQUIRED"]):
+                    os.system(f"{sys.executable} -m pip install cvxpy ecos")
+                else:
+                    return
+            
         commands = ["python", "sim_single.py",
                     "-d", '"'+self.folder+'"', 
                     "-b", str(start), 
@@ -1045,7 +1063,7 @@ class MainBox(Tk):
         def _save(data:List[tuple]):
             if not self.__checkFolderOpened():
                 return False
-            self.setStatus("Saving plugins...")
+            self.setStatus(_L["SAVE_PLG"])
             if self.state and "plg" in self.state:
                 filename = self.state["plg"]
             else:
@@ -1080,7 +1098,7 @@ class MainBox(Tk):
     
     def __checkFolderOpened(self):
         if not self.folder:
-            showerr("No project folder selected")
+            showerr(_L["PROJ_NO_OPEN"])
             return False
         return True
     

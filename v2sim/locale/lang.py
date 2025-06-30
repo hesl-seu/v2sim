@@ -450,11 +450,17 @@ class CustomLocaleLib:
     
     def __getitem__(self, key) -> str:
         assert isinstance(key, str)
-        return self.__lib[Lang.get_lang_code()][key]
+        try:
+            return self.__lib[Lang.get_lang_code()][key]
+        except KeyError:
+            return key
     
     def __call__(self, key) -> str:
         assert isinstance(key, str)
-        return self.__lib[Lang.get_lang_code()][key]
+        try:
+            return self.__lib[Lang.get_lang_code()][key]
+        except KeyError:
+            return key
 
 en_Lang = copy.deepcopy(Lang)
 Lang.load_default()
