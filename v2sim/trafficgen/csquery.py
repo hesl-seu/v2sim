@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union, overload
+from typing import Any, Optional, Union, overload, List, Dict, Tuple
 from pathlib import Path
 import time, json, requests
 from ..traffic import CheckFile, DetectFiles, ReadXML
@@ -42,7 +42,7 @@ class Rect:
     def __str__(self):
         return f"{self.lu_lng:.6f},{self.lu_lat:.6f}|{self.br_lng:.6f},{self.br_lat:.6f}"
     
-    def split4(self)->'tuple[Rect,Rect,Rect,Rect]':
+    def split4(self)->'Tuple[Rect,Rect,Rect,Rect]':
         mid_lng = (self.lu_lng + self.br_lng) / 2
         mid_lat = (self.lu_lat + self.br_lat) / 2
         return (
@@ -60,7 +60,7 @@ class AMapPOIReader:
         self.limit = limit
         self.all_yes = allyes
 
-    def get(self, rect:Rect, keyword:str) -> tuple[list[CS], list[dict[str,Any]]]:
+    def get(self, rect:Rect, keyword:str) -> Tuple[List[CS], List[Dict[str,Any]]]:
         raw = self.get_raw(rect, keyword)
         result = []
         for itm in raw:
@@ -72,7 +72,7 @@ class AMapPOIReader:
             result.append(CS(id, name, lat, lng))
         return result, raw
     
-    def get_raw(self, rect:Rect, keyword:str) -> list[dict[str,Any]]:
+    def get_raw(self, rect:Rect, keyword:str) -> List[Dict[str,Any]]:
         first_page = self.__get0(rect,keyword,1)
         if first_page['infocode'] == '10001':
             raise Exception('Invalid key.')
@@ -106,7 +106,7 @@ class AMapPOIReader:
 
         return final_result
 
-    def __get0(self, rect:Rect, keyword:str, pagenum:int) -> dict[str,Any]:
+    def __get0(self, rect:Rect, keyword:str, pagenum:int) -> Dict[str,Any]:
         # 011100(充电站中类)|011102(充换电站)|011103(专用充电站)|073000(电动自行车充电站中类)|073001(电动自行车换电)|073002(电动自行车专用充电站)
         url = f'https://restapi.amap.com/v3/place/polygon?polygon={str(rect)}&keywords={keyword}&offset={self.offset}&page={pagenum}&key={self.key}&types=011100&extensions=all'
         response = requests.get(url)

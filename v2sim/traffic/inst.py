@@ -1,8 +1,8 @@
 from itertools import chain
 from pathlib import Path
 import platform, random
-import numpy as np
 import pickle, gzip
+from typing import Sequence, List, Tuple, Dict
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
 from feasytools import PQueue, Point#, FEasyTimer
@@ -25,6 +25,20 @@ from traci._simulation import Stage
 
 TC = traci.constants
 
+def _mean(x: Sequence[float]) -> float:
+    """Calculate the mean of a list of floats."""
+    return sum(x) / len(x) if x else 0.0
+
+def _argmin(x: Iterable[float]) -> int:
+    """Find the index of the minimum value in a list of floats."""
+    minv_i = -1
+    minv = float('inf')
+    for i, v in enumerate(x):
+        if v < minv:
+            minv = v
+            minv_i = i
+    return minv_i
+
 class TrafficInst:
     #@FEasyTimer
     def __find_route(self, e1: str, e2: str) -> Stage:
@@ -42,7 +56,7 @@ class TrafficInst:
 
     def __find_route_trip(self, t: Trip, cache_route:bool = False) -> Stage:
         if t.fixed_route:
-            einst:list[Edge] = [self.__rnet.getEdge(e) for e in t.route]
+            einst:List[Edge] = [self.__rnet.getEdge(e) for e in t.route]
             k = (t.route[0], t.route[-1])
             st = Stage(
                 edges = t.route,
@@ -119,12 +133,12 @@ class TrafficInst:
         
         # Read road network
         self.__rnet: Net = readNet(road_net_file)
-        self.__edges: list[Edge] = self.__rnet.getEdges()
+        self.__edges: List[Edge] = self.__rnet.getEdges()
         # Get all road names
-        self.__names: list[str] = [e.getID() for e in self.__edges]
+        self.__names: List[str] = [e.getID() for e in self.__edges]
 
         # Load static shortest paths
-        self.__shortest_paths: dict[tuple[str,str], Stage] = {}
+        self.__shortest_paths: Dict[Tuple[str,str], Stage] = {}
 
         self.__istate_folder = initial_state_folder
 
@@ -144,8 +158,8 @@ class TrafficInst:
         self._scs:CSList[SCS] = scs_obj if scs_obj else CSList(self._VEHs, filePath=scsfile, csType=SCS)
         #if len(self._scs) == 0:
         #    raise RuntimeError("No slow charging station found")
-        self.__names_fcs: list[str] = [cs.name for cs in self._fcs]
-        self.__names_scs: list[str] = [cs.name for cs in self._scs]
+        self.__names_fcs: List[str] = [cs.name for cs in self._fcs]
+        self.__names_scs: List[str] = [cs.name for cs in self._scs]
 
         # Load vehicles to charging stations and prepare to depart
         for veh in self._VEHs.values():
@@ -154,6 +168,11 @@ class TrafficInst:
             if veh.SOC < veh.ksc or random.random() <= 0.2:
                 self.__start_charging_SCS(veh)
 
+    @property
+    def trips_logger(self) -> TripsLogger:
+        """Trip logger"""
+        return self.__logger
+    
     @property
     def veh_file(self):
         """Vehicle information and itinerary file"""
@@ -204,7 +223,7 @@ class TrafficInst:
         """Vehicle dictionary, key is vehicle ID, value is EV instance"""
         return self._VEHs
 
-    def __add_veh(self, veh_id: str, route: list[str]):
+    def __add_veh(self, veh_id: str, route: List[str]):
         self._VEHs[veh_id].clear_odometer()
         rou_id = random_string(16)
         traci.route.add(rou_id, route)
@@ -221,7 +240,7 @@ class TrafficInst:
         traci.vehicle.subscribe(veh_id, (TC.VAR_DISTANCE,))
 
     @property
-    def edges(self) -> list[Edge]:
+    def edges(self) -> List[Edge]:
         """Get all roads"""
         return self.__edges
 
@@ -230,20 +249,20 @@ class TrafficInst:
         """Get an iterator for all trips"""
         return chain(*(x.trips for x in self._VEHs.values()))
 
-    def get_edge_names(self) -> list[str]:
+    def get_edge_names(self) -> List[str]:
         """Get the names of all roads"""
         return self.__names
     
     def __sel_best_CS(
         self, veh: EV, omega: float, current_edge: Optional[str] = None, cur_pos: Optional[Point] = None
-    ) -> tuple[list[str], TWeights]:
+    ) -> Tuple[List[str], TWeights]:
         """
         Select the nearest available charging station based on the edge where the car is currently located, and return the path and average weight
             veh: Vehicle instance
             omega: Weight
             current_edge: Current road, if None, it will be automatically obtained
         Return:
-            Path(list[str]), Weight(tuple[float,float,float])
+            Path(List[str]), Weight(Tuple[float,float,float])
             If no charging station is found, return [],(-1,-1,-1)
         """
         to_charge = veh.charge_target - veh.battery
@@ -254,11 +273,11 @@ class TrafficInst:
         cur_pos = (traci.vehicle.getPosition(veh.ID) if cur_pos is None else cur_pos)
 
         # Distance check
-        cs_names: list[str] = []
-        veh_cnt: list[int] = []
-        slots: list[int] = []
-        prices: list[float] = []
-        stages: list[Stage] = []
+        cs_names: List[str] = []
+        veh_cnt: List[int] = []
+        slots: List[int] = []
+        prices: List[float] = []
+        stages: List[Stage] = []
         for cs_i in self._fcs.select_near(cur_pos,10):
             cs = self._fcs[cs_i]
             if not cs.is_online(self.__ctime): continue
@@ -273,25 +292,19 @@ class TrafficInst:
         if len(cs_names) == 0:
             return [], (-1, -1, -1)
 
-        t_drive = np.array([t.travelTime for t in stages]) / 60  # Convert travel time to minutes
-        t_wait = (
-            np.array([max(t - lim, 0) for t, lim in zip(veh_cnt, slots)]) * 30
-        )  # Queue time: 30 minutes per vehicle
+        t_drive = [t.travelTime/60 for t in stages]  # Convert travel time to minutes
+        t_wait = [max((t-lim)*30, 0) for t, lim in zip(veh_cnt, slots)]  # Queue time: 30 minutes per vehicle
 
         # Total weight
-        weight = np.sum(
-            [
-                omega * (t_drive + t_wait),  # Driving time and queue time weight
-                to_charge * np.array(prices),  # Electricity price weight
-            ],
-            axis=0,
-        ).tolist()
+        weight = [
+            omega * (td + tw) + to_charge * p for td, tw, p in zip(t_drive, t_wait, prices)
+        ]
 
-        wret = tuple(map(lambda x: float(np.mean(x)), (t_drive, t_wait, prices)))
+        wret = (_mean(t_drive), _mean(t_wait), _mean(prices))
         # Return the path and weight to the charging station with the minimum weight
-        return stages[np.argmin(weight)].edges, wret  # type: ignore
+        return stages[_argmin(weight)].edges, wret  # type: ignore
 
-    def __start_trip(self, veh_id: str) -> tuple[bool, Optional[TWeights]]:
+    def __start_trip(self, veh_id: str) -> Tuple[bool, Optional[TWeights]]:
         """
         Start the current trip of a vehicle
             veh_id: Vehicle ID
@@ -414,7 +427,7 @@ class TrafficInst:
 
     def __get_nearest_CS(
         self, cur_edge: str
-    ) -> tuple[Optional[str], float, Optional[Stage]]:
+    ) -> Tuple[Optional[str], float, Optional[Stage]]:
         """
         Find the nearest charging station
             cur_edge: Current road
@@ -431,7 +444,7 @@ class TrafficInst:
         return min_cs_name, min_cs_dist, min_cs_stage
 
     #@FEasyTimer
-    def __batch_depart(self) -> dict[str, Optional[TWeights]]:
+    def __batch_depart(self) -> Dict[str, Optional[TWeights]]:
         """
         All vehicles that arrive at the departure queue are sent out
             self.__ctime: Current time, in seconds
@@ -485,13 +498,13 @@ class TrafficInst:
         """
         self._scs.update(sec, self.__ctime)
 
-    def get_sta_head(self) -> list[str]:
+    def get_sta_head(self) -> List[str]:
         """
         Get the edge name corresponding to the return value of get_veh_count and CS_PK_update
         """
         return self.__names_fcs + self.__names_scs
 
-    def get_veh_count(self) -> list[int]:
+    def get_veh_count(self) -> List[int]:
         """
         Get the number of parked vehicles in all charging station and non-charging station edges
         """

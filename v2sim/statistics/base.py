@@ -1,10 +1,10 @@
 from abc import abstractmethod
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, List, Dict
 from pathlib import Path
 from ..plugins import *
 from ..traffic import TrafficInst
 
-def cross_list(a:Iterable[str],b:Iterable[str])->list[str]:
+def cross_list(a:Iterable[str],b:Iterable[str])->List[str]:
     '''Generate cross table header'''
     return [f"{i}#{j}" for j in b for i in a]
 
@@ -20,8 +20,8 @@ def to_base62(num:int):
 class StaBase:
     '''Base class for statistics recorder'''
     @abstractmethod
-    def __init__(self, name:str, path:str, items:list[str], tinst:TrafficInst, plugins:dict[str,PluginBase], 
-            precision:Optional[dict[str, int]]=None, compress:bool=True):
+    def __init__(self, name:str, path:str, items:List[str], tinst:TrafficInst, plugins:Dict[str,PluginBase], 
+            precision:Optional[Dict[str, int]]=None, compress:bool=True):
         self._name=name
         self._inst=tinst
         self._plug=plugins
@@ -41,7 +41,7 @@ class StaBase:
     def Writer(self):
         return self._writer
     
-    def GetData(self, inst:TrafficInst, plugins:dict[str,PluginBase]) -> Iterable[Any]: 
+    def GetData(self, inst:TrafficInst, plugins:Dict[str,PluginBase]) -> Iterable[Any]: 
         '''Get Data'''
         raise NotImplementedError
     

@@ -1,12 +1,12 @@
 from ..plugins import *
 from ..statistics import *
-from typing import Any
+from typing import Any, List
 from feasytools import SegFunc
 import math
     
 class StatisticsNotSupportedError(Exception): pass
 
-def _parse_val(x:str)->list[Any]:
+def _parse_val(x:str)->List[Any]:
     v = []
     v0 = 0
     for c in x:
@@ -32,7 +32,7 @@ class ReadOnlyStatistics(StaReader):
     def has_PVW(self)->bool: return FILE_PVW in self
     def has_ESS(self)->bool: return FILE_ESS in self
     
-    def __loadhead(self, name:str) -> list[str]:
+    def __loadhead(self, name:str) -> List[str]:
         def __trans(x:str):
             p = x.rfind("#")
             if p>=0: return x[:p]
@@ -52,7 +52,7 @@ class ReadOnlyStatistics(StaReader):
         self.__ess_head = None if FILE_ESS not in self else TO_BE_LOADED
         
     @property
-    def FCS_head(self)->list[str]: 
+    def FCS_head(self)->List[str]: 
         assert self.__fcs_head is not None, "CS properties not supported"
         if not isinstance(self.__fcs_head, list):
             self.__fcs_head = self.__loadhead(FILE_FCS)
@@ -60,7 +60,7 @@ class ReadOnlyStatistics(StaReader):
         return self.__fcs_head
 
     @property
-    def SCS_head(self)->list[str]: 
+    def SCS_head(self)->List[str]: 
         assert self.__scs_head is not None, "CS properties not supported"
         if not isinstance(self.__scs_head, list):
             self.__scs_head = self.__loadhead(FILE_SCS)
@@ -68,7 +68,7 @@ class ReadOnlyStatistics(StaReader):
         return self.__scs_head
     
     @property
-    def veh_head(self)->list[str]:
+    def veh_head(self)->List[str]:
         assert self.__ev_head is not None, "Vehicle properties not supported"
         if not isinstance(self.__ev_head, list):
             self.__ev_head = self.__loadhead(FILE_EV)
@@ -76,7 +76,7 @@ class ReadOnlyStatistics(StaReader):
         return self.__ev_head
     
     @property
-    def gen_head(self)->list[str]:
+    def gen_head(self)->List[str]:
         assert self.__gen_head is not None, "Generator properties not supported"
         if not isinstance(self.__gen_head, list):
             self.__gen_head = self.__loadhead(FILE_GEN)
@@ -87,7 +87,7 @@ class ReadOnlyStatistics(StaReader):
         return self.__gen_head
     
     @property
-    def bus_head(self)->list[str]:
+    def bus_head(self)->List[str]:
         assert self.__bus_head is not None, "Bus properties not supported"
         if not isinstance(self.__bus_head, list):
             self.__bus_head = self.__loadhead(FILE_BUS)
@@ -98,7 +98,7 @@ class ReadOnlyStatistics(StaReader):
         return self.__bus_head
     
     @property
-    def line_head(self)->list[str]:
+    def line_head(self)->List[str]:
         assert self.__line_head is not None, "Line properties not supported"
         if not isinstance(self.__line_head, list):
             self.__line_head = self.__loadhead(FILE_LINE)
@@ -109,7 +109,7 @@ class ReadOnlyStatistics(StaReader):
         return self.__line_head
     
     @property
-    def pvw_head(self)->list[str]:
+    def pvw_head(self)->List[str]:
         assert self.__pvw_head is not None, "PV & Wind properties not supported"
         if not isinstance(self.__pvw_head, list):
             self.__pvw_head = self.__loadhead(FILE_PVW)
@@ -120,7 +120,7 @@ class ReadOnlyStatistics(StaReader):
         return self.__pvw_head
 
     @property
-    def ess_head(self)->list[str]:
+    def ess_head(self)->List[str]:
         assert self.__ess_head is not None, "ESS properties not supported"
         if not isinstance(self.__ess_head, list):
             self.__ess_head = self.__loadhead(FILE_ESS)
@@ -150,7 +150,7 @@ class ReadOnlyStatistics(StaReader):
         '''Charging power'''
         return self.FCS_attrib_of(cs,"c")
     
-    def FCS_load_all(self,tl=-math.inf,tr=math.inf)->list[SegFunc]:
+    def FCS_load_all(self,tl=-math.inf,tr=math.inf)->List[SegFunc]:
         '''Charging power of all CS'''
         return [self.FCS_load_of(cs).slice(tl,tr) for cs in self.FCS_head]
     
@@ -166,7 +166,7 @@ class ReadOnlyStatistics(StaReader):
         '''Charging power'''
         return self.SCS_attrib_of(cs,"c")
     
-    def SCS_charge_load_all(self,tl=-math.inf,tr=math.inf)->list[SegFunc]:
+    def SCS_charge_load_all(self,tl=-math.inf,tr=math.inf)->List[SegFunc]:
         '''Charging power of all CS'''
         return [self.SCS_charge_load_of(cs).slice(tl,tr) for cs in self.SCS_head]
     
@@ -174,7 +174,7 @@ class ReadOnlyStatistics(StaReader):
         '''Discharging power (V2G)'''
         return self.SCS_attrib_of(cs,"d")
     
-    def SCS_v2g_load_all(self,tl=-math.inf,tr=math.inf)->list[SegFunc]:
+    def SCS_v2g_load_all(self,tl=-math.inf,tr=math.inf)->List[SegFunc]:
         '''Discharging power (V2G) of all CS'''
         return [self.SCS_v2g_load_of(cs).slice(tl,tr) for cs in self.SCS_head]
     
@@ -182,7 +182,7 @@ class ReadOnlyStatistics(StaReader):
         '''V2G capacity'''
         return self.SCS_attrib_of(cs,"v2g")
     
-    def SCS_v2g_cap_all(self,tl=-math.inf,tr=math.inf)->list[SegFunc]:
+    def SCS_v2g_cap_all(self,tl=-math.inf,tr=math.inf)->List[SegFunc]:
         '''V2G capacity of all CS'''
         return [self.SCS_v2g_cap_of(cs).slice(tl,tr) for cs in self.SCS_head]
     
@@ -190,7 +190,7 @@ class ReadOnlyStatistics(StaReader):
         '''Net charging power'''
         return self.SCS_charge_load_of(cs) - self.SCS_v2g_load_of(cs)
     
-    def SCS_net_load_all(self,tl=-math.inf,tr=math.inf)->list[SegFunc]:
+    def SCS_net_load_all(self,tl=-math.inf,tr=math.inf)->List[SegFunc]:
         '''Net charging power of all CS'''
         return [self.SCS_net_load_of(cs).slice(tl,tr) for cs in self.SCS_head]
     

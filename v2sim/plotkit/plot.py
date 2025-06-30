@@ -1,6 +1,5 @@
-
 from pathlib import Path
-from typing import Literal, Optional, Union, Iterable
+from typing import Dict, List, Literal, Optional, Union, Iterable, Tuple
 import bisect
 from warnings import warn
 import matplotlib
@@ -20,7 +19,7 @@ FONT_SIZE_SMALL = int(Lang.PLOT_FONT_SIZE_SMALL)
 FONT_SIZE_NORMAL = int(Lang.PLOT_FONT_SIZE_MEDIUM)
 FONT_SIZE_LARGE = int(Lang.PLOT_FONT_SIZE_LARGE)
 
-def split_string_except_quotes(string:str,delim:str,trim_quotes:bool=True) -> list[str]:
+def split_string_except_quotes(string:str,delim:str,trim_quotes:bool=True) -> List[str]:
     result = []
     current_word = ""
     inside_quotes = False
@@ -44,7 +43,7 @@ def split_string_except_quotes(string:str,delim:str,trim_quotes:bool=True) -> li
 class AdvancedPlot:
     def __init__(self,tl:int=0,tr:int=-1,w:int=12,h:int=3,remove_edge:bool=True,double_side:bool=False,
             pic_ext:str="png",dpi:int=128,quick_plot_title:bool = True):
-        self.__series:dict[str,ReadOnlyStatistics] = {}
+        self.__series:Dict[str,ReadOnlyStatistics] = {}
         self.fig = None
         self.dpi = dpi
         self.pic_ext = pic_ext
@@ -96,7 +95,7 @@ class AdvancedPlot:
             ret_expr += expr[lp:]
         return eval(ret_expr.replace("^","**"),vars_dics)
     
-    def get_accum_series(self, series:str) -> tuple[list[int],list[list[Any]],list[str]]:
+    def get_accum_series(self, series:str) -> Tuple[List[int],List[List[Any]],List[str]]:
         s = series.split("|")
         if len(s) == 2:
             path,domain = s
@@ -245,7 +244,7 @@ class AdvancedPlot:
                 d = se.ess_attrib_of(val,"soc")
             else:
                 raise ValueError(f"Unsupported domain '{domain}'")
-        return d.slice(tl,self.max_tr).interpolate(tl,self.max_tr)
+        return d.slice(tl, self.max_tr).interpolate(tl, self.max_tr)
     
     def add_data(self, 
             expr:str, 
@@ -359,7 +358,7 @@ class AdvancedPlot:
         self.fig.savefig(save_to, dpi=self.dpi, bbox_inches="tight")
         plt.close()
     
-    def configure(self,commands:Union[str,list[str]]):
+    def configure(self,commands:Union[str, List[str]]):
         if isinstance(commands,str):
             commands = split_string_except_quotes(commands,";",False)
         else:

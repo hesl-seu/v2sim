@@ -1,6 +1,10 @@
-import multiprocessing as mp
 from tkinter import Tk, PhotoImage, Label
 from pathlib import Path
+import platform
+if platform.system() == "Windows":
+    import ctypes
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+import multiprocessing as mp
 
 class WelcomeBox(Tk):
     def __init__(self, chd_pipe):

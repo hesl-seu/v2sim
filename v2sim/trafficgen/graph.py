@@ -82,12 +82,12 @@ class RoadNetConnectivityChecker:
         self._cs_names = self._fcs_names.union(self._scs_names)
         self.all_edges:List[Edge] = self._net.getEdges()
         self.all_edgeIDs:List[str] = [e.getID() for e in self.all_edges]
-        self._id2num:dict[str, int] = {e:i for i,e in enumerate(self.all_edgeIDs)}
+        self._id2num:Dict[str, int] = {e:i for i,e in enumerate(self.all_edgeIDs)}
         gl:List[List[int]] = [[] for _ in range(len(self.all_edges))]
         for e in self.all_edges:
             e: Edge
             if not e.allows("passenger"): continue
-            ret: dict[Edge, List[Conn]] = e.getAllowedOutgoing("passenger")
+            ret: Dict[Edge, List[Conn]] = e.getAllowedOutgoing("passenger")
             u = self._id2num[e.getID()]
             gl[u] = [self._id2num[edge.getID()] for edge in ret.keys()]
         
@@ -151,17 +151,17 @@ class RoadNetConnectivityChecker:
         return sx, sy
     
     @property
-    def FCSNames(self) -> set[str]:
+    def FCSNames(self) -> Set[str]:
         '''Return the set of FCS edge names'''
         return self._fcs_names
     
     @property
-    def SCSNames(self) -> set[str]:
+    def SCSNames(self) -> Set[str]:
         '''Return the set of SCS edge names'''
         return self._scs_names
 
     @property
-    def CSNames(self) -> set[str]:
+    def CSNames(self) -> Set[str]:
         '''Return the set of CS edge names'''
         return self._cs_names
     

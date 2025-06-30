@@ -1,19 +1,18 @@
-from enum import IntEnum, StrEnum
+from enum import Enum
 import random, time, sumolib
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Tuple
 from feasytools import ReadOnlyTable, CDDiscrete, PDDiscrete, PDGamma, DTypeEnum
-import numpy as np
 
 from ..locale import Lang
 from ..traffic import EV, EVDict, ReadXML, DetectFiles
 from .misc import VehicleType, random_diff, _TripInner, _EVInner, _xmlSaver
 from .poly import PolygonMan
 
-DictPDF = dict[int, Union[PDDiscrete[int], None]]
+DictPDF = Dict[int, Union[PDDiscrete[int], None]]
 
 TAZ_TYPE_LIST = ("Home", "Work", "Relax", "Other")
 
-class RoutingCacheMode(IntEnum):
+class RoutingCacheMode(Enum):
     """Routing cache mode"""
     NONE = 0  # No cache
     RUNTIME = 1 # Cache during runtime
@@ -25,7 +24,7 @@ class RoutingCacheMode(IntEnum):
     def __repr__(self):
         return self.value
     
-class TripsGenMode(StrEnum):
+class TripsGenMode(Enum):
     """Generation mode"""
 
     AUTO = "Auto"  # Automatic
@@ -54,7 +53,7 @@ class EVsGenerator:
         self.vTypes = [VehicleType(**x) for x in ReadOnlyTable(CROOT + "/ev_types.csv",dtype=DTypeEnum.FLOAT32).to_list_of_dict()]
         # Define various functional area types
         self._route_cache_mode = route_cache
-        self.__route_cache:dict[tuple[str,str], list[str]] = {}
+        self.__route_cache:Dict[Tuple[str,str], List[str]] = {}
         self.dic_taz = {}
         self.net:sumolib.net.Net = sumolib.net.readNet(_fn["net"])
         if mode == TripsGenMode.AUTO:
@@ -104,11 +103,11 @@ class EVsGenerator:
         
         # Spatial transfer probability of weekday and weekend. 
         # key1 = from_type, key2 = time (0~95, each unit = 15min), value = CDF of (to_type1, to_type2, to_type3, to_type4)
-        self.PSweekday:dict[str, DictPDF] = {}
-        self.PSweekend:dict[str, DictPDF] = {}
+        self.PSweekday:Dict[str, DictPDF] = {}
+        self.PSweekend:Dict[str, DictPDF] = {}
         # Parking duration CDF of weekday and weekend.
-        self.park_cdf_wd:dict[str, CDDiscrete[int]] = {} 
-        self.park_cdf_we:dict[str, CDDiscrete[int]] = {}
+        self.park_cdf_wd:Dict[str, CDDiscrete[int]] = {} 
+        self.park_cdf_we:Dict[str, CDDiscrete[int]] = {}
 
         def read_trans_pdfs(path:str) -> DictPDF:
             tbwd = ReadOnlyTable(path, dtype=DTypeEnum.FLOAT32)
@@ -164,7 +163,7 @@ class EVsGenerator:
         cdf = self.__getPs(weekday, from_type, init_time_i)
         return "Home" if cdf is None else TAZ_TYPE_LIST[cdf.sample()]
 
-    def __getNextTAZandPlace(self, from_TAZ:str, from_EDGE:str, next_place_type:str) -> tuple[str,str,list[str]]:
+    def __getNextTAZandPlace(self, from_TAZ:str, from_EDGE:str, next_place_type:str) -> Tuple[str,str,List[str]]:
         trial = 0
         while True:
             if self._mode == "taz":

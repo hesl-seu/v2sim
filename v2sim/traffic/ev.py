@@ -1,13 +1,13 @@
 from __future__ import annotations
 import enum, math
-from typing import Callable, Iterable, List, Tuple, Union, Optional
+from typing import Callable, Dict, Iterable, List, Tuple, Union, Optional
 from feasytools import RangeList
 from .utils import IntPairList
 
 
 class Trip:
     def __init__(
-        self, trip_id: str, depart_time: int, fromTAZ: str, toTAZ: str, route: list[str], fixed_route: Optional[bool] = None
+        self, trip_id: str, depart_time: int, fromTAZ: str, toTAZ: str, route: List[str], fixed_route: Optional[bool] = None
     ):
         self.ID = trip_id
         self.depart_time = depart_time
@@ -62,7 +62,7 @@ def _LinearChargeRate(rate: float, ev: 'EV') -> float:
 
 class ChargeRatePool:
     """Charging rate correction function pool"""
-    _pool:'dict[str,Callable[[float, EV], float]]' = {
+    _pool:'Dict[str, Callable[[float, EV], float]]' = {
         "Equal":_EqualChargeRate, 
         "Linear":_LinearChargeRate,
     }
@@ -382,7 +382,7 @@ class EV:
         return c <= self._max_sc_cost and t in self._sc_time
     
     @property
-    def trips(self) -> tuple[Trip, ...]:
+    def trips(self) -> Tuple[Trip, ...]:
         '''Get the list of trips for the vehicle'''
         return self._trips
 

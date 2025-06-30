@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 import random, string, gzip
-from typing import Optional
+from typing import Optional, Set, Dict
 from xml.etree import ElementTree as ET
 from ..locale import Lang
 from typing import List, Tuple
@@ -34,7 +34,7 @@ def ReadXML(file: str, compressed:Optional[bool]=None) -> ET.ElementTree:
     else:
         raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(file))
 
-def LoadFCS(filename: str) -> set[str]:
+def LoadFCS(filename: str) -> Set[str]:
     '''Load FCS file and return a set of edge names'''
     fcs_root = ReadXML(filename).getroot()
     if fcs_root is None:
@@ -45,7 +45,7 @@ def LoadFCS(filename: str) -> set[str]:
             fcs_edges.add(fcs.attrib["edge"])
     return fcs_edges
 
-def LoadSCS(filename: str) -> set[str]:
+def LoadSCS(filename: str) -> Set[str]:
     '''Load SCS file and return a set of edge names'''
     scs_root = ReadXML(filename).getroot()
     if scs_root is None:
@@ -154,7 +154,7 @@ def DetectFiles(dir: str) -> FileDetectResult:
         FileDetectResult: A dictionary containing the detected files
     """
     p = Path(dir)
-    ret: dict[str, str] = {"name": p.name}
+    ret: Dict[str, str] = {"name": p.name}
     def add(name: str, filename: str):
         if name in ret: raise FileExistsError(Lang.ERROR_CONFIG_DIR_FILE_DUPLICATE.format(name,ret[name],filename))
         ret[name] = filename
@@ -191,7 +191,7 @@ def DetectFiles(dir: str) -> FileDetectResult:
             add("cscsv", filename)
     return FileDetectResult(**ret)
 
-def FixSUMOConfig(cfg_path: str, start: int=0, end: int=172800) -> tuple[bool, ET.ElementTree, str]:
+def FixSUMOConfig(cfg_path: str, start: int=0, end: int=172800) -> Tuple[bool, ET.ElementTree, str]:
     """
     Fix the SUMO configuration file by adding time and removing report and routing nodes.
     Args:
@@ -199,7 +199,7 @@ def FixSUMOConfig(cfg_path: str, start: int=0, end: int=172800) -> tuple[bool, E
         start (int): Start time (default: 0)
         end (int): End time (default: 172800)
     Returns:
-        tuple[bool, ET.ElementTree, str]: A tuple containing:
+        Tuple[bool, ET.ElementTree, str]: A tuple containing:
             - cflag (bool): Whether the configuration file was modified
             - tr (ET.ElementTree): The modified configuration file as an ElementTree object
             - route_file_name (str): The name of the route file

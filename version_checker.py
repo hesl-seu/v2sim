@@ -91,7 +91,7 @@ def check_requirements_gui(file = 'requirements.txt'):
         else:
             msg += f"{package:<{max_name_len}} - Required: {spec or 'any':<{max_spec_len}} | Current: {installed}\n"
 
-    command = f"pip install -r {file}"
+    command = f"{sys.executable} -m pip install -r {file}"
     msg += f"\nPlease install them via '{command}'"
 
     text = scrolledtext.ScrolledText(root, width=80, height=15)

@@ -6,11 +6,11 @@ FILE_SCS = "scs"
 CS_ATTRIB = ["cnt","c","d","v2g","pb","ps"]
 
 class StaFCS(StaBase):
-    def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
+    def __init__(self,path:str,tinst:TrafficInst,plugins:Dict[str,PluginBase]):
         head = cross_list(tinst.FCSList.get_CS_names(),["cnt","c","pb"])
         super().__init__(FILE_FCS,path,head,tinst,plugins)
 
-    def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
+    def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         t = inst.current_time
         IL = inst.FCSList
         cnt = (cs.__len__() for cs in IL)
@@ -19,14 +19,14 @@ class StaFCS(StaBase):
         return chain(cnt, Pc, pb)
 
 class StaSCS(StaBase):
-    def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
+    def __init__(self,path:str,tinst:TrafficInst,plugins:Dict[str,PluginBase]):
         head = cross_list(tinst.SCSList.get_CS_names(),CS_ATTRIB)
         super().__init__(FILE_SCS,path,head,tinst,plugins)
         self.L = len(tinst.SCSList)
         self.supv2g = self.L > 0 and tinst.SCSList[0].supports_V2G
         self.hasv2g = "v2g" in plugins
 
-    def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
+    def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         L = self.L
         IL = inst.SCSList
         t = inst.current_time

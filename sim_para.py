@@ -8,15 +8,14 @@ import time, os, shutil, sys
 import multiprocessing as mp
 from concurrent.futures import CancelledError, Future, ProcessPoolExecutor
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Tuple
 from feasytools import time2str, ArgChecker
 from v2sim import (
     Lang, PluginPool, StaPool,
     get_sim_params,
     simulate_multi,
     load_external_components,
-    simulate_single,
-    MsgPack
+    simulate_single
 )
 
 
@@ -95,7 +94,7 @@ def work(
     cmd: SimCommand,
     plg_pool: PluginPool,
     sta_pool: StaPool,
-    mpQ: Optional[queue.Queue[MsgPack]] = None,
+    mpQ: Optional[queue.Queue] = None,
 ) -> bool:
     """
     Run a simulation task.
@@ -130,7 +129,7 @@ def work(
     return ret
 
 
-def parallel_sim(parallel: int, results_root: str, commands: list[SimCommand]):
+def parallel_sim(parallel: int, results_root: str, commands: List[SimCommand]):
     """
     Run parallel simulations.
         parallel: Maximum number of parallel tasks.
@@ -142,12 +141,12 @@ def parallel_sim(parallel: int, results_root: str, commands: list[SimCommand]):
     if Path("external_components").exists():
         load_external_components("external_components", plg_pool, sta_pool)
     pool = ProcessPoolExecutor(parallel)
-    mpQ:queue.Queue[MsgPack] = mp.Manager().Queue()
+    mpQ:queue.Queue = mp.Manager().Queue()
 
-    skip_list: list[int] = []
-    work_list: list[Future] = []
-    work_id_list: list[int] = []
-    non_paras: list[tuple[int, SimCommand]] = []
+    skip_list: List[int] = []
+    work_list: List[Future] = []
+    work_id_list: List[int] = []
+    non_paras: List[Tuple[int, SimCommand]] = []
     pre_count = 0
 
     st_time = time.time()
@@ -166,7 +165,7 @@ def parallel_sim(parallel: int, results_root: str, commands: list[SimCommand]):
 
     print(Lang.PARA_SIM_SKIP_LIST.format(skip_list))
     rounds = len(commands)
-    progs: list[float] = [0.0] * rounds
+    progs: List[float] = [0.0] * rounds
     last_upd = 0
     real_rounds = rounds - len(skip_list) - len(non_paras)
 

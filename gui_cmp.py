@@ -3,6 +3,7 @@ Created by ChatGPT
 '''
 import os
 from pathlib import Path
+from fgui import add_lang_menu
 from fgui.view import *
 from PIL import Image, ImageTk
 from v2sim import CustomLocaleLib
@@ -26,6 +27,16 @@ class ImageComparerApp(Tk):
         self.create_widgets()
 
     def create_widgets(self):
+        self.menu = Menu(self)
+        self.config(menu=self.menu)
+        self.filemenu = Menu(self.menu, tearoff=0)
+        self.filemenu.add_command(label=_("OPEN_FOLDER1"), command=self.open_folder1)
+        self.filemenu.add_command(label=_("OPEN_FOLDER2"), command=self.open_folder2)
+        self.filemenu.add_separator()
+        self.filemenu.add_command(label=_("EXIT"), command=self.destroy)
+        self.menu.add_cascade(label=_("FILE"), menu=self.filemenu)
+        add_lang_menu(self.menu)
+
         self.sidebar = Frame(self)
         self.sidebar.pack(side=LEFT, fill=Y)
 

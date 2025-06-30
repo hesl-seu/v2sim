@@ -4,10 +4,10 @@ import multiprocessing as mp
 import time
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 from tkinter import filedialog as fd
 from tkinter import messagebox as mb
-from fgui import ScrollableTreeView, LogItemPad, EditMode
+from fgui import ScrollableTreeView, LogItemPad, EditMode, add_lang_menu
 from feasytools import time2str
 from v2sim import *
 
@@ -26,9 +26,8 @@ class RedirectStdout:
         pass
 
 class ParamsEditor(tk.Toplevel):
-    def __init__(self, data:dict[str,str]):
+    def __init__(self, data:Dict[str,str]):
         super().__init__()
-        self.title(_L["PARAMS_EDITOR"])
         self.data = data
         self.tree = ScrollableTreeView(self, allowSave=False)
         self.tree['show'] = 'headings'
@@ -66,8 +65,8 @@ class ParamsEditor(tk.Toplevel):
         self.data = self.getAllData()
         self.destroy()
 
-    def getAllData(self) -> dict[str,str]:
-        res:dict[str,str] = {}
+    def getAllData(self) -> Dict[str,str]:
+        res:Dict[str,str] = {}
         for i in self.tree.get_children():
             x = self.tree.tree.item(i, "values")
             res[x[0]] = x[1]
@@ -154,6 +153,19 @@ class LoadGroupBox(tk.Toplevel):
 class ParaBox(tk.Tk):
     def __init__(self):
         super().__init__()
+        self.title(_L["PARAMS_EDITOR"])
+        self.menu = tk.Menu(self)
+        self.config(menu=self.menu)
+        self.filemenu = tk.Menu(self.menu, tearoff=0)
+        self.filemenu.add_command(label=_L("LOAD_CASE"), command=self.load)
+        self.filemenu.add_command(label=_L("REMOVE_CASE"), command=self.remove)
+        self.filemenu.add_separator()
+        self.filemenu.add_command(label=_L("RUN"), command=self.run)
+        self.filemenu.add_separator()
+        self.filemenu.add_command(label=_L("EXIT"), command=self.destroy)
+        self.menu.add_cascade(label=_L("OPERS"), menu=self.filemenu)
+        add_lang_menu(self.menu)
+
         self.title(_L("TITLE"))
         self.geometry('1024x576')
         self.tr = ScrollableTreeView(self)
@@ -297,7 +309,7 @@ class ParaBox(tk.Tk):
         if self.done_cnt < self.item_cnt:
             self.after(1000, self.check)
 
-def work(root:str, par:dict[str,str], alt:dict[str,str], out:str, recv:RedirectStdout):
+def work(root:str, par:Dict[str,str], alt:Dict[str,str], out:str, recv:RedirectStdout):
     sys.stdout = recv
     import sim_single
     par.update({"d":root, "od":out})

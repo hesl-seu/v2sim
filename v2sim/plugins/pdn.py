@@ -46,7 +46,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         return _locale["DESCRIPTION"]
     
     @staticmethod
-    def __create_closure(cslist: list[CS], Sb_MVA: float):
+    def __create_closure(cslist: List[CS], Sb_MVA: float):
         def _sumP():
             return sum(c.Pc_MW for c in cslist)/Sb_MVA
         return _sumP
@@ -73,7 +73,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         ])
     
     def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path,
-            res_dir:Path, plg_deps:'list[PluginBase]') -> float:
+            res_dir:Path, plg_deps:'List[PluginBase]') -> float:
         '''Initialize the plugin from the XML element'''
         self.__inst = inst
         self.SetPreStep(self.PreStep)
@@ -94,7 +94,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         )
         self.__sol.SetErrorSaveTo(str(res_dir / "pdn_logs"))
         self.__badcnt = 0
-        self.__pds:dict[str, list[CS]] = defaultdict(list)
+        self.__pds:dict[str, List[CS]] = defaultdict(list)
         for c in chain(inst.FCSList,inst.SCSList):
             if not c.node in self.__gr.BusNames:
                 raise ValueError(_locale["ERROR_CS_NODE_NOT_EXIST"].format(c.name,c.node))
@@ -120,7 +120,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         '''Get the grid instance'''
         return self.__gr
     
-    def PreStep(self, _t:int, /, sta:PluginStatus)->tuple[bool,float]:
+    def PreStep(self, _t:int, /, sta:PluginStatus)->Tuple[bool,float]:
         '''Solve the optimal generation plan of the distribution network at time _t, 
         the solution result can be found in the relevant values of the Grid instance'''
         if sta == PluginStatus.EXECUTE:
@@ -164,7 +164,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         return self.LastPreStepResult
     
     @property
-    def GeneratorPlan(self)->dict[str,float]:
+    def GeneratorPlan(self)->Dict[str,float]:
         '''Get the best generation plan, requires the last solve to be successful'''
         assert self.LastPreStepSucceed, _locale["ERROR_LAST_FAILED"]
         return {g.ID: _sv(g.P) for g in self.__gr.Gens}

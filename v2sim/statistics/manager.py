@@ -12,7 +12,7 @@ from ..locale import Lang
 
 class StaPool:
     def __init__(self, load_internal_logger: bool = True):
-        self.__ava_logger: dict[str, type] = {}
+        self.__ava_logger: Dict[str, type] = {}
         if load_internal_logger:
             self.__ava_logger = {
                 FILE_FCS: StaFCS,
@@ -36,14 +36,14 @@ class StaPool:
         """Get a statistic item"""
         return self.__ava_logger[name]
 
-    def GetAllLogItem(self) -> list[str]:
+    def GetAllLogItem(self) -> List[str]:
         """Get all statistic items"""
         return list(self.__ava_logger.keys())
 
 
 class StaWriter:
     """Statistic data recorder"""
-    __items: dict[str, StaBase]
+    __items: Dict[str, StaBase]
 
     def Writer(self, name: str):
         return self.__items[name].Writer
@@ -52,7 +52,7 @@ class StaWriter:
         self,
         path: str,
         tinst: TrafficInst,
-        plugins: dict[str, PluginBase],
+        plugins: Dict[str, PluginBase],
         staPool: StaPool,
     ):
         self.__path = path
@@ -89,7 +89,7 @@ class StaWriter:
 
 class _CSVTable:
     def force_load(self):
-        lastTime:dict[str,int] = defaultdict(lambda:-1)
+        lastTime:Dict[str,int] = defaultdict(lambda:-1)
         data = self.__f.readlines()
         lt = -1
         for i, line in enumerate(data,2):
@@ -106,7 +106,7 @@ class _CSVTable:
         self.__loaded = True
 
     def __init__(self, filename:str, preload:bool=False):
-        self.__data:dict[str, SegFunc] = defaultdict(SegFunc)
+        self.__data:Dict[str, SegFunc] = defaultdict(SegFunc)
         self.__loaded = False
         self.__f = open(filename, "r")
         head = self.__f.readline().strip()
@@ -131,7 +131,7 @@ class _CSVTable:
         if not self.__loaded: self.force_load()
         return key in self.__data
     
-    def keys(self) -> list[str]:
+    def keys(self) -> List[str]:
         if self.__head is None: self.force_load()
         return self.__head # type: ignore
     
@@ -157,7 +157,7 @@ class StaReader:
         """
         work_dir = Path(path)
         dir_con = os.listdir(path)
-        self.__items: dict[str, _CSVTable] = {}
+        self.__items: Dict[str, _CSVTable] = {}
         for file in dir_con:
             if file.endswith(".csv"):
                 fname = file.removesuffix(".csv")

@@ -5,7 +5,7 @@ External Plugin Example:
 '''
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Iterable, Any
+from typing import Iterable, Any, Tuple, List, Dict
 from v2sim import CustomLocaleLib, TrafficInst
 from v2sim.plugins import *
 from v2sim.statistics import *
@@ -25,7 +25,7 @@ class DemoExternalPlugin(PluginBase):
     def Description(self)->str:
         return _locale["DESCRIPTION"]
     
-    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,plg_deps:'list[PluginBase]') -> object:
+    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,plg_deps:'List[PluginBase]') -> object:
         '''
         Add plugin initialization code here, return:
             Return value when the plugin is offline
@@ -33,7 +33,7 @@ class DemoExternalPlugin(PluginBase):
         self.SetPreStep(self.Work)
         return None
 
-    def Work(self,_t:int,/,sta:PluginStatus)->tuple[bool,None]:
+    def Work(self,_t:int,/,sta:PluginStatus)->Tuple[bool,None]:
         '''The execution function of the plugin at time _t'''
         raise NotImplementedError
 
@@ -42,12 +42,12 @@ class DemoStatisticItem(StaBase):
     def Description(self)->str:
         return _locale["DESCRIPTION"]
     
-    def __init__(self, name:str, path:str, items:list[str], tinst:TrafficInst, 
-            plugins:dict[str,PluginBase], precision:dict[str, int]={}, compress:bool=True):
+    def __init__(self, name:str, path:str, items:List[str], tinst:TrafficInst, 
+            plugins:Dict[str,PluginBase], precision:Dict[str, int]={}, compress:bool=True):
         super().__init__(name, path, items, tinst, plugins, precision, compress)
         raise NotImplementedError
 
-    def GetData(self, inst:TrafficInst, plugins:dict[str,PluginBase]) -> Iterable[Any]: 
+    def GetData(self, inst:TrafficInst, plugins:Dict[str,PluginBase]) -> Iterable[Any]: 
         '''Get Data'''
         raise NotImplementedError
 

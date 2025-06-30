@@ -20,7 +20,7 @@ class PluginPool:
         Initialize
             use_internal_plugins: Whether to load internal plugins
         '''
-        self.__curPlugins:dict[str,tuple[type,list[str]]] = {}
+        self.__curPlugins:Dict[str,Tuple[type,List[str]]] = {}
         if use_internal_plugins:
             for k,(p,d) in _internal_plugins.items():
                 self._Register(k,p,d)
@@ -31,7 +31,7 @@ class PluginPool:
                     print(self.__curPlugins)
                     raise PluginError(Lang.PLG_DEPS_NOT_REGISTERED.format(key,d))
 
-    def __getitem__(self,name:str)->tuple[type,list[str]]:
+    def __getitem__(self,name:str)->Tuple[type,List[str]]:
         '''Get plugin by name'''
         return self.__curPlugins[name]
     
@@ -39,11 +39,11 @@ class PluginPool:
         '''Get plugin type by name'''
         return self.__curPlugins[name][0]
     
-    def GetPluginDependencies(self,name:str)->list[str]:
+    def GetPluginDependencies(self,name:str)->List[str]:
         '''Get plugin dependencies by name'''
         return self.__curPlugins[name][1]
     
-    def GetAllPlugins(self,)->dict[str,tuple[type,list[str]]]:
+    def GetAllPlugins(self,)->Dict[str,Tuple[type,List[str]]]:
         '''Get all plugins'''
         return self.__curPlugins
     
@@ -51,7 +51,7 @@ class PluginPool:
         '''Check if plugin exists'''
         return self.__curPlugins.__contains__(name)
     
-    def _Register(self,name:str,plugin:type,deps:list[str]):
+    def _Register(self,name:str,plugin:type,deps:List[str]):
         '''Register new plugin to plugin pool without checking dependencies'''
         if name in self.__curPlugins:
             raise PluginError(Lang.PLG_REGISTERED.format(name))
@@ -60,7 +60,7 @@ class PluginPool:
                 raise PluginError(Lang.PLG_DEPS_MUST_BE_STRLIST)
         self.__curPlugins[name] = (plugin, deps)
     
-    def Register(self,name:str,plugin:type,deps:list[str]):
+    def Register(self,name:str,plugin:type,deps:List[str]):
         '''Register new plugin to plugin pool'''
         if not issubclass(plugin,PluginBase):
             raise PluginError(Lang.PLG_NOT_SUBCLASS.format(plugin))
@@ -70,7 +70,7 @@ class PluginPool:
         self._Register(name,plugin,deps)
 
 class PluginMan:
-    def __init__(self, plg_xml:Optional[str], res_dir:Path, inst:TrafficInst, no_plg:list[str], plugin_pool:PluginPool):
+    def __init__(self, plg_xml:Optional[str], res_dir:Path, inst:TrafficInst, no_plg:List[str], plugin_pool:PluginPool):
         '''
         Load plugins from file
             plg_xml: Plugin configuration file path, None means not load
@@ -79,7 +79,7 @@ class PluginMan:
             no_plg: Plugins not to load
             plugin_pool: Available plugin pool
         '''
-        self.__curPlugins:dict[str,PluginBase] = {}
+        self.__curPlugins:Dict[str,PluginBase] = {}
         if plg_xml is None:
             return
         if Path(plg_xml).exists() == False:
@@ -93,7 +93,7 @@ class PluginMan:
             if itm.tag in no_plg or itm.attrib.get("enabled") == "NO": continue
             if itm.tag not in plugin_pool: raise PluginError(Lang.PLG_INVALID_PLUGIN.format(itm.tag))
             plugin_type, dependencies = plugin_pool[itm.tag]
-            deps:list[PluginBase] = []
+            deps:List[PluginBase] = []
             for d in dependencies:
                 if d not in self.__curPlugins: raise PluginError(Lang.PLG_DEPS_NOT_LOADED.format(itm.tag,d))
                 deps.append(self.__curPlugins[d])
@@ -110,17 +110,17 @@ class PluginMan:
             p._postsim()
 
     #@FEasyTimer
-    def PreStepAll(self,_t:int)->dict[str,object]:
+    def PreStepAll(self,_t:int)->Dict[str,object]:
         '''Execute all plugins PreStep, return all plugins return value'''
-        ret:dict[str,object] = {}
+        ret:Dict[str,object] = {}
         for k,p in self.__curPlugins.items():
             ret[k] = p._precall(_t)
         return ret
     
     #@FEasyTimer
-    def PostStepAll(self,_t:int)->dict[str,object]:
+    def PostStepAll(self,_t:int)->Dict[str,object]:
         '''Execute all plugins PreStep, return all plugins return value'''
-        ret:dict[str,object] = {}
+        ret:Dict[str,object] = {}
         for k,p in self.__curPlugins.items():
             ret[k] = p._postcall(_t)
         return ret
@@ -135,18 +135,18 @@ class PluginMan:
         '''Get plugin by name'''
         return self.__curPlugins[name]
     
-    def GetPlugins(self)->dict[str,PluginBase]:
+    def GetPlugins(self)->Dict[str,PluginBase]:
         '''Get all plugins'''
         return self.__curPlugins
 
-    def SaveStates(self) -> dict[str, object]:
+    def SaveStates(self) -> Dict[str, object]:
         '''Save all plugin states'''
         ret = {}
         for name, p in self.__curPlugins.items():
             ret[name] = p._save_state()
         return ret
     
-    def LoadStates(self, states: dict[str, object]):
+    def LoadStates(self, states: Dict[str, object]):
         '''Load all plugin states'''
         for name, p in self.__curPlugins.items():
             if name in states:

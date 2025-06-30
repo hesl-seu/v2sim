@@ -2,7 +2,7 @@ import gzip
 import pickle
 import importlib, os, queue, shutil, signal, time, sys
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any, Dict, Optional, Union
 from feasytools import ArgChecker, time2str#, FEasyTimer
 from pathlib import Path
 from .plotkit import AdvancedPlot
@@ -56,7 +56,7 @@ def get_sim_params(
         plg_pool:PluginPool,
         sta_pool:StaPool,
         check_illegal:bool = True
-    )->dict[str,Any]:
+    )->Dict[str,Any]:
     '''
     Get simulation parameters used by the simulate function
         args: Command line parameters or ArgChecker instance
@@ -119,7 +119,7 @@ class V2SimInstance:
         gen_veh_command:str = "", 
         gen_fcs_command:str = "", 
         gen_scs_command:str = "", 
-        alt_command:Optional[dict[str,str]] = None,
+        alt_command:Optional[Dict[str,str]] = None,
         plot_command:str = "",
         traffic_step: int = 10,      
         start_time: int = 0,        
@@ -130,7 +130,7 @@ class V2SimInstance:
         copy: bool = False,
         vb = None,                
         silent: bool = False,           
-        mpQ: Optional[queue.Queue[MsgPack]] = None, 
+        mpQ: Optional[queue.Queue] = None, 
         clntID: int = -1,
         initial_state: str = "",
         load_last_state: bool = False,
@@ -472,6 +472,11 @@ class V2SimInstance:
     def pdn(self) -> Optional[PluginPDN]:
         '''Power grid plugin'''
         return self.__gridplg
+
+    @property
+    def trips_logger(self) -> TripsLogger:
+        '''Trip logger'''
+        return self.__inst.trips_logger
     
     def send_to_host(self, command:str, obj:Any = None):
         '''Send message to host process'''
@@ -653,7 +658,7 @@ def simulate_single(vb=None, **kwargs)->bool:
     '''
     return V2SimInstance(**kwargs, vb=vb, silent=False).simulate()[0]
 
-def simulate_multi(mpQ:Optional[queue.Queue[MsgPack]], clntID:int, **kwargs)->bool:
+def simulate_multi(mpQ:Optional[queue.Queue], clntID:int, **kwargs)->bool:
     '''
     Multi-process simulation
         mpQ: Queue for communication with the main process.

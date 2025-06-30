@@ -36,7 +36,7 @@ class PluginOvercurrent(PluginBase[None]):
         '''Get the plugin configuration item list'''
         return ConfigDict()
     
-    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plg_deps:'list[PluginBase]')->None:
+    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plg_deps:'List[PluginBase]')->None:
         self.__file = open(str(res_dir / "current_protect.log"), "w")
         self.SetPreStep(self._work)
         self.SetPostSimulation(self.__file.close)
@@ -44,10 +44,10 @@ class PluginOvercurrent(PluginBase[None]):
         self.__pdn = plg_deps[0]
         if self.__pdn.isSmartChargeEnabled():
             raise RuntimeError(_locale["ERROR_SMART_CHARGE"])
-        self.__csatb:dict[str, list[CS]] = defaultdict(list)
+        self.__csatb:Dict[str, List[CS]] = defaultdict(list)
         for cs in chain(inst.SCSList, inst.FCSList):
             self.__csatb[cs.node].append(cs)
-        self.__csatb_closed:dict[str, bool] = {
+        self.__csatb_closed:Dict[str, bool] = {
             b:False for b in self.__csatb
         }
     
@@ -60,7 +60,7 @@ class PluginOvercurrent(PluginBase[None]):
             cs.force_shutdown()
         print(f"CS {','.join(map(lambda x:x.name, self.__csatb[b]))} forced shutdown at bus {b}.", file=self.__file)
 
-    def _work(self,_t:int,/,sta:PluginStatus)->tuple[bool, None]:
+    def _work(self,_t:int,/,sta:PluginStatus)->Tuple[bool, None]:
         '''
         Get the V2G demand power of all bus with slow charging stations at time _t, unit kWh/s, 3.6MW=3600kW=1kWh/s
         '''
@@ -76,11 +76,11 @@ class PluginOvercurrent(PluginBase[None]):
                         ln.P = 0.
                         ln.Q = 0.
                         ln.I = 0.
-                    svr.est.UpdateGrid(cut_overflow_lines=True)
+                    svr.est.UpdateGrid(p.Grid, cut_overflow_lines=True)
                     self.__island_closed = [False] * len(svr.est.Islands)
                     svr.solve(_t)
-                for i, (il, (res, val)) in enumerate(zip(svr.est.Islands, svr.est.IslandResults)):
-                    if res == IslandResult.Failed and not self.__island_closed[i]:
+                for i, il in enumerate(svr.est.Islands):
+                    if il.result == IslandResult.Failed and not self.__island_closed[i]:
                         self.__island_closed[i] = True
                         for b in il.Buses: self._close(b)
                 ret = True, None
