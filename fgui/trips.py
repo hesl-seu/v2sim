@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import List
 import matplotlib
 matplotlib.use("agg")
 from matplotlib import pyplot as plt
@@ -141,7 +142,7 @@ class TripsFrame(Frame):
         self._btnStatPlot=Button(self._fr2,text=_loc["GUI_EVANA_PARAMSPLOT"],command=self.params_plot)
         self._btnStatPlot.pack(side=LEFT)
 
-        self._disp:list[TripLogItem] = []
+        self._disp:List[TripLogItem] = []
         self._Q = Queue()
         
         self.after(100,self._upd)

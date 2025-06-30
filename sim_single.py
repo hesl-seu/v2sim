@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 from v2sim import (
     Lang, PluginPool, StaPool,
     WINDOWS_VISUALIZE,
@@ -25,7 +25,7 @@ def error_exit(err=None, print_help: bool = False):
     sys.exit()
 
 #@FEasyTimer
-def work(pars:Optional[dict] = None, clntID:int = -1, q=None, alt:Optional[dict[str,str]] = None):
+def work(pars:Optional[dict] = None, clntID:int = -1, q=None, alt:Optional[Dict[str,str]] = None):
     if pars is not None:
         args = ArgChecker(pars=pars, force_parametric=["gen-veh", "gen-scs", "gen-fcs", "plot"])
     else:

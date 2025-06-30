@@ -1,4 +1,4 @@
-from typing import Callable, List, Literal, Optional
+from typing import Callable, List, Literal, Optional, Dict, Tuple
 from ..locale import Lang
 from .utils import TWeights
 from .ev import EV
@@ -139,7 +139,7 @@ class TripLogItem:
         'FD': Lang.CPROC_FAULT_DEPLETE,
         'WC': Lang.CPROC_WARN_SMALLCAP
     }
-    def __init__(self, simT:int, op:str, veh_id:str, veh_soc:str, trip_id:int, additional:dict[str,str]):
+    def __init__(self, simT:int, op:str, veh_id:str, veh_soc:str, trip_id:int, additional:Dict[str,str]):
         self.simT = simT
         self.__op = op
         self.veh = veh_id
@@ -242,13 +242,13 @@ class TripsReader:
     def __init__(self, filename:str):
         with open(filename, 'r', encoding='utf-8') as fp:
             self.raw_texts = fp.readlines()
-        self.meta_data:list[TripLogItem] = []
-        self.translated_texts:list[str] = []
+        self.meta_data:List[TripLogItem] = []
+        self.translated_texts:List[str] = []
         for d in map(lambda x: x.strip().split('|'), self.raw_texts):
             simT = int(d[0])
             op = d[1]
             veh, soc, tripid = d[2].split(',')
-            additional:dict[str,str] = {}
+            additional:Dict[str,str] = {}
             if op == 'A':
                 assert len(d) == 6
                 additional['status'] = d[3]
@@ -299,8 +299,8 @@ class TripsReader:
         return len(self.translated_texts)
     
     def filter(self, 
-        time:Optional[tuple[Optional[int],Optional[int]]]=None, 
-        action:Optional[list[str]]=None, 
+        time:Optional[Tuple[Optional[int],Optional[int]]]=None, 
+        action:Optional[List[str]]=None, 
         veh:Optional[str]=None, 
         trip_id:Optional[int]=None):
         for r,m,t in zip(self.raw_texts, self.meta_data, self.translated_texts):

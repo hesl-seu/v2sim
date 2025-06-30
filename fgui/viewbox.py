@@ -1,3 +1,4 @@
+from typing import List, Dict, Tuple
 from queue import Queue
 from .view import *
 
@@ -9,11 +10,11 @@ class ViewBox(Tk):
         lb2.grid(row=i,column=1,padx=3,pady=3)
         self._dict[key]=[0,lb2]
     
-    def __init__(self,keys:list[str],title="ViewBox",size:str="300x500"):
+    def __init__(self,keys:List[str],title="ViewBox",size:str="300x500"):
         super().__init__()
         self.title(title)
         self.geometry(size)
-        self._dict:dict[str,list]={}
+        self._dict:Dict[str, List]={}
         self._cnt=len(keys)
         self._fr=Frame(self)
         self._fr.pack(side='top',anchor='center',expand=1)
@@ -24,7 +25,7 @@ class ViewBox(Tk):
         self.after(100,self._upd)
 
     def _upd(self):
-        d:dict[str,tuple[int,Widget]]={}
+        d:Dict[str, Tuple[int, Widget]]={}
         while not self._Q.empty():
             d.update(self._Q.get())
         for key,val in d.items():
@@ -38,5 +39,5 @@ class ViewBox(Tk):
     def close(self):
         self.destroy()    
     
-    def set_val(self,d:dict):
+    def set_val(self,d:Dict):
         self._Q.put(d)

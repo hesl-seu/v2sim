@@ -1,4 +1,5 @@
 import v2sim
+from typing import List
 from v2sim import EV, AllocEnv
 
 '''
@@ -10,7 +11,7 @@ Define V2G allocation scheme
     The output is the discharge power multiplier for each vehicle in the ev_ids list, 
     which needs to be kept in the same order as ev_ids.
 '''
-def MyAverageActualRatio(env: 'AllocEnv', v2g_k: 'float') -> 'list[float]':
+def MyAverageActualRatio(env: 'AllocEnv', v2g_k: 'float') -> 'List[float]':
     return len(env.EVs) * [v2g_k]
 
 v2sim.cs.V2GAllocPool.add("MyAverage",MyAverageActualRatio)

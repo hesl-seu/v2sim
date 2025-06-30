@@ -1,16 +1,17 @@
+from typing import Dict
 from feasytools import RangeList
 from .utils import ReadXML
 from .params import *
 from .ev import EV, Trip
 
 class FloatDictWrapper:
-    def __init__(self, d: dict[str, str]):
+    def __init__(self, d: Dict[str, str]):
         self.__d = d
     
     def get(self, key: str, default: float) -> float:
         return float(self.__d.get(key, default))
     
-class EVDict(dict[str, EV]):
+class EVDict(Dict[str, EV]):
     def __init__(self, file_path=None):
         super().__init__()
         if file_path is None:

@@ -4,9 +4,10 @@ import platform
 if platform.system() == "Windows":
     import ctypes
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
+import multiprocessing as mp
 
 class WelcomeBox(Tk):
-    def __init__(self):
+    def __init__(self, chd_pipe):
         super().__init__()
         self.wm_attributes('-topmost',1)
         self.overrideredirect(True)
@@ -22,17 +23,33 @@ class WelcomeBox(Tk):
         self.image = PhotoImage(file=str(Path(__file__).parent / "fgui/v2sim.png"))
         self.image_label = Label(self, image=self.image)
         self.image_label.place(x=0, y=0, relwidth=1, relheight=1)
+        self.__pipe = chd_pipe
+    
+    def _checkdone(self):
+        if self.__pipe.recv() == "close":
+            self.destroy()
+        else:
+            self.after(100, self._checkdone)
+    
+    def show(self):
+        self.update()
+        self.deiconify()
+        self.after(500, self._checkdone)
+        self.mainloop()
+
+def welcome(chd_pipe):
+    wb = WelcomeBox(chd_pipe)
+    wb.show()
+
+def main(par):
+    from fgui.mainbox import MainBox
+    win = MainBox()
+    par.send("close")
+    win.mainloop()
 
 if __name__ == "__main__":
     from version_checker import check_requirements_gui
     check_requirements_gui()
-
-    wb = WelcomeBox()
-    def main():
-        from fgui.mainbox import MainBox
-        win = MainBox()
-        wb.destroy()
-        win.mainloop()
-
-    wb.after(100, main)
-    wb.mainloop()
+    par, chd = mp.Pipe()
+    mp.Process(target=welcome, args=(chd,)).start()
+    main(par)

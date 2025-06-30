@@ -4,7 +4,7 @@ import threading
 from pathlib import Path
 from queue import Empty, Queue
 import time
-from typing import Any, Optional, Callable, Union
+from typing import Any, Optional, Callable, Union, Dict, List, Tuple, Set
 from tkinter import filedialog
 from tkinter import messagebox as MB
 from fpowerkit import Grid as PowerGrid
@@ -20,6 +20,11 @@ from .network import NetworkPanel, OAfter
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
 
+
+def _removeprefix(s: str, prefix: str) -> str:
+    if s.startswith(prefix):
+        return s[len(prefix):]
+    return s
 
 def showerr(msg:str):
     MB.showerror(_L["MB_ERROR"], msg)
@@ -39,7 +44,7 @@ EXT_COMP = "external_components"
 
     
 class PluginEditor(ScrollableTreeView):
-    def __init__(self, master, onEnabledSet:Callable[[tuple[Any,...], str], None] = empty_postfunc, **kwargs):
+    def __init__(self, master, onEnabledSet:Callable[[Tuple[Any,...], str], None] = empty_postfunc, **kwargs):
         super().__init__(master, True, **kwargs)
         self.sta_pool = StaPool()
         self.plg_pool = PluginPool()
@@ -63,7 +68,7 @@ class PluginEditor(ScrollableTreeView):
         self.setColEditMode("Online", EditMode.RANGELIST, rangelist_hint = True)
         self.setColEditMode("Extra", EditMode.DISABLED)
     
-    def add(self, plg_name:str, interval:Union[int, str], enabled:str, online:Union[RangeList, str], extra:dict[str, Any]):
+    def add(self, plg_name:str, interval:Union[int, str], enabled:str, online:Union[RangeList, str], extra:Dict[str, Any]):
         self.insert("", "end", values= (
             plg_name, interval, enabled, online, repr(extra)
         ))
@@ -227,7 +232,7 @@ class CSEditorGUI(Frame):
         self.btn_regen.grid(row=6,column=0,padx=3,pady=3,sticky="w")
         self.tree.setOnSave(self.save())
 
-        self.cslist:list[CS] = []
+        self.cslist:List[CS] = []
     
     @property
     def saved(self):
@@ -240,7 +245,7 @@ class CSEditorGUI(Frame):
             except:
                 return SegFunc(eval(s))
             
-        def _save(data:list[tuple]):
+        def _save(data:List[tuple]):
             if not self.file: return False
             assert len(self.cslist) == len(data)
             with open(self.file, "w") as f:
@@ -600,12 +605,12 @@ class CSCSVEditor(Frame):
 
 
 class LoadingBox(Toplevel):
-    def __init__(self, items:list[str], **kwargs):
+    def __init__(self, items:List[str], **kwargs):
         super().__init__(None, **kwargs)
         self.title("Loading...")
         self.geometry("400x300")
-        self.cks:list[Label]=[]
-        self.dkt:dict[str,int]={}
+        self.cks:List[Label]=[]
+        self.dkt:Dict[str,int]={}
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         for i, t in enumerate(items):
@@ -625,7 +630,7 @@ class LoadingBox(Toplevel):
 
 class MainBox(Tk):
     def _OnPDNEnabledSet(self):
-        def _setSimStat(itm:tuple[Any,...], v:str):
+        def _setSimStat(itm:Tuple[Any,...], v:str):
             if itm[0] != "pdn": return
             t = v == SIM_YES
             for x in ("gen","bus","line","pvw","ess"):
@@ -1037,7 +1042,7 @@ class MainBox(Tk):
         
 
     def savePlugins(self):
-        def _save(data:list[tuple]):
+        def _save(data:List[tuple]):
             if not self.__checkFolderOpened():
                 return False
             self.setStatus("Saving plugins...")
@@ -1108,7 +1113,7 @@ class MainBox(Tk):
         else:
             if after: after()
     
-    def _load(self,loads:Optional[list[str]]=None, async_:bool = True):
+    def _load(self,loads:Optional[List[str]]=None, async_:bool = True):
         if not self.folder:
             showerr("No project folder selected")
             return
@@ -1118,7 +1123,7 @@ class MainBox(Tk):
         frm = LoadingBox(loads)
         self.after(100, self.__load_part2, set(loads), async_, frm)
     
-    def __load_part2(self, loads:set[str], async_:bool, frm:LoadingBox):
+    def __load_part2(self, loads:Set[str], async_:bool, frm:LoadingBox):
         self.state = res = DetectFiles(self.folder)
         self.title(f"{_L['TITLE']} - {Path(self.folder).name}")
         # Check if grid exists
@@ -1177,7 +1182,7 @@ class MainBox(Tk):
         
         def setText(lb:Label, itm:str, must:bool = False):
             if itm in res:
-                lb.config(text=res[itm].removeprefix(self.folder), foreground="black")
+                lb.config(text=_removeprefix(res[itm], self.folder), foreground="black")
             else:
                 lb.config(text="None", foreground="red" if must else "black")
         
@@ -1200,8 +1205,8 @@ class MainBox(Tk):
     
     def _load_plugins(self):
         
-        plg_set:set[str] = set()
-        plg_enabled_set:set[str] = set()
+        plg_set:Set[str] = set()
+        plg_enabled_set:Set[str] = set()
 
         self.sim_plglist.clear()
         assert self.state is not None

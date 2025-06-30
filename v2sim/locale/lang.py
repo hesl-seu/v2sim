@@ -1,6 +1,7 @@
 import copy
 import importlib, locale
 from pathlib import Path
+from typing import List
 
 class Lang:
     LANG_CODE = "en"
@@ -386,7 +387,7 @@ You can load the commands from a file as an argument in the command prompt/termi
         
 
 class CustomLocaleLib:
-    def __init__(self, supports_lang: list[str], default_lang:str=Lang.get_lang_code()):
+    def __init__(self, supports_lang: List[str], default_lang:str=Lang.get_lang_code()):
         self.__supports = supports_lang
         assert len(supports_lang) > 0, Lang.ERROR_NO_SUPPORTED_LANG
         if default_lang not in supports_lang:

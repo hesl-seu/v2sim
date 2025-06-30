@@ -4,7 +4,7 @@ from feasytools import ComFunc
 from .pdn import PluginPDN
 from .base import *
 
-V2GRes = list[float]
+V2GRes = List[float]
 
 _locale = CustomLocaleLib(["zh_CN","en"])
 _locale.SetLanguageLib("zh_CN",
@@ -35,7 +35,7 @@ class PluginV2G(PluginBase[V2GRes]):
         '''Get the plugin configuration item list'''
         return ConfigDict()
     
-    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plg_deps:'list[PluginBase]')->V2GRes:
+    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plg_deps:'List[PluginBase]')->V2GRes:
         self.__inst = inst
         self.__step_len = inst.step_len
         self.SetPreStep(self._work)
@@ -46,7 +46,7 @@ class PluginV2G(PluginBase[V2GRes]):
         if isinstance(self.__pdn, PluginPDN) and self.__pdn.isSmartChargeEnabled():
             raise RuntimeError(_locale["ERROR_SMART_CHARGE"])
         self.__inst = inst
-        self._cap:list[float] = [0.] * len(inst.SCSList)
+        self._cap:List[float] = [0.] * len(inst.SCSList)
 
         for i,pk in enumerate(inst.SCSList):
             self.__pdn.Grid.AddGen(Generator("V2G_"+pk.name,pk.node,0.,pk.psell*(self.__pdn.Grid.Sb*1000),0.,
@@ -61,7 +61,7 @@ class PluginV2G(PluginBase[V2GRes]):
             return self._cap[i]
         return func
     
-    def _work_post(self, _t:int, /, sta:PluginStatus)->tuple[bool,list[float]]:
+    def _work_post(self, _t:int, /, sta:PluginStatus)->Tuple[bool,List[float]]:
         if sta == PluginStatus.EXECUTE or (sta == PluginStatus.OFFLINE and self.IsOnline(_t + self.__step_len)):
             self._cap = [x*3.6/self.__pdn.Grid.Sb for x in self.__inst.SCSList.get_V2G_cap(_t)]
             ret = True, self._cap
@@ -71,7 +71,7 @@ class PluginV2G(PluginBase[V2GRes]):
             ret = True, self.LastPreStepResult
         return ret
     
-    def _work(self,_t:int,/,sta:PluginStatus)->tuple[bool,list[float]]:
+    def _work(self,_t:int,/,sta:PluginStatus)->Tuple[bool,List[float]]:
         '''
         Get the V2G demand power of all bus with slow charging stations at time _t, unit kWh/s, 3.6MW=3600kW=1kWh/s
         '''

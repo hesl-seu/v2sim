@@ -2,7 +2,7 @@ from abc import abstractmethod, ABC
 from collections import deque
 from dataclasses import dataclass
 from itertools import chain
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence, List, Dict
 from feasytools import RangeList, makeFunc, OverrideFunc, TimeFunc, ConstFunc, SegFunc
 from ordered_set import OrderedSet
 from .evdict import EVDict
@@ -26,14 +26,14 @@ class AllocEnv:
     EVdict: EVDict
     CTime: int
 
-V2GAllocator = Callable[[AllocEnv, float], list[float]]
+V2GAllocator = Callable[[AllocEnv, float], List[float]]
 
-def _AverageV2GAllocator(env:AllocEnv, v2g_k: float) -> list[float]:
+def _AverageV2GAllocator(env:AllocEnv, v2g_k: float) -> List[float]:
     return len(env.EVs) * [v2g_k]
 
 class V2GAllocPool:
     """Charging rate correction function pool"""
-    _pool:'dict[str, V2GAllocator]' = {
+    _pool:'Dict[str, V2GAllocator]' = {
         "Average":_AverageV2GAllocator, 
     }
 
@@ -47,13 +47,13 @@ class V2GAllocPool:
         """Get charging rate correction function"""
         return V2GAllocPool._pool[name]
 
-MaxPCAllocator = Callable[[AllocEnv, int, float, float], list[float]]
+MaxPCAllocator = Callable[[AllocEnv, int, float, float], List[float]]
 
-def _AverageMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot: float) -> list[float]:
+def _AverageMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot: float) -> List[float]:
     pc0 = min(max_pc_tot / vcnt, max_pc0) if vcnt > 0 else 0
     return [pc0] * vcnt
 
-def _PrioritizedMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot: float) -> list[float]:
+def _PrioritizedMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot: float) -> List[float]:
     ret = []
     for _ in range(vcnt):
         if max_pc_tot > max_pc0:
@@ -64,7 +64,7 @@ def _PrioritizedMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_t
             max_pc_tot = 0
     return ret
 
-def _TimeBasedMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot: float) -> list[float]:
+def _TimeBasedMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot: float) -> List[float]:
     loban = []
     for i, veh_id in enumerate(env.EVs):
         ev = env.EVdict[veh_id]
@@ -84,7 +84,7 @@ def _TimeBasedMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot
 
 class MaxPCAllocPool:
     """Charging rate correction function pool"""
-    _pool:'dict[str, MaxPCAllocator]' = {
+    _pool:'Dict[str, MaxPCAllocator]' = {
         "Average":_AverageMaxPCAllocator,
         "Prioritized":_PrioritizedMaxPCAllocator,
         "TimeBased":_TimeBasedMaxPCAllocator,
@@ -148,12 +148,12 @@ class CS(ABC):
         self._pc_limtot: float = float("inf") # Maximum charging power of the entire CS given by the PDN
         self._pc_alloc_str: str = pc_alloc # Charging power allocation method
         self._pc_alloc: MaxPCAllocator = MaxPCAllocPool.get(pc_alloc)
-        self._pc_actual: Optional[list[float]] = None # Actual charging power limit allocated to each slot
+        self._pc_actual: Optional[List[float]] = None # Actual charging power limit allocated to each slot
 
         self._pd_lim1: float = max_pd # Maximum V2G discharge power of a single pile
         self._pd_alloc_str: str = pd_alloc # V2G power allocation method
         self._pd_alloc: V2GAllocator = V2GAllocPool.get(pd_alloc) # V2G power allocation function
-        self._pd_actual: list[float] = [] # Actual V2G power ratio allocated to each slot
+        self._pd_actual: List[float] = [] # Actual V2G power ratio allocated to each slot
 
         self._cload: float = 0.0
         self._dload: float = 0.0
@@ -276,7 +276,7 @@ class CS(ABC):
     @abstractmethod
     def update(
         self, ev_dict: EVDict, sec: int, cur_time: int, v2g_k: float
-    ) -> list[str]:
+    ) -> List[str]:
         """
         Charge and discharge the EV in the given EVDict with the current parameters for sec seconds.
             ev_dict: EVDict corresponding to the vehicle ID stored in this CS
@@ -450,7 +450,7 @@ class SCS(CS):
     
     def update(
         self, ev_dict: EVDict, sec: int, cur_time: int, v2g_k: float
-    ) -> list[str]:
+    ) -> List[str]:
         # assert 0<=v2g_k<=1
         Wcharge = 0
         Wdischarge = 0
@@ -459,7 +459,7 @@ class SCS(CS):
             self._cload = 0
             self._dload = 0
             return []
-        ret: list[str] = []
+        ret: List[str] = []
         self._pc_actual = self._pc_alloc(AllocEnv(self,self._chi,ev_dict,cur_time), len(self._chi), self._pc_lim1, self._pc_limtot)
         for i, veh_id in enumerate(self._chi):
             ev = ev_dict[veh_id]
@@ -552,7 +552,7 @@ class FCS(CS):
 
     def update(
         self, ev_dict: EVDict, sec: int, cur_time: int, v2g_k: float
-    ) -> list[str]:
+    ) -> List[str]:
         # Fast charging station does not have V2G
         Wcharge = 0
         ret = []

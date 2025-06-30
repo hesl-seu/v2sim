@@ -3,7 +3,7 @@ import threading, os
 import pickle
 from pathlib import Path
 from queue import Queue
-from typing import Literal, Optional
+from typing import Literal, Optional, Dict, List, Tuple
 from fgui import add_lang_menu
 from fgui.view import *
 from fgui import ScrollableTreeView, TripsFrame
@@ -24,12 +24,12 @@ ITEM_ALL_V2G = "<All V2G stations>"
 ITEM_LOADING = "Loading..."
 
 class OptionBox(Frame):
-    def __init__(self, master, options:dict[str, tuple[str, bool]], lcnt:int = -1, **kwargs):
+    def __init__(self, master, options:Dict[str, Tuple[str, bool]], lcnt:int = -1, **kwargs):
         super().__init__(master, **kwargs)
-        self._bools:list[BooleanVar] = []
-        self._ctls:list[Checkbutton] = []
-        self._mp:dict[str, BooleanVar] = {}
-        self._fr:list[Frame] = []
+        self._bools:List[BooleanVar] = []
+        self._ctls:List[Checkbutton] = []
+        self._mp:Dict[str, BooleanVar] = {}
+        self._fr:List[Frame] = []
         if lcnt <= 0: 
             fr = Frame(self)
             fr.pack(side = "top", anchor = "w")
@@ -84,7 +84,7 @@ class PlotPad(Frame):
         else:
             self.cb_accum = None
     
-    def setValues(self, values:list[str]):
+    def setValues(self, values:List[str]):
         if isinstance(self.cb, Combobox):
             self.cb['values'] = values
             self.cb.current(0)
@@ -300,7 +300,7 @@ class PlotPage(Frame):
         })
         return ret
 
-    def enable(self, items:Optional[list[str]]=None):
+    def enable(self, items:Optional[List[str]]=None):
         if items is None:
             items = AVAILABLE_ITEMS
         else:
@@ -311,7 +311,7 @@ class PlotPage(Frame):
             getattr(self, f"{i}_opts").enable()
             getattr(self, f"{i}_pad").enable()
     
-    def disable(self, items:list[str]=[]):
+    def disable(self, items:List[str]=[]):
         if len(items)==0:
             items = AVAILABLE_ITEMS
         else:

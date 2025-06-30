@@ -4,7 +4,7 @@ import multiprocessing as mp
 import time
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 from tkinter import filedialog as fd
 from tkinter import messagebox as mb
 from fgui import ScrollableTreeView, LogItemPad, EditMode, add_lang_menu
@@ -26,7 +26,7 @@ class RedirectStdout:
         pass
 
 class ParamsEditor(tk.Toplevel):
-    def __init__(self, data:dict[str,str]):
+    def __init__(self, data:Dict[str,str]):
         super().__init__()
         self.data = data
         self.tree = ScrollableTreeView(self, allowSave=False)
@@ -65,8 +65,8 @@ class ParamsEditor(tk.Toplevel):
         self.data = self.getAllData()
         self.destroy()
 
-    def getAllData(self) -> dict[str,str]:
-        res:dict[str,str] = {}
+    def getAllData(self) -> Dict[str,str]:
+        res:Dict[str,str] = {}
         for i in self.tree.get_children():
             x = self.tree.tree.item(i, "values")
             res[x[0]] = x[1]
@@ -309,7 +309,7 @@ class ParaBox(tk.Tk):
         if self.done_cnt < self.item_cnt:
             self.after(1000, self.check)
 
-def work(root:str, par:dict[str,str], alt:dict[str,str], out:str, recv:RedirectStdout):
+def work(root:str, par:Dict[str,str], alt:Dict[str,str], out:str, recv:RedirectStdout):
     sys.stdout = recv
     import sim_single
     par.update({"d":root, "od":out})

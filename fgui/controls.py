@@ -1,6 +1,6 @@
 from enum import Enum
 from .view import *
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional, Union, Dict, List, Tuple
 from feasytools import RangeList, SegFunc, CreatePDFunc
 from v2sim.trafficgen.misc import * # import PDFuncs
 from tkinter import messagebox as MB
@@ -64,7 +64,7 @@ _loc.SetLanguageLib("en",
 )
 
 ALWAYS_ONLINE = _loc['ALWAYS_ONLINE']
-def empty_postfunc(itm:tuple[Any,...], val:str): pass
+def empty_postfunc(itm:Tuple[Any,...], val:str): pass
 
 class EditMode(Enum):
     DISABLED = "disabled"
@@ -80,7 +80,7 @@ EditModeLike = Union[EditMode, str]
 
 def parseEditMode(em:str):
     '''
-    (**Unsafe method**) Parse an EditMode-like string to (EditMode, dict[str, str])
+    (**Unsafe method**) Parse an EditMode-like string to (EditMode, Dict[str, str])
 
     An EditMode-like string is defined as an EditMode string (the values of EditMode enum) or something like
         "mode={'key1':value1, 'key2':value2, ...}", where mode is an EditMode string, and keys and values represent the parameters
@@ -113,10 +113,10 @@ def parseEditMode(em:str):
     return mode, pars
 
 class LogItemPad(LabelFrame):
-    def __init__(self, master, title:str, items:dict[str,str], **kwargs):
+    def __init__(self, master, title:str, items:Dict[str,str], **kwargs):
         super().__init__(master, text=title, **kwargs)
-        self._bvs:dict[str,BooleanVar] = {}
-        self._cbs:dict[str,Checkbutton] = {}
+        self._bvs:Dict[str,BooleanVar] = {}
+        self._cbs:Dict[str,Checkbutton] = {}
         for id, val in items.items():
             bv = BooleanVar(self, True)
             self._bvs[id] = bv
@@ -181,7 +181,7 @@ class ScrollableTreeView(Frame):
         self.delegate_var = StringVar()
         self.tree.bind('<Double-1>', func=self.tree_item_edit)
         self.onSave = None
-        self.edit_mode:'dict[str, tuple[EditModeLike, Any, Callable[[tuple[Any,...], str],None]]]' = {}
+        self.edit_mode:'Dict[str, Tuple[EditModeLike, Any, Callable[[Tuple[Any,...], str],None]]]' = {}
         self.delegate_widget = None
         self.selected_item = None
 
@@ -190,13 +190,13 @@ class ScrollableTreeView(Frame):
             if self.onSave(self.getAllData()):
                 self.lb_save.config(text=_loc["SAVED"],foreground="green")
     
-    def setOnSave(self, onSave:Callable[[list[tuple]], bool]):
+    def setOnSave(self, onSave:Callable[[List[tuple]], bool]):
         self.onSave = onSave
     
     def item(self, item, option=None, **kw):
         return self.tree.item(item, option, **kw)
     
-    def getAllData(self) -> list[tuple]:
+    def getAllData(self) -> List[tuple]:
         res = []
         for i in self.tree.get_children():
             res.append(self.tree.item(i, "values"))
@@ -217,12 +217,12 @@ class ScrollableTreeView(Frame):
     
     def __setEditMode(self, label:str, mode:EditModeLike, *,
             spin_from:int=1, spin_to:int=100, 
-            prop_edit_modes:Optional[dict[str, EditModeLike]] = None, 
+            prop_edit_modes:Optional[Dict[str, EditModeLike]] = None, 
             prop_default_mode:EditModeLike = EditMode.ENTRY,
-            prop_desc:Optional[dict[str, str]] = None,
-            combo_values:Optional[list[str]] = None,
+            prop_desc:Optional[Dict[str, str]] = None,
+            combo_values:Optional[List[str]] = None,
             rangelist_hint:bool = False, 
-            post_func:Callable[[tuple[Any,...], str], None] = empty_postfunc):
+            post_func:Callable[[Tuple[Any,...], str], None] = empty_postfunc):
         if not isinstance(mode, EditMode):
             mode, pars = parseEditMode(mode)
             if mode == EditMode.SPIN:
@@ -238,11 +238,11 @@ class ScrollableTreeView(Frame):
                 assert isinstance(rangelist_hint, bool), "Rangelist hint_hms must be a boolean"
             elif mode == EditMode.PROP:
                 prop_edit_modes = pars.get("edit_modes", prop_edit_modes)
-                assert isinstance(prop_edit_modes, dict), "Property edit modes must be a dict[str, EditModeLike]"
+                assert isinstance(prop_edit_modes, dict), "Property edit modes must be a Dict[str, EditModeLike]"
                 prop_default_mode = pars.get("default_mode", prop_default_mode)
                 assert isinstance(prop_default_mode, (str, EditMode)), "Property default mode must be an EditMode or a str"
                 prop_desc = pars.get("prop_desc", prop_desc)
-                assert isinstance(prop_desc, dict), "Property description must be a dict[str, str]"
+                assert isinstance(prop_desc, dict), "Property description must be a Dict[str, str]"
         if mode == EditMode.SPIN:
             self.edit_mode[label] = (mode, (spin_from, spin_to), post_func)
         elif mode == EditMode.COMBO:
@@ -470,7 +470,7 @@ class RangeListEditor(Toplevel):
         self.destroy()
 
     def getAllData(self) -> RangeList:
-        res:list[tuple[int,int]] = []
+        res:List[Tuple[int,int]] = []
         for i in self.tree.get_children():
             x = self.tree.tree.item(i, "values")
             res.append((RangeList.parse_time(x[0]), RangeList.parse_time(x[1])))
@@ -538,7 +538,7 @@ class SegFuncEditor(Toplevel):
         self.destroy()
 
     def getAllData(self) -> SegFunc:
-        res:list[tuple[int,float]] = []
+        res:List[Tuple[int,float]] = []
         for i in self.tree.get_children():
             x = self.tree.tree.item(i, "values")
             res.append((int(x[0]), float(x[1])))
@@ -548,12 +548,12 @@ class SegFuncEditor(Toplevel):
 class EditDesc:
     def __init__(self, typename:type):
         self._t = typename.__name__
-        self._desc:dict[str,str] = {}
-        self._text:dict[str,str] = {}
-        self._dtype:dict[str,type] = {}
-        self._em:dict[str,EditMode] = {}
-        self._em_kwargs:dict[str,dict[str,Any]] = {}
-        self._onchanged:dict[str,Optional[Callable[[Any,Any],None]]] = {}
+        self._desc:Dict[str,str] = {}
+        self._text:Dict[str,str] = {}
+        self._dtype:Dict[str,type] = {}
+        self._em:Dict[str,EditMode] = {}
+        self._em_kwargs:Dict[str,Dict[str,Any]] = {}
+        self._onchanged:Dict[str,Optional[Callable[[Any,Any],None]]] = {}
     
     def add(self, key:str, show:str, dtype:type, desc:str, 
             edit_mode:EditMode, onchanged = None, **kwargs):
@@ -593,11 +593,11 @@ class PropertyPanel(Frame):
         self.tree.tree_item_edit_done(None)
         self.setData(obj.__dict__, edesc._em, EditMode.ENTRY, edesc._desc, edesc._em_kwargs)
 
-    def setData(self, data:dict[str, Any],
-            edit_modes:Optional[dict[str,EditMode]] = None,
+    def setData(self, data:Dict[str, Any],
+            edit_modes:Optional[Dict[str,EditMode]] = None,
             default_edit_mode:EditMode = EditMode.ENTRY, 
-            desc:Optional[dict[str, str]] = None,
-            edit_modes_kwargs:Optional[dict[str,dict[str,Any]]] = None):
+            desc:Optional[Dict[str, str]] = None,
+            edit_modes_kwargs:Optional[Dict[str,Dict[str,Any]]] = None):
         self.tree.tree_item_edit_done(None)
         self.data = data
         if edit_modes is None: edit_modes = {}
@@ -611,7 +611,7 @@ class PropertyPanel(Frame):
             self.tree.setCellEditMode(l, "d", edit_modes.get(l, default_edit_mode), **kwargs)
         self.__desc_dict = desc if desc else {}
     
-    def setData2(self, data:dict[str, tuple[Any,...]], default_edit_mode:EditMode = EditMode.ENTRY):
+    def setData2(self, data:Dict[str, Tuple[Any,...]], default_edit_mode:EditMode = EditMode.ENTRY):
         new_data = {}
         desc = {}
         edit_modes = {}
@@ -627,10 +627,10 @@ class PropertyPanel(Frame):
                 edit_modes_kwargs[key] = val[3]
         self.setData(new_data, edit_modes, default_edit_mode, desc, edit_modes_kwargs)        
     
-    def __init__(self, master, data:dict[str,str],
-            edit_modes:Optional[dict[str,EditMode]] = None,
+    def __init__(self, master, data:Dict[str,str],
+            edit_modes:Optional[Dict[str,EditMode]] = None,
             default_edit_mode:EditMode = EditMode.ENTRY, 
-            desc:Optional[dict[str, str]] = None, **kwargs):
+            desc:Optional[Dict[str, str]] = None, **kwargs):
         super().__init__(master, **kwargs)
         self.tree = ScrollableTreeView(self, allowSave=False)
         self.tree['show'] = 'headings'
@@ -646,18 +646,18 @@ class PropertyPanel(Frame):
         self.__desc.pack(fill="x", expand=False)
         self.setData(data,edit_modes,default_edit_mode,desc)
     
-    def getAllData(self) -> dict[str, str]:
-        res:dict[str, str] = {}
+    def getAllData(self) -> Dict[str, str]:
+        res:Dict[str, str] = {}
         for i in self.tree.get_children():
             x = self.tree.tree.item(i, "values")
             res[x[0]] = x[1]
         return res
 
 class PropertyEditor(Toplevel):
-    def __init__(self, data:dict[str,str], var:StringVar, 
-            edit_modes:Optional[dict[str,EditMode]] = None,
+    def __init__(self, data:Dict[str,str], var:StringVar, 
+            edit_modes:Optional[Dict[str,EditMode]] = None,
             default_edit_mode:EditMode = EditMode.ENTRY,
-            desc:Optional[dict[str,str]] = None):
+            desc:Optional[Dict[str,str]] = None):
         super().__init__()
         self.title(_loc["PROPERTY_EDITOR"])
         self.__panel = PropertyPanel(self, data, edit_modes, default_edit_mode, desc)
@@ -668,7 +668,7 @@ class PropertyEditor(Toplevel):
         self.__btn_save.grid(row=0,column=4,padx=3,pady=3,sticky="e")
         self.var = var
     
-    def getAllData(self) -> dict[str,str]:
+    def getAllData(self) -> Dict[str,str]:
         return self.__panel.getAllData()
     
     def save(self):
@@ -715,7 +715,7 @@ class PDFuncEditor(Toplevel):
         self.var = var
 
     def getAllData(self) -> PDFunc:
-        res:dict[str, float] = {}
+        res:Dict[str, float] = {}
         for i in self.tree.get_children():
             x = self.tree.tree.item(i, "values")
             res[x[0]] = float(x[1])

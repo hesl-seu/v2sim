@@ -5,7 +5,7 @@ from pathlib import Path
 from feasytools import ArgChecker, KDTree, Point
 from fpowerkit import Grid
 from sumolib.net import readNet, Net
-from typing import IO, Any, Literal, TypeVar, Union
+from typing import IO, Any, Literal, TypeVar, Union, Dict, List
 import time
 import random
 from ..locale import Lang
@@ -52,7 +52,7 @@ class ListSelection(IntEnum):
     RANDOM = 1  # Random
     GIVEN = 2  # Given
 
-    def select(self, lst: list[T], n: int = -1, given: list[T] = []) -> list[T]:
+    def select(self, lst: List[T], n: int = -1, given: List[T] = []) -> List[T]:
         if self == ListSelection.ALL:
             return lst
         elif self == ListSelection.RANDOM:
@@ -94,12 +94,12 @@ class TrafficGenerator:
         if not self.__cfg.net:
             raise FileNotFoundError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
         self.__rnet: Net = readNet(self.__cfg.net)
-        self.__edges: list[str] = [e.getID() for e in self.__rnet.getEdges()]
-        self.__ava_fcs: list[str] = [
+        self.__edges: List[str] = [e.getID() for e in self.__rnet.getEdges()]
+        self.__ava_fcs: List[str] = [
             e for e in self.__edges
             if e.upper().startswith("CS") and not e.lower().endswith("rev")
         ]
-        self.__ava_scs: list[str] = [
+        self.__ava_scs: List[str] = [
             e for e in self.__edges if not e.upper().startswith("CS")
         ]
         
@@ -190,10 +190,10 @@ class TrafficGenerator:
         bus: ListSelection = ListSelection.ALL,
         busCount: int = -1,
         grid_file: str = "",
-        givenBus: list[str] = [],
+        givenBus: List[str] = [],
         cs: ListSelection = ListSelection.ALL,
         csCount: int = -1,
-        givenCS: list[str] = [],
+        givenCS: List[str] = [],
         priceBuyMethod: PricingMethod = PricingMethod.FIXED,
         priceBuy: float = 1.0,
         hasSell: bool = False,
@@ -226,7 +226,7 @@ class TrafficGenerator:
         fname = f"{self.__root}/{self.__name}.{mode}.xml"
         fp = open(fname, "w")
         fp.write("<root>\n")
-        cs_pos:dict[str,Point] = {}
+        cs_pos:Dict[str,Point] = {}
         if cs_file != "":
             el = ELGraph(f"{self.__root}/{self.__rnet_file}")
             with open(cs_file, "r") as f:
@@ -252,7 +252,7 @@ class TrafficGenerator:
             cs_names = cs.select(sorted(cs_pos.keys()), csCount, givenCS)
             cs_slots = repeat(slots, len(con) - 1)
         elif poly_file != "":
-            cs_type:dict[str,Any] = defaultdict(int)
+            cs_type:Dict[str,Any] = defaultdict(int)
             el = ELGraph(f"{self.__root}/{self.__rnet_file}")
             PolyMan = PolygonMan(poly_file)
             for poly in PolyMan:
@@ -278,7 +278,7 @@ class TrafficGenerator:
             cs_names = cs.select(self.__ava_fcs if mode == "fcs" else self.__ava_scs, csCount, givenCS)
             cs_slots = repeat(slots, len(cs_names))
         use_grid = False
-        bp:list[Point] = []
+        bp:List[Point] = []
         if grid_file != "":
             gr = Grid.fromFile(grid_file)
             use_grid = True
@@ -334,10 +334,10 @@ class TrafficGenerator:
         bus: ListSelection = ListSelection.ALL,
         busCount: int = -1,
         grid_file: str = "",
-        givenBus: list[str] = [],
+        givenBus: List[str] = [],
         cs: ListSelection = ListSelection.ALL,
         csCount: int = -1,
-        givenCS: list[str] = [],
+        givenCS: List[str] = [],
         priceBuyMethod: PricingMethod = PricingMethod.FIXED,
         priceBuy: float = 1.5,
     ):
@@ -379,10 +379,10 @@ class TrafficGenerator:
         bus: ListSelection = ListSelection.ALL,
         busCount: int = -1,
         grid_file: str = "",
-        givenBus: list[str] = [],
+        givenBus: List[str] = [],
         cs: ListSelection = ListSelection.ALL,
         csCount: int = -1,
-        givenCS: list[str] = [],
+        givenCS: List[str] = [],
         priceBuyMethod: PricingMethod = PricingMethod.FIXED,
         priceBuy: float = 1.5,
         priceSellMethod: PricingMethod = PricingMethod.FIXED,

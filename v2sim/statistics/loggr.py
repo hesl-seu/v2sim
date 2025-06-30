@@ -21,19 +21,19 @@ def _chk(x:Optional[float])->float:
     if x is None: return 0
     return x
 
-def _find_grid_plugin(plugins:dict[str,PluginBase])->IGridPlugin:
+def _find_grid_plugin(plugins:Dict[str,PluginBase])->IGridPlugin:
     for plg in plugins.values():
         if isinstance(plg, IGridPlugin):
             return plg
     raise ValueError("No plugin for grid found.")
 
 class StaGen(StaBase):
-    def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
+    def __init__(self,path:str,tinst:TrafficInst,plugins:Dict[str,PluginBase]):
         self.__plg = _find_grid_plugin(plugins)
         gen_names = self.__plg.Grid.GenNames
         super().__init__(FILE_GEN,path,cross_list(gen_names,GEN_ATTRIB)+GEN_TOT_ATTRIB,tinst,plugins)
 
-    def GetData(self,inst:TrafficInst,plugins:list[PluginBase])->Iterable[Any]:
+    def GetData(self,inst:TrafficInst,plugins:List[PluginBase])->Iterable[Any]:
         mpdn = self.__plg
         sb_MVA = mpdn.Grid.Sb_MVA
         _t = inst.current_time
@@ -51,14 +51,14 @@ class StaGen(StaBase):
         return chain(p,q,cp,[sum(p), sum(q), sum(cp)])
 
 class StaBus(StaBase):
-    def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
+    def __init__(self,path:str,tinst:TrafficInst,plugins:Dict[str,PluginBase]):
         self.__plg = _find_grid_plugin(plugins)
         bus_names = self.__plg.Grid.BusNames
         self.__bus_with_gens = [b.ID for b in self.__plg.Grid.Buses if len(self.__plg.Grid.GensAtBus(b.ID))>0]
         super().__init__(FILE_BUS,path,cross_list(bus_names,["Pd","Qd","V"]) 
             + cross_list(self.__bus_with_gens,["Pg","Qg"]) + BUS_TOT_ATTRIB,tinst,plugins)
 
-    def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
+    def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         mpdn = self.__plg.Grid
         sb_MVA = mpdn.Sb
         _t = inst.current_time
@@ -78,11 +78,11 @@ class StaBus(StaBase):
         return chain(Pd,Qd,V,Pg,Qg,[sum(Pd), sum(Qd), sum(Pg), sum(Qg)]) # Unit = MVA
 
 class StaLine(StaBase):
-    def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
+    def __init__(self,path:str,tinst:TrafficInst,plugins:Dict[str,PluginBase]):
         self.__plg = _find_grid_plugin(plugins)
         super().__init__(FILE_LINE,path,cross_list(self.__plg.Grid._lines.keys(),LINE_ATTRIB),tinst,plugins)
 
-    def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
+    def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         mpdn = self.__plg.Grid
         P = (_chk(b.P)*mpdn.Sb for b in mpdn.Lines)
         Q = (_chk(b.Q)*mpdn.Sb for b in mpdn.Lines)
@@ -90,22 +90,22 @@ class StaLine(StaBase):
         return chain(P,Q,I) # Unit = MVA or kA
 
 class StaPVWind(StaBase):
-    def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
+    def __init__(self,path:str,tinst:TrafficInst,plugins:Dict[str,PluginBase]):
         self.__plg = _find_grid_plugin(plugins)
         super().__init__(FILE_PVW, path, cross_list(self.__plg.Grid._pvws.keys(),PVW_ATTRIB),tinst,plugins)
 
-    def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
+    def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         mpdn = self.__plg.Grid
         P = (b.P(inst.current_time)*mpdn.Sb for b in mpdn.PVWinds)
         curt = (_chk(b._cr) for b in mpdn.PVWinds)
         return chain(P, curt) # Unit = MVA or %
 
 class StaESS(StaBase):
-    def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
+    def __init__(self,path:str,tinst:TrafficInst,plugins:Dict[str,PluginBase]):
         self.__plg = _find_grid_plugin(plugins)
         super().__init__(FILE_ESS, path, cross_list(self.__plg.Grid._esss.keys(),ESS_ATTRIB),tinst,plugins)
 
-    def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
+    def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         mpdn = self.__plg.Grid
         P = (_chk(b.P)*mpdn.Sb for b in mpdn.ESSs)
         soc = (b.SOC for b in mpdn.ESSs)

@@ -5,7 +5,7 @@ import queue
 import threading
 from tkinter import messagebox as MB
 from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
-from typing import Any, Callable, Iterable, Optional, Union
+from typing import Any, Callable, Iterable, Optional, Union, Dict, List, Tuple, Set
 import sumolib
 from v2sim import RoadNetConnectivityChecker as ELGraph
 from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy
@@ -15,8 +15,8 @@ from .view import *
 
 
 GenLike = Union[Generator, PVWind, ESS]
-PointList = list[tuple[float, float]]
-OESet = Optional[set[str]]
+PointList = List[Tuple[float, float]]
+OESet = Optional[Set[str]]
 OAfter = Optional[Callable[[], None]]
 
 
@@ -28,8 +28,8 @@ class itemdesc:
 class BIDC:
     def __init__(self, categories:Iterable[str]):
         self._cls = list(categories)
-        self._mp:dict[int, tuple[str, Any]] = {}
-        self._rv:dict[Any, int] = {}
+        self._mp:Dict[int, Tuple[str, Any]] = {}
+        self._rv:Dict[Any, int] = {}
     
     @property
     def classes(self):
@@ -54,7 +54,7 @@ class BIDC:
     def __getitem__(self, id:int):
         return itemdesc(*self._mp[id])
     
-    def __setitem__(self, id:int, val:Union[itemdesc,tuple[str, Any]]):
+    def __setitem__(self, id:int, val:Union[itemdesc,Tuple[str, Any]]):
         if id in self._mp: self.pop(id)
         if isinstance(val, itemdesc):
             self.add(id, val.type, val.desc)
@@ -124,7 +124,7 @@ class NetworkPanel(Frame):
             self._scale['x'] += dx
             self._scale['y'] += dy
     
-    def convLL2XY(self, lon:Optional[float], lat:Optional[float]) -> tuple[float, float]:
+    def convLL2XY(self, lon:Optional[float], lat:Optional[float]) -> Tuple[float, float]:
         '''Convert longitude and latitude to canvas coordinates'''
         if lon is None: lon = 0
         if lat is None: lat = 0
@@ -138,7 +138,7 @@ class NetworkPanel(Frame):
         y = -y
         return x * self._scale['k'] + self._scale['x'], y * self._scale['k'] + self._scale['y']
     
-    def convXY2LL(self, x:float, y:float) -> tuple[float, float]:
+    def convXY2LL(self, x:float, y:float) -> Tuple[float, float]:
         '''Convert canvas coordinates to longitude and latitude'''
         x = (x - self._scale['x'])/self._scale['k']
         y = -(y - self._scale['y'])/self._scale['k']
@@ -152,8 +152,8 @@ class NetworkPanel(Frame):
         self._cv.delete('all')
         self._scale_cnt = 0
         self._items:BIDC = BIDC(["bus", "bustext", "gen", "gentext", "genconn", "line", "edge"])
-        self._Redges:dict[str, int] = {}
-        self._located_edges:set[str] = set()
+        self._Redges:Dict[str, int] = {}
+        self._located_edges:Set[str] = set()
         self._drag = {'item': None,'x': 0,'y': 0}
         self._scale = {'k':1.0, 'x':0, 'y':0}
         self._r = None
@@ -594,7 +594,7 @@ class NetworkPanel(Frame):
             c, lw = self.__get_edge_prop(edge)
             self._cv.itemconfig(pid, fill=c, width=lw)
         
-    def __get_edge_prop(self, edge:str) -> tuple[str, float]:
+    def __get_edge_prop(self, edge:str) -> Tuple[str, float]:
         assert self._r is not None
         if edge in self._r.FCSNames:
             return ("darkblue",3) if edge in self._r.EdgeIDSet else ("darkgray",3)

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import enum
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any, Callable, Generic, Iterable, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Callable, Generic, Iterable, Optional, Protocol, TypeVar, runtime_checkable, List, Tuple, Dict
 from feasytools import RangeList
 from fpowerkit import Grid
 from ..traffic import TrafficInst
@@ -20,7 +20,7 @@ class PluginStatus(enum.IntEnum):
     OFFLINE = 2     # Current call should return the return value when the plugin is offline
 
 PIResult = TypeVar('PIResult',covariant=True)
-PIExec = Callable[[int,PluginStatus],tuple[bool,PIResult]]
+PIExec = Callable[[int,PluginStatus],Tuple[bool,PIResult]]
 PINoRet = Callable[[],None]
 
 @dataclass
@@ -31,7 +31,7 @@ class PluginConfigItem:
     desc:str
     default_value:Optional[Any] = None
 
-class ConfigDict(dict[str, PluginConfigItem]):
+class ConfigDict(Dict[str, PluginConfigItem]):
     '''Plugin configuration item dictionary'''
     def __init__(self, items: Optional[Iterable[PluginConfigItem]] = None):
         if items is None:
@@ -88,7 +88,7 @@ class PluginBase(Generic[PIResult]):
         return ConfigDict()
 
     def __init__(self, inst:TrafficInst, elem:ET.Element, work_dir:Path, res_dir:Path, enable_time:Optional[RangeList]=None,
-            interval:int=0, plg_deps:'Optional[list[PluginBase]]' = None):
+            interval:int=0, plg_deps:'Optional[List[PluginBase]]' = None):
         '''
         Initialize the plugin
             inst: Traffic network simulation instance
@@ -177,7 +177,7 @@ class PluginBase(Generic[PIResult]):
     
     @abstractmethod
     def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path, 
-             res_dir:Path, plg_deps:'list[PluginBase]') -> PIResult:
+             res_dir:Path, plg_deps:'List[PluginBase]') -> PIResult:
         '''
         Initialize the plugin from the XML element, TrafficInst, work path, result path, and plugin dependency.
         Return the result of offline.

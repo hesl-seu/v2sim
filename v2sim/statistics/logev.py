@@ -11,10 +11,10 @@ FILE_EV = "ev"
 EV_ATTRIB = ["soc","status","cost","earn","x","y"]
 
 class StaEV(StaBase):
-    def __init__(self,path:str,tinst:TrafficInst,plugins:dict[str,PluginBase]):
+    def __init__(self,path:str,tinst:TrafficInst,plugins:Dict[str,PluginBase]):
         super().__init__(FILE_EV,path,cross_list(tinst.vehicles.keys(),EV_ATTRIB),tinst,plugins)
 
-    def GetData(self,inst:TrafficInst,plugins:dict[str,PluginBase])->Iterable[Any]:
+    def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         vehs = inst.vehicles.values()
         soc = (veh.SOC for veh in vehs)
         status = map(operator.attrgetter("_sta"), vehs)

@@ -1,5 +1,5 @@
 from itertools import repeat
-from typing import Iterable, Sequence, Type, Union, Optional, TypeVar, Generic, List
+from typing import Dict, Iterable, Type, Union, Optional, TypeVar, Generic, List
 from feasytools import RangeList, KDTree, Point
 from ..locale import Lang
 from .utils import ReadXML
@@ -96,13 +96,13 @@ class CSList(Generic[T_CS]):
         else:
             raise TypeError(Lang.CSLIST_INVALID_INIT_PARAM)
         self._n = len(self._cs)
-        self._remap: dict[str, int] = {}  # Number of a CS with a name
-        self._veh: dict[str, int] = {}  # Number of the charging station to which a vehicle belongs
+        self._remap: Dict[str, int] = {}  # Number of a CS with a name
+        self._veh: Dict[str, int] = {}  # Number of the charging station to which a vehicle belongs
         self._cs_names = [cs.name for cs in self._cs]
         self._cs_slots = [cs.slots for cs in self._cs]
-        self.__v2g_cap_res: list[float] = [0.0] * self._n
+        self.__v2g_cap_res: List[float] = [0.0] * self._n
         self.__v2g_cap_res_time = -1
-        self.__v2g_demand: list[float] = []
+        self.__v2g_demand: List[float] = []
         for i, cs in enumerate(self._cs):
             self._remap[cs.name] = i
         pts = []
@@ -132,53 +132,53 @@ class CSList(Generic[T_CS]):
         """
         return self._remap[name]
 
-    def get_CS_names(self) -> list[str]:
+    def get_CS_names(self) -> List[str]:
         """List of names of all charging stations"""
         return self._cs_names
 
-    def get_online_CS_names(self, t: int) -> list[str]:
+    def get_online_CS_names(self, t: int) -> List[str]:
         """
         List of names of all available charging stations at t seconds
         """
         return [cs.name for cs in self._cs if cs.is_online(t)]
 
-    def get_prices_at(self, t: int) -> list[float]:
+    def get_prices_at(self, t: int) -> List[float]:
         """
         List of prices of all charging stations at t seconds
         """
         return [cs.pbuy(t) for cs in self._cs]
 
-    def get_online_prices_at(self, t: int) -> list[float]:
+    def get_online_prices_at(self, t: int) -> List[float]:
         """
         List of prices of all available charging stations at t seconds
         """
         return [cs.pbuy(t) for cs in self._cs if cs.is_online(t)]
 
-    def get_veh_count(self, only_charging=False) -> list[int]:
+    def get_veh_count(self, only_charging=False) -> List[int]:
         """
         List of the number of vehicles at all charging stations. When only_charging is True, only the number of vehicles being charged is returned.
         """
         return [cs.veh_count(only_charging) for cs in self._cs]
 
-    def get_online_veh_count(self, t: int, only_charging=False) -> list[int]:
+    def get_online_veh_count(self, t: int, only_charging=False) -> List[int]:
         """
         List of the number of vehicles at all available charging stations at t seconds. When only_charging is True, only the number of vehicles being charged is returned.
         """
         return [cs.veh_count(only_charging) for cs in self._cs if cs.is_online(t)]
 
-    def get_slots_of(self) -> list[int]:
+    def get_slots_of(self) -> List[int]:
         """
         List of the number of charging piles at all charging stations
         """
         return self._cs_slots
 
-    def get_online_slots_of(self, t: int) -> list[int]:
+    def get_online_slots_of(self, t: int) -> List[int]:
         """
         List of the number of charging piles at all available charging stations at t seconds
         """
         return [cs.slots for cs in self._cs if cs.is_online(t)]
 
-    def get_Pd(self, k: float = 1) -> list[float]:
+    def get_Pd(self, k: float = 1) -> List[float]:
         """
         List of charging power of all charging stations, default unit kWh/s
             k: Unit conversion coefficient, default is 1, indicating no conversion;
@@ -186,7 +186,7 @@ class CSList(Generic[T_CS]):
         """
         return [cs.Pd * k for cs in self._cs]
 
-    def get_online_Pd(self, t: int, k: float = 1) -> list[float]:
+    def get_online_Pd(self, t: int, k: float = 1) -> List[float]:
         """
         List of charging power of all available charging stations
             t: Determination time
@@ -195,7 +195,7 @@ class CSList(Generic[T_CS]):
         """
         return [cs.Pd * k for cs in self._cs if cs.is_online(t)]
 
-    def get_Pc(self, k: float = 1) -> list[float]:
+    def get_Pc(self, k: float = 1) -> List[float]:
         """
         List of discharge power of all charging stations
             k: Unit conversion coefficient, default is 1, indicating no conversion;
@@ -203,7 +203,7 @@ class CSList(Generic[T_CS]):
         """
         return [cs.Pc * k for cs in self._cs]
 
-    def get_online_Pc(self, t: int, k: float = 1) -> list[float]:
+    def get_online_Pc(self, t: int, k: float = 1) -> List[float]:
         """
         List of discharge power of all available charging stations
             t: Determination time
@@ -281,7 +281,7 @@ class CSList(Generic[T_CS]):
             indices = self._remap[indices]
         return self._cs[indices]
 
-    def get_V2G_cap(self, t: int) -> list[float]:
+    def get_V2G_cap(self, t: int) -> List[float]:
         """
         Get the maximum V2G return power (considering losses) of each charging station at the current moment, in kWh/s
             t: Indicates the current moment
@@ -292,12 +292,12 @@ class CSList(Generic[T_CS]):
         self.__v2g_cap_res_time = t
         return self.__v2g_cap_res
 
-    def set_V2G_demand(self, v2g_demand: list[float]):
+    def set_V2G_demand(self, v2g_demand: List[float]):
         """Set V2G demand"""
         assert len(v2g_demand) == len(self._cs) or len(v2g_demand) == 0
         self.__v2g_demand = v2g_demand
 
-    def update(self, sec: int, cur_time: int) -> list[str]:
+    def update(self, sec: int, cur_time: int) -> List[str]:
         """
         Charge and V2G discharge the EV with the current parameters.
             sec: Charging duration is sec seconds
@@ -314,7 +314,7 @@ class CSList(Generic[T_CS]):
             ]
         else:
             v2g_k = repeat(0)
-        ret: list[str] = []
+        ret: List[str] = []
         for cs, k in zip(self._cs, v2g_k):
             lst = cs.update(self._evdict, sec, cur_time, k)
             for veh_id in lst:
