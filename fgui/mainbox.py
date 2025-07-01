@@ -780,12 +780,15 @@ class MainBox(Tk):
         self.sim_save_on_finish = BooleanVar(self, False)
         self.sim_cb_save_on_finish = Checkbutton(self.sim_time, text=_L["SIM_SAVE_ON_FINISH"], variable=self.sim_save_on_finish)
         self.sim_cb_save_on_finish.grid(row=2, column=2, padx=3, pady=3, sticky="w")
-        self.sim_visualize = BooleanVar(self, False)
-        self.sim_cb_visualize = Checkbutton(self.sim_time, text=_L["SIM_VISUALIZE"], variable=self.sim_visualize)
-        self.sim_cb_visualize.grid(row=3, column=2, padx=3, pady=3, sticky="w")
+        self.sim_copy_state = BooleanVar(self, False)
+        self.sim_cb_copy_state = Checkbutton(self.sim_time, text=_L["SIM_COPY_STATE"], variable=self.sim_copy_state)
+        self.sim_cb_copy_state.grid(row=3, column=2, padx=3, pady=3, sticky="w")
         self.sim_static_route = BooleanVar(self, False)
         self.sim_cb_static_route = Checkbutton(self.sim_time, text=_L["SIM_STATIC_ROUTE"], variable=self.sim_static_route)
         self.sim_cb_static_route.grid(row=4, column=2, padx=3, pady=3, sticky="w")
+        self.sim_visualize = BooleanVar(self, False)
+        self.sim_cb_visualize = Checkbutton(self.sim_time, text=_L["SIM_VISUALIZE"], variable=self.sim_visualize)
+        self.sim_cb_visualize.grid(row=5, column=2, padx=3, pady=3, sticky="w")
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
         self.sim_plglist = PluginEditor(self.sim_plugins, self._OnPDNEnabledSet())
@@ -1031,8 +1034,24 @@ class MainBox(Tk):
                     os.system(f"{sys.executable} -m pip install cvxpy ecos")
                 else:
                     return
+        
+        # Save preference
+        vcfg = V2SimConfig()
+        vcfg.start_time = start
+        vcfg.end_time = end
+        vcfg.traffic_step = step
+        vcfg.seed = seed
+        vcfg.visualize = self.sim_visualize.get()
+        vcfg.load_state = self.sim_load_last_state.get()
+        vcfg.save_state_on_abort = self.sim_save_on_abort.get()
+        vcfg.save_state_on_finish = self.sim_save_on_finish.get()
+        vcfg.copy_state = self.sim_copy_state.get()
+        vcfg.force_caching = self.sim_static_route.get()
+        vcfg.routing_method = self.ralgo.get()
+        vcfg.stats = logs
+        vcfg.save(self.folder + "/preference.v2simcfg")
             
-        commands = ["python", "sim_single.py",
+        commands = [sys.executable, "sim_single.py",
                     "-d", '"'+self.folder+'"', 
                     "-b", str(start), 
                     "-e", str(end), 
@@ -1217,6 +1236,29 @@ class MainBox(Tk):
         setText(self.lb_osm, "osm")
         setText(self.lb_poly, "poly")
         setText(self.lb_cscsv, "cscsv")
+
+        if self.state.pref:
+            vcfg = V2SimConfig.load(self.state.pref)
+            self.entry_start.delete(0, END)
+            self.entry_start.insert(0, str(vcfg.start_time))
+            self.entry_end.delete(0, END)
+            self.entry_end.insert(0, str(vcfg.end_time))
+            self.entry_step.delete(0, END)
+            self.entry_step.insert(0, str(vcfg.traffic_step))
+            self.entry_seed.delete(0, END)
+            self.entry_seed.insert(0, str(vcfg.seed))
+            self.ralgo.set(vcfg.routing_method)
+            self.sim_save_on_finish.set(vcfg.save_state_on_finish)
+            self.sim_save_on_abort.set(vcfg.save_state_on_abort)
+            self.sim_load_last_state.set(vcfg.load_state)
+            self.sim_visualize.set(vcfg.visualize)
+            self.sim_static_route.set(vcfg.force_caching)
+            if vcfg.stats:
+                for x in vcfg.stats:
+                    if x in self.sim_statistic:
+                        self.sim_statistic[x] = True
+                    else:
+                        showerr(f"Unknown statistic: {x}")
 
         self.setStatus(_L["STA_READY"])
         if len(loads) == 0: frm.destroy()

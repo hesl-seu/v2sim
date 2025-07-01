@@ -650,7 +650,7 @@ class PlotBox(Tk):
         self.after(100,self._upd)
     
     def askdir(self):
-        p = Path(os.getcwd()) / "results"
+        p = Path(os.getcwd()) / "cases"
         p.mkdir(parents=True,exist_ok=True)
         return filedialog.askdirectory(
             title=_L["TITLE_SEL_FOLDER"],
@@ -681,8 +681,12 @@ class PlotBox(Tk):
             if cproc.exists():
                 self.tab_trip.load(str(cproc))
             else:
-                MB.showerror(_L["ERROR"], _L["NO_CPROC"])
-                return
+                cproc = res_path / "results" / "cproc.clog"
+                if cproc.exists():
+                    res_path = res_path / "results"
+                else:
+                    MB.showerror(_L["ERROR"], _L["NO_CPROC"])
+                    return
             self.set_status(_L["LOADING"])
             self.folder = str(res_path.absolute() / "figures")
             self.title(f'{_L["TITLE"]} - {res_path.name}')

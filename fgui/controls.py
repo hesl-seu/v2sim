@@ -145,6 +145,9 @@ class LogItemPad(LabelFrame):
     def getSelected(self):
         return [k for k, v in self._bvs.items() if v.get()]
     
+    def __contains__(self, key:str):
+        return key in self._bvs
+    
     
 # Double click to edit the cell: https://blog.csdn.net/falwat/article/details/127494533
 class ScrollableTreeView(Frame):

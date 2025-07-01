@@ -119,6 +119,7 @@ class FileDetectResult:
     osm: Optional[str] = None
     poly: Optional[str] = None
     cscsv: Optional[str] = None
+    pref: Optional[str] = None
     
     def __getitem__(self, key: str):
         return getattr(self, key)
@@ -189,6 +190,8 @@ def DetectFiles(dir: str) -> FileDetectResult:
             add("poly", filename)
         elif filenamel.endswith("cs.csv"):
             add("cscsv", filename)
+        elif filenamel.endswith(".v2simcfg"):
+            add("pref", filename)
     return FileDetectResult(**ret)
 
 def FixSUMOConfig(cfg_path: str, start: int=0, end: int=172800) -> Tuple[bool, ET.ElementTree, str]:
@@ -242,3 +245,42 @@ def FixSUMOConfig(cfg_path: str, start: int=0, end: int=172800) -> Tuple[bool, E
             node_time.append(ET.Element("end", {"value":str(end)}))
             cflag = True
     return cflag, tr, route_file_name
+
+@dataclass
+class V2SimConfig:
+    start_time: int = 0
+    end_time: int = 172800
+    traffic_step: int = 10
+    seed: int = 0
+    routing_method:str = "astar"
+    load_state: bool = False
+    save_state_on_abort: bool = False
+    save_state_on_finish: bool = False
+    copy_state: bool = False
+    visualize: bool = False
+    force_caching: bool = False
+    stats: Optional[List[str]] = None
+
+    @staticmethod
+    def load(file:str) -> 'V2SimConfig':
+        """
+        Load V2Sim configuration from a file.
+        Args:
+            file (str): Path to the configuration file
+        Returns:
+            V2SimConfig: A V2SimConfig object with the loaded configuration
+        """
+        import json
+        with open(file, "r") as f:
+            data = json.load(f)
+        return V2SimConfig(**data)
+    
+    def save(self, file:str):
+        """
+        Save V2Sim configuration to a file.
+        Args:
+            file (str): Path to the configuration file
+        """
+        import json
+        with open(file, "w") as f:
+            json.dump(self.__dict__, f, indent=4)

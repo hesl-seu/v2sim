@@ -75,6 +75,7 @@ SIM_SAVE_ON_ABORT=Save state when aborted
 SIM_SAVE_ON_FINISH=Save state when simulation ended
 SIM_VISUALIZE=Visualize road network
 SIM_STATIC_ROUTE=Force to use routing cache
+SIM_COPY_STATE=Copy state to the case folder when aborted or ended
 TAB_SIM=Simulation
 TAB_CSCSV=CS Downloader
 TAB_FCS=Fast CS

@@ -68,28 +68,29 @@ def get_sim_params(
         args = ArgChecker(args, force_parametric=["plot", "gen-veh", "gen-fcs", "gen-scs"])
     if isinstance(args, ArgChecker):
         kwargs = {
-            "cfgdir":           args.pop_str("d"),
-            "outdir":           args.pop_str("o", "results/"),
-            "outdir_direct":    args.pop_str("od", ""),
-            "traffic_step":     args.pop_int("l", 10),
-            "start_time":       args.pop_int("b", -1),
-            "end_time":         args.pop_int("e", -1),
-            "no_plg":           args.pop_str("no-plg", ""),
-            "log":              args.pop_str("log", "fcs,scs"),
-            "seed":             args.pop_int("seed", time.time_ns() % 65536),
-            "copy":             args.pop_bool("copy"),
-            "gen_veh_command":  args.pop_str("gen-veh", ""),
-            "gen_fcs_command":  args.pop_str("gen-fcs", ""),
-            "gen_scs_command":  args.pop_str("gen-scs", ""),
-            "plot_command":     args.pop_str("plot", ""),
-            "plg_pool":         plg_pool,
-            "sta_pool":         sta_pool,
-            "initial_state":    args.pop_str("initial-state", ""),
-            "load_last_state":  args.pop_bool("load-last-state"),
-            "save_on_abort":    args.pop_bool("save-on-abort"),
-            "save_on_finish":   args.pop_bool("save-on-finish"),
-            "route_algo":       args.pop_str("route-algo", "CH"),
-            "static_routing":   args.pop_bool("static-routing"),
+            "cfgdir":               args.pop_str("d"),
+            "outdir":               args.pop_str("o", ""),
+            "outdir_direct":        args.pop_str("od", ""),
+            "traffic_step":         args.pop_int("l", 10),
+            "start_time":           args.pop_int("b", -1),
+            "end_time":             args.pop_int("e", -1),
+            "no_plg":               args.pop_str("no-plg", ""),
+            "log":                  args.pop_str("log", "fcs,scs"),
+            "seed":                 args.pop_int("seed", time.time_ns() % 65536),
+            "copy":                 args.pop_bool("copy"),
+            "gen_veh_command":      args.pop_str("gen-veh", ""),
+            "gen_fcs_command":      args.pop_str("gen-fcs", ""),
+            "gen_scs_command":      args.pop_str("gen-scs", ""),
+            "plot_command":         args.pop_str("plot", ""),
+            "plg_pool":             plg_pool,
+            "sta_pool":             sta_pool,
+            "initial_state":        args.pop_str("initial-state", ""),
+            "load_last_state":      args.pop_bool("load-last-state"),
+            "save_on_abort":        args.pop_bool("save-on-abort"),
+            "save_on_finish":       args.pop_bool("save-on-finish"),
+            "copy_state":           args.pop_bool("copy-state"),
+            "route_algo":           args.pop_str("route-algo", "CH"),
+            "static_routing":       args.pop_bool("static-routing"),
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
@@ -111,7 +112,7 @@ class V2SimInstance:
     def __init__(
         self, 
         cfgdir: str,
-        outdir: str = "./results",
+        outdir: str = "",
         *,
         outdir_direct: str = "",
         plg_pool: Optional[PluginPool] = None,
@@ -136,6 +137,7 @@ class V2SimInstance:
         load_last_state: bool = False,
         save_on_abort: bool = False,
         save_on_finish: bool = False,
+        copy_state: bool = False,
         route_algo: str = "CH",
         static_routing: bool = False,
     ):
@@ -165,6 +167,7 @@ class V2SimInstance:
             load_last_state: Load the state in result dir if there is a state folder
             save_on_abort: Whether to save the state when Ctrl+C is pressed
             save_on_finish: Whether to save the state when the simulation ends
+            copy_state: Whether to copy the state folder after the simulation ends or when Ctrl+C is pressed
             route_algo: SUMO Routing algorithm, can be dijsktra, astar, CH or CHWrapper
             static_routing: Static routing, default is False
         '''
@@ -185,7 +188,10 @@ class V2SimInstance:
         if outdir_direct != "":
             pres = Path(outdir_direct)
         else:
-            pres = Path(outdir) / Path(cfgdir).name
+            if outdir == "":
+                pres = Path(cfgdir) / "results"
+            else:
+                pres = Path(outdir) / Path(cfgdir).name
         self.__outdir_direct = str(pres)
         self.__outdir = str(pres.parent)
         if pres.is_dir() and (pres / "cproc.clog").exists():
@@ -341,6 +347,7 @@ class V2SimInstance:
         self.__working_flag = False
         self.save_on_abort = save_on_abort
         self.save_on_finish = save_on_finish
+        self.copy_state = copy_state
         self.routing_algo = route_algo
 
         if alt_command is not None:
@@ -545,6 +552,8 @@ class V2SimInstance:
         '''
         if save_state_to != "":
             self.save_state(save_state_to)
+            if self.copy_state:
+                shutil.copytree(save_state_to, self.__proj_dir / "saved_state", dirs_exist_ok=True)
         self.__plgman.PostSimulationAll()
         self.__inst.simulation_stop()
         self.__sta.close()

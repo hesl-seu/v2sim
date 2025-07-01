@@ -75,6 +75,7 @@ SIM_SAVE_ON_ABORT=中断时保存状态
 SIM_SAVE_ON_FINISH=仿真结束时保存状态
 SIM_VISUALIZE=路网可视化
 SIM_STATIC_ROUTE=强制使用寻路缓存
+SIM_COPY_STATE=仿真结束或中断时复制状态至算例文件夹
 TAB_SIM=仿真
 TAB_CSCSV=充电站下载
 TAB_FCS=快充站
