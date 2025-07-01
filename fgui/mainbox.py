@@ -5,6 +5,7 @@ import threading
 from pathlib import Path
 from queue import Empty, Queue
 import time
+import traceback
 from typing import Any, Optional, Callable, Union, Dict, List, Tuple, Set
 from tkinter import filedialog
 from tkinter import messagebox as MB
@@ -15,17 +16,11 @@ import v2sim
 from v2sim import *
 from .langhelper import add_lang_menu
 from .view import *
-from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode
+from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode, _removeprefix
 from .network import NetworkPanel, OAfter
 
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
-
-
-def _removeprefix(s: str, prefix: str) -> str:
-    if s.startswith(prefix):
-        return s[len(prefix):]
-    return s
 
 def showerr(msg:str):
     MB.showerror(_L["MB_ERROR"], msg)
@@ -1109,6 +1104,7 @@ class MainBox(Tk):
                 pass
             except Exception as e:
                 self.setStatus(f"Error: {e}")
+                traceback.print_exc()
                 showerr(f"Error saving plugins: {e}")
                 return False
             self.setStatus("Plugins saved")
@@ -1145,6 +1141,7 @@ class MainBox(Tk):
         try:
             self.tg = TrafficGenerator(self.folder)
         except Exception as e:
+            traceback.print_exc()
             showerr(f"Error loading traffic generator: {e}")
             self.tg = None
         else:
@@ -1428,7 +1425,8 @@ class MainBox(Tk):
                     self._load([LOAD_SCS, LOAD_GEN])
                 self._Q.put(("DoneOK", None))
             except Exception as e:
-                #raise e
+                print(f"\nError generating CS: {e}")
+                traceback.print_exc()
                 self._Q.put(("DoneErr", e))
             ctl.btn_regen.config(state=NORMAL)
         threading.Thread(target=work,daemon=True).start()    

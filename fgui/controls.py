@@ -63,6 +63,11 @@ _loc.SetLanguageLib("en",
     PROP_NODESC = "(No description)"
 )
 
+def _removeprefix(s: str, prefix: str) -> str:
+    if s.startswith(prefix):
+        return s[len(prefix):]
+    return s
+
 ALWAYS_ONLINE = _loc['ALWAYS_ONLINE']
 def empty_postfunc(itm:Tuple[Any,...], val:str): pass
 
@@ -690,7 +695,7 @@ class PDFuncEditor(Toplevel):
         self.title(_loc["PDFUNC_EDITOR"])
         pdfunc = eval(var.get())
         assert isinstance(pdfunc, PDFunc)
-        self.model = StringVar(self, pdfunc.__class__.__name__.removeprefix("PD"))
+        self.model = StringVar(self, _removeprefix(pdfunc.__class__.__name__, "PD"))
         self.fr0 = Frame(self)
         self.mlabel = Label(self.fr0, text=_loc["PDMODEL"])
         self.mlabel.grid(row=0,column=0,padx=3,pady=3,sticky="w")

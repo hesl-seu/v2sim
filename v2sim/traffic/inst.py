@@ -236,7 +236,10 @@ class TrafficInst:
         traci.vehicle.setRoute(veh_id, [st_edge])
         if agg_routing:
             traci.vehicle.setRoutingMode(veh_id, TC.ROUTING_MODE_AGGREGATED)
-        traci.vehicle.changeTarget(veh_id, ed_edge)
+        try:
+            traci.vehicle.changeTarget(veh_id, ed_edge)
+        except traci.exceptions.TraCIException as e:
+            raise RuntimeError(f"Fail to add vehicle '{veh_id}' into SUMO: {st_edge}->{ed_edge}") from e
         traci.vehicle.subscribe(veh_id, (TC.VAR_DISTANCE,))
 
     @property

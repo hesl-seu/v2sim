@@ -19,6 +19,10 @@ PointList = List[Tuple[float, float]]
 OESet = Optional[Set[str]]
 OAfter = Optional[Callable[[], None]]
 
+def _removesuffix(s:str, suffix:str) -> str:
+    if s.endswith(suffix):
+        return s[:-len(suffix)]
+    return s
 
 @dataclass
 class itemdesc:
@@ -234,7 +238,7 @@ class NetworkPanel(Frame):
                 self.LocateEdge(itm.desc, 'purple')
             elif itm.type in ("bus", "bustext"):
                 if itm.type == 'bustext':
-                    b = self._g.Bus(itm.desc.removesuffix(".text"))
+                    b = self._g.Bus(_removesuffix(itm.desc,".text"))
                 else:
                     b = self._g.Bus(itm.desc)
                 self._pr.setData({
@@ -263,7 +267,7 @@ class NetworkPanel(Frame):
                 self._item_editing = l
                 self._item_editing_id = clicked_item
             elif itm.type in ("gen", "gentext", "genconn"):
-                g = self._g.Gen(itm.desc.removesuffix(".text").removesuffix(".conn"))
+                g = self._g.Gen(_removesuffix(_removesuffix(itm.desc,".text"),".conn"))
                 self._pr.setData({
                     "Name":g.ID,"Bus":g.BusID,
                     "Longitude":g.Lon,"Latitude":g.Lat,
@@ -284,7 +288,7 @@ class NetworkPanel(Frame):
                 self._item_editing = g
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
             elif itm.type in ("pvw", "pvwtext", "pvwconn"):
-                p = self._g.PVWind(itm.desc.removesuffix(".text").removesuffix(".conn"))
+                p = self._g.PVWind(_removesuffix(_removesuffix(itm.desc,".text"), ".conn"))
                 self._pr.setData2({
                     "Name":         (p.ID,      "Name of the PV/Wind generator"),
                     "Bus":          (p.BusID,   "Bus to which the PV/Wind generator is connected",  EditMode.COMBO, {"combo_values":self._g.BusNames}),
@@ -298,7 +302,7 @@ class NetworkPanel(Frame):
                 self._item_editing = p
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
             elif itm.type in ('ess', 'esstext', 'essconn'):
-                e = self._g.ESS(itm.desc.removesuffix(".text").removesuffix(".conn"))
+                e = self._g.ESS(_removesuffix(_removesuffix(itm.desc,".text"),".conn"))
                 cp = e._cprice
                 if cp is not None: cp /= self._g.Sb_kVA
                 dp = e._dprice
