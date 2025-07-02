@@ -1061,6 +1061,7 @@ class MainBox(Tk):
                     "--save-on-finish" if self.sim_save_on_finish.get() else "",
                     "--route-algo", self.ralgo.get(),
                     "--static-routing" if self.sim_static_route.get() else "",
+                    "--copy-state" if self.sim_copy_state.get() else "",
                 ]
         
         visualize = self.sim_visualize.get()
@@ -1251,6 +1252,7 @@ class MainBox(Tk):
             self.sim_save_on_finish.set(vcfg.save_state_on_finish)
             self.sim_save_on_abort.set(vcfg.save_state_on_abort)
             self.sim_load_last_state.set(vcfg.load_state)
+            self.sim_copy_state.set(vcfg.copy_state)
             self.sim_visualize.set(vcfg.visualize)
             self.sim_static_route.set(vcfg.force_caching)
             if vcfg.stats:

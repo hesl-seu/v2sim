@@ -15,6 +15,7 @@ amap_key.txt
 v2sim/locale/lang.txt
 *.json
 preference.v2simcfg
+recent_projects.txt
 
 # Logs
 *.log

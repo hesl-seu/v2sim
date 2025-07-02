@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 import tkinter as tk
 from tkinter import filedialog, Tk, PhotoImage, StringVar
 from tkinter import ttk
@@ -11,7 +12,7 @@ import multiprocessing as mp
 RECENT_PROJECTS_FILE = Path(__file__).parent / "recent_projects.txt"
 
 class WelcomeBox(Tk):
-    def __init__(self, chd_pipe):
+    def __init__(self, Q:mp.Queue):
         super().__init__()
         self.wm_attributes('-topmost',1)
         self.title("Welcome to V2Sim")
@@ -24,7 +25,7 @@ class WelcomeBox(Tk):
         self.geometry(f'{width}x{height}+{x}+{y}')
         
         #self.resizable(False, False)
-        self.__pipe = chd_pipe
+        self.__q = Q
 
         # Header
         header_frame = ttk.Frame(self)
@@ -75,6 +76,7 @@ class WelcomeBox(Tk):
                 self.project_list.insert(0, folder)
                 while self.project_list.size() > 10:
                     self.project_list.delete(10)
+                self.project_list.selection_clear(0, tk.END)
                 self.project_list.select_set(0)
                 self.project_list.see(0)
                 self.recent_var.set(folder)
@@ -91,14 +93,19 @@ class WelcomeBox(Tk):
         self.lb_sta.pack(side="bottom", fill="x")
     
     def _checkdone(self):
-        if self.__pipe.recv() == "done":
+        try:
+            ret = self.__q.get_nowait()
+        except:
+            self.after(100, self._checkdone)
+            return
+        if ret == "done":
             self.lb_sta.config(text="V2Sim is ready!")
             self.open_btn.config(state="normal")
         else:
             self.after(100, self._checkdone)
     
     def _close(self):
-        self.__pipe.send(self.recent_var.get())
+        self.__q.put_nowait(self.recent_var.get())
         self.withdraw()
         self.quit()
         self.destroy()
@@ -106,9 +113,9 @@ class WelcomeBox(Tk):
     def show(self):
         self.update()
         self.deiconify()
-        self.after(500, self._checkdone)
+        self.after(100, self._checkdone)
         self.mainloop()
-        self.__pipe.send("__close__")
+        self.__q.put_nowait("__close__")
     
     def load_recent_projects(self):
         self.project_list.delete(0, tk.END)
@@ -133,14 +140,15 @@ if __name__ == "__main__":
     from version_checker import check_requirements_gui
     check_requirements_gui()
 
-    par, chd = mp.Pipe()
-    mp.Process(target=welcome, args=(chd,)).start()
+    Q = mp.Queue()
+    mp.Process(target=welcome, args=(Q,)).start()
 
     from fgui.mainbox import MainBox
 
     win = MainBox()
-    par.send("done")
-    msg = par.recv()
+    Q.put_nowait("done")
+    time.sleep(0.2)  # Give some time for the welcome box to show up
+    msg = Q.get()
     if msg == "__close__":
         win.quit()
         win.destroy()
