@@ -640,10 +640,10 @@ class MainBox(Tk):
                 self.sim_statistic.setEnabled(x, t)
         return _setSimStat
     
-    def __init__(self):
+    def __init__(self, to_open:str = ""):
         super().__init__()
         self._Q = Queue()
-        self.folder:str = ""
+        self.folder:str = to_open
         self.state:Optional[FileDetectResult] = None
         self.tg:Optional[TrafficGenerator] = None
         self._win()
@@ -920,6 +920,9 @@ class MainBox(Tk):
         self.sbar.grid(row=1, column=0, columnspan=2, sticky="ew")
         self.protocol("WM_DELETE_WINDOW", self.onDestroy)
         self.after(100, self._loop)
+
+        if self.folder != "":
+            self.after(200, self._load)
     
     def netsave(self):
         ret = filedialog.asksaveasfilename(
@@ -1216,7 +1219,7 @@ class MainBox(Tk):
         
         def setText(lb:Label, itm:str, must:bool = False):
             if itm in res:
-                lb.config(text=_removeprefix(res[itm], self.folder), foreground="black")
+                lb.config(text=Path(res[itm]).name, foreground="black")
             else:
                 lb.config(text="None", foreground="red" if must else "black")
         
