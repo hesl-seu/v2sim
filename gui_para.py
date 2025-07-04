@@ -298,11 +298,11 @@ class ParaBox(tk.Tk):
             text = t.cmd.strip()
             if len(text)>0:
                 if text.startswith("done:"): 
-                    tm = time2str(float(text.removeprefix("done:")))
+                    tm = time2str(float(text.replace("done:","",1)))
                     self.done_cnt += 1
                     self.tr.set(ln, "prog", _L("DONE") + f" ({tm})")
                 elif text.startswith("sim:"):
-                    self.tr.set(ln, "prog", text.removeprefix("sim:") + "%")
+                    self.tr.set(ln, "prog", text.replace("sim:","",1) + "%")
                 else:
                     self.tr.set(ln, "prog", text)
         self.lb_time["text"] = time2str(time.time()-self.start_t)
