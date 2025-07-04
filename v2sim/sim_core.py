@@ -196,8 +196,12 @@ class V2SimInstance:
         self.__outdir = str(pres.parent)
         if pres.is_dir() and (pres / "cproc.clog").exists():
             tm = time.strftime("%Y%m%d_%H%M%S", time.localtime(pres.stat().st_mtime))
-            tm2 = time.time_ns() % int(1e9)
-            new_path = f"{str(pres)}_{tm}_{tm2}"
+            tm2 = 0
+            while True:
+                tm2 += 1
+                new_path = f"{str(pres)}_{tm}_{tm2}"
+                if not os.path.exists(new_path):
+                    break
             if (pres / "saved_state").exists() and load_last_state:
                 initial_state = new_path + "/saved_state"
             pres.rename(new_path)
@@ -237,7 +241,7 @@ class V2SimInstance:
         if not proj_cfg.cfg:
             raise FileNotFoundError(Lang.ERROR_SUMO_CONFIG_NOT_SPECIFIED)
         sumocfg_file = proj_cfg.cfg
-        _stt, _edt, _rnet = GetTimeAndNetwork(sumocfg_file)
+        _stt, _edt, _rnet,_addf = GetTimeAndNetwork(sumocfg_file)
         self.__print(f"  SUMO: {sumocfg_file}")
 
         # Detect road network file

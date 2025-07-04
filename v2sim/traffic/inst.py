@@ -164,9 +164,11 @@ class TrafficInst:
         # Load vehicles to charging stations and prepare to depart
         for veh in self._VEHs.values():
             self._que.push(veh.trip.depart_time, veh.ID)
+            if veh.trip.depart_edge not in self.__names_scs:
+                continue  # Only vehicles with slow charging stations can be added to the slow charging station
             # There is a 20% chance of adding to a rechargeable parking point
             if veh.SOC < veh.ksc or random.random() <= 0.2:
-                self.__start_charging_SCS(veh)
+                self._scs.add_veh(veh.ID, veh.trip.depart_edge)
 
     @property
     def trips_logger(self) -> TripsLogger:

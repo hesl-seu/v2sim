@@ -1,101 +1,10 @@
 class _locale:
     LANG_CODE = "zh_CN"
 
-    TRIPGEN_HELP_STR = """
-行程生成程序
-{} -n <车辆数> -d <SUMO配置文件夹> [-c <行程参数文件夹>] [-v <V2G概率>] [--seed <随机化种子>]
-    n: 车辆数
-    d: SUMO配置文件夹
-    c: 行程参数文件夹, 默认使用"{}"
-    v: 每个用户愿意参加V2G的概率, 默认为1
-    seed: 随机化种子, 不指定则使用当前时间(纳秒)
-"""
-
-    CSGEN_HELP_STR = """
-充电站生成程序
-{} -d <SUMO配置文件夹> [--type <scs,fcs>] [--slots <充电桩数量>] [--pbuy <购电价格>] [--randomize-pbuy] \\
-[--psell <售电价格>] [--randomize-psell] [--seed <随机化种子>] [--n-cs <充电站数量>] [--cs-names] [--n-bus <母线数量>] [--bus-names <使用的母线>]
-    h/help: 显示此帮助信息
-    d: SUMO配置文件夹
-    type: 充电站类型, 默认fcs, 可选fcs(快充站), scs(慢充站)
-    slots: 充电桩数量, 默认10
-    pbuy: 购电价格, 默认1.5元/kWh
-    randomize-pbuy: 随机化购电价格
-    psell: 售电价格, 默认1元/kWh
-    randomize-psell: 随机化售电价格
-    seed: 随机化种子, 不指定则使用当前时间(纳秒)
-充电站选择:
-    默认为使用所有可用的充电站, 可以通过以下选项改变:
-    n-cs: 快充站数量, 指定该项则快充站选择方式为"随机"
-    cs-names: 快充站名称, 指定该项则快充站选择方式为"指定"
-    以上两项不能一起使用
-母线选择:
-    默认使用所有母线, 可以通过以下选项改变:
-    n-bus: 使用的母线数量, 指定该项则母线选择方式为"随机"
-    bus-names: 使用的母线, 指定该项则母线选择方式为"指定"
-    以上两项不能一起使用
-"""
-    
-    MAIN_HELP_STR = """EV充电负荷负荷生成模拟器 - 使用帮助
-{} -d <配置文件夹> [-b <开始时间>] [-e <结束时间>] [-l <数据记录步长>] [-o <输出文件夹>] \\
-[--seed <随机种子>] [--log <要记录的数据>] [--no-plg <要禁用的插件>] [--show] [--no-daemon] \\
-[--copy] [--debug] [-h/help] [--file <文件>] [--ls-plg] [--ls-log]
-以下参数应当单独使用, 不可与其他参数配合:
-    h/help: 显示本帮助信息
-    file: 从外部文件读取参数并串行的实行命令行仿真, 该文件的内容应当是一个以空格分隔的参数列表, 如果该文件有多行则只考虑第1行. 例如: "-d 12nodes -b 0 -e 172800"
-    ls-com: 列出所有可用的插件和记录项
-以下参数用于单次仿真:
-    d: 配置文件夹
-    b: 开始时间, 单位为秒, 默认从SUMO配置中读取
-    e: 结束时间, 单位为秒, 默认从SUMO配置中读取
-    l: 数据记录步长, 单位为秒, 默认值10
-    o: 输出文件夹, 默认为当前目录下的results文件夹
-    seed: 自动生成车辆、充电站以及SUMO使用的随机种子, 默认值为当前时间(ns)%65536
-    log: 要记录的数据, 包括电动汽车(ev), 快充站(fcs), 慢充站(scs), 发电机(gen), 母线(bus)和输电线(line), 多项数据用逗号隔开, 默认值为"fcs,scs"
-    no-plg: 禁用指定的插件, 多个插件用逗号隔开, 默认不禁用任何插件
-    copy: 仿真结束后将配置文件复制到输出文件夹, 默认不复制
-    gen-veh: 强制重新生成车辆文件的命令行, 默认不生成
-    gen-fcs: 强制重新生成充电站文件的命令行, 默认不生成
-    gen-scs: 强制重新生成充电站文件的命令行, 默认不生成
-    plot: 完成仿真后的绘图命令行, 默认不绘图
-    initial-state: 仿真的初始状态文件夹, 默认不加载(使用SUMO的默认行为)
-    load-last-state: 加载上次仿真保存的状态, 启用该项将使initial-state失效
-    save-on-abort: 当仿真意外中断时, 保存仿真状态
-    save-on-finish: 当仿真完成时, 保存仿真状态
-    route-algo: 寻路算法，默认为"CH"，可选项有"astar", "dijkstra", "CH"和"CHWrapper".
-以下参数用于图形化仿真:
-    show: 启用该选项以GUI模式启动. 该选项仅在Linux下有用, 在Windows下请调整v2sim/traffic/win_vis.py的WINDOWS_VISUALIZE来改变可见性级别
-    no-daemon: 启用该选项以将仿真线程与显示窗口分离, 不启用时显示窗口一旦关闭, 仿真也会停止
-    debug: 针对图形仿真启用调试模式, 图形仿真出错时会输出详细的错误信息
-"""
-
-    PARA_HELP_STR = """多进程并行仿真工具
-用法: python {} [-p <最大并行任务数>] [-r <输出文件夹>] [-f <命令行文件>] [-c "<仿真参数命令行>"] [-n <仿真次数>] [-h/help]
-    h/help: 显示此帮助
-    p: 最大并行任务数, 默认为CPU核心数-1
-    r: 输出文件夹, 默认为results_set
-以下2组参数二选一:
-组1:
-    f: 从文件读取仿真参数, 该文件每行一个仿真参数命令行, 仿真参数命令行格式参照下方的-c参数
-组2:
-    c: 仿真参数命令行, 格式参照main.py的参数, 
-        但必须省略一切-seed参数, (seed参数由并行仿真器自动分配)
-        至少指定gen-veh参数, gen-fcs参数和gen-scs参数中的一个
-    n: 仿真次数, 默认为50
-    
-范例参数:
-    -p 7 -d 37nodes -r results_set -c "-gen-veh '-n 5000' -gen-fcs '-pbuy 1.5 -slots 10' -gen-scs '-pbuy 1.5 -slots 10'" -n 50
-"""
-
-    CONV_HELP_STR = """文件转换工具
-用法: python {} -i <输入文件> -o <输出文件> [-t <数据类型>] [-h/help]
-    h/help: 显示此帮助
-    i: 输入文件, 可以是CSV、SDT或SDT.GZ文件
-    o: 输出文件, 可以是CSV、SDT或SDT.GZ文件
-    t: 输入文件的数据类型, 可选int32或float32, 默认为float32, 该选项只对CSV文件有效
-"""
-
-    CONV_INFO = "转换{0}到{1}..."
+    TRIPGEN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/gen_trip_cn 上的使用说明。"
+    CSGEN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/gen_cs_cn 上的使用说明。"
+    MAIN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/sim_single_cn 上的使用说明。"
+    PARA_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/sim_para_cn 上的使用说明。"
 
     ERROR_GENERAL = "错误: {}"
     ERROR_BAD_TYPE = "错误: 无效的数据类型{}."

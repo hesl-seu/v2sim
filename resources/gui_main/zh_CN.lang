@@ -27,6 +27,7 @@ BAR_ADDON=Python附加：
 BAR_TAZTYPE=交通区域类型：
 BAR_OSM=OpenStreetMap： 
 BAR_POLY=建筑轮廓描述：
+BAR_POI=POI描述：
 BAR_CSCSV=充电站CSV描述：
 CSE_EDGE=所在道路
 CSE_SLOTS=充电桩数量

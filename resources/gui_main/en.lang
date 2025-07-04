@@ -27,6 +27,7 @@ BAR_ADDON=Python Add-on:
 BAR_TAZTYPE=TAZ Type: 
 BAR_OSM=OpenStreetMap: 
 BAR_POLY=Polygon Descriptor: 
+BAR_POI=POI Descriptor: 
 BAR_CSCSV=CS CSV Descriptor: 
 CSE_EDGE=Edge
 CSE_SLOTS=Slots

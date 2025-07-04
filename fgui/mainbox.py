@@ -709,15 +709,15 @@ class MainBox(Tk):
         self.lb_taz = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_taz.grid(row=8, column=1, padx=3, pady=3)
 
-        self.lb_py_indicatif = Label(self.panel_info, text = _L["BAR_ADDON"])
-        self.lb_py_indicatif.grid(row=9, column=0, padx=3, pady=3)
-        self.lb_py = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_py.grid(row=9, column=1, padx=3, pady=3)
-
         self.lb_taz_type_indicatif = Label(self.panel_info, text = _L["BAR_TAZTYPE"])
-        self.lb_taz_type_indicatif.grid(row=10, column=0, padx=3, pady=3)
+        self.lb_taz_type_indicatif.grid(row=9, column=0, padx=3, pady=3)
         self.lb_taz_type = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_taz_type.grid(row=10, column=1, padx=3, pady=3)
+        self.lb_taz_type.grid(row=9, column=1, padx=3, pady=3)
+
+        self.lb_py_indicatif = Label(self.panel_info, text = _L["BAR_ADDON"])
+        self.lb_py_indicatif.grid(row=10, column=0, padx=3, pady=3)
+        self.lb_py = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_py.grid(row=10, column=1, padx=3, pady=3)
 
         self.lb_osm_indicatif = Label(self.panel_info, text = _L["BAR_OSM"])
         self.lb_osm_indicatif.grid(row=11, column=0, padx=3, pady=3)
@@ -729,10 +729,15 @@ class MainBox(Tk):
         self.lb_poly = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_poly.grid(row=12, column=1, padx=3, pady=3)
 
+        self.lb_poi_indicatif = Label(self.panel_info, text = _L["BAR_POI"])
+        self.lb_poi_indicatif.grid(row=13, column=0, padx=3, pady=3)
+        self.lb_poi = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_poi.grid(row=13, column=1, padx=3, pady=3)
+
         self.lb_cscsv_indicatif = Label(self.panel_info, text = _L["BAR_CSCSV"])
-        self.lb_cscsv_indicatif.grid(row=13, column=0, padx=3, pady=3)
+        self.lb_cscsv_indicatif.grid(row=14, column=0, padx=3, pady=3)
         self.lb_cscsv = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_cscsv.grid(row=13, column=1, padx=3, pady=3)
+        self.lb_cscsv.grid(row=14, column=1, padx=3, pady=3)
 
         self.tabs = Notebook(self)
         self.tabs.grid(row=0, column=1, padx=3, pady=3, sticky="nsew")
@@ -1179,7 +1184,7 @@ class MainBox(Tk):
         # Load SUMO config
         if LOAD_CFG in loads:
             if res.cfg:
-                st,et,x = GetTimeAndNetwork(res.cfg)
+                st,et,x,addf = GetTimeAndNetwork(res.cfg)
                 if st == -1: st = 0
                 if et == -1: et = 172800
                 self.entry_start.delete(0, END)
@@ -1236,6 +1241,7 @@ class MainBox(Tk):
         setText(self.lb_taz_type, "taz_type")
         setText(self.lb_osm, "osm")
         setText(self.lb_poly, "poly")
+        setText(self.lb_poi, "poi")
         setText(self.lb_cscsv, "cscsv")
 
         if self.state.pref:
