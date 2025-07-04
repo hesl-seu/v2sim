@@ -12,6 +12,7 @@ from tkinter import messagebox as MB
 from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
 import xml.etree.ElementTree as ET
+from fgui.evtq import EventQueue
 import v2sim
 from v2sim import *
 from .langhelper import add_lang_menu
@@ -642,7 +643,33 @@ class MainBox(Tk):
     
     def __init__(self, to_open:str = ""):
         super().__init__()
-        self._Q = Queue()
+        self._Q = EventQueue(self)
+        
+        def proc_exception(e: Optional[Exception]):
+            if e:
+                self.setStatus(f"Error: {e}")
+                showerr(f"Error: {e}")
+            else:
+                self.setStatus(_L["STA_READY"])
+       
+        def on_CSGendone(ctl: CSEditorGUI, e: Optional[Exception]):
+            ctl.btn_regen.config(state=NORMAL)
+            proc_exception(e)
+        
+        self._Q.register("CSGenDone", on_CSGendone)
+
+        def on_VehGenDone(e: Optional[Exception]):
+            self.btn_genveh.config(state = NORMAL)
+            proc_exception(e)
+        
+        self._Q.register("VehGenDone", on_VehGenDone)
+
+        def on_CSCSVDownloadDone(e: Optional[Exception]):
+            proc_exception(e)
+        
+        self._Q.register("CSCSVDownloadDone", on_CSCSVDownloadDone)
+        self._Q.do()
+        
         self.folder:str = to_open
         self.state:Optional[FileDetectResult] = None
         self.tg:Optional[TrafficGenerator] = None
@@ -924,7 +951,6 @@ class MainBox(Tk):
         self.sbar = Label(self, text=_L["STA_READY"], anchor="w")
         self.sbar.grid(row=1, column=0, columnspan=2, sticky="ew")
         self.protocol("WM_DELETE_WINDOW", self.onDestroy)
-        self.after(100, self._loop)
 
         if self.folder != "":
             self.after(200, self._load)
@@ -1125,26 +1151,6 @@ class MainBox(Tk):
             showerr(_L["PROJ_NO_OPEN"])
             return False
         return True
-    
-    def _loop(self):
-        neww = -1
-        newh = -1
-        while not self._Q.empty():
-            try:
-                t, d = self._Q.get_nowait()
-            except Empty:
-                self.after(100, self._loop)
-                return
-            if t == "DoneOK":
-                self.setStatus(_L["STA_READY"])
-            elif t == "DoneErr":
-                self.setStatus(f"Error: {d}")
-                showerr(f"Error: {d}")
-            elif t == "Resized":
-                neww, newh = d
-                neww = neww - 10
-                newh = newh - 80
-        self.after(100, self._loop)
     
     def _load_tg(self, after:OAfter=None):
         try:
@@ -1426,7 +1432,7 @@ class MainBox(Tk):
         kwargs["cs_file"] = cs_file
         kwargs["poly_file"] = poly_file
 
-        def work():
+        def work(ctl, **kwargs):
             try:
                 if not self.tg: return
                 self.tg._CS(**kwargs)
@@ -1434,13 +1440,13 @@ class MainBox(Tk):
                     self._load([LOAD_FCS, LOAD_GEN])
                 else:
                     self._load([LOAD_SCS, LOAD_GEN])
-                self._Q.put(("DoneOK", None))
+                return ctl, None
             except Exception as e:
                 print(f"\nError generating CS: {e}")
                 traceback.print_exc()
-                self._Q.put(("DoneErr", e))
-            ctl.btn_regen.config(state=NORMAL)
-        threading.Thread(target=work,daemon=True).start()    
+                return ctl, e
+            
+        self._Q.submit("CSGenDone", work, ctl, **kwargs)   
     
     def generateVeh(self):
         if not self.tg:
@@ -1484,16 +1490,17 @@ class MainBox(Tk):
             mode = TripsGenMode.POLY
         route_cache = RoutingCacheMode(self.veh_route_cache.get())
         self.btn_genveh.config(state = DISABLED)
-        def work():
+
+        def work() -> Optional[Exception]:
             try:
                 assert self.tg
                 self.tg.EVTrips(carcnt, carseed, day_count, mode = mode, route_cache = route_cache, **new_pars)
                 self._load([])
-                self._Q.put(("DoneOK", None))
+                return None
             except Exception as e:
-                self._Q.put(("DoneErr", e))
-            self.btn_genveh.config(state = NORMAL)
-        threading.Thread(target=work,daemon=True).start()
+                return e
+        
+        self._Q.submit("VehGenDone", work)
 
     def draw(self):
         if not self.__checkFolderOpened(): return
@@ -1509,11 +1516,11 @@ class MainBox(Tk):
             try:
                 csQuery(self.folder,"",key,True)
                 self._load([LOAD_CSCSV])
+                return None
             except Exception as e:
-                self._Q.put(('DoneErr', f"Error downloading CS CSV: {e}"))
-                return
-            self._Q.put(('DoneOK',None))
-        threading.Thread(target=work,daemon=True).start()
+                return e
+        
+        self._Q.submit("CSCSVDownloadDone", work)
         
     def setStatus(self, text:str):
         self.sbar.config(text=text)
