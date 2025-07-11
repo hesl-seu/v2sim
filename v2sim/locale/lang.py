@@ -97,13 +97,15 @@ class Lang:
     CSLIST_KDTREE_DISABLED = "    KDTree is disabled due to invalid CS position. Cannot find nearest CS."
 
     CPROC_ARRIVE = "Arrival"
-    CPROC_ARRIVE_CS = "Charging Start"
+    CPROC_ARRIVE_CS = "Fast Charging Start"
     CPROC_DEPART = "Departure"
     CPROC_DEPART_DELAY = "Departure Delayed"
-    CPROC_DEPART_CS = "Charging Done"
+    CPROC_DEPART_CS = "Fast Charging Done"
     CPROC_DEPART_FAILED = "Departure Failed"
     CPROC_FAULT_DEPLETE = "Depletion"
     CPROC_WARN_SMALLCAP = "Warning"
+    CPROC_JOIN_SCS = "Join Slow Charging Station"
+    CPROC_LEAVE_SCS = "Leave Slow Charging Station"
 
     CPROC_INFO_ARRIVE = "Vehicle {0} arrived at {1}. {2}. Next trip: {3}"
     CPROC_INFO_ARRIVE_0 = "No charging"

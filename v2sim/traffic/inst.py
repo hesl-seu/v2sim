@@ -350,7 +350,8 @@ class TrafficInst:
                 veh.target_CS = route[-1]
                 self.__add_veh(veh_id, route)
         # Stop slow charging of the vehicle and add it to the waiting to depart set
-        self._scs.pop_veh(veh_id)
+        if self._scs.pop_veh(veh_id):
+            self.__logger.leave_SCS(self.__ctime, veh, trip.depart_edge)
         veh.stop_charging()
         veh.status = VehStatus.Pending
         return True, weights
@@ -383,11 +384,15 @@ class TrafficInst:
         Make a vehicle enter the charging state (slow charging station)
             veh: Vehicle instance
         """
+        ret = False
         try:
             self._scs.add_veh(veh.ID, veh.trip.arrive_edge)
-            return True
+            ret = True
         except:
-            return False
+            pass
+        if ret:
+            self.__logger.join_SCS(self.__ctime, veh, veh.trip.arrive_edge)
+        return ret
 
     def __start_charging_FCS(self, veh: EV):
         """

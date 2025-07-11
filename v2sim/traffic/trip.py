@@ -5,10 +5,14 @@ from .ev import EV
 
 
 _ArriveListener = Callable[[int, EV, Literal[0, 1, 2]], None]
-_ArriveCSListener = Callable[[int, EV, str], None]
+_ArriveFCSListener = Callable[[int, EV, str], None]
+_ArriveCSListener = _ArriveFCSListener  # Alias for compatibility
 _DepartListener = Callable[[int, EV, int, Optional[str], Optional[TWeights]], None]
 _DepartDelayListener = Callable[[int, EV, float, int], None]
-_DepartCSListener = Callable[[int, EV, str], None]
+_DepartFCSListener = Callable[[int, EV, str], None]
+_DepartCSListener = _DepartFCSListener  # Alias for compatibility
+_JoinSCSListener = Callable[[int, EV, str], None]
+_LeaveSCSListener = Callable[[int, EV, str], None]
 _DepartFailedListener = Callable[[int, EV, float, str, int], None]
 _FaultDepleteListener = Callable[[int, EV, str, int], None]
 _FaultNoChargeListener = Callable[[int, EV, str], None]
@@ -23,10 +27,12 @@ class TripsLogger:
     def __init__(self, file_name:str):
         self.__ostream = open(file_name, 'w', encoding='utf-8')
         self.__arrive_listeners:List[_ArriveListener] = []
-        self.__arrive_cs_listeners:List[_ArriveCSListener] = []
+        self.__arrive_cs_listeners:List[_ArriveFCSListener] = []
+        self.__join_scs_listeners:List[_JoinSCSListener] = []
+        self.__leave_scs_listeners:List[_LeaveSCSListener] = []
         self.__depart_listeners:List[_DepartListener] = []
         self.__depart_delay_listeners:List[_DepartDelayListener] = []
-        self.__depart_cs_listeners:List[_DepartCSListener] = []
+        self.__depart_cs_listeners:List[_DepartFCSListener] = []
         self.__depart_failed_listeners:List[_DepartFailedListener] = []
         self.__fault_deplete_listeners:List[_FaultDepleteListener] = []
         self.__fault_nocharge_listeners:List[_FaultNoChargeListener] = []
@@ -36,8 +42,10 @@ class TripsLogger:
     def add_arrive_listener(self, func: _ArriveListener):
         self.__arrive_listeners.append(func)
     
-    def add_arrive_cs_listener(self, func: _ArriveCSListener):
+    def add_arrive_fcs_listener(self, func: _ArriveFCSListener):
         self.__arrive_cs_listeners.append(func)
+    
+    add_arrive_cs_listeners = add_arrive_fcs_listener # Alias for compatibility
     
     def add_depart_listener(self, func: _DepartListener):
         self.__depart_listeners.append(func)
@@ -45,9 +53,17 @@ class TripsLogger:
     def add_depart_delay_listener(self, func: _DepartDelayListener):
         self.__depart_delay_listeners.append(func)
     
-    def add_depart_cs_listener(self, func: _DepartCSListener):
+    def add_depart_fcs_listener(self, func: _DepartFCSListener):
         self.__depart_cs_listeners.append(func)
     
+    add_depart_cs_listener = add_depart_fcs_listener # Alias for compatibility
+    
+    def add_join_scs_listener(self, func: _JoinSCSListener):
+        self.__join_scs_listeners.append(func)
+    
+    def add_leave_scs_listener(self, func: _LeaveSCSListener):
+        self.__leave_scs_listeners.append(func)
+
     def add_depart_failed_listener(self, func: _DepartFailedListener):
         self.__depart_failed_listeners.append(func)
     
@@ -76,9 +92,21 @@ class TripsLogger:
         for l in self.__arrive_listeners:
             l(simT, veh, status)
 
-    def arrive_CS(self, simT: int, veh: EV, cs: str):
+    def arrive_FCS(self, simT: int, veh: EV, cs: str):
         self.__pr(simT, 'AC', veh.brief(), cs)
         for l in self.__arrive_cs_listeners:
+            l(simT, veh, cs)
+    
+    arrive_CS = arrive_FCS  # Alias for compatibility
+    
+    def join_SCS(self, simT: int, veh:EV, cs: str):
+        self.__pr(simT, 'JS', veh.brief(), cs)
+        for l in self.__join_scs_listeners:
+            l(simT, veh, cs)
+    
+    def leave_SCS(self, simT: int, veh: EV, cs: str):
+        self.__pr(simT, 'LS', veh.brief(), cs)
+        for l in self.__leave_scs_listeners:
             l(simT, veh, cs)
 
     def depart(self, simT: int, veh: EV, delay:int = 0, cs: Optional[str] = None, cs_param:Optional[TWeights] = None):
@@ -95,10 +123,12 @@ class TripsLogger:
         for l in self.__depart_delay_listeners:
             l(simT, veh, batt_req, delay)
     
-    def depart_CS(self, simT: int, veh: EV, cs: str):
+    def depart_FCS(self, simT: int, veh: EV, cs: str):
         self.__pr(simT, 'DC', veh.brief(), cs, veh.trip.arrive_edge)
         for l in self.__depart_cs_listeners:
             l(simT, veh, cs)
+    
+    depart_CS = depart_FCS  # Alias for compatibility
     
     def depart_failed(self, simT: int, veh: EV, batt_req: float, cs: str, trT:int):
         self.__pr(simT, 'DF', veh.brief(), veh.battery, batt_req, cs, trT)
@@ -137,7 +167,9 @@ class TripLogItem:
         'DC': Lang.CPROC_DEPART_CS,
         'DF': Lang.CPROC_DEPART_FAILED,
         'FD': Lang.CPROC_FAULT_DEPLETE,
-        'WC': Lang.CPROC_WARN_SMALLCAP
+        'WC': Lang.CPROC_WARN_SMALLCAP,
+        'JS': Lang.CPROC_JOIN_SCS,
+        'LS': Lang.CPROC_LEAVE_SCS,
     }
     def __init__(self, simT:int, op:str, veh_id:str, veh_soc:str, trip_id:int, additional:Dict[str,str]):
         self.simT = simT
