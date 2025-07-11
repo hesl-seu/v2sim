@@ -90,13 +90,15 @@ class _locale:
     CSLIST_KDTREE_DISABLED = "    由于存在无效充电站位置，KD树已禁用，将不能使用select_near功能"
 
     CPROC_ARRIVE = "到达"
-    CPROC_ARRIVE_CS = "充电"
+    CPROC_ARRIVE_CS = "快充开始"
     CPROC_DEPART = "出发"
     CPROC_DEPART_DELAY = "延误"
-    CPROC_DEPART_CS = "充完"
+    CPROC_DEPART_CS = "快充完成"
     CPROC_DEPART_FAILED = "故障"
     CPROC_FAULT_DEPLETE = "耗尽"
     CPROC_WARN_SMALLCAP = "警告"
+    CPROC_JOIN_SCS = "加入慢充站"
+    CPROC_LEAVE_SCS = "离开慢充站"
 
     CPROC_INFO_ARRIVE = "车辆{0}已到达{1}, {2}, 下一行程: {3}"
     CPROC_INFO_ARRIVE_0 = "不充电"
