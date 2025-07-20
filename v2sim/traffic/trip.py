@@ -45,7 +45,7 @@ class TripsLogger:
     def add_arrive_fcs_listener(self, func: _ArriveFCSListener):
         self.__arrive_cs_listeners.append(func)
     
-    add_arrive_cs_listeners = add_arrive_fcs_listener # Alias for compatibility
+    add_arrive_cs_listener = add_arrive_fcs_listener # Alias for compatibility
     
     def add_depart_listener(self, func: _DepartListener):
         self.__depart_listeners.append(func)
