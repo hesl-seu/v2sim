@@ -620,20 +620,25 @@ class V2SimInstance:
         self.__mpsend("plot:done")
         return not self.__stopsig, self.__inst, self.__sta
 
+    def __vis_str(self):
+        for fcs in self.__inst.FCSList:
+            yield fcs._name, f"{fcs.veh_count()} cars, {fcs.Pc_kW:.1f} kW"
+
     def _istep(self):
         # Visualization
         if self.__vb is not None:
             counter = [0, 0, 0, 0, 0]
             for veh in self.__inst._VEHs.values():
                 counter[veh._sta] += 1
-            upd = {
+            upd:Dict[str, Any] = {
+                "Time": time2str(self.__inst.current_time),
                 "Driving": counter[VehStatus.Driving],
                 "Pending": counter[VehStatus.Pending],
                 "Charging": counter[VehStatus.Charging],
                 "Parking": counter[VehStatus.Parking],
                 "Depleted": counter[VehStatus.Depleted],
             }
-            upd.update(zip(self.__inst.FCSList.get_CS_names(), self.__inst.FCSList.get_veh_count()))
+            upd.update(self.__vis_str())
             self.__vb.set_val(upd)
         else:
             ctime = time.time()
