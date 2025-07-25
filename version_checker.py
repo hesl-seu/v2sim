@@ -20,7 +20,7 @@ def _version_satisfies(installed_version: str, version_spec: str) -> bool:
     from packaging.specifiers import SpecifierSet
 
     try:
-        spec = SpecifierSet(version_spec)
+        spec = SpecifierSet(version_spec, prereleases=True)
         return spec.contains(version.parse(installed_version))
     except:
         return False
