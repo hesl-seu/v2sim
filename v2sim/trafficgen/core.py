@@ -88,7 +88,7 @@ class TrafficGenerator:
         self.__existing = existing
         if not self.__cfg.cfg:
             raise FileNotFoundError(Lang.ERROR_SUMO_CONFIG_NOT_SPECIFIED)
-        self.__start_time, self.__end_time, self.__rnet_file = GetTimeAndNetwork(self.__cfg.cfg)
+        self.__start_time, self.__end_time, self.__rnet_file, self.__addfile = GetTimeAndNetwork(self.__cfg.cfg)
         if self.__rnet_file is not None:
             self.__cfg.net = str(Path(self.__cfg.cfg).parent / self.__rnet_file)
         if not self.__cfg.net:

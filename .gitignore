@@ -7,12 +7,15 @@ __pycache__
 # Temporary files
 _sim_temp
 temp
+saved_state
 *.old.*
 
 # Sensitive files
 amap_key.txt
 v2sim/locale/lang.txt
 *.json
+preference.v2simcfg
+recent_projects.txt
 
 # Logs
 *.log

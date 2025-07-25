@@ -599,12 +599,12 @@ class PlotBox(Tk):
 
     def _upd(self):
         while not self._Q.empty():
-            op,*par=self._Q.get()
-            if op=='L':
-                assert isinstance(par[0], str), f"Invalid path: {par[0]}"
-                self._sta = ReadOnlyStatistics(par[0])
-                self._npl = AdvancedPlot()
-                self._npl.load_series(self._sta)
+            op, *par = self._Q.get()
+            if op == 'L':
+                assert isinstance(par[0], ReadOnlyStatistics)
+                assert isinstance(par[1], AdvancedPlot)
+                self._sta = par[0]
+                self._npl = par[1]
                 for x in AVAILABLE_ITEMS:
                     self._ava[x] = getattr(self._sta, f"has_{x.upper()}")()
                 if self._sta.has_FCS():
@@ -630,6 +630,10 @@ class PlotBox(Tk):
                 self.update_file_list()
                 self.set_status(_L["STA_READY"])
                 self.enable_all()
+            elif op=='LS':
+                self.__inst = par[0]
+            elif op=='UC':
+                getattr(self._pp, par[0]).set("False")
             elif op=='I':
                 self.set_status(par[0])
             elif op=='E':
@@ -650,7 +654,7 @@ class PlotBox(Tk):
         self.after(100,self._upd)
     
     def askdir(self):
-        p = Path(os.getcwd()) / "results"
+        p = Path(os.getcwd()) / "cases"
         p.mkdir(parents=True,exist_ok=True)
         return filedialog.askdirectory(
             title=_L["TITLE_SEL_FOLDER"],
@@ -660,44 +664,62 @@ class PlotBox(Tk):
     
     def force_reload(self):
         res_path = self.askdir()
-        if res_path=="": return
-        threading.Thread(target=self.reload,daemon=True,args=(res_path,)).start()
+        if res_path == "": return
 
-    def reload(self, res_path):
-        try:
-            first = True
-            while True:
-                res_path = Path(res_path)
-                if res_path.exists():
-                    break
-                else: 
-                    if not first: MB.showerror(_L["ERROR"], "Folder not found!")
-                first = False
-                res_path = self.askdir()
-                if res_path=="":
-                    self._Q.put(('Q',None))
-                    return
-            cproc = res_path / "cproc.clog"
+        # Check folder existence
+        first = True
+        while True:
+            res_path = Path(res_path)
+            if res_path.exists():
+                break
+            else: 
+                if not first: MB.showerror(_L["ERROR"], "Folder not found!")
+            first = False
+            res_path = self.askdir()
+            if res_path == "":
+                self._Q.put(('Q',None))
+                return
+        
+        # Check cproc.clog existence
+        cproc = res_path / "cproc.clog"
+        if cproc.exists():
+            self.tab_trip.load(str(cproc))
+        else:
+            cproc = res_path / "results" / "cproc.clog"
             if cproc.exists():
-                self.tab_trip.load(str(cproc))
+                res_path = res_path / "results"
             else:
                 MB.showerror(_L["ERROR"], _L["NO_CPROC"])
                 return
-            self.set_status(_L["LOADING"])
-            self.folder = str(res_path.absolute() / "figures")
-            self.title(f'{_L["TITLE"]} - {res_path.name}')
-            self.disable_all()
-            self._Q.put(('L',str(res_path)))
-            state_path = res_path / "saved_state" / "inst.gz"
-            if state_path.exists():
-                try:
-                    with gzip.open(state_path,'rb') as f:
-                        self.__inst = pickle.load(f)
-                except:
-                    MB.showerror(_L["ERROR"], _L["SAVED_STATE_LOAD_FAILED"])
-                    self.__inst = None
-        except Exception as e:
-            self._Q.put(('LE',e))
+        
+        # Load the results
+        self.set_status(_L["LOADING"])
+        self.folder = str(res_path.absolute() / "figures")
+        self.title(f'{_L["TITLE"]} - {res_path.name}')
+        self.disable_all()
+
+        def load_async(res_path):
+            sta = ReadOnlyStatistics(res_path)
+            npl = AdvancedPlot()
+            npl.load_series(sta)
+            self._Q.put(('L', sta, npl))
+        
+        threading.Thread(target=load_async, args=(res_path,), daemon=True).start()
+
+        state_path = res_path / "saved_state" / "inst.gz"
+
+        def load_state_async(state_path):
+            try:
+                with gzip.open(state_path, 'rb') as f:
+                    inst = pickle.load(f) # type: ignore
+            except:
+                MB.showerror(_L["ERROR"], _L["SAVED_STATE_LOAD_FAILED"])
+                inst = None
+            self._Q.put(('LS', inst))
+
+        if state_path.exists():
+            threading.Thread(target=load_state_async, args=(state_path,), daemon=True).start()
+            
 
     def plotSelected(self):
         cfg = self._pp.getConfig()
@@ -721,7 +743,7 @@ class PlotBox(Tk):
                 if cfg[a]:
                     getattr(self, "_plot_"+a)()
                     if "_" in a: continue
-                    getattr(self._pp, "plot_"+a).set("False")
+                    self._Q.put(('UC', "plot_"+a))
             self._Q.put(('D', None))
         threading.Thread(target=work,args=(cfg,),daemon=True).start()
 

@@ -63,6 +63,7 @@ def GetTimeAndNetwork(file: str):
         bt (int): Begin time
         et (int): End time
         nf (str): Net file path
+        af (List[str]): Additional file path (if any)
     """
     root = ReadXML(file,compressed=False).getroot()
     if root is None:
@@ -81,9 +82,16 @@ def GetTimeAndNetwork(file: str):
         nfnode = inode.find("net-file")
         if isinstance(nfnode, ET.Element):
             nf = nfnode.attrib.get("value")
+        afnode = inode.find("additional-files")
+        if isinstance(afnode, ET.Element):
+            af = afnode.attrib.get("value")
+            if af is not None:
+                af = af.split(" ")
+            else:
+                af = []
     
     assert nf != None, "Net file must be defined!"
-    return bt, et, nf
+    return bt, et, nf, af
 
 def CheckFile(file: str):
     p = Path(file)
@@ -119,6 +127,8 @@ class FileDetectResult:
     osm: Optional[str] = None
     poly: Optional[str] = None
     cscsv: Optional[str] = None
+    pref: Optional[str] = None
+    poi: Optional[str] = None
     
     def __getitem__(self, key: str):
         return getattr(self, key)
@@ -145,6 +155,21 @@ def ReadSUMONet(file: str):
     assert isinstance(ret, sumolib.net.Net), "Failed to read SUMO net file"
     return ret
 
+@dataclass
+class AddtionalTypes:
+    Poly: bool
+    Poi: bool
+    Taz: bool
+
+def CheckAddtionalType(file: str) -> AddtionalTypes:
+    root = ReadXML(file, compressed=False).getroot()
+    if root is None:
+        raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(file))
+    poly = root.find("poly") is not None
+    poi = root.find("poi") is not None
+    taz = root.find("taz") is not None
+    return AddtionalTypes(Poly=poly, Poi=poi, Taz=taz)
+
 def DetectFiles(dir: str) -> FileDetectResult:
     """
     Detect simulation-realted files (SUMO config, SCS, FCS, power grid, etc.) in the given directory.
@@ -158,6 +183,7 @@ def DetectFiles(dir: str) -> FileDetectResult:
     def add(name: str, filename: str):
         if name in ret: raise FileExistsError(Lang.ERROR_CONFIG_DIR_FILE_DUPLICATE.format(name,ret[name],filename))
         ret[name] = filename
+    addtional: Set[str] = set()
     for x in p.iterdir():
         if not x.is_file():
             continue
@@ -177,18 +203,37 @@ def DetectFiles(dir: str) -> FileDetectResult:
             add("plg", filename)
         elif filenamel.endswith(".sumocfg"):
             add("cfg", filename)
-        elif filenamel.endswith(".taz.xml") or filenamel.endswith(".taz.xml.gz"):
-            add("taz", filename)
         elif filenamel.endswith(".py"):
             add("py",filename)
         elif filenamel.endswith("taz_type.txt"):
             add("taz_type", filename)
         elif filenamel.endswith(".osm.xml") or filenamel.endswith(".osm.xml.gz"):
             add("osm", filename)
-        elif filenamel.endswith(".poly.xml") or filenamel.endswith(".poly.xml.gz"):
-            add("poly", filename)
         elif filenamel.endswith("cs.csv"):
             add("cscsv", filename)
+        elif filenamel.endswith(".v2simcfg"):
+            add("pref", filename)
+        elif (filenamel.endswith(".add.xml") or filenamel.endswith(".add.xml.gz") or
+            filenamel.endswith(".poly.xml") or filenamel.endswith(".poly.xml.gz") or
+            filenamel.endswith(".taz.xml") or filenamel.endswith(".taz.xml.gz")):
+            addtional.add(Path(filename).absolute().as_posix())
+
+    if ret.get("cfg", None) is not None:
+        _,_,_,a2 = GetTimeAndNetwork(ret["cfg"])
+        for a in a2:
+            a0 = Path(ret["cfg"]).parent.joinpath(a).absolute().as_posix()
+            if a0 not in addtional:
+                addtional.add(a0)
+
+    for a in addtional:
+        aret = CheckAddtionalType(a)
+        if aret.Poly:
+            add("poly", a)
+        if aret.Poi:
+            add("poi", a)
+        if aret.Taz:
+            add("taz", a)
+
     return FileDetectResult(**ret)
 
 def FixSUMOConfig(cfg_path: str, start: int=0, end: int=172800) -> Tuple[bool, ET.ElementTree, str]:
@@ -242,3 +287,42 @@ def FixSUMOConfig(cfg_path: str, start: int=0, end: int=172800) -> Tuple[bool, E
             node_time.append(ET.Element("end", {"value":str(end)}))
             cflag = True
     return cflag, tr, route_file_name
+
+@dataclass
+class V2SimConfig:
+    start_time: int = 0
+    end_time: int = 172800
+    traffic_step: int = 10
+    seed: int = 0
+    routing_method:str = "astar"
+    load_state: bool = False
+    save_state_on_abort: bool = False
+    save_state_on_finish: bool = False
+    copy_state: bool = False
+    visualize: bool = False
+    force_caching: bool = False
+    stats: Optional[List[str]] = None
+
+    @staticmethod
+    def load(file:str) -> 'V2SimConfig':
+        """
+        Load V2Sim configuration from a file.
+        Args:
+            file (str): Path to the configuration file
+        Returns:
+            V2SimConfig: A V2SimConfig object with the loaded configuration
+        """
+        import json
+        with open(file, "r") as f:
+            data = json.load(f)
+        return V2SimConfig(**data)
+    
+    def save(self, file:str):
+        """
+        Save V2Sim configuration to a file.
+        Args:
+            file (str): Path to the configuration file
+        """
+        import json
+        with open(file, "w") as f:
+            json.dump(self.__dict__, f, indent=4)

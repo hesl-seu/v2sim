@@ -168,9 +168,11 @@ class EVsGenerator:
         while True:
             if self._mode == "taz":
                 to_TAZ = random.choice(self.dic_taztype[next_place_type])
+                assert to_TAZ in self.dic_taz, f"TAZ {to_TAZ} not found in TAZ dictionary"
                 to_EDGE = random_diff(self.dic_taz[to_TAZ], from_EDGE)
             else: # self._mode == "diff"
                 to_TAZ = random_diff(self.dic_taztype[next_place_type], from_TAZ)
+                assert to_TAZ in self.dic_taz, f"TAZ {to_TAZ} not found in TAZ dictionary"
                 to_EDGE = random.choice(self.dic_taz[to_TAZ])
             if from_EDGE != to_EDGE:
                 if self._route_cache_mode == RoutingCacheMode.STATIC:

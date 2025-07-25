@@ -6,6 +6,7 @@ import threading
 from tkinter import messagebox as MB
 from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
 from typing import Any, Callable, Iterable, Optional, Union, Dict, List, Tuple, Set
+from fgui.evtq import EventQueue
 import sumolib
 from v2sim import RoadNetConnectivityChecker as ELGraph
 from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy
@@ -19,6 +20,10 @@ PointList = List[Tuple[float, float]]
 OESet = Optional[Set[str]]
 OAfter = Optional[Callable[[], None]]
 
+def _removesuffix(s:str, suffix:str) -> str:
+    if s.endswith(suffix):
+        return s[:-len(suffix)]
+    return s
 
 @dataclass
 class itemdesc:
@@ -76,10 +81,19 @@ class BIDC:
         return self._mp[id][0]
     
 class NetworkPanel(Frame):
+    def _draw_done_center(self):
+        self._center()
+        self.__en = True
+    
     def __init__(self, master, roadnet:Optional[ELGraph]=None, 
             grid:Optional[fGrid]=None, save_callback:Optional[Callable[[bool],None]]=None, **kwargs):
         super().__init__(master, **kwargs)
 
+        self._Q = EventQueue(self)
+        self._Q.register("draw_done", lambda: None)
+        self._Q.register("draw_done_center", self._draw_done_center)
+        self._Q.register("loaded", lambda: None)
+        
         self._item_editing = None
         self._item_editing_id = -1
         self._cv = Canvas(self, bg='white')
@@ -164,7 +178,7 @@ class NetworkPanel(Frame):
     def RoadNet(self) -> Optional[ELGraph]:
         return self._r
     
-    def setRoadNet(self, roadnet:ELGraph, repaint:bool=True, async_:bool=False, after:OAfter=None):
+    def setRoadNet(self, roadnet:ELGraph, repaint:bool=True, after:OAfter=None):
         '''
         Set the road network to be displayed
             roadnet: ELGraph, the road network to be displayed
@@ -177,11 +191,7 @@ class NetworkPanel(Frame):
         assert isinstance(roadnet, ELGraph)
         self._r = roadnet
         if repaint: 
-            if async_:
-                self._draw_async(after=after)
-            else:
-                self._draw()
-                if after: after()
+            self._draw_async(after=after)
     
     @property
     def Enabled(self) -> bool:
@@ -195,7 +205,7 @@ class NetworkPanel(Frame):
     def Grid(self) -> Optional[fGrid]:
         return self._g
     
-    def setGrid(self, grid:fGrid, repaint:bool=True, async_:bool=False):
+    def setGrid(self, grid:fGrid, repaint:bool=True):
         '''
         Set the power grid to be displayed
             grid: ELGraph, the road network to be displayed
@@ -205,10 +215,7 @@ class NetworkPanel(Frame):
         assert isinstance(grid, fGrid)
         self._g = grid
         if repaint: 
-            if async_:
-                self._draw_async()
-            else:
-                self._draw()
+            self._draw_async()
     
     def _onLClick(self, event):
         if not self.__en: return
@@ -234,7 +241,7 @@ class NetworkPanel(Frame):
                 self.LocateEdge(itm.desc, 'purple')
             elif itm.type in ("bus", "bustext"):
                 if itm.type == 'bustext':
-                    b = self._g.Bus(itm.desc.removesuffix(".text"))
+                    b = self._g.Bus(_removesuffix(itm.desc,".text"))
                 else:
                     b = self._g.Bus(itm.desc)
                 self._pr.setData({
@@ -263,7 +270,7 @@ class NetworkPanel(Frame):
                 self._item_editing = l
                 self._item_editing_id = clicked_item
             elif itm.type in ("gen", "gentext", "genconn"):
-                g = self._g.Gen(itm.desc.removesuffix(".text").removesuffix(".conn"))
+                g = self._g.Gen(_removesuffix(_removesuffix(itm.desc,".text"),".conn"))
                 self._pr.setData({
                     "Name":g.ID,"Bus":g.BusID,
                     "Longitude":g.Lon,"Latitude":g.Lat,
@@ -284,7 +291,7 @@ class NetworkPanel(Frame):
                 self._item_editing = g
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
             elif itm.type in ("pvw", "pvwtext", "pvwconn"):
-                p = self._g.PVWind(itm.desc.removesuffix(".text").removesuffix(".conn"))
+                p = self._g.PVWind(_removesuffix(_removesuffix(itm.desc,".text"), ".conn"))
                 self._pr.setData2({
                     "Name":         (p.ID,      "Name of the PV/Wind generator"),
                     "Bus":          (p.BusID,   "Bus to which the PV/Wind generator is connected",  EditMode.COMBO, {"combo_values":self._g.BusNames}),
@@ -298,7 +305,7 @@ class NetworkPanel(Frame):
                 self._item_editing = p
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
             elif itm.type in ('ess', 'esstext', 'essconn'):
-                e = self._g.ESS(itm.desc.removesuffix(".text").removesuffix(".conn"))
+                e = self._g.ESS(_removesuffix(_removesuffix(itm.desc,".text"),".conn"))
                 cp = e._cprice
                 if cp is not None: cp /= self._g.Sb_kVA
                 dp = e._dprice
@@ -602,31 +609,6 @@ class NetworkPanel(Frame):
             return ("blue",2) if edge in self._r.EdgeIDSet else ("gray",2)
         else:
             return ("blue",1) if edge in self._r.EdgeIDSet else ("gray",1)
-    
-    def __update_gui(self):
-        LIMIT = 50
-        try:
-            cnt = 0
-            while cnt < LIMIT:
-                cnt += 1
-                t, x = self.__q.get_nowait()
-                if t == 'c':
-                    self._center()
-                elif t == 'r':
-                    self._draw_edge(*x)
-                elif t == 'b':
-                    self._draw_bus(*x)
-                elif t == 'l':
-                    self._draw_line(*x)
-                elif t == 'g':
-                    self._draw_gen(*x)
-                elif t == 'a':
-                    if x: x()
-                    self.__en = True
-        except queue.Empty:
-            pass
-        if not self.__q_closed or cnt >= LIMIT:
-            self._cv.after('idle', self.__update_gui)
 
     def _draw_edge(self, shape:PointList, color:str, lw:float, ename:str):
         shape = [(p[0], -p[1]) for p in shape]
@@ -635,10 +617,9 @@ class NetworkPanel(Frame):
         self._Redges[ename] = pid
     
     def _draw_async(self, scale:float=1.0, dx:float=0.0, dy:float=0.0, center:bool=True, after:OAfter=None):
-        self.__q = Queue()
-        self.__q_closed = False
-        threading.Thread(target=self._draw, args=(scale,dx,dy,center,True,after), daemon=True).start()
-        self._cv.after(10, self.__update_gui)
+        if after:
+            self._Q.setcallback("draw_done", after)
+        self._Q.submit("draw_done", self._draw, scale, dx, dy, center)
     
     def _draw_line(self,x1,y1,x2,y2,color,lw,name):
         self._items[self._cv.create_line(x1,y1,x2,y2,width=lw,fill=color)] = itemdesc('line', name)
@@ -658,7 +639,7 @@ class NetworkPanel(Frame):
         self._items[self._cv.create_text(x+1.8*r,y+1.8*r,text=name)] = itemdesc('bustext', name+".text")
         self._items[self._cv.create_rectangle(x-0.5*r, y-r, x+0.5*r, y+r, fill=color, width=lw)] = itemdesc("bus", name)
     
-    def _draw(self, scale:float=1.0, dx:float=0.0, dy:float=0.0, center:bool=True, async_:bool=False, after:OAfter=None):
+    def _draw(self, scale:float=1.0, dx:float=0.0, dy:float=0.0, center:bool=True):
         if self._r is None: return
         self.__en = False
         self._cv.delete('all')
@@ -676,11 +657,7 @@ class NetworkPanel(Frame):
                 shape:PointList
                 c, lw = self.__get_edge_prop(ename)
                 shape = [(p[0]*scale+dx,p[1]*scale+dy) for p in shape]
-                t = (shape, c, lw, ename)
-                if async_:
-                    self.__q.put(('r',t))
-                else:
-                    self._draw_edge(*t)
+                self._Q.delegate(lambda: self._draw_edge(shape, c, lw, ename))
             
         if self._g is not None:
             if minx > maxx or miny > maxy:
@@ -700,11 +677,8 @@ class NetworkPanel(Frame):
             for line in self._g.Lines:
                 x1, y1 = self.convLL2XY(*self._g.Bus(line.fBus).LonLat)
                 x2, y2 = self.convLL2XY(*self._g.Bus(line.tBus).LonLat)
-                t = (x1, y1, x2, y2, 'black', 2, line.ID)
-                if async_:
-                    self.__q.put(('l',t))
-                else:
-                    self._draw_line(*t)
+                self._Q.delegate(lambda: self._draw_line(x1, y1, x2, y2, 'black', 2, line.ID))
+            
             for g in chain(self._g.Gens, self._g.PVWinds, self._g.ESSs):
                 tp = g.__class__.__name__.lower()[:3]
                 xb, yb = self.convLL2XY(*self._g.Bus(g.BusID).LonLat)
@@ -715,27 +689,13 @@ class NetworkPanel(Frame):
                     t = g.__class__.__name__
                     print(f"{t} {g.ID} has no location, set to Lon, Lat = ({b.Lon:.6f},{b.Lat:.6f})")
                 x, y = self.convLL2XY(g.Lon, g.Lat)
-                t = (x, y, r, 'white', 2, g.ID, xb, yb, tp)
-                if async_:
-                    self.__q.put(('g',t))
-                else:
-                    self._draw_gen(*t)
+                self._Q.delegate(lambda: self._draw_gen(x, y, r, 'white', 2, g.ID, xb, yb, tp))
+
             for b in self._g.Buses:
                 x, y = self.convLL2XY(b.Lon, b.Lat)
-                t = (x, y, r, 'white', 2, b.ID)
-                if async_:
-                    self.__q.put(('b',t))
-                else:
-                    self._draw_bus(*t)
-                    
-        if async_:
-            self.__q.put(('c', None))
-            self.__q.put(('a', after))
-            self.__q_closed = True
-        else:
-            if center: self._center()
-            if after: after()
-            self.__en = True
+                self._Q.delegate(lambda: self._draw_bus(x, y, r, 'white', 2, b.ID))
+        
+        if center: self._Q.trigger("draw_done_center")
     
     def saveGrid(self, path:str):
         '''Save the current grid to a file'''

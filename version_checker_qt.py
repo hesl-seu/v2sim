@@ -1,4 +1,4 @@
-import re
+import re, sys
 from importlib.metadata import distribution, PackageNotFoundError
 from typing import List, Tuple, Optional
 
@@ -64,7 +64,8 @@ def check_requirements(file = 'requirements.txt'):
         else:
             print(f"  {package:<{max_name_len}} - Required: {spec or 'any':<{max_spec_len}} | Current: {installed}")
     
-    print("Please install them via 'pip install -r requirements.txt'")
+    command = f"{sys.executable} -m pip install -r {file}"
+    print(f"Please install them via '{command}'")
     exit(1)
 
 def check_requirements_gui(file = 'requirements.txt'):
@@ -72,60 +73,63 @@ def check_requirements_gui(file = 'requirements.txt'):
     
     if not violations: return
 
-    import tkinter as tk
-    from tkinter import scrolledtext
-    import subprocess
-    import sys, os
-    import threading
-    
-    root = tk.Tk()
-    root.title("Requirements Checker")
+    from PyQt5 import QtWidgets
+    import subprocess, os, threading
 
-    msg = "Some packages do not meet the requirements:\n\n"
-    max_name_len = max(len(v[0]) for v in violations)
-    max_spec_len = max(len(v[1] or 'any') for v in violations)
+    class ReqCheckerDialog(QtWidgets.QDialog):
+        def __init__(self, violations, file, parent=None):
+            super().__init__(parent)
+            self.setWindowTitle("Requirements Checker")
+            self.setFixedSize(600, 300)
+            self.close_flag = True
 
-    for package, spec, installed in violations:
-        if installed == "NOT INSTALLED":
-            msg += f"{package:<{max_name_len}} - Required: {spec or 'any':<{max_spec_len}} | Current: Not installed\n"
-        else:
-            msg += f"{package:<{max_name_len}} - Required: {spec or 'any':<{max_spec_len}} | Current: {installed}\n"
+            msg = "Some packages do not meet the requirements:\n\n"
+            max_name_len = max(len(v[0]) for v in violations)
+            max_spec_len = max(len(v[1] or 'any') for v in violations)
+            for package, spec, installed in violations:
+                if installed == "NOT INSTALLED":
+                    msg += f"{package:<{max_name_len}} - Required: {spec or 'any':<{max_spec_len}} | Current: Not installed\n"
+                else:
+                    msg += f"{package:<{max_name_len}} - Required: {spec or 'any':<{max_spec_len}} | Current: {installed}\n"
+            self.command = f"{sys.executable} -m pip install -r {file}"
+            msg += f"\nPlease install them via '{self.command}'"
 
-    command = f"{sys.executable} -m pip install -r {file}"
-    msg += f"\nPlease install them via '{command}'"
+            layout = QtWidgets.QVBoxLayout(self)
+            self.text = QtWidgets.QPlainTextEdit(self)
+            self.text.setPlainText(msg)
+            self.text.setReadOnly(True)
+            layout.addWidget(self.text)
 
-    text = scrolledtext.ScrolledText(root, width=80, height=15)
-    text.insert(tk.END, msg)
-    text.config(state=tk.DISABLED)
-    text.pack(padx=10, pady=10)
+            btn_layout = QtWidgets.QHBoxLayout()
+            self.exit_btn = QtWidgets.QPushButton("Exit", self)
+            def close(): self.close()
+            self.exit_btn.clicked.connect(close)
+            btn_layout.addWidget(self.exit_btn)
 
-    btn_frame = tk.Frame(root)
-    btn_frame.pack(pady=(0, 10))
+            self.install_btn = QtWidgets.QPushButton("Install and Retry", self)
+            self.install_btn.clicked.connect(self.run_command)
+            btn_layout.addWidget(self.install_btn)
 
-    btn = tk.Button(btn_frame, text="Exit", command=root.destroy)
-    btn.pack(side=tk.LEFT, padx=5)
+            layout.addLayout(btn_layout)
 
-    close = True
-    def run_command():
-        for widget in btn_frame.winfo_children():
-            widget.pack_forget()
-        installing_label = tk.Label(btn_frame, text="Installing...", fg="blue")
-        installing_label.pack(side=tk.LEFT, padx=5)
-        root.update()
+        def run_command(self):
+            self.exit_btn.setEnabled(False)
+            self.install_btn.setEnabled(False)
+            self.text.appendPlainText("\nInstalling...")
+            QtWidgets.QApplication.processEvents()
 
-        def install_and_restart():
-            nonlocal close
-            close = False
-            subprocess.call(command, shell=True)
-            root.destroy()
-            os.execl(sys.executable, sys.executable, *sys.argv)
+            def install_and_restart():
+                self.close_flag = False
+                subprocess.call(self.command, shell=True)
+                self.accept()
+                os.execl(sys.executable, sys.executable, *sys.argv)
 
-        threading.Thread(target=install_and_restart, daemon=True).start()
+            threading.Thread(target=install_and_restart, daemon=True).start()
 
-    install_btn = tk.Button(btn_frame, text="Install and Retry", command=run_command)
-    install_btn.pack(side=tk.LEFT, padx=5)
-
-    root.mainloop()
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
+    dlg = ReqCheckerDialog(violations, file)
+    dlg.exec_()
+    close = getattr(dlg, "close_flag", True)
     if close: exit(1)
 
 if __name__ == "__main__":

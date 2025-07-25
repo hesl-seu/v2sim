@@ -37,7 +37,7 @@ NOTE: We do not recommend use conda or other virtual environment, because some u
 
 1. Setup Python: Visit `https://www.python.org/download` to get Python (version >=3.8 is required. Older version cannot run this program normally).
 
-2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get SUMO (version 1.19 and above are recommended).
+2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get SUMO (version 1.19 and above are recommended). Note: This step can be skipped if you do not want to edit the road network.
 
 3. Setup cvxpy and ECOS if you want to use power grid simulation within V2Sim, using `pip install cvxpy ecos`. Note that these two packages are not included in the requirements.txt.
 
@@ -111,7 +111,7 @@ when you want to change a specific parameter to measure its implication. Like th
 ![alt text](docs/10.png)
 
 ### D. View the results
-After the simulation is done, run `gui_viewer.py` and open the result just produced. The results is in `results` folder, with the same name as your case name. It will be something like this:
+After the simulation is done, run `gui_viewer.py` and open the case. The results is in the case folder, with a subfolder named `results`. It will be something like this:
 
 ![alt text](docs/6.png)
 

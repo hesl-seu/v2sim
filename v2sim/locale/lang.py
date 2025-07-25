@@ -6,100 +6,10 @@ from typing import List
 class Lang:
     LANG_CODE = "en"
     
-    TRIPGEN_HELP_STR = """
-Trips generation program
-{} -n <number of vehicles> -d <SUMO configuration folder> [-c <trip parameter folder>] [-v <V2G probability>] [--seed <randomization seed>]
-    n: number of vehicles
-    d: SUMO configuration folder
-    c: trip parameter folder, default is "{}"
-    v: probability of each user willing to participate in V2G, default is 1
-    seed: randomization seed, not specified will use current time (ns)
-"""
-
-    CSGEN_HELP_STR = """
-Charging station generation program
-{} -d <SUMO configuration folder> [--type <scs,fcs>] [--slots <number of charging piles>] [--pbuy <purchase price>] [--randomize-pbuy] \\
-[--psell <selling price>] [--randomize-psell] [--seed <randomization seed>] [--n-cs <number of charging stations>] [--cs-names] [--n-bus <number of buses>] [--bus-names <buses used>]
-    h/help: display this help information
-    d: SUMO configuration folder
-    type: charging station type, default fcs, optional fcs(fast charging station), scs(slow charging station)
-    slots: number of charging piles, default 10
-    pbuy: purchase price, default 1.5 yuan/kWh
-    randomize-pbuy: randomize purchase price
-    psell: selling price, default 1 yuan/kWh
-    randomize-psell: randomize selling price
-    seed: randomization seed, not specified will use current time (ns)
-Charging station selection:
-    By default, all available charging stations are used, which can be changed by the following options:
-    n-cs: number of fast charging stations, specifying this option will make the selection of fast charging stations random
-    cs-names: fast charging station names, specifying this option will make the selection of fast charging stations specified
-    The above two options cannot be used together
-Bus selection:
-    By default, all buses are used, which can be changed by the following options:
-    n-bus: number of buses used, specifying this option will make the bus selection random
-    bus-names: buses used, specifying this option will make the bus selection specified
-    The above two options cannot be used together
-"""
-    
-    MAIN_HELP_STR = """EV charging load generation simulator - usage help
-{} -d <configuration folder> [-b <start time>] [-e <end time>] [-l <data recording step>] [-o <output folder>] \\
-[--seed <random seed>] [--log <data to be recorded>] [--no-plg <plugins to be disabled>] [--show] [--no-daemon] \\
-[--copy] [--debug] [-h/help] [--file <file>] [--ls-plg] [--ls-log]
-The following parameters should be used alone and cannot be combined with other parameters:
-    h/help: Display this help information.
-    file: Read parameters from an external file and execute command line simulation serially, the content of this file should be a space-separated parameter list, if the file has multiple lines, only the first line will be considered. For example: "-d 12nodes -b 0 -e 172800"
-    ls-com: List all available plugins and recording items.
-The following parameters are used for single simulation:
-    d: Configuration folder.
-    b: Start time, in seconds. Read from SUMO configuration by default.
-    e: End time, in seconds. Read from SUMO configuration by default.
-    l: Data recording step, in seconds. 10 by default.
-    o: Output folder. The 'results' folder in the current directory is the default output folder.
-    seed: Random seed for generating vehicles, charging stations and SUMO. Current time (ns)%65536 is the default value.
-    log: Data to be recorded, including electric vehicles(ev), fast charging stations(fcs), slow charging stations(scs), generators(gen), buses(bus) and transmission lines(line), multiple data separated by commas, default is "fcs,scs"
-    no-plg: Disable specific plugins. Multiple plugins should separated by commas. No plugins are disabled by default.
-    copy: Copy the configuration file to the output folder after the simulation ends. Do not copy by default.
-    gen-veh: Command line to regenerate the EVs file. If not given, the file won't be regenerated, and this is the default behavior.
-    gen-fcs: Command line to regenerate the FCS file. If not given, the file won't be regenerated, and this is the default behavior.
-    gen-scs: Command line to regenerate the SCS file. If not given, the file won't be regenerated, and this is the default behavior.
-    plot: Command line for figure plotting after simulation.
-    initial-state: Folder of initial state files. If not given, the initial state will be desgined by the default behavior of sumo.
-    load-last-state: Load the saved state of last simulation of this case. If this option is enabled, the initial-state option will be ignored.
-    save-on-abort: Whether to save the state when the simulation is aborted.
-    save-on-finish: Whether to save the state when the simulation is finished.
-    route-algo: Route algorithm, default is "CH". Other options are "astar", "dijkstra", "CH", and "CHWrapper".
-The following parameters are used for graphical simulation:
-    show: Enable this option to start in GUI mode. This option is only useful in Linux. In Windows, please adjust WINDOWS_VISUALIZE in v2sim/traffic/win_vis.py to change the visibility level
-    no-daemon: Enable this option to separate the simulation thread from the display window. When not enabled, the simulation will stop once the display window is closed
-    debug: Enable debug mode for graphical simulation, detailed error information will be output when graphical simulation fails
-"""
-
-    PARA_HELP_STR = """Multi-process parallel simulation tool
-Usage: python {} [-p <maximum number of parallel tasks>] [-r <output folder>] [-f <command line file>] [-c <simulation parameter command line>] [-n <number of simulations>] [-h/help]
-    h/help: display this help
-    p: maximum number of parallel tasks, default is "CPU core number - 1"
-    r: output folder, default is results_set
-    The following two groups of parameters are mutually exclusive:
-    Group 1:
-        f: read simulation parameters from a file, each line of this file is a simulation parameter command line, the format of the simulation parameter command line is as follows
-    Group 2:
-        c: simulation parameter command line, the format is the same as the parameter of main.py, 
-            but all '-seed' parameters must be omitted (the '-seed' parameter is automatically assigned by the parallel simulator)
-        n: number of simulations, default is 50
-    
-Example parameters:
-    -p 7 -d 37nodes -r results_set -c "-gen-veh '-n 5000' -gen-fcs '-pbuy 1.5 -slots 10' -gen-scs '-pbuy 1.5 -slots 10'" -n 50
-"""
-
-    CONV_HELP_STR = """File Conversion Program
-Usage: python {} -i <input_file> -o <output_file> [-t <data_type>] [-h/help]
-    -h/help:  Show this help message and exit")
-    -i: Specify the index of the input file, can be CSV, SDT, or SDT.GZ file
-    -o: Specify the output file, can be CSV, SDT, or SDT.GZ file
-    -t: Specify the data type of the input file, can be 'int32' or 'float32' (default: float32). Only used for CSV input.
-"""
-    
-    CONV_INFO = "Converting {0} to {1}..."
+    TRIPGEN_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/gen_trip to see the usage."
+    CSGEN_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/gen_cs to see the usage."
+    MAIN_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/sim_single to see the usage."
+    PARA_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/sim_para to see the usage."
     
     ERROR_GENERAL = "Error: {}"
     ERROR_BAD_TYPE = "Error: Invalid data type '{}'."
@@ -187,13 +97,15 @@ Usage: python {} -i <input_file> -o <output_file> [-t <data_type>] [-h/help]
     CSLIST_KDTREE_DISABLED = "    KDTree is disabled due to invalid CS position. Cannot find nearest CS."
 
     CPROC_ARRIVE = "Arrival"
-    CPROC_ARRIVE_CS = "Charging Start"
+    CPROC_ARRIVE_CS = "Fast Charging Start"
     CPROC_DEPART = "Departure"
     CPROC_DEPART_DELAY = "Departure Delayed"
-    CPROC_DEPART_CS = "Charging Done"
+    CPROC_DEPART_CS = "Fast Charging Done"
     CPROC_DEPART_FAILED = "Departure Failed"
     CPROC_FAULT_DEPLETE = "Depletion"
     CPROC_WARN_SMALLCAP = "Warning"
+    CPROC_JOIN_SCS = "Join Slow Charging Station"
+    CPROC_LEAVE_SCS = "Leave Slow Charging Station"
 
     CPROC_INFO_ARRIVE = "Vehicle {0} arrived at {1}. {2}. Next trip: {3}"
     CPROC_INFO_ARRIVE_0 = "No charging"

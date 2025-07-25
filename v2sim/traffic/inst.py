@@ -164,9 +164,11 @@ class TrafficInst:
         # Load vehicles to charging stations and prepare to depart
         for veh in self._VEHs.values():
             self._que.push(veh.trip.depart_time, veh.ID)
+            if veh.trip.depart_edge not in self.__names_scs:
+                continue  # Only vehicles with slow charging stations can be added to the slow charging station
             # There is a 20% chance of adding to a rechargeable parking point
             if veh.SOC < veh.ksc or random.random() <= 0.2:
-                self.__start_charging_SCS(veh)
+                self._scs.add_veh(veh.ID, veh.trip.depart_edge)
 
     @property
     def trips_logger(self) -> TripsLogger:
@@ -236,7 +238,10 @@ class TrafficInst:
         traci.vehicle.setRoute(veh_id, [st_edge])
         if agg_routing:
             traci.vehicle.setRoutingMode(veh_id, TC.ROUTING_MODE_AGGREGATED)
-        traci.vehicle.changeTarget(veh_id, ed_edge)
+        try:
+            traci.vehicle.changeTarget(veh_id, ed_edge)
+        except Exception as e:
+            raise RuntimeError(f"Fail to add vehicle '{veh_id}' into SUMO: {st_edge}->{ed_edge}") from e
         traci.vehicle.subscribe(veh_id, (TC.VAR_DISTANCE,))
 
     @property
@@ -345,7 +350,8 @@ class TrafficInst:
                 veh.target_CS = route[-1]
                 self.__add_veh(veh_id, route)
         # Stop slow charging of the vehicle and add it to the waiting to depart set
-        self._scs.pop_veh(veh_id)
+        if self._scs.pop_veh(veh_id):
+            self.__logger.leave_SCS(self.__ctime, veh, trip.depart_edge)
         veh.stop_charging()
         veh.status = VehStatus.Pending
         return True, weights
@@ -378,11 +384,15 @@ class TrafficInst:
         Make a vehicle enter the charging state (slow charging station)
             veh: Vehicle instance
         """
+        ret = False
         try:
             self._scs.add_veh(veh.ID, veh.trip.arrive_edge)
-            return True
+            ret = True
         except:
-            return False
+            pass
+        if ret:
+            self.__logger.join_SCS(self.__ctime, veh, veh.trip.arrive_edge)
+        return ret
 
     def __start_charging_FCS(self, veh: EV):
         """

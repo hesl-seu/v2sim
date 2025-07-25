@@ -5,27 +5,23 @@ import threading
 from pathlib import Path
 from queue import Empty, Queue
 import time
+import traceback
 from typing import Any, Optional, Callable, Union, Dict, List, Tuple, Set
 from tkinter import filedialog
 from tkinter import messagebox as MB
 from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
 import xml.etree.ElementTree as ET
+from fgui.evtq import EventQueue
 import v2sim
 from v2sim import *
 from .langhelper import add_lang_menu
 from .view import *
-from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode
+from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode, _removeprefix
 from .network import NetworkPanel, OAfter
 
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
-
-
-def _removeprefix(s: str, prefix: str) -> str:
-    if s.startswith(prefix):
-        return s[len(prefix):]
-    return s
 
 def showerr(msg:str):
     MB.showerror(_L["MB_ERROR"], msg)
@@ -91,6 +87,10 @@ class PluginEditor(ScrollableTreeView):
 class CSEditorGUI(Frame):
     def __init__(self, master, generatorFunc, canV2g:bool, file:str="", **kwargs):
         super().__init__(master, **kwargs)
+
+        self._Q = EventQueue(self)
+        self._Q.register("loaded", lambda: None)
+        
         self.gf = generatorFunc
         if file:
             self.file = file
@@ -453,37 +453,15 @@ class CSEditorGUI(Frame):
                 cs = cs, csCount = csCount, givenCS = givenCS, 
                 priceBuyMethod = pbuyM, priceBuy = pbuy, priceSellMethod = psellM, 
                 priceSell = psell, hasSell = self.csType == SCS, use_grid = use_grid)
-
-    def __update_gui(self):
-        cnt = 0
-        LIMIT = 50
-        try:
-            while cnt < LIMIT:
-                cnt += 1
-                t, x = self.__q.get_nowait()
-                if t == 'v':
-                    self.tree.insert("", "end", values=x)
-                elif t == 'a':
-                    if x: x()
-        except queue.Empty:
-            pass
-        if not self.__q_closed or cnt >= LIMIT:
-            self.tree.after(10, self.__update_gui)
     
-    def load(self, file:str, async_:bool = False, after:OAfter=None):
-        if async_:
-            self.__q = Queue()
-            self.__q_closed = False
-            threading.Thread(target=self.__load, args=(file, True, after), daemon=True).start()
-            self.tree.after(10, self.__update_gui)
-        else:
-            self.__load(file, False, after)
-    
+    def load(self, file:str):
+        self._Q.submit("loaded", self.__load, file)
+            
     def clear(self):
         self.tree.clear()
         self.lb_cnt.config(text=_L["LB_COUNT"].format(0))
     
-    def __load(self, file:str, async_:bool=False, after:OAfter=None):
+    def __load(self, file:str):
         try:
             self.cslist = LoadCSList(file, self.csType)
         except Exception as e:
@@ -496,30 +474,23 @@ class CSEditorGUI(Frame):
             for cs in self.cslist:
                 ol = str(cs._offline) if len(cs._offline)>0 else ALWAYS_ONLINE
                 v = (cs.name, cs.slots, cs.node, cs._x, cs._y, ol, cs._pc_lim1 * 3600, cs.pbuy, cs._pc_alloc_str)
-                if async_:
-                    self.__q.put(('v',v))
-                else:
-                    self.tree.insert("", "end", values=v)
+                self._Q.delegate(lambda: self.tree.insert("", "end", values=v))
         else:
             for cs in self.cslist:
                 assert isinstance(cs, SCS)
                 ol = str(cs._offline) if len(cs._offline)>0 else ALWAYS_ONLINE
                 v = (cs.name, cs.slots, cs.node, cs._x, cs._y, ol, cs._pc_lim1 * 3600, cs._pd_lim1 * 3600, 
                             cs.pbuy, cs.psell, cs._pc_alloc_str, cs._pd_alloc_str)
-                if async_:
-                    self.__q.put(('v',v))
-                else:
-                    self.tree.insert("", "end", values=v)
-        if async_:
-            self.__q.put(('a', after))
-            self.__q_closed = False
-        else:
-            if after: after()
+                self._Q.delegate(lambda: self.tree.insert("", "end", values=v))
     
     
 class CSCSVEditor(Frame):
     def __init__(self, master, down_worker, file:str="", **kwargs):
         super().__init__(master, **kwargs)
+
+        self._Q = EventQueue(self)
+        self._Q.register("loaded", lambda: None)
+
         if file:
             self.file = file
         else:
@@ -559,7 +530,7 @@ class CSCSVEditor(Frame):
         if MB.askyesno(_L["CSCSV_CONFIRM_TITLE"], _L["CSCSV_CONFIRM"]):
             self.down_wk()
     
-    def __load(self, file:str, async_:bool=False, after:OAfter=None):
+    def __load(self, file:str):
         try:
             with open(file, "r") as f:
                 lines = f.readlines()
@@ -571,40 +542,10 @@ class CSCSVEditor(Frame):
         self.tree.clear()
         for cs in lines[1:]:
             vals = cs.strip().split(',')
-            if async_:
-                self.__q.put(('v', tuple(vals)))
-            else:
-                self.tree.insert("", "end", values=tuple(vals))
-        if async_:
-            self.__q.put(('a', after))
-            self.__q_closed = True
-        else:
-            if after: after()
+            self._Q.delegate(lambda: self.tree.insert("", "end", values=tuple(vals)))
 
-    def __update_gui(self):
-        LIMIT = 50
-        try:
-            cnt = 0
-            while cnt < LIMIT:
-                cnt += 1
-                t, x = self.__q.get_nowait()
-                if t == 'v':
-                    self.tree.insert("", "end", values=x)
-                elif t == 'a':
-                    if x: x()
-        except queue.Empty:
-            pass
-        if not self.__q_closed or cnt >= LIMIT:
-            self.tree.after(10, self.__update_gui)
-
-    def load(self, file:str, async_:bool, after:OAfter=None):
-        if async_:
-            self.__q = Queue()
-            self.__q_closed = False
-            threading.Thread(target=self.__load, args=(file, True, after), daemon=True).start()
-            self.tree.after(10, self.__update_gui)
-        else:
-            self.__load(file, False, after)
+    def load(self, file:str):
+        self._Q.submit("loaded", self.__load, file)
     
     def clear(self):
         self.lb_cnt.config(text=_L["LB_COUNT"].format(0))
@@ -612,10 +553,12 @@ class CSCSVEditor(Frame):
 
 
 class LoadingBox(Toplevel):
-    def __init__(self, items:List[str], **kwargs):
+    def __init__(self, items:List[str], parentQ:EventQueue, **kwargs):
         super().__init__(None, **kwargs)
+        self._pQ = parentQ
         self.title("Loading...")
         self.geometry("400x300")
+        self.attributes("-topmost", True)
         self.cks:List[Label]=[]
         self.dkt:Dict[str,int]={}
         self.columnconfigure(0, weight=1)
@@ -626,13 +569,16 @@ class LoadingBox(Toplevel):
             self.cks[-1].grid(column=1,row=i)
             self.dkt[t]=i
             self.rowconfigure(i, weight=1)
+        self._closed = False
     
     def setText(self, itm:str, val:str):
+        if self._closed: return
         self.cks[self.dkt[itm]].configure(text=val)
         for x in self.cks:
             if x['text'] != _L['DONE']: break
         else:
-            self.destroy()
+            self._closed = True
+            self._pQ.delegate(lambda: self.destroy())
     
 
 class MainBox(Tk):
@@ -645,10 +591,39 @@ class MainBox(Tk):
                 self.sim_statistic.setEnabled(x, t)
         return _setSimStat
     
-    def __init__(self):
+    def __init__(self, to_open:str = ""):
         super().__init__()
-        self._Q = Queue()
-        self.folder:str = ""
+        self._Q = EventQueue(self)
+        
+        def proc_exception(e: Optional[Exception]):
+            if e:
+                self.setStatus(f"Error: {e}")
+                showerr(f"Error: {e}")
+            else:
+                self.setStatus(_L["STA_READY"])
+       
+        def on_CSGendone(ctl: CSEditorGUI, e: Optional[Exception]):
+            ctl.btn_regen.config(state=NORMAL)
+            proc_exception(e)
+        
+        self._Q.register("CSGenDone", on_CSGendone)
+
+        def on_VehGenDone(e: Optional[Exception]):
+            self.btn_genveh.config(state = NORMAL)
+            proc_exception(e)
+        
+        self._Q.register("VehGenDone", on_VehGenDone)
+
+        def on_CSCSVDownloadDone(e: Optional[Exception]):
+            proc_exception(e)
+        
+        self._Q.register("CSCSVDownloadDone", on_CSCSVDownloadDone)
+
+        def on_TrafficGenLoaded():
+            self._ldfrm.setText(LOAD_GEN, _L['DONE'])
+        self._Q.register("TrafficGenLoaded", on_TrafficGenLoaded)
+
+        self.folder:str = to_open
         self.state:Optional[FileDetectResult] = None
         self.tg:Optional[TrafficGenerator] = None
         self._win()
@@ -714,15 +689,15 @@ class MainBox(Tk):
         self.lb_taz = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_taz.grid(row=8, column=1, padx=3, pady=3)
 
-        self.lb_py_indicatif = Label(self.panel_info, text = _L["BAR_ADDON"])
-        self.lb_py_indicatif.grid(row=9, column=0, padx=3, pady=3)
-        self.lb_py = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_py.grid(row=9, column=1, padx=3, pady=3)
-
         self.lb_taz_type_indicatif = Label(self.panel_info, text = _L["BAR_TAZTYPE"])
-        self.lb_taz_type_indicatif.grid(row=10, column=0, padx=3, pady=3)
+        self.lb_taz_type_indicatif.grid(row=9, column=0, padx=3, pady=3)
         self.lb_taz_type = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_taz_type.grid(row=10, column=1, padx=3, pady=3)
+        self.lb_taz_type.grid(row=9, column=1, padx=3, pady=3)
+
+        self.lb_py_indicatif = Label(self.panel_info, text = _L["BAR_ADDON"])
+        self.lb_py_indicatif.grid(row=10, column=0, padx=3, pady=3)
+        self.lb_py = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_py.grid(row=10, column=1, padx=3, pady=3)
 
         self.lb_osm_indicatif = Label(self.panel_info, text = _L["BAR_OSM"])
         self.lb_osm_indicatif.grid(row=11, column=0, padx=3, pady=3)
@@ -734,10 +709,15 @@ class MainBox(Tk):
         self.lb_poly = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_poly.grid(row=12, column=1, padx=3, pady=3)
 
+        self.lb_poi_indicatif = Label(self.panel_info, text = _L["BAR_POI"])
+        self.lb_poi_indicatif.grid(row=13, column=0, padx=3, pady=3)
+        self.lb_poi = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_poi.grid(row=13, column=1, padx=3, pady=3)
+
         self.lb_cscsv_indicatif = Label(self.panel_info, text = _L["BAR_CSCSV"])
-        self.lb_cscsv_indicatif.grid(row=13, column=0, padx=3, pady=3)
+        self.lb_cscsv_indicatif.grid(row=14, column=0, padx=3, pady=3)
         self.lb_cscsv = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_cscsv.grid(row=13, column=1, padx=3, pady=3)
+        self.lb_cscsv.grid(row=14, column=1, padx=3, pady=3)
 
         self.tabs = Notebook(self)
         self.tabs.grid(row=0, column=1, padx=3, pady=3, sticky="nsew")
@@ -780,12 +760,15 @@ class MainBox(Tk):
         self.sim_save_on_finish = BooleanVar(self, False)
         self.sim_cb_save_on_finish = Checkbutton(self.sim_time, text=_L["SIM_SAVE_ON_FINISH"], variable=self.sim_save_on_finish)
         self.sim_cb_save_on_finish.grid(row=2, column=2, padx=3, pady=3, sticky="w")
-        self.sim_visualize = BooleanVar(self, False)
-        self.sim_cb_visualize = Checkbutton(self.sim_time, text=_L["SIM_VISUALIZE"], variable=self.sim_visualize)
-        self.sim_cb_visualize.grid(row=3, column=2, padx=3, pady=3, sticky="w")
+        self.sim_copy_state = BooleanVar(self, False)
+        self.sim_cb_copy_state = Checkbutton(self.sim_time, text=_L["SIM_COPY_STATE"], variable=self.sim_copy_state)
+        self.sim_cb_copy_state.grid(row=3, column=2, padx=3, pady=3, sticky="w")
         self.sim_static_route = BooleanVar(self, False)
         self.sim_cb_static_route = Checkbutton(self.sim_time, text=_L["SIM_STATIC_ROUTE"], variable=self.sim_static_route)
         self.sim_cb_static_route.grid(row=4, column=2, padx=3, pady=3, sticky="w")
+        self.sim_visualize = BooleanVar(self, False)
+        self.sim_cb_visualize = Checkbutton(self.sim_time, text=_L["SIM_VISUALIZE"], variable=self.sim_visualize)
+        self.sim_cb_visualize.grid(row=5, column=2, padx=3, pady=3, sticky="w")
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
         self.sim_plglist = PluginEditor(self.sim_plugins, self._OnPDNEnabledSet())
@@ -921,7 +904,9 @@ class MainBox(Tk):
         self.sbar = Label(self, text=_L["STA_READY"], anchor="w")
         self.sbar.grid(row=1, column=0, columnspan=2, sticky="ew")
         self.protocol("WM_DELETE_WINDOW", self.onDestroy)
-        self.after(100, self._loop)
+
+        if self.folder != "":
+            self.after(200, self._load)
     
     def netsave(self):
         ret = filedialog.asksaveasfilename(
@@ -1031,8 +1016,24 @@ class MainBox(Tk):
                     os.system(f"{sys.executable} -m pip install cvxpy ecos")
                 else:
                     return
+        
+        # Save preference
+        vcfg = V2SimConfig()
+        vcfg.start_time = start
+        vcfg.end_time = end
+        vcfg.traffic_step = step
+        vcfg.seed = seed
+        vcfg.visualize = self.sim_visualize.get()
+        vcfg.load_state = self.sim_load_last_state.get()
+        vcfg.save_state_on_abort = self.sim_save_on_abort.get()
+        vcfg.save_state_on_finish = self.sim_save_on_finish.get()
+        vcfg.copy_state = self.sim_copy_state.get()
+        vcfg.force_caching = self.sim_static_route.get()
+        vcfg.routing_method = self.ralgo.get()
+        vcfg.stats = logs
+        vcfg.save(self.folder + "/preference.v2simcfg")
             
-        commands = ["python", "sim_single.py",
+        commands = [sys.executable, "sim_single.py",
                     "-d", '"'+self.folder+'"', 
                     "-b", str(start), 
                     "-e", str(end), 
@@ -1044,6 +1045,7 @@ class MainBox(Tk):
                     "--save-on-finish" if self.sim_save_on_finish.get() else "",
                     "--route-algo", self.ralgo.get(),
                     "--static-routing" if self.sim_static_route.get() else "",
+                    "--copy-state" if self.sim_copy_state.get() else "",
                 ]
         
         visualize = self.sim_visualize.get()
@@ -1090,6 +1092,7 @@ class MainBox(Tk):
                 pass
             except Exception as e:
                 self.setStatus(f"Error: {e}")
+                traceback.print_exc()
                 showerr(f"Error saving plugins: {e}")
                 return False
             self.setStatus("Plugins saved")
@@ -1102,105 +1105,102 @@ class MainBox(Tk):
             return False
         return True
     
-    def _loop(self):
-        neww = -1
-        newh = -1
-        while not self._Q.empty():
-            try:
-                t, d = self._Q.get_nowait()
-            except Empty:
-                self.after(100, self._loop)
-                return
-            if t == "DoneOK":
-                self.setStatus(_L["STA_READY"])
-            elif t == "DoneErr":
-                self.setStatus(f"Error: {d}")
-                showerr(f"Error: {d}")
-            elif t == "Resized":
-                neww, newh = d
-                neww = neww - 10
-                newh = newh - 80
-        self.after(100, self._loop)
-    
     def _load_tg(self, after:OAfter=None):
         try:
             self.tg = TrafficGenerator(self.folder)
         except Exception as e:
+            traceback.print_exc()
             showerr(f"Error loading traffic generator: {e}")
             self.tg = None
         else:
             if after: after()
     
-    def _load(self,loads:Optional[List[str]]=None, async_:bool = True):
+    def _load(self, loads:Optional[List[str]] = None, async_:bool = True):
         if not self.folder:
             showerr("No project folder selected")
             return
         if loads is None: loads = [
             LOAD_GEN, LOAD_CFG, LOAD_FCS, LOAD_SCS, LOAD_CSCSV, LOAD_NET, LOAD_PLG
         ]
-        frm = LoadingBox(loads)
-        self.after(100, self.__load_part2, set(loads), async_, frm)
+        self._ldfrm = LoadingBox(loads, self._Q)
+        self.update()
+        self.after(100, self.__load_part2, set(loads), async_)
     
-    def __load_part2(self, loads:Set[str], async_:bool, frm:LoadingBox):
+    def __load_part2(self, loads:Set[str], async_:bool):
         self.state = res = DetectFiles(self.folder)
         self.title(f"{_L['TITLE']} - {Path(self.folder).name}")
+        self.update()
+
         # Check if grid exists
         if not res.grid: 
             with open(self.folder+"/"+DEFAULT_GRID_NAME,"w") as f:
                 f.write(DEFAULT_GRID)
             self.state = res = DetectFiles(self.folder)
         
+        self.update()
+        
         # Load traffic generator
         if LOAD_GEN in loads:
-            threading.Thread(target = self._load_tg, args=(
-                lambda:frm.setText(LOAD_GEN, _L['DONE']),
-            ), daemon = True).start()
+            self._Q.submit("TrafficGenLoaded", self._load_tg)
+
+        self.update()
 
         # Load SUMO config
         if LOAD_CFG in loads:
             if res.cfg:
-                st,et,x = GetTimeAndNetwork(res.cfg)
+                st,et,x,addf = GetTimeAndNetwork(res.cfg)
                 if st == -1: st = 0
                 if et == -1: et = 172800
                 self.entry_start.delete(0, END)
                 self.entry_start.insert(0, str(st))
                 self.entry_end.delete(0, END)
                 self.entry_end.insert(0, str(et))
-            frm.setText(LOAD_CFG, _L['DONE'])
+            self._ldfrm.setText(LOAD_CFG, _L['DONE'])
         
+        self.update()
+
         # Load FCS
         if LOAD_FCS in loads:
-            self._load_fcs(async_, 
-                lambda: frm.setText(LOAD_FCS, _L['DONE']))
+            self._load_fcs(lambda: self._ldfrm.setText(LOAD_FCS, _L['DONE']))
+
+        self.update()
 
         # Load SCS
         if LOAD_SCS in loads:
-            self._load_scs(async_, 
-                lambda: frm.setText(LOAD_SCS, _L['DONE']))
+            self._load_scs(lambda: self._ldfrm.setText(LOAD_SCS, _L['DONE']))
         
+        self.update()
+
         # Load CSCSV
         if LOAD_CSCSV in loads:
-            self._load_cscsv(async_, 
-                lambda: frm.setText(LOAD_CSCSV, _L['DONE']))
+            self._load_cscsv(lambda: self._ldfrm.setText(LOAD_CSCSV, _L['DONE']))
         
+        self.update()
+
         # Load plugins
         if LOAD_PLG in loads:
             self._load_plugins()
-            frm.setText(LOAD_PLG,_L['DONE'])
+            self._ldfrm.setText(LOAD_PLG,_L['DONE'])
         
+        self.update()
+
         self.rb_veh_src2.configure(state="normal" if "poly" in res else "disabled")
         self.rb_veh_src1.configure(state="normal" if "taz" in res else "disabled")
         
         self.state = res = DetectFiles(self.folder)
 
+        self.update()
+        
         if LOAD_NET in loads:
             self.cv_net.clear()
-            self._load_network(self.tabs.select(), async_, 
-                lambda: frm.setText(LOAD_NET, _L['DONE']))
+            self._load_network(self.tabs.select(),
+                lambda: self._ldfrm.setText(LOAD_NET, _L['DONE']))
         
+        self.update()
+
         def setText(lb:Label, itm:str, must:bool = False):
             if itm in res:
-                lb.config(text=_removeprefix(res[itm], self.folder), foreground="black")
+                lb.config(text=Path(res[itm]).name, foreground="black")
             else:
                 lb.config(text="None", foreground="red" if must else "black")
         
@@ -1216,10 +1216,39 @@ class MainBox(Tk):
         setText(self.lb_taz_type, "taz_type")
         setText(self.lb_osm, "osm")
         setText(self.lb_poly, "poly")
+        setText(self.lb_poi, "poi")
         setText(self.lb_cscsv, "cscsv")
 
+        self.update()
+
+        if self.state.pref:
+            vcfg = V2SimConfig.load(self.state.pref)
+            self.entry_start.delete(0, END)
+            self.entry_start.insert(0, str(vcfg.start_time))
+            self.entry_end.delete(0, END)
+            self.entry_end.insert(0, str(vcfg.end_time))
+            self.entry_step.delete(0, END)
+            self.entry_step.insert(0, str(vcfg.traffic_step))
+            self.entry_seed.delete(0, END)
+            self.entry_seed.insert(0, str(vcfg.seed))
+            self.ralgo.set(vcfg.routing_method)
+            self.sim_save_on_finish.set(vcfg.save_state_on_finish)
+            self.sim_save_on_abort.set(vcfg.save_state_on_abort)
+            self.sim_load_last_state.set(vcfg.load_state)
+            self.sim_copy_state.set(vcfg.copy_state)
+            self.sim_visualize.set(vcfg.visualize)
+            self.sim_static_route.set(vcfg.force_caching)
+            if vcfg.stats:
+                for x in vcfg.stats:
+                    if x in self.sim_statistic:
+                        self.sim_statistic[x] = True
+                    else:
+                        showerr(f"Unknown statistic: {x}")
+        self.update()
+
         self.setStatus(_L["STA_READY"])
-        if len(loads) == 0: frm.destroy()
+        
+        if len(loads) == 0: self._ldfrm.destroy()
     
     def _load_plugins(self):
         
@@ -1283,7 +1312,7 @@ class MainBox(Tk):
         if not self.state.plg:
             self.sim_plglist.save()
         
-    def _load_fcs(self, async_:bool = False, afterx:OAfter=None):
+    def _load_fcs(self, afterx:OAfter = None):
         assert self.state is not None
         def after():
             assert self.state is not None
@@ -1294,55 +1323,55 @@ class MainBox(Tk):
             self.FCS_editor.setCSCSV("cscsv" in self.state)
             if afterx: afterx()
         if self.state.fcs:
-            self.FCS_editor.load(self.state.fcs, async_, after)
+            self.FCS_editor._Q.setcallback("loaded", after)
+            self.FCS_editor.load(self.state.fcs)
         else:
             self.FCS_editor.clear()
             after()
         
-    def _load_scs(self, async_:bool = False, afterx:OAfter=None):
+    def _load_scs(self, afterx:OAfter=None):
         assert self.state is not None
         def after():
             assert self.state is not None
             v = "scs" in self.state
-            self.sim_statistic["scs"]=v
+            self.sim_statistic["scs"] = v
             self.sim_statistic.setEnabled("scs", v)
             self.SCS_editor.setPoly("poly" in self.state)
             self.SCS_editor.setCSCSV("cscsv" in self.state)
             if afterx: afterx()
         if self.state.scs:
-            self.SCS_editor.load(self.state.scs, async_, after)
+            self.SCS_editor._Q.setcallback("loaded", after)
+            self.SCS_editor.load(self.state.scs)
         else:
             self.SCS_editor.clear()
             after()
 
-    def _load_cscsv(self, async_:bool = False, after:OAfter=None):
+    def _load_cscsv(self, after:OAfter = None):
         assert self.state is not None
         if self.state.cscsv:
-            self.CsCsv_editor.load(self.state.cscsv, async_, after)
+            if after:
+                self.CsCsv_editor._Q.setcallback("loaded", after)
+            self.CsCsv_editor.load(self.state.cscsv)
         else:
             self.CsCsv_editor.clear()
             if after: after()
     
-    def _load_network(self, tab_ret, async_:bool = False, after:OAfter=None):
+    def _load_network(self, tab_ret, after:OAfter = None):
         if self.state and self.state.net:
             self.tabs.select(self.tab_Net)
             time.sleep(0.01)
             self.tabs.select(tab_ret)
             self.lb_gridsave.config(text=_L["SAVED"],foreground="green")
-            def work():
-                assert self.state is not None and self.state.net is not None
-                if self.state.grid:
-                    self.cv_net.setGrid(PowerGrid.fromFile(self.state.grid))
-                assert self.cv_net.Grid is not None
-                self.lb_puvalues.configure(text=_L["PU_VALS"].format(self.cv_net.Grid.Ub,self.cv_net.Grid.Sb_MVA))
-                self.cv_net.setRoadNet(RoadNetConnectivityChecker(self.state.net,
-                    self.state.fcs if self.state.fcs else "",
-                    self.state.scs if self.state.scs else "",
-                ), async_ = async_, after=after)
-            if async_:
-                threading.Thread(target=work,daemon=True).start()
-            else:
-                work()
+            
+            assert self.state is not None and self.state.net is not None
+            if self.state.grid:
+                self.cv_net.setGrid(PowerGrid.fromFile(self.state.grid))
+            assert self.cv_net.Grid is not None
+            self.lb_puvalues.configure(text=_L["PU_VALS"].format(self.cv_net.Grid.Ub,self.cv_net.Grid.Sb_MVA))
+            self.cv_net.setRoadNet(RoadNetConnectivityChecker(self.state.net,
+                self.state.fcs if self.state.fcs else "",
+                self.state.scs if self.state.scs else "",
+            ), after = after)
 
     def openFolder(self):
         init_dir = Path("./cases")
@@ -1376,7 +1405,7 @@ class MainBox(Tk):
         kwargs["cs_file"] = cs_file
         kwargs["poly_file"] = poly_file
 
-        def work():
+        def work(ctl, **kwargs):
             try:
                 if not self.tg: return
                 self.tg._CS(**kwargs)
@@ -1384,12 +1413,13 @@ class MainBox(Tk):
                     self._load([LOAD_FCS, LOAD_GEN])
                 else:
                     self._load([LOAD_SCS, LOAD_GEN])
-                self._Q.put(("DoneOK", None))
+                return ctl, None
             except Exception as e:
-                #raise e
-                self._Q.put(("DoneErr", e))
-            ctl.btn_regen.config(state=NORMAL)
-        threading.Thread(target=work,daemon=True).start()    
+                print(f"\nError generating CS: {e}")
+                traceback.print_exc()
+                return ctl, e
+            
+        self._Q.submit("CSGenDone", work, ctl, **kwargs)   
     
     def generateVeh(self):
         if not self.tg:
@@ -1433,16 +1463,17 @@ class MainBox(Tk):
             mode = TripsGenMode.POLY
         route_cache = RoutingCacheMode(self.veh_route_cache.get())
         self.btn_genveh.config(state = DISABLED)
-        def work():
+
+        def work() -> Optional[Exception]:
             try:
                 assert self.tg
                 self.tg.EVTrips(carcnt, carseed, day_count, mode = mode, route_cache = route_cache, **new_pars)
                 self._load([])
-                self._Q.put(("DoneOK", None))
+                return None
             except Exception as e:
-                self._Q.put(("DoneErr", e))
-            self.btn_genveh.config(state = NORMAL)
-        threading.Thread(target=work,daemon=True).start()
+                return e
+        
+        self._Q.submit("VehGenDone", work)
 
     def draw(self):
         if not self.__checkFolderOpened(): return
@@ -1458,11 +1489,11 @@ class MainBox(Tk):
             try:
                 csQuery(self.folder,"",key,True)
                 self._load([LOAD_CSCSV])
+                return None
             except Exception as e:
-                self._Q.put(('DoneErr', f"Error downloading CS CSV: {e}"))
-                return
-            self._Q.put(('DoneOK',None))
-        threading.Thread(target=work,daemon=True).start()
+                return e
+        
+        self._Q.submit("CSCSVDownloadDone", work)
         
     def setStatus(self, text:str):
         self.sbar.config(text=text)

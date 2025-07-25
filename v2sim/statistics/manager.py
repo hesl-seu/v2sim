@@ -160,7 +160,7 @@ class StaReader:
         self.__items: Dict[str, _CSVTable] = {}
         for file in dir_con:
             if file.endswith(".csv"):
-                fname = file.removesuffix(".csv")
+                fname = file[:-4]  # Remove .csv suffix
                 if sta_pool is None or sta_pool.Get(fname) is not None:
                     self.__items[fname] = _CSVTable(str(work_dir / file))
             else:
