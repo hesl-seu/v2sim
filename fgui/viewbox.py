@@ -1,26 +1,27 @@
-from typing import List, Dict, Tuple
+from typing import Any, List, Dict, Tuple
 from queue import Queue
 from .view import *
 
-class ViewBox(Tk):
-    def __make(self,key:str,i:int):
-        lb1=Label(self._fr, text=key, border=0)
-        lb1.grid(row=i,column=0,padx=3,pady=3)
-        lb2=Label(self._fr, text="0", border=0)
-        lb2.grid(row=i,column=1,padx=3,pady=3)
-        self._dict[key]=[0,lb2]
-    
-    def __init__(self,keys:List[str],title="ViewBox",size:str="300x500"):
+class ViewBox(Tk): 
+    def __init__(self, keys:List[str], title:str="ViewBox", width:int=300, height:int=500):
         super().__init__()
         self.title(title)
-        self.geometry(size)
-        self._dict:Dict[str, List]={}
-        self._cnt=len(keys)
-        self._fr=Frame(self)
-        self._fr.pack(side='top',anchor='center',expand=1)
-        self._gcf={"padx":3, "pady":3}
-        for i,key in enumerate(keys):
-            self.__make(key,i)
+        self.geometry(f"{width}x{height}")
+        
+        columns = ("item", "value")
+        tree = Treeview(self, columns=columns, show="headings", selectmode="none")
+        tree.heading("item", text="Item")
+        tree.heading("value", text="Value")
+        tree.column("item", width=100)
+        tree.column("value", width=200)
+        tree.pack(fill=BOTH, expand=True)
+
+        self._dict:Dict[str, Any] = {k:"" for k in keys}
+        self._vals:Dict[str, Any] = {k:"" for k in keys}
+        for k in keys:
+            self._dict[k] = tree.insert("", "end", values=(k, ""))
+
+        self.tree = tree
         self._Q=Queue()
         self.after(100,self._upd)
 
@@ -30,14 +31,15 @@ class ViewBox(Tk):
             d.update(self._Q.get())
         for key,val in d.items():
             if not key in self._dict:
-                self.__make(key,self._cnt)
-                self._cnt+=1
-            self._dict[key][0]=val
-            self._dict[key][1].configure(text=str(val))
+                self._dict[key] = self.tree.insert("", "end", values=(key, str(val)))
+            else:
+                item = self._dict[key]
+                self.tree.item(item, values=(key, str(val)))
+            self._vals[key] = val
         self.after(100,self._upd)
     
     def close(self):
         self.destroy()    
     
-    def set_val(self,d:Dict):
+    def set_val(self, d:Dict[str, Any]):
         self._Q.put(d)

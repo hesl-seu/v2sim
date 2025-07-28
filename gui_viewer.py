@@ -6,7 +6,7 @@ from queue import Queue
 from typing import Literal, Optional, Dict, List, Tuple
 from fgui import add_lang_menu
 from fgui.view import *
-from fgui import ScrollableTreeView, TripsFrame
+from fgui import ScrollableTreeView, TripsFrame, DirSelApp
 from v2sim import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
 from tkinter import filedialog
 from tkinter import messagebox as MB
@@ -591,6 +591,9 @@ class PlotBox(Tk):
 
     def update_file_list(self):
         self.pic_list.delete(0, END)
+        self.original_image = None
+        self.lb_pic.config(image='',text=_L["NO_IMAGE"])
+        self.image = None
         if self.folder and os.path.exists(self.folder):
             files = set(os.listdir(self.folder))
             for file in sorted(files):
@@ -637,6 +640,7 @@ class PlotBox(Tk):
             elif op=='I':
                 self.set_status(par[0])
             elif op=='E':
+                MB.showerror(_L["ERROR"], par[0])
                 self.set_status(par[0])
                 self.enable_all()
             elif op=='LE':
@@ -685,12 +689,23 @@ class PlotBox(Tk):
         if cproc.exists():
             self.tab_trip.load(str(cproc))
         else:
-            cproc = res_path / "results" / "cproc.clog"
-            if cproc.exists():
-                res_path = res_path / "results"
-            else:
+            res_path_list = []
+            for dir_ in res_path.iterdir():
+                if dir_.is_dir() and dir_.name.lower().startswith("results") and (dir_ / "cproc.clog").exists():
+                    res_path_list.append(dir_)
+            if len(res_path_list) == 0:
                 MB.showerror(_L["ERROR"], _L["NO_CPROC"])
                 return
+            elif len(res_path_list) == 1:
+                res_path = res_path_list[0]
+            else:
+                self.disable_all()
+                dsa = DirSelApp(res_path_list)
+                self.wait_window(dsa)
+                if dsa.folder is None:
+                    self._Q.put(('Q',None))
+                    return
+                res_path = Path(dsa.folder)
         
         # Load the results
         self.set_status(_L["LOADING"])
@@ -739,13 +754,19 @@ class PlotBox(Tk):
             MB.showerror(_L["ERROR"], _L["NOTHING_PLOT"])
             self.enable_all()
         def work(cfg):
-            for a in AVAILABLE_ITEMS2:
-                if cfg[a]:
-                    getattr(self, "_plot_"+a)()
-                    if "_" in a: continue
-                    self._Q.put(('UC', "plot_"+a))
-            self._Q.put(('D', None))
-        threading.Thread(target=work,args=(cfg,),daemon=True).start()
+            try:
+                for a in AVAILABLE_ITEMS2:
+                    if cfg[a]:
+                        getattr(self, "_plot_"+a)()
+                        if "_" in a: continue
+                        self._Q.put(('UC', "plot_"+a))
+            except Exception as e:
+                self._Q.put(('E', str(e)))
+            else:
+                self._Q.put(('D', None))
+        t = threading.Thread(target=work,args=(cfg,),daemon=True)
+        
+        t.start()
 
     def _plot_scs_accum(self):
         tl,tr = self._pp.getTime()

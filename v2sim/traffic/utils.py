@@ -77,6 +77,7 @@ def GetTimeAndNetwork(file: str):
             bt, et = int(bnode.attrib.get("value", "-1")), int(enode.attrib.get("value", "-1")),
     
     nf = None
+    af = []
     inode = root.find("input")
     if isinstance(inode, ET.Element):
         nfnode = inode.find("net-file")
