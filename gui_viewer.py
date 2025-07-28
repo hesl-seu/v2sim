@@ -591,6 +591,9 @@ class PlotBox(Tk):
 
     def update_file_list(self):
         self.pic_list.delete(0, END)
+        self.original_image = None
+        self.lb_pic.config(image='',text=_L["NO_IMAGE"])
+        self.image = None
         if self.folder and os.path.exists(self.folder):
             files = set(os.listdir(self.folder))
             for file in sorted(files):
@@ -696,6 +699,7 @@ class PlotBox(Tk):
             elif len(res_path_list) == 1:
                 res_path = res_path_list[0]
             else:
+                self.disable_all()
                 dsa = DirSelApp(res_path_list)
                 self.wait_window(dsa)
                 if dsa.folder is None:
