@@ -103,6 +103,8 @@ class Lang:
     CPROC_DEPART_CS = "Fast Charging Done"
     CPROC_DEPART_FAILED = "Departure Failed"
     CPROC_FAULT_DEPLETE = "Depletion"
+    CPROC_FAULT_NOCHARGE = "No FCS available"
+    CPROC_FAULT_REDIRECT = "Redirect"
     CPROC_WARN_SMALLCAP = "Warning"
     CPROC_JOIN_SCS = "Join Slow Charging Station"
     CPROC_LEAVE_SCS = "Leave Slow Charging Station"
@@ -119,8 +121,12 @@ class Lang:
     CPROC_INFO_DEPART_CS = "Vehicle {0} finished charging at {1}, continuing the trip to {2}."
     CPROC_INFO_DEPART_FAILED = "Vehicle {0} failed to depart due to insufficient battery level. Required: {1}, Current: {2}. Will be teleported to {3} after {4} second(s)."
     CPROC_INFO_FAULT_DEPLETE = "Vehicle {0} depleted. Will be teleported to {1} after {2} seconds."
+    CPROC_INFO_FAULT_NOCHARGE = "Vehicle {0} has no charge. Will be teleported to {1}."
+    CPROC_INFO_FAULT_REDIRECT = "Vehicle {0} cannot charge at {1} due to insufficient battery level. Redirecting to {2}."
     CPROC_INFO_WARN_SMALLCAP = "Vehicle {0} has a battery capacity of {1}, which is less than the required {2}. Will cause a depletion during the trip."
-    
+    CPROC_INFO_JOIN_SCS = "Vehicle {0} joined slow charging station at {1}."
+    CPROC_INFO_LEAVE_SCS = "Vehicle {0} left slow charging station at {1}."
+
     PLG_REGISTERED = "Plugin '{}' has already been registered."
     PLG_DEPS_MUST_BE_STRLIST = "Dependencies must be a list of strings."
     PLG_NOT_SUBCLASS = "Plugin '{}' is not a subclass of PluginBase."

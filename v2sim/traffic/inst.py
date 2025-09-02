@@ -552,6 +552,24 @@ class TrafficInst:
         self.__ctime = int(traci.simulation.getTime())
         self.__batch_depart()
 
+        for cs in chain(self.FCSList, self.SCSList):
+            if cs._x == float('inf') or cs._y == float('inf'):
+                sp = traci.lane.getShape(cs.name + "_0")
+                assert len(sp) > 0, f"{sp}"
+                cs._x, cs._y = sp[0]
+        
+        if self.FCSList._kdtree == None:
+            self.FCSList._kdtree = KDTree(
+                (Point(cs._x, cs._y) for cs in self.FCSList),
+                range(self.FCSList._n)
+            )
+        
+        if self.SCSList._kdtree == None:
+            self.SCSList._kdtree = KDTree(
+                (Point(cs._x, cs._y) for cs in self.SCSList),
+                range(self.SCSList._n)
+            )
+
     #@FEasyTimer
     #def __sumo_step(self, _t):
     #    traci.simulationStep(_t)
