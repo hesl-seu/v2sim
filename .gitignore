@@ -9,6 +9,7 @@ _sim_temp
 temp
 saved_state
 *.old.*
+buf.csv
 
 # Sensitive files
 amap_key.txt

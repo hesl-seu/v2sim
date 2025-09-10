@@ -293,7 +293,7 @@ class TrafficGenerator:
                 bp.append(Point(x,y))
             bus_names = gr.BusNames
         if use_grid:
-            bkdt:KDTree[str] = KDTree(bp, bus_names)
+            bkdt:KDTree[Point, str] = KDTree(bp, bus_names)
             selector = lambda cname: bkdt.nearest_mapped(Point(*el.get_edge_pos(cname)))  
         else:
             bus_names = bus.select(self.__bus_names, busCount, givenBus)

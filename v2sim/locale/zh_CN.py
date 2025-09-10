@@ -33,7 +33,7 @@ class _locale:
     ERROR_FILE_EXISTS = "错误: 文件已存在: {}"
     ERROR_NUMBER_NOT_SPECIFIED = "错误: 当选择随机时必须指定n"
     ERROR_FILE_TYPE_NOT_SUPPORTED = "错误: 不支持的XML文件{}类型"
-    ERROR_NO_TAZ_OR_POLY = "错误: 未找到TAZ或POLY文件"
+    ERROR_NO_TAZ_OR_POLY = "错误: 未找到TAZ或POLY文件。如果要使用POLY模式, 还必须指定FCS文件."
     ERROR_RANDOM_CANNOT_EXCLUDE = "错误: 序列抽样中的所有元素都被排除"
     ERROR_ROUTE_NOT_FOUND = "错误: 无法找到从{0}到{1}的路径"
     ERROR_INVALID_CACHE_ROUTE = "错误: 无效的寻路缓存模式: {0}"

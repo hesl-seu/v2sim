@@ -40,7 +40,7 @@ class Lang:
     ERROR_FILE_EXISTS = "Error: File already exists: {}"
     ERROR_NUMBER_NOT_SPECIFIED = "Error: n must be specified when selecting randomly"
     ERROR_FILE_TYPE_NOT_SUPPORTED = "Error: XML File {} type not supported."
-    ERROR_NO_TAZ_OR_POLY = "Error: No TAZ or polygon file found."
+    ERROR_NO_TAZ_OR_POLY = "Error: No TAZ or polygon file found. If you want use poly mode, you have to specify a fcs file in addition."
     ERROR_RANDOM_CANNOT_EXCLUDE = "Error: No element in the sequence is different from the excluded value"
     ERROR_ROUTE_NOT_FOUND = "Error: Unable to find a path from {0} to {1}"
     ERROR_INVALID_CACHE_ROUTE = "Error: Invalid cache route: {0}"
