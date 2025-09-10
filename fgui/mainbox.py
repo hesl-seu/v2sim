@@ -595,26 +595,26 @@ class MainBox(Tk):
         super().__init__()
         self._Q = EventQueue(self)
         
-        def proc_exception(e: Optional[Exception]):
+        def proc_exception(e: Optional[Exception] = None):
             if e:
                 self.setStatus(f"Error: {e}")
                 showerr(f"Error: {e}")
             else:
                 self.setStatus(_L["STA_READY"])
        
-        def on_CSGendone(ctl: CSEditorGUI, e: Optional[Exception]):
+        def on_CSGendone(ctl: CSEditorGUI, e: Optional[Exception] = None):
             ctl.btn_regen.config(state=NORMAL)
             proc_exception(e)
         
         self._Q.register("CSGenDone", on_CSGendone)
 
-        def on_VehGenDone(e: Optional[Exception]):
+        def on_VehGenDone(e: Optional[Exception] = None):
             self.btn_genveh.config(state = NORMAL)
             proc_exception(e)
         
         self._Q.register("VehGenDone", on_VehGenDone)
 
-        def on_CSCSVDownloadDone(e: Optional[Exception]):
+        def on_CSCSVDownloadDone(e: Optional[Exception] = None):
             proc_exception(e)
         
         self._Q.register("CSCSVDownloadDone", on_CSCSVDownloadDone)
@@ -622,6 +622,9 @@ class MainBox(Tk):
         def on_TrafficGenLoaded():
             self._ldfrm.setText(LOAD_GEN, _L['DONE'])
         self._Q.register("TrafficGenLoaded", on_TrafficGenLoaded)
+
+        
+        self._Q.register("cvnetloaded", self.on_cvnet_loaded)
 
         self.folder:str = to_open
         self.state:Optional[FileDetectResult] = None
@@ -1368,10 +1371,23 @@ class MainBox(Tk):
                 self.cv_net.setGrid(PowerGrid.fromFile(self.state.grid))
             assert self.cv_net.Grid is not None
             self.lb_puvalues.configure(text=_L["PU_VALS"].format(self.cv_net.Grid.Ub,self.cv_net.Grid.Sb_MVA))
-            self.cv_net.setRoadNet(RoadNetConnectivityChecker(self.state.net,
-                self.state.fcs if self.state.fcs else "",
-                self.state.scs if self.state.scs else "",
-            ), after = after)
+
+            def __el(state: FileDetectResult, after:OAfter=None):
+                assert state.net is not None
+                el = RoadNetConnectivityChecker(state.net,
+                    state.fcs if state.fcs else "",
+                    state.scs if state.scs else "",
+                )
+                return el, after
+            
+            self._Q.submit("cvnetloaded", __el, self.state, after)
+
+    def on_cvnet_loaded(self, el:RoadNetConnectivityChecker, after:OAfter=None):
+        print("ELGraph loaded.")
+        if len(el.Edges) > 15000:
+            print("Large network detected. Skipping drawing edges.")
+            return
+        self.cv_net.setRoadNet(el, after = after)
 
     def openFolder(self):
         init_dir = Path("./cases")

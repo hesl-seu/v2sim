@@ -274,7 +274,7 @@ class V2SimInstance:
         fcs_file = proj_cfg.fcs
         fcs_obj:CSList[FCS] = CSList(vehicles, filePath = fcs_file, csType = FCS)
         self.__print(Lang.INFO_FCS.format(fcs_file,len(fcs_obj)))
-        if fcs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
+        #if fcs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
 
         # Check SCS file
         if not proj_cfg.scs:
@@ -282,7 +282,7 @@ class V2SimInstance:
         scs_file = proj_cfg.scs
         scs_obj:CSList[SCS] = CSList(vehicles, filePath = scs_file, csType = SCS)
         self.__print(Lang.INFO_SCS.format(scs_file,len(scs_obj)))
-        if scs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
+        #if scs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
 
         # Check start and end time
         if start_time == -1:

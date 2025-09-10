@@ -59,6 +59,7 @@ class AMapPOIReader:
         self.offset = 25
         self.limit = limit
         self.all_yes = allyes
+        self.buf = open("buf.csv","w", encoding='utf-8')
 
     def get(self, rect:Rect, keyword:str) -> Tuple[List[CS], List[Dict[str,Any]]]:
         raw = self.get_raw(rect, keyword)
@@ -100,8 +101,17 @@ class AMapPOIReader:
         for i in range(2, iterate_num + 1):
             print(f"\rProgress: {i-1}/{iterate_num}",end="")
             temp_result = self.__get0(rect,keyword,i)
-            final_result.extend(temp_result['pois'])
-            time.sleep(0.2)
+            if 'pois' in temp_result: 
+                pois = temp_result['pois']
+                for itm in final_result:
+                    id = itm.get("id","")
+                    name = itm.get("name","")
+                    loc = itm.get("location","").split(',')
+                    lat = float(loc[1])
+                    lng = float(loc[0])
+                    self.buf.write(f"{id},{name},{lat},{lng}\n")
+                final_result.extend(pois)
+            time.sleep(0.35)
         print("\rFinished.               ")
 
         return final_result

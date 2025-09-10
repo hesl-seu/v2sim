@@ -12,6 +12,7 @@ A clear and concise description of what the bug is.
 
 **Locate the bug**
 Which tool are you using when meeting the bug?
+Replace `[]` with `[x]` to select it.
 - [ ] cmd_advplot.py
 - [ ] cmd_csquery.py
 - [ ] cmd_plot.py

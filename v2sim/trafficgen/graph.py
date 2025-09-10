@@ -94,6 +94,7 @@ class RoadNetConnectivityChecker:
         tscc = _TarjanSCC(n=len(self.all_edges), gl=gl)
         _largeStackExec(tscc.get_scc)
         assert tscc.max_scc is not None
+
         self.edgeIDs:List[str] = [self.all_edgeIDs[x] for x in tscc.max_scc]
         self.edges:List[Edge] = [self._net.getEdge(e) for e in self.edgeIDs]
         

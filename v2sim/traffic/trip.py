@@ -167,6 +167,8 @@ class TripLogItem:
         'DC': Lang.CPROC_DEPART_CS,
         'DF': Lang.CPROC_DEPART_FAILED,
         'FD': Lang.CPROC_FAULT_DEPLETE,
+        'FN': Lang.CPROC_FAULT_NOCHARGE,
+        'FR': Lang.CPROC_FAULT_REDIRECT,
         'WC': Lang.CPROC_WARN_SMALLCAP,
         'JS': Lang.CPROC_JOIN_SCS,
         'LS': Lang.CPROC_LEAVE_SCS,
@@ -254,17 +256,38 @@ class TripLogItem:
                 self.additional['cs'],
                 self.additional['trT']
             )
-        elif self.__op == 'F':
+        elif self.__op == 'FD':
             ret += Lang.CPROC_INFO_FAULT_DEPLETE.format(
                 veh,
                 self.additional['cs'],
                 self.additional['trT'],
             )
-        elif self.__op == 'W':
+        elif self.__op == 'FN':
+            ret += Lang.CPROC_INFO_FAULT_NOCHARGE.format(
+                veh,
+                self.additional['cs']
+            )
+        elif self.__op == 'FR':
+            ret += Lang.CPROC_INFO_FAULT_REDIRECT.format(
+                veh,
+                self.additional['old_cs'],
+                self.additional['new_cs']
+            )
+        elif self.__op == 'WC':
             ret += Lang.CPROC_INFO_FAULT_DEPLETE.format(
                 veh,
                 self.additional['veh_batt'],
                 self.additional['batt_req']
+            )
+        elif self.__op == 'JS':
+            ret += Lang.CPROC_INFO_JOIN_SCS.format(
+                veh,
+                self.additional['cs']
+            )
+        elif self.__op == 'LS':
+            ret += Lang.CPROC_INFO_LEAVE_SCS.format(
+                veh,
+                self.additional['cs']
             )
         else:
             raise ValueError(f"Unknown operation {self.__op}")
@@ -310,14 +333,27 @@ class TripsReader:
                 additional['batt_req'] = d[4]
                 additional['cs'] = d[5]
                 additional['trT'] = d[6]
-            elif op == 'F':
+            elif op == 'FD':
                 assert len(d) == 5
                 additional['cs'] = d[3]
                 additional['trT'] = d[4]
-            elif op == 'W':
+            elif op == 'FN':
+                assert len(d) == 4
+                additional['cs'] = d[3]
+            elif op == 'FR':
+                assert len(d) == 5
+                additional['old_cs'] = d[3]
+                additional['new_cs'] = d[4]
+            elif op == 'WC':
                 assert len(d) == 5
                 additional['veh_batt'] = d[3]
                 additional['batt_req'] = d[4]
+            elif op == 'JS':
+                assert len(d) == 4
+                additional['cs'] = d[3]
+            elif op == 'LS':
+                assert len(d) == 4
+                additional['cs'] = d[3]
             else:
                 raise ValueError(f"Unknown operation {op}")
             met = TripLogItem(simT, op, veh, soc, int(tripid), additional)

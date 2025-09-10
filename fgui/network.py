@@ -183,7 +183,6 @@ class NetworkPanel(Frame):
         Set the road network to be displayed
             roadnet: ELGraph, the road network to be displayed
             repaint: bool, whether to repaint the network.
-            async_: bool, whether to repaint the network asynchronously.
             after: Optional[Callable[[], None]], the function to be called after the network is repainted.
                 If after is None, this repaint operation will block the main thread!
                 If after is not None, this repaint operation will be done asynchronously.
@@ -657,7 +656,7 @@ class NetworkPanel(Frame):
                 shape:PointList
                 c, lw = self.__get_edge_prop(ename)
                 shape = [(p[0]*scale+dx,p[1]*scale+dy) for p in shape]
-                self._Q.delegate(lambda: self._draw_edge(shape, c, lw, ename))
+                self._Q.delegate(self._draw_edge, shape, c, lw, ename)
             
         if self._g is not None:
             if minx > maxx or miny > maxy:
@@ -677,7 +676,7 @@ class NetworkPanel(Frame):
             for line in self._g.Lines:
                 x1, y1 = self.convLL2XY(*self._g.Bus(line.fBus).LonLat)
                 x2, y2 = self.convLL2XY(*self._g.Bus(line.tBus).LonLat)
-                self._Q.delegate(lambda: self._draw_line(x1, y1, x2, y2, 'black', 2, line.ID))
+                self._Q.delegate(self._draw_line, x1, y1, x2, y2, 'black', 2, line.ID)
             
             for g in chain(self._g.Gens, self._g.PVWinds, self._g.ESSs):
                 tp = g.__class__.__name__.lower()[:3]
@@ -689,11 +688,11 @@ class NetworkPanel(Frame):
                     t = g.__class__.__name__
                     print(f"{t} {g.ID} has no location, set to Lon, Lat = ({b.Lon:.6f},{b.Lat:.6f})")
                 x, y = self.convLL2XY(g.Lon, g.Lat)
-                self._Q.delegate(lambda: self._draw_gen(x, y, r, 'white', 2, g.ID, xb, yb, tp))
+                self._Q.delegate(self._draw_gen, x, y, r, 'white', 2, g.ID, xb, yb, tp)
 
             for b in self._g.Buses:
                 x, y = self.convLL2XY(b.Lon, b.Lat)
-                self._Q.delegate(lambda: self._draw_bus(x, y, r, 'white', 2, b.ID))
+                self._Q.delegate(self._draw_bus, x, y, r, 'white', 2, b.ID)
         
         if center: self._Q.trigger("draw_done_center")
     
