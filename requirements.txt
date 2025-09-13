@@ -6,3 +6,5 @@ fpowerkit>=0.3.2
 pyproj
 requests
 ordered-set
+cvxpy
+ecos
