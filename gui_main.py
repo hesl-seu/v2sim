@@ -1,6 +1,7 @@
 from pathlib import Path
 import time
 import tkinter as tk
+import tkinter.messagebox as MB
 from tkinter import filedialog, Tk, PhotoImage, StringVar
 from tkinter import ttk
 import platform
@@ -52,10 +53,10 @@ class WelcomeBox(Tk):
 
         self.recent_var = StringVar()
         self.proj_dir = ttk.Entry(middle_frame, textvariable=self.recent_var, state="readonly", width=40)
-        self.proj_dir.grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=(0, 5))
+        self.proj_dir.grid(row=0, column=1, columnspan=2, sticky="ew", padx=(5, 0), pady=(0, 5))
 
         self.project_list = tk.Listbox(middle_frame, height=6)
-        self.project_list.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(0, 5))
+        self.project_list.grid(row=1, column=0, columnspan=3, sticky="nsew", pady=(0, 5))
 
         def on_project_select(event):
             selection = self.project_list.curselection()
@@ -70,7 +71,15 @@ class WelcomeBox(Tk):
 
         self.load_recent_projects()
         
-        def select_project():
+        def clear_list(e):
+            if MB.askyesno("Confirm", "Are you sure to clear the recent project list? This action cannot be undone."):
+                self.project_list.delete(0, tk.END)
+                self.recent_var.set("")
+                if RECENT_PROJECTS_FILE.exists():
+                    RECENT_PROJECTS_FILE.unlink()
+                self.save_recent_project()
+
+        def select_project(e):
             folder = filedialog.askdirectory(title="Select Project Folder")
             if folder:
                 self.project_list.insert(0, folder)
@@ -84,12 +93,28 @@ class WelcomeBox(Tk):
                 self.save_recent_project()
         
         self.open_btn = ttk.Button(middle_frame, text="Open", command=self._close, state="disabled")
-        self.open_btn.grid(row=2, column=1, sticky="e", pady=(5, 0))
-        self.select_btn = ttk.Button(middle_frame, text="Select...", command=select_project)
-        self.select_btn.grid(row=2, column=0, sticky="w", pady=(5, 0))
+        self.open_btn.grid(row=2, column=2, sticky="e", pady=(5, 0))
+        self.select_linklbl = ttk.Label(
+            middle_frame,
+            text="Add project...",
+            foreground="blue",
+            cursor="hand2",
+            font=("Arial", 10, "underline")
+        )
+        self.select_linklbl.bind("<Button-1>", select_project)
+        self.select_linklbl.grid(row=2, column=0, sticky="w", pady=(5, 0))
+        self.clear_linklbl = ttk.Label(
+            middle_frame,
+            text="Clear list",
+            foreground="blue",
+            cursor="hand2",
+            font=("Arial", 10, "underline")
+        )
+        self.clear_linklbl.grid(row=2, column=1, sticky="w", pady=(5, 0), padx=(10, 0))
+        self.clear_linklbl.bind("<Button-1>", clear_list)
 
         # Footer (status bar)
-        self.lb_sta = ttk.Label(self, text="Loading...", anchor="w", relief="sunken")
+        self.lb_sta = ttk.Label(self, text="Loading V2Sim core...", anchor="w", relief="sunken")
         self.lb_sta.pack(side="bottom", fill="x")
     
     def _checkdone(self):
@@ -101,6 +126,11 @@ class WelcomeBox(Tk):
         if ret == "done":
             self.lb_sta.config(text="V2Sim is ready!")
             self.open_btn.config(state="normal")
+        elif ret == "error":
+            self.lb_sta.config(text="Failed to start V2Sim core. See console for details.")
+            self.select_linklbl.config(state="disabled")
+            MB.showerror("Error", "Failed to start V2Sim core. Please check the console for details.")
+            self.open_btn.config(text="Exit", command=self._close, state="normal")
         else:
             self.after(100, self._checkdone)
     
@@ -143,19 +173,28 @@ if __name__ == "__main__":
     Q = mp.Queue()
     mp.Process(target=welcome, args=(Q,)).start()
 
-    from fgui.mainbox import MainBox
-
-    win = MainBox()
-    Q.put_nowait("done")
-    time.sleep(0.2)  # Give some time for the welcome box to show up
-    msg = Q.get()
-    if msg == "__close__":
-        win.quit()
-        win.destroy()
-        exit(0)
-    elif msg is not None and msg != "":
-        win.folder = msg
-        win._load()
-    win.wm_attributes('-topmost', 1)
-    win.after(100, lambda: win.wm_attributes('-topmost', 0))
-    win.mainloop()
+    try:
+        from fgui.mainbox import MainBox
+        win = MainBox()
+        success = True
+    except Exception as e:
+        import traceback
+        print("Failed to start the main window:")
+        print(traceback.format_exc())
+        Q.put_nowait("error")
+        success = False
+    
+    if success:
+        Q.put_nowait("done")
+        time.sleep(0.2)  # Give some time for the welcome box to show up
+        msg = Q.get()
+        if msg == "__close__":
+            win.quit()
+            win.destroy()
+            exit(0)
+        elif msg is not None and msg != "":
+            win.folder = msg
+            win._load()
+        win.wm_attributes('-topmost', 1)
+        win.after(100, lambda: win.wm_attributes('-topmost', 0))
+        win.mainloop()

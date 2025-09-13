@@ -39,9 +39,7 @@ NOTE: We do not recommend use conda or other virtual environment, because some u
 
 2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get SUMO (version 1.19 and above are recommended). Note: This step can be skipped if you do not want to edit the road network.
 
-3. Setup cvxpy and ECOS if you want to use power grid simulation within V2Sim, using `pip install cvxpy ecos`. Note that these two packages are not included in the requirements.txt.
-
-4. Setup necessary packages. Ensure you have installed `pip` together with Python. Note: As for package `libsumo`, its version must be same as the vesion of SUMO!
+3. Setup necessary packages. Ensure you have installed `pip` together with Python. Note: As for package `libsumo`, its version must be same as the vesion of SUMO!
 ```bash
 pip install -r requirements.txt
 ```
@@ -72,8 +70,8 @@ Click the `Project` menu and open the folder you have created. You will see some
 ![alt text](docs/3.png)
 
 2. Download charging station positions: If the area you downloaded is in **China Mainland**, you can download charging station positions in this program. Otherwise, please skip this step.
-+ Switch to `CS Downloader` page and type an AMap developer key in the given input box. **ATTENTION: You must apply for a key on the [AMap official site](https://lbs.amap.com/). This function will never work without a key.** 
-+ Click `Download` to get CS positions from AMap(Chinese: 高德地图). Please wait patiently while downloading the CS positions. If there are too many CSs in the given area, they may not be all downloaded due to the restriction of AMap.
++ Switch to `CS Downloader` page and type an AMap(Chinese: 高德地图) developer key in the given input box. **ATTENTION: You must apply for a key for web service (Chinese: Web服务) on the [AMap official site](https://lbs.amap.com/). This function will never work without a key.** 
++ Click `Download` to get CS positions from AMap. Please wait patiently while downloading the CS positions. If there are too many CSs in the given area, they may not be all downloaded due to the restriction of AMap.
 + A successful result is shown below (The address are all Chinese since they are located in China):
 
 ![alt text](docs/4.png)
@@ -135,3 +133,8 @@ You can also collect the data of the power grid at a specific time in page `Grid
 Trips are also counted in `Trips` page. You can filter them by giving the conditions in the bar attached to the bottom of the window. You can also save the filtered results to a specific file.
 
 ![alt text](docs/8.png)
+
+#### State viewer
+If you have ticked "Save state ..." before simulation, the state will be saved in the result folder. You can go through the status of FCS, SCS, and EV in the page. 
+
+![alt text](docs/12.png)

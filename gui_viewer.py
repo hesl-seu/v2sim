@@ -2,9 +2,8 @@ import gzip
 import threading, os
 import pickle
 from pathlib import Path
-from queue import Queue
 from typing import Literal, Optional, Dict, List, Tuple
-from fgui import add_lang_menu
+from fgui import add_lang_menu, EventQueue
 from fgui.view import *
 from fgui import ScrollableTreeView, TripsFrame, DirSelApp
 from v2sim import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
@@ -138,7 +137,7 @@ class PlotPage(Frame):
         self.lb_conf = Label(self.panel_conf, text=_L["FILE_EXT"])
         self.lb_conf.pack(side="left")
         self.cb_ext = Combobox(self.panel_conf,width=5, state="readonly")
-        self.cb_ext['values'] = ["png","jpg","eps","svg","tiff"]
+        self.cb_ext['values'] = ["png","jpg","pdf","eps","svg","tiff"]
         self.cb_ext.current(0)
         self.cb_ext.pack(side="left")
         self.lb_dpi = Label(self.panel_conf, text=_L["IMAGE_DPI"])
@@ -446,11 +445,16 @@ class PlotBox(Tk):
             "pvw": False, 
             "ess": False,
         }
-        self._Q = Queue()
+        self._Q = EventQueue(self)
+        self._Q.register("exit", self.quit)
+        self._Q.register("loaded", self.on_loaded)
+        self._Q.register("state_loaded", self.on_state_loaded)
+        self._Q.register("plot_done", self.on_plot_done)
+        self._Q.do()
+
         self.disable_all()
         self.bind("<Configure>", self.on_resize)
         self.resize_timer = None
-        self.after(100,self._upd)
     
     def display_images(self, file_name:str):
         if self.folder is None: return
@@ -600,62 +604,52 @@ class PlotBox(Tk):
                 if file.lower().endswith(('png', 'jpg', 'jpeg', 'gif')):  # 只列出图片文件
                     self.pic_list.insert(END, file)
 
-    def _upd(self):
-        while not self._Q.empty():
-            op, *par = self._Q.get()
-            if op == 'L':
-                assert isinstance(par[0], ReadOnlyStatistics)
-                assert isinstance(par[1], AdvancedPlot)
-                self._sta = par[0]
-                self._npl = par[1]
-                for x in AVAILABLE_ITEMS:
-                    self._ava[x] = getattr(self._sta, f"has_{x.upper()}")()
-                if self._sta.has_FCS():
-                    self._pp.fcs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.FCS_head)
-                    self.cb_fcs_query['values'] = self._sta.FCS_head
-                    if self._sta.FCS_head:
-                        self.cb_fcs_query.set(self._sta.FCS_head[0])
-                if self._sta.has_SCS():
-                    self._pp.scs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.SCS_head)
-                    self.cb_scs_query['values'] = self._sta.SCS_head
-                    if self._sta.SCS_head:
-                        self.cb_scs_query.set(self._sta.SCS_head[0])
-                if self._sta.has_GEN():
-                    self._pp.gen_pad.setValues([ITEM_ALL_G,ITEM_ALL_V2G,ITEM_ALL] + self._sta.gen_head)
-                if self._sta.has_BUS():
-                    self._pp.bus_pad.setValues([ITEM_ALL] + self._sta.bus_head)
-                if self._sta.has_LINE():
-                    self._pp.line_pad.setValues([ITEM_ALL] + self._sta.line_head)
-                if self._sta.has_PVW():
-                    self._pp.pvw_pad.setValues([ITEM_ALL] + self._sta.pvw_head)
-                if self._sta.has_ESS():
-                    self._pp.ess_pad.setValues([ITEM_ALL] + self._sta.ess_head)
-                self.update_file_list()
-                self.set_status(_L["STA_READY"])
-                self.enable_all()
-            elif op=='LS':
-                self.__inst = par[0]
-            elif op=='UC':
-                getattr(self._pp, par[0]).set("False")
-            elif op=='I':
-                self.set_status(par[0])
-            elif op=='E':
-                MB.showerror(_L["ERROR"], par[0])
-                self.set_status(par[0])
-                self.enable_all()
-            elif op=='LE':
-                self.set_status(par[0])
-                break
-            elif op=='D':
-                self.update_file_list()
-                self.set_status(_L["STA_READY"])
-                self.enable_all()
-            elif op=='Q':
-                self.destroy()
-            else:
-                self.set_status(_L["INTERNAL_ERR"])
-                break
-        self.after(100,self._upd)
+    def on_state_loaded(self, par):
+        self.__inst = par
+    
+    def on_loaded(self, sta:ReadOnlyStatistics, npl:AdvancedPlot):
+        assert isinstance(sta, ReadOnlyStatistics)
+        assert isinstance(npl, AdvancedPlot)
+        self._sta = sta
+        self._npl = npl
+        for x in AVAILABLE_ITEMS:
+            self._ava[x] = getattr(self._sta, f"has_{x.upper()}")()
+        if self._sta.has_FCS():
+            self._pp.fcs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.FCS_head)
+            self.cb_fcs_query['values'] = self._sta.FCS_head
+            if self._sta.FCS_head:
+                self.cb_fcs_query.set(self._sta.FCS_head[0])
+        if self._sta.has_SCS():
+            self._pp.scs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.SCS_head)
+            self.cb_scs_query['values'] = self._sta.SCS_head
+            if self._sta.SCS_head:
+                self.cb_scs_query.set(self._sta.SCS_head[0])
+        if self._sta.has_GEN():
+            self._pp.gen_pad.setValues([ITEM_ALL_G,ITEM_ALL_V2G,ITEM_ALL] + self._sta.gen_head)
+        if self._sta.has_BUS():
+            self._pp.bus_pad.setValues([ITEM_ALL] + self._sta.bus_head)
+        if self._sta.has_LINE():
+            self._pp.line_pad.setValues([ITEM_ALL] + self._sta.line_head)
+        if self._sta.has_PVW():
+            self._pp.pvw_pad.setValues([ITEM_ALL] + self._sta.pvw_head)
+        if self._sta.has_ESS():
+            self._pp.ess_pad.setValues([ITEM_ALL] + self._sta.ess_head)
+        self.update_file_list()
+        self.set_status(_L["STA_READY"])
+        self.enable_all()
+        
+    def on_error(self, par):
+        MB.showerror(_L["ERROR"], par[0])
+        self.set_status(par[0])
+        self.enable_all()
+    
+    def on_plot_done(self, ex:Optional[Exception] = None):
+        if ex is None:
+            self.update_file_list()
+            self.set_status(_L["STA_READY"])
+            self.enable_all()
+        else:
+            self.on_error(str(ex))
     
     def askdir(self):
         p = Path(os.getcwd()) / "cases"
@@ -681,7 +675,7 @@ class PlotBox(Tk):
             first = False
             res_path = self.askdir()
             if res_path == "":
-                self._Q.put(('Q',None))
+                self._Q.trigger("exit")
                 return
         
         # Check cproc.clog existence
@@ -703,9 +697,11 @@ class PlotBox(Tk):
                 dsa = DirSelApp(res_path_list)
                 self.wait_window(dsa)
                 if dsa.folder is None:
-                    self._Q.put(('Q',None))
+                    self._Q.trigger("exit")
                     return
                 res_path = Path(dsa.folder)
+            cproc = res_path / "cproc.clog"
+            self.tab_trip.load(str(cproc))
         
         # Load the results
         self.set_status(_L["LOADING"])
@@ -717,9 +713,9 @@ class PlotBox(Tk):
             sta = ReadOnlyStatistics(res_path)
             npl = AdvancedPlot()
             npl.load_series(sta)
-            self._Q.put(('L', sta, npl))
+            return (sta, npl)
         
-        threading.Thread(target=load_async, args=(res_path,), daemon=True).start()
+        self._Q.submit("loaded", load_async, res_path)
 
         state_path = res_path / "saved_state" / "inst.gz"
 
@@ -730,11 +726,10 @@ class PlotBox(Tk):
             except:
                 MB.showerror(_L["ERROR"], _L["SAVED_STATE_LOAD_FAILED"])
                 inst = None
-            self._Q.put(('LS', inst))
+            return inst
 
         if state_path.exists():
-            threading.Thread(target=load_state_async, args=(state_path,), daemon=True).start()
-            
+            self._Q.submit("state_loaded", load_state_async, state_path)
 
     def plotSelected(self):
         cfg = self._pp.getConfig()
@@ -753,20 +748,22 @@ class PlotBox(Tk):
         else:
             MB.showerror(_L["ERROR"], _L["NOTHING_PLOT"])
             self.enable_all()
+        
         def work(cfg):
+            def todo(plotpage, opt_name):
+                getattr(plotpage, "plot_" + opt_name).set("False")
+
             try:
                 for a in AVAILABLE_ITEMS2:
                     if cfg[a]:
                         getattr(self, "_plot_"+a)()
                         if "_" in a: continue
-                        self._Q.put(('UC', "plot_"+a))
+                        self._Q.delegate(todo, self._pp, a)
             except Exception as e:
-                self._Q.put(('E', str(e)))
-            else:
-                self._Q.put(('D', None))
-        t = threading.Thread(target=work,args=(cfg,),daemon=True)
-        
-        t.start()
+                return e
+            return None
+
+        self._Q.submit("plot_done", work, cfg)
 
     def _plot_scs_accum(self):
         tl,tr = self._pp.getTime()
@@ -785,7 +782,7 @@ class PlotBox(Tk):
         else:
             cs = [x.strip() for x in t.split(',')]
         for i,c in enumerate(cs,start=1):
-            self._Q.put(('I',f'({i} of {len(cs)})Plotting FCS graph...'))
+            self._Q.delegate(self.set_status, f'({i} of {len(cs)})Plotting FCS graph...')
             self._npl.quick_fcs(
                 cs_name=c, res_path=self._sta.root, 
                 **self._pp.pars("fcs")
@@ -800,7 +797,7 @@ class PlotBox(Tk):
         else:
             cs = [x.strip() for x in t.split(',')]
         for i,c in enumerate(cs,start=1):
-            self._Q.put(('I',f'({i} of {len(cs)})Plotting SCS graph...'))
+            self._Q.delegate(self.set_status, f'({i} of {len(cs)})Plotting SCS graph...')
             self._npl.quick_scs(
                 cs_name=c, res_path=self._sta.root,
                 **self._pp.pars("scs")
@@ -811,7 +808,7 @@ class PlotBox(Tk):
         t = self._pp.ev_pad.get()
         evs=None if t.strip()=="" else [x.strip() for x in t.split(',')]
         if evs is None:
-            self._Q.put(('E','ID of EV cannot be empty'))
+            self._Q.trigger("error", 'ID of EV cannot be empty')
             return
         for ev in evs:
             self._npl.quick_ev(ev_name = ev,
@@ -829,7 +826,7 @@ class PlotBox(Tk):
             gen = [x for x in self._sta.gen_head if x.startswith("V2G")]
         else: gen = [x.strip() for x in t.split(',')]
         for i, g in enumerate(gen, start=1):
-            self._Q.put(('I',f'({i}/{len(gen)})Plotting generators...'))
+            self._Q.delegate(self.set_status, f'({i}/{len(gen)})Plotting generators...')
             self._npl.quick_gen(
                 gen_name=g,res_path=self._sta.root,
                 **self._pp.pars("gen")
@@ -841,7 +838,7 @@ class PlotBox(Tk):
             bus=self._sta.bus_head
         else: bus=[x.strip() for x in t.split(',')]
         for i,g in enumerate(bus,start=1):
-            self._Q.put(('I',f'({i}/{len(bus)})Plotting buses...'))
+            self._Q.delegate(self.set_status, f'({i}/{len(bus)})Plotting buses...')
             self._npl.quick_bus(
                 bus_name = g, res_path=self._sta.root,
                 **self._pp.pars("bus")
@@ -861,7 +858,7 @@ class PlotBox(Tk):
             line=self._sta.line_head
         else: line=[x.strip() for x in t.split(',')]
         for i,g in enumerate(line,start=1):
-            self._Q.put(('I',f'({i}/{len(line)})Plotting lines...'))
+            self._Q.delegate(self.set_status, f'({i}/{len(line)})Plotting lines...')
             self._npl.quick_line(
                 line_name = g, res_path=self._sta.root,
                 **self._pp.pars("line")
@@ -873,7 +870,7 @@ class PlotBox(Tk):
             pvw = self._sta.pvw_head
         else: pvw = [x.strip() for x in t.split(',')]
         for i, g in enumerate(pvw,start=1):
-            self._Q.put(('I',f'({i}/{len(pvw)})Plotting PV & Wind...'))
+            self._Q.delegate(self.set_status, f'({i}/{len(pvw)})Plotting PV & Wind...')
             self._npl.quick_pvw(
                 pvw_name = g, res_path=self._sta.root,
                 **self._pp.pars("pvw")
@@ -885,7 +882,7 @@ class PlotBox(Tk):
             ess = self._sta.ess_head
         else: ess = [x.strip() for x in t.split(',')]
         for i,g in enumerate(ess,start=1):
-            self._Q.put(('I',f'({i}/{len(ess)})Plotting ESS...'))
+            self._Q.delegate(self.set_status, f'({i}/{len(ess)})Plotting ESS...')
             self._npl.quick_ess(
                 ess_name = g, res_path = self._sta.root,
                 **self._pp.pars("ess")
