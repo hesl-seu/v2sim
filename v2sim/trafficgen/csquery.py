@@ -1,18 +1,54 @@
-from typing import Any, Optional, Union, overload, List, Dict, Tuple
+from dataclasses import dataclass
+from typing import Any, Optional, TextIO, Union, overload, List, Dict, Tuple
 from pathlib import Path
 import time, json, requests
 from ..traffic import CheckFile, DetectFiles, ReadXML
 
+class CSQueryError(Exception):
+    def __init__(self, message:str, obj = None):
+        if obj is not None:
+            message += f"\nObject: {str(obj)}"
+        super().__init__(message)
+        self.obj = obj
 
+@dataclass
 class CS:
-    def __init__(self, id:str, name:str, lat:float, lng:float):
-        self.id = id
-        self.name = name
-        self.lat = lat
-        self.lng = lng
-
-    def __str__(self):
-        return f"CS<{self.id},{self.name},{self.lat},{self.lng}>"
+    id: str
+    name: str
+    lat: float
+    lng: float
+    
+    @staticmethod
+    def from_dict(d:Dict[str,Any]) -> 'CS':
+        id = d.get('id', '')
+        if id == '':
+            raise CSQueryError("CS_from_dict: Invalid item id.", d)
+        name = d.get('name', '')
+        if name == '':
+            raise CSQueryError("CS_from_dict: Invalid item name.", d)
+        loc_str = d.get('location', '')
+        if not isinstance(loc_str, str) or loc_str == '':
+            raise CSQueryError("CS_from_dict: Invalid item location.", d)
+        loc = loc_str.split(',')
+        if len(loc) != 2:
+            raise CSQueryError("CS_from_dict: Invalid item location.", d)
+        try:
+            lat = float(loc[1])
+            lng = float(loc[0])
+        except (ValueError, IndexError):
+            raise CSQueryError("CS_from_dict: Invalid item location.", d)
+        return CS(id, name, lat, lng)
+    
+    @staticmethod
+    def from_dict_list(dl:List[Dict[str,Any]], lst:'List[CS]', fh:'Optional[TextIO]' = None):
+        for d in dl:
+            try:
+                cs = CS.from_dict(d)
+                lst.append(cs)
+            except CSQueryError as e:
+                print(e)
+            if fh is not None:
+                fh.write(f"{cs.id},{cs.name},{cs.lat},{cs.lng}\n")
 
 
 class Rect:
@@ -37,7 +73,7 @@ class Rect:
             self.br_lng = br_lng
             self.br_lat = br_lat
         else:
-            raise Exception("Invalid arguments.")
+            raise CSQueryError("Invalid Rect arguments.")
     
     def __str__(self):
         return f"{self.lu_lng:.6f},{self.lu_lat:.6f}|{self.br_lng:.6f},{self.br_lat:.6f}"
@@ -61,60 +97,70 @@ class AMapPOIReader:
         self.all_yes = allyes
         self.buf = open("buf.csv","w", encoding='utf-8')
 
-    def get(self, rect:Rect, keyword:str) -> Tuple[List[CS], List[Dict[str,Any]]]:
-        raw = self.get_raw(rect, keyword)
-        result = []
-        for itm in raw:
-            id = itm['id']
-            name = itm['name']
-            loc = itm['location'].split(',')
-            lat = float(loc[1])
-            lng = float(loc[0])
-            result.append(CS(id, name, lat, lng))
-        return result, raw
-    
-    def get_raw(self, rect:Rect, keyword:str) -> List[Dict[str,Any]]:
-        first_page = self.__get0(rect,keyword,1)
-        if first_page['infocode'] == '10001':
-            raise Exception('Invalid key.')
-        if first_page['infocode'] == '10044':
-            raise Exception('Usage reaches the limit. Please try again tomorrow.')
-        page_count = int(first_page['count'])
-        while page_count > 200:
+    def get_raw(self, rect:Rect, keyword:str) -> Tuple[List[Dict[str,Any]], List[CS]]:
+        first_page = self.__get0(rect, keyword, 1)
+
+        # Check info code
+        infocode = first_page.get('infocode', None)
+        if infocode is None:
+            raise CSQueryError("AMapPOIReader_get_raw: No 'infocode' field in response.", first_page)
+        if infocode == '10001':
+            raise CSQueryError("AMapPOIReader_get_raw: Invalid AMap key.")
+        if infocode == '10009':
+            raise CSQueryError("AMapPOIReader_get_raw: AMap key does not match the platform.")
+        if infocode == '10044':
+            raise CSQueryError("AMapPOIReader_get_raw: AMap key usage has reached the limit.")
+
+        # Check page count
+        page_count_str = first_page.get('count', None)
+        if page_count_str is None:
+            raise CSQueryError("AMapPOIReader_get_raw: No 'count' field in response.", first_page)
+        try:
+            page_count = int(page_count_str)
+        except ValueError:
+            raise CSQueryError(f"AMapPOIReader_get_raw: Invalid count value: {page_count_str}")
+
+        if page_count > 200:
             print(f"Too many results({page_count}). Splitting the region...")
             if not self.all_yes:
                 cont = input("Continue?(Y/N) > ")
                 if cont.lower() != 'y':
-                    return []
+                    return [], []
             rect_list = rect.split4()
-            result = []
+            raw_result = []; parsed_result = []
             for rect in rect_list:
-                result.extend(self.get_raw(rect, keyword))
-            return result
+                raw, parsed = self.get_raw(rect, keyword)
+                raw_result.extend(raw)
+                parsed_result.extend(parsed)
+            return raw_result, parsed_result
+        
         iterate_num = round(page_count / self.offset) + 1
         print(f"Total items: {page_count}. Queries needed: {iterate_num}")
+
         if not self.all_yes:
             cont = input("Continue?(Y/N) > ")
             if cont.lower() != 'y':
-                return []
-        final_result:list = first_page['pois']
+                return [], []
+        
+        pois:Optional[List[Dict[str, Any]]] = first_page.get('pois', None)
+        if pois is None:
+            raise CSQueryError("AMapPOIReader_get_raw: No 'pois' field in response.", first_page)
+        raw_result = pois
+        parsed_result = []
+        CS.from_dict_list(pois, parsed_result, self.buf)
+
         for i in range(2, iterate_num + 1):
             print(f"\rProgress: {i-1}/{iterate_num}",end="")
-            temp_result = self.__get0(rect,keyword,i)
-            if 'pois' in temp_result: 
-                pois = temp_result['pois']
-                for itm in final_result:
-                    id = itm.get("id","")
-                    name = itm.get("name","")
-                    loc = itm.get("location","").split(',')
-                    lat = float(loc[1])
-                    lng = float(loc[0])
-                    self.buf.write(f"{id},{name},{lat},{lng}\n")
-                final_result.extend(pois)
+            temp_result = self.__get0(rect, keyword, i)
+            pois:Optional[List[Dict[str, Any]]] = temp_result.get('pois', None)
+            if pois is None:
+                continue
+            raw_result.extend(pois)
+            CS.from_dict_list(pois, parsed_result, self.buf)
             time.sleep(0.35)
         print("\rFinished.               ")
 
-        return final_result
+        return raw_result, parsed_result
 
     def __get0(self, rect:Rect, keyword:str, pagenum:int) -> Dict[str,Any]:
         # 011100(充电站中类)|011102(充换电站)|011103(专用充电站)|073000(电动自行车充电站中类)|073001(电动自行车换电)|073002(电动自行车专用充电站)
@@ -143,7 +189,7 @@ def csQuery(root:str, new_loc:str, ak:str, allyes:bool):
     else:
         print(f"Location: {tlbr}")
     reader = AMapPOIReader(ak,allyes = allyes)
-    cslist, results = reader.get(tlbr, "充电站")
+    results, cslist = reader.get_raw(tlbr, "充电站")
     
     if len(cslist) == 0: return
     

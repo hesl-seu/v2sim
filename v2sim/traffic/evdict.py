@@ -22,19 +22,20 @@ class EVDict(Dict[str, EV]):
         for veh in rt:
             trips: list[Trip] = []
             for trip in veh:
-                route = trip.attrib["route_edges"].split(" ")
-                fixed_route = trip.attrib.get("fixed_route", "none")
+                route = trip.attrib.pop("route_edges").split(" ")
+                fixed_route = trip.attrib.pop("fixed_route", "none")
                 if fixed_route.lower() == "true": fixed_route = True
                 elif fixed_route.lower() == "false": fixed_route = False
                 else: fixed_route = None
                 trips.append(
                     Trip(
-                        trip.attrib["id"],
-                        int(float(trip.attrib["depart"])),
-                        trip.attrib["fromTaz"],
-                        trip.attrib["toTaz"],
+                        trip.attrib.pop("id"),
+                        int(float(trip.attrib.pop("depart"))),
+                        trip.attrib.pop("fromTaz"),
+                        trip.attrib.pop("toTaz"),
                         route,
-                        fixed_route
+                        fixed_route,
+                        trip.attrib.copy(),
                     )
                 )
             attr = FloatDictWrapper(veh.attrib)

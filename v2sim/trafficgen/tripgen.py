@@ -201,25 +201,17 @@ class EVsGenerator:
         Generate the first trip of the first day
             trip_id: Trip ID
             weekday: hether it is weekday or weekend
-        Return the trip's XML file line and the relevant information saved in dictionary form
-            dic_save = {
-                "trip_id":...,          Trip ID
-                "depart_time":...,      Departure time of the first trip, in minutes
-                "from_TAZ":...,         Departure area TAZ type, such as "TAZ1"
-                "from_EDGE":...,        Departure roadside, such as "gnE29"
-                "to_TAZ":...,           Arrival area TAZ type, such as "TAZ2"
-                "to_EDGE":...,          Arrival roadside, such as "gnE2"
-                "routes":...,           Routes type read from SUMO xml file, such as 'gneE22 gneE0 gneE16'
-                "next_place_type":...   Arrival area attribute "Work"
-            }
+        Return a InnerTrip instance
         """
-        from_TAZ = random.choice(self.dic_taztype["Home"])
+        from_Type = "Home"
+        from_TAZ = random.choice(self.dic_taztype[from_Type])
         from_EDGE = random.choice(self.dic_taz[from_TAZ])
         # Get departure time and destination area type
-        depart_time_min, next_place_type = self.__getDest1("Home", weekday)  
-        to_TAZ, to_EDGE, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place_type)
-        return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE,
-            to_TAZ, to_EDGE, route, next_place_type)
+        depart_time_min, to_Type = self.__getDest1(from_Type, weekday)  
+        to_TAZ, to_EDGE, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, to_Type)
+        return _TripInner(trip_id, depart_time_min * 60, 
+            from_TAZ, from_EDGE, from_Type,
+            to_TAZ, to_EDGE, to_Type, route,)
 
     cdf_dict = {}
 
@@ -243,8 +235,8 @@ class EVsGenerator:
         depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
         next_place2 = self.__getDestA(from_type, stop_time_idx, weekday)
         taz_choose2, edge_choose2, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place2)
-        return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE,
-            taz_choose2, edge_choose2, route, next_place2)
+        return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE, from_type,
+            taz_choose2, edge_choose2, next_place2, route)
 
     def __genTripF(
         self, trip_id:str, from_TAZ:str, from_type, from_EDGE:str,
@@ -266,8 +258,8 @@ class EVsGenerator:
         stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
         depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
         return _TripInner(
-            trip_id, depart_time_min * 60, from_TAZ, from_EDGE, first_TAZ, first_EDGE,
-            [from_EDGE, first_EDGE], "Home"
+            trip_id, depart_time_min * 60, from_TAZ, from_EDGE, from_type, 
+            first_TAZ, first_EDGE, "Home", [from_EDGE, first_EDGE], 
         )
 
     def __genTripsChain1(self, ev:_EVInner):  # vehicle_trip
@@ -279,9 +271,9 @@ class EVsGenerator:
         weekday = True
         trip_1 = self.__genFirstTrip1("trip0_1", weekday)
         trip_2 = self.__genTripA("trip0_2",trip_1.toTAZ,
-            trip_1.NTP,trip_1.toE,trip_1.DPTT,weekday)
+            trip_1.toT,trip_1.toE,trip_1.DPTT,weekday)
         trip_3 = self.__genTripF("trip0_3",trip_2.toTAZ,
-            trip_2.NTP,trip_2.toE,trip_2.DPTT,
+            trip_2.toT,trip_2.toE,trip_2.DPTT,
             trip_1.frTAZ,trip_1.route[0],weekday)
         
         ev._add_trip(daynum, trip_1)
@@ -304,10 +296,11 @@ class EVsGenerator:
         from_EDGE = trip_last.route[-1]
         from_TAZ = trip_last.toTAZ
         # Get departure time and destination area type
-        depart_time_min, next_place_type = self.__getDest1("Home", weekday)
-        to_TAZ, to_EDGE, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place_type)
-        return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE,
-            to_TAZ, to_EDGE, route, next_place_type)
+        from_Type = "Home"
+        depart_time_min, to_Type = self.__getDest1(from_Type, weekday)
+        to_TAZ, to_EDGE, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, to_Type)
+        return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE, from_Type,
+            to_TAZ, to_EDGE, to_Type, route)
 
     def __genTripsChainA(self, ev: _EVInner, daynum: int = 1):  # vehicle_trip
         """
@@ -316,9 +309,9 @@ class EVsGenerator:
         weekday = (daynum - 1) % 7 + 1 in [1, 2, 3, 4, 5]
         trip2_1 = self.__genFirstTripA(f"trip{daynum}_1", ev, weekday)
         trip2_2 = self.__genTripA(f"trip{daynum}_2",trip2_1.toTAZ,
-            trip2_1.NTP,trip2_1.toE,trip2_1.DPTT,weekday)
+            trip2_1.toT,trip2_1.toE,trip2_1.DPTT,weekday)
         trip2_3 = self.__genTripF(f"trip{daynum}_3",
-            trip2_2.toTAZ,trip2_2.NTP,trip2_2.toE,
+            trip2_2.toTAZ,trip2_2.toT,trip2_2.toE,
             trip2_2.DPTT,trip2_1.frTAZ,trip2_1.route[0],weekday)
                     
         ev._add_trip(daynum, trip2_1)

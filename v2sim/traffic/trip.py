@@ -186,16 +186,44 @@ class TripLogItem:
         return (self.simT, op, self.veh, self.veh_soc, self.trip_id, self.additional.get('cs_param',''), self.additional)
     
     @property
+    def time(self):
+        """Simulation time in seconds."""
+        return self.simT
+    
+    @property
+    def vehicle(self):
+        """Vehicle ID."""
+        return self.veh
+    
+    @property
+    def soc(self):
+        """Vehicle state of charge."""
+        return self.veh_soc
+    
+    @property
+    def id(self):
+        """Trip ID."""
+        return self.trip_id
+    
+    @property
     def op_raw(self):
+        """Operation code."""
         return self.__op
 
     @property
     def op(self):
+        """Operation name, translated if possible."""
         return TripLogItem.OP_NAMEs[self.__op]
     
     @property
     def cs_param(self):
+        """Charging station selection parameters, if any."""
         return self.additional.get('cs_param', None)
+    
+    @property
+    def cs(self):
+        """Charging station ID, if any."""
+        return self.additional.get('cs', None)
     
     def __repr__(self):
         return f"{self.simT}|{self.__op}|{self.veh},{self.veh_soc},{self.trip_id}|{self.additional}"
@@ -226,9 +254,9 @@ class TripLogItem:
                 veh,
                 self.additional['trip'],
             )
-            if int(self.additional['delay']) <= 0:
+            if int(self.additional['delay']) > 0:
                 ret += Lang.CPROC_INFO_DEPART_WITH_DELAY.format(
-                    self.additional['trip']
+                    self.additional['delay']
                 )
             if self.additional['cs'] != "None":
                 ret += Lang.CPROC_INFO_DEPART_WITH_CS.format(

@@ -31,8 +31,8 @@ def random_diff(seq:Sequence[Any], exclude:Any):
     return ret
 
 class _TripInner:
-    def __init__(self, trip_id:str, depart_time:Union[str,int], from_TAZ:str, from_EDGE:str,
-            to_TAZ:str, to_EDGE:str, route:List[str], next_type_place:str, fixed_route:Optional[bool]=None):
+    def __init__(self, trip_id:str, depart_time:Union[str,int], from_TAZ:str, from_EDGE:str, from_type:str,
+            to_TAZ:str, to_EDGE:str, to_type:str, route:List[str], fixed_route:Optional[bool]=None):
         '''
         Initialize a trip object.
             trip_id: Unique trip ID
@@ -40,10 +40,11 @@ class _TripInner:
                 Can be a string or an integer. If it is a string, it should be convertible to an integer.
             from_TAZ: Origin TAZ ID
             from_EDGE: Origin edge ID
+            from_type: The type of place where the trip starts.
             to_TAZ: Destination TAZ ID
             to_EDGE: Destination edge ID
+            to_type: The type of place where the trip will end.
             route: List of edge IDs representing the route, should have at least 2 elements.
-            next_type_place: The type of place where the trip will end.
             fixed_route: Whether the route is fixed or not.
         '''
         self.id = trip_id
@@ -54,13 +55,14 @@ class _TripInner:
         self.toTAZ = to_TAZ
         assert isinstance(route, list) and len(route) >= 2, "Route should be a list with at least 2 elements"
         self.route = route
-        self.NTP = next_type_place
+        self.frT = from_type
+        self.toT = to_type
         self.fixed_route = fixed_route
     
     def toXML(self, daynum:int) -> str:
         return (f'\n<trip id="{self.id}" depart="{self.DPTT + 86400 * daynum}" ' + 
-            f'fromTaz="{self.frTAZ}" toTaz="{self.toTAZ}" route_edges="{" ".join(self.route)}" ' + 
-            f'fixed_route="{self.fixed_route}" />')
+            f'fromTaz="{self.frTAZ}" toTaz="{self.toTAZ}" fromType="{self.frT}" toType="{self.toT}" ' + 
+            f'route_edges="{" ".join(self.route)}" fixed_route="{self.fixed_route}" />')
     
     def toTrip(self, daynum:int) -> Trip:
         return Trip(self.id, self.DPTT + 86400 * daynum, self.frTAZ, self.toTAZ, self.route)
@@ -126,8 +128,9 @@ class _EVInner:
         self.daynum.append(daynum)
         self.trips.append(trip_dict)
     
-    def addTrip(self, trip_id:str, depart_time:int, from_TAZ:str, from_edge:str, to_TAZ:str, to_edge:str,
-            route:List[str], fixed_route:Optional[bool] = None, daynum:int = -1):
+    def addTrip(self, trip_id:str, depart_time:int, from_TAZ:str, from_edge:str, from_Type:str,
+                to_TAZ:str, to_edge:str, to_Type:str, route:List[str], 
+                fixed_route:Optional[bool] = None, daynum:int = -1):
         '''
         Add a trip to the EV.
             trip_id: Unique trip ID
@@ -155,8 +158,8 @@ class _EVInner:
             assert 0 <= depart_time and depart_time < 86400, "When daynum is specified, depart_time must be less than 86400."
         self.daynum.append(daynum)
         depart_time = int(depart_time) if isinstance(depart_time, str) else depart_time
-        self.trips.append(_TripInner(trip_id, depart_time, from_TAZ, from_edge, 
-            to_TAZ, to_edge, route, "", fixed_route))
+        self.trips.append(_TripInner(trip_id, depart_time, from_TAZ, from_edge, from_Type,
+            to_TAZ, to_edge, to_Type, route, fixed_route))
 
     def toXML(self) -> str:
         ret = (

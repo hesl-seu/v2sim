@@ -1,11 +1,8 @@
 import os
-import queue
 import sys
-import threading
-from pathlib import Path
-from queue import Empty, Queue
 import time
 import traceback
+from pathlib import Path
 from typing import Any, Optional, Callable, Union, Dict, List, Tuple, Set
 from tkinter import filedialog
 from tkinter import messagebox as MB
@@ -20,6 +17,7 @@ from .view import *
 from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode, _removeprefix
 from .network import NetworkPanel, OAfter
 
+AMAP_KEY_FILE = "amap_key.txt"
 DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
 
@@ -474,14 +472,14 @@ class CSEditorGUI(Frame):
             for cs in self.cslist:
                 ol = str(cs._offline) if len(cs._offline)>0 else ALWAYS_ONLINE
                 v = (cs.name, cs.slots, cs.node, cs._x, cs._y, ol, cs._pc_lim1 * 3600, cs.pbuy, cs._pc_alloc_str)
-                self._Q.delegate(lambda: self.tree.insert("", "end", values=v))
+                self._Q.delegate(self.tree.insert, "", "end", values=v)
         else:
             for cs in self.cslist:
                 assert isinstance(cs, SCS)
                 ol = str(cs._offline) if len(cs._offline)>0 else ALWAYS_ONLINE
                 v = (cs.name, cs.slots, cs.node, cs._x, cs._y, ol, cs._pc_lim1 * 3600, cs._pd_lim1 * 3600, 
                             cs.pbuy, cs.psell, cs._pc_alloc_str, cs._pd_alloc_str)
-                self._Q.delegate(lambda: self.tree.insert("", "end", values=v))
+                self._Q.delegate(self.tree.insert, "", "end", values=v)
     
     
 class CSCSVEditor(Frame):
@@ -522,17 +520,20 @@ class CSCSVEditor(Frame):
         self.entry_amapkey = Entry(self.panel, width=50)
         self.entry_amapkey.grid(row=0, column=2, columnspan=2, padx=3, pady=3, sticky="w")
 
-        if Path("amap_key.txt").exists():
-            with open("amap_key.txt", "r") as f:
+        if Path(AMAP_KEY_FILE).exists():
+            with open(AMAP_KEY_FILE, "r") as f:
                 self.entry_amapkey.insert(0, f.read().strip())
         
     def down(self):
         if MB.askyesno(_L["CSCSV_CONFIRM_TITLE"], _L["CSCSV_CONFIRM"]):
+            with open(AMAP_KEY_FILE, "w") as f:
+                f.write(self.entry_amapkey.get().strip())
             self.down_wk()
     
     def __load(self, file:str):
         try:
             with open(file, "r") as f:
+                f.readline()
                 lines = f.readlines()
         except Exception as e:
             showerr(f"Error loading {file}: {e}")
@@ -540,9 +541,11 @@ class CSCSVEditor(Frame):
         self.file = file
         self.lb_cnt.config(text=_L["LB_COUNT"].format(len(lines) - 1))
         self.tree.clear()
-        for cs in lines[1:]:
+        for i, cs in enumerate(lines, start=2):
             vals = cs.strip().split(',')
-            self._Q.delegate(lambda: self.tree.insert("", "end", values=tuple(vals)))
+            if len(vals) != 4:
+                print(f"Invalid line {i} in CS CSV:", cs)
+            self._Q.delegate(self.tree.insert, "", "end", values=tuple(vals))
 
     def load(self, file:str):
         self._Q.submit("loaded", self.__load, file)
@@ -578,7 +581,7 @@ class LoadingBox(Toplevel):
             if x['text'] != _L['DONE']: break
         else:
             self._closed = True
-            self._pQ.delegate(lambda: self.destroy())
+            self._pQ.delegate(self.destroy)
     
 
 class MainBox(Tk):
