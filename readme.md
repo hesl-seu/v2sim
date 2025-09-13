@@ -133,3 +133,8 @@ You can also collect the data of the power grid at a specific time in page `Grid
 Trips are also counted in `Trips` page. You can filter them by giving the conditions in the bar attached to the bottom of the window. You can also save the filtered results to a specific file.
 
 ![alt text](docs/8.png)
+
+#### State viewer
+If you have ticked "Save state ..." before simulation, the state will be saved in the result folder. You can go through the status of FCS, SCS, and EV in the page. 
+
+![alt text](docs/12.png)
