@@ -1,8 +1,5 @@
 from dataclasses import dataclass
 from itertools import chain
-from queue import Queue
-import queue
-import threading
 from tkinter import messagebox as MB
 from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
 from typing import Any, Callable, Iterable, Optional, Union, Dict, List, Tuple, Set

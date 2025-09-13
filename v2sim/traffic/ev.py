@@ -7,7 +7,8 @@ from .utils import IntPairList
 
 class Trip:
     def __init__(
-        self, trip_id: str, depart_time: int, fromTAZ: str, toTAZ: str, route: List[str], fixed_route: Optional[bool] = None
+        self, trip_id: str, depart_time: int, fromTAZ: str, toTAZ: str, route: List[str], 
+        fixed_route: Optional[bool] = None, addtional: Optional[Dict[str, str]] = None
     ):
         self.ID = trip_id
         self.depart_time = depart_time
@@ -21,6 +22,7 @@ class Trip:
             self.fixed_route = len(route)>=2
         else:
             self.fixed_route = True
+        self.additional = addtional if addtional else {}
     
     @property
     def depart_edge(self):
@@ -30,6 +32,9 @@ class Trip:
     def arrive_edge(self):
         return self.route[-1]
 
+    def get(self, key: str, default:str="")->str:
+        return self.additional.get(key, "")
+    
     def __repr__(self):
         return str(self)
     
