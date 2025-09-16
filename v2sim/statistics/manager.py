@@ -39,6 +39,10 @@ class StaPool:
     def GetAllLogItem(self) -> List[str]:
         """Get all statistic items"""
         return list(self.__ava_logger.keys())
+    
+    def GetAllLogItemLocalizedName(self) -> List[str]:
+        """Get all statistic items with localized names"""
+        return [sta.GetLocalizedName() for sta in self.__ava_logger.values()]
 
 
 class StaWriter:

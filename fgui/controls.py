@@ -3,83 +3,27 @@ from typing import Any, Callable, Iterable, Optional, Union, Dict, List, Tuple
 from feasytools import RangeList, SegFunc, CreatePDFunc
 from v2sim.trafficgen.misc import * # import PDFuncs
 from tkinter import messagebox as MB
-from v2sim import CustomLocaleLib, EditMode, ConfigItem, ConfigItemDict
+from v2sim import CustomLocaleLib, EditMode, ConfigItem, ConfigItemDict, StaPool, StaBase
+from pathlib import Path
+import datetime
 
-_loc = CustomLocaleLib(["zh_CN","en"])
-_loc.SetLanguageLib("zh_CN",
-    ALWAYS_ONLINE = "总是启用",
-    NOT_OPEN = "(未打开)",
-    EDIT_NOTE = "双击以编辑单元格(可能不是所有列都可编辑)",
-    SAVE = "保存",
-    SAVED = "已保存",
-    UNSAVED = "未保存",
-    RANGE_LIST_EDITOR = "范围列表编辑器",
-    TIME_FORMAT = "时间格式为HH:MM:SS",
-    INVALID_TIME_FORMAT = "无效的时间格式",
-    ERROR = "错误",
-    ADD = "添加",
-    DELETE = "删除",
-    UP = "上移",
-    DOWN = "下移",
-    DELETE_CONFIRM = "确认删除{}吗？",
-    SAVE_AND_CLOSE = "保存并关闭",
-    SEG_FUNC_EDITOR = "分段函数编辑器",
-    INVALID_SEG_FUNC = "无效的分段函数: 时间必须严格递增的整数，数据必须是浮点数",
-    PROPERTY_EDITOR = "属性编辑器",
-    LEFT_BOUND = "左边界",
-    RIGHT_BOUND = "右边界",
-    PROPERTY = "属性",
-    VALUE = "值",
-    PDFUNC_EDITOR = "概率密度函数编辑器",
-    PDMODEL = "概率密度模型",
-    PROP_NODESC = "(无描述)",
-    ADD_FAILED = "添加项目失败: 获取的数据无效",
-)
-
-_loc.SetLanguageLib("en",
-    ALWAYS_ONLINE = "Always online",
-    NOT_OPEN = "(Not open)",
-    EDIT_NOTE = "Double click to edit the cell (Perhaps NOT all columns are editable)",
-    SAVE = "Save",
-    SAVED = "Saved",
-    UNSAVED = "Unsaved",
-    RANGE_LIST_EDITOR = "Range List Editor",
-    TIME_FORMAT = "Time format is HH:MM:SS",
-    INVALID_TIME_FORMAT = "Invalid time format",
-    ERROR = "Error",
-    ADD = "Add",
-    DELETE = "Delete",
-    UP = "Up",
-    DOWN = "Down",
-    DELETE_CONFIRM = "Are you sure to delete {}?",
-    SAVE_AND_CLOSE = "Save & Close",
-    SEG_FUNC_EDITOR = "Segmented Function Editor",
-    INVALID_SEG_FUNC = "Invalid segmented function: time must be strictly increasing integers, and data must be floats",
-    PROPERTY_EDITOR = "Property Editor",
-    LEFT_BOUND = "Left bound",
-    RIGHT_BOUND = "Right bound",
-    PROPERTY = "Property",
-    VALUE = "Value",
-    PDFUNC_EDITOR = "Probability Density Function Editor",
-    PDMODEL = "PDF Model",
-    PROP_NODESC = "(No description)",
-    ADD_FAILED = "Failed to add item: invalid data from getter",
-)
+_L = CustomLocaleLib.LoadFromFolder(Path(__file__).parent.parent / "resources/controls")
 
 def _removeprefix(s: str, prefix: str) -> str:
     if s.startswith(prefix):
         return s[len(prefix):]
     return s
 
-ALWAYS_ONLINE = _loc['ALWAYS_ONLINE']
+ALWAYS_ONLINE = _L['ALWAYS_ONLINE']
 def empty_postfunc(itm:Tuple[Any,...], val:str): pass
 
 class LogItemPad(LabelFrame):
-    def __init__(self, master, title:str, items:Dict[str,str], **kwargs):
+    def __init__(self, master, title:str, stapool:StaPool, **kwargs):
         super().__init__(master, text=title, **kwargs)
         self._bvs:Dict[str,BooleanVar] = {}
         self._cbs:Dict[str,Checkbutton] = {}
-        for id, val in items.items():
+        self.__stapool = stapool
+        for id, val in zip(stapool.GetAllLogItem(), stapool.GetAllLogItemLocalizedName()):
             bv = BooleanVar(self, True)
             self._bvs[id] = bv
             cb = Checkbutton(self, text=val, variable=bv)
@@ -107,6 +51,20 @@ class LogItemPad(LabelFrame):
     def getSelected(self):
         return [k for k, v in self._bvs.items() if v.get()]
     
+    def check_by_enabled_plugins(self, enabled_plugins:Iterable[str]):
+        p = set(enabled_plugins)
+        for k in self._bvs.keys():
+            sta_type = self.__stapool.Get(k)
+            assert issubclass(sta_type, StaBase)
+            deps = sta_type.GetPluginDependency()
+            for d in deps:
+                if d not in p:
+                    self.disable(k)
+                    self._bvs[k].set(False)
+                    break
+            else:
+                self.enable(k)
+    
     def __contains__(self, key:str):
         return key in self._bvs
 
@@ -126,7 +84,7 @@ class ScrollableTreeView(Frame):
         super().__init__(master, **kwargs)
         self.post_func = empty_postfunc
         self._afterf = None
-        self.lb_title = Label(self, text=_loc["NOT_OPEN"])
+        self.lb_title = Label(self, text=_L["NOT_OPEN"])
         self.tree = Treeview(self)
         self.tree.grid(row=1,column=0,sticky='nsew')
         self.rowconfigure(1, weight=1)
@@ -137,13 +95,13 @@ class ScrollableTreeView(Frame):
         self.HScroll1.grid(row=2, column=0, sticky='ew')
         self.tree.configure(yscrollcommand=self.VScroll1.set,xscrollcommand=self.HScroll1.set)
         self.bottom_panel = Frame(self)
-        self.btn_save = Button(self.bottom_panel, text=_loc["SAVE"], command=self.save)
-        self.lb_save = Label(self.bottom_panel, text=_loc["NOT_OPEN"])
-        self.lb_note = Label(self.bottom_panel, text=_loc["EDIT_NOTE"])
-        self.btn_add = Button(self.bottom_panel, text=_loc["ADD"], command=self.additm)
-        self.btn_del = Button(self.bottom_panel, text=_loc["DELETE"], command=self.delitm)
-        self.btn_moveup = Button(self.bottom_panel, text=_loc["UP"], command=self.moveup)
-        self.btn_movedown = Button(self.bottom_panel, text=_loc["DOWN"], command=self.movedown)
+        self.btn_save = Button(self.bottom_panel, text=_L["SAVE"], command=self.save)
+        self.lb_save = Label(self.bottom_panel, text=_L["NOT_OPEN"])
+        self.lb_note = Label(self.bottom_panel, text=_L["EDIT_NOTE"])
+        self.btn_add = Button(self.bottom_panel, text=_L["ADD"], command=self.additm)
+        self.btn_del = Button(self.bottom_panel, text=_L["DELETE"], command=self.delitm)
+        self.btn_moveup = Button(self.bottom_panel, text=_L["UP"], command=self.moveup)
+        self.btn_movedown = Button(self.bottom_panel, text=_L["DOWN"], command=self.movedown)
         self.addgetter = addgetter
         if allowSave or allowAdd or allowDel or allowMove:
             self.bottom_panel.grid(row=3,column=0,padx=3,pady=3,sticky="nsew")
@@ -169,38 +127,38 @@ class ScrollableTreeView(Frame):
         if self.addgetter:
             cols = self.addgetter()
             if cols is None or len(cols) != len(self.tree["columns"]):
-                messagebox.showerror(_loc["ERROR"], _loc["ADD_FAILED"])
+                messagebox.showerror(_L["ERROR"], _L["ADD_FAILED"])
                 return
             self.tree.insert("", "end", values=cols)
-            self.lb_save.config(text=_loc["UNSAVED"],foreground="red")
+            self.lb_save.config(text=_L["UNSAVED"],foreground="red")
             if self._afterf: self._afterf()
     
     def delitm(self):
         dlist = [self.tree.item(x, "values")[0] for x in self.tree.selection()]
-        if messagebox.askokcancel(_loc["DELETE"], _loc["DELETE_CONFIRM"].format(','.join(dlist))):
+        if messagebox.askokcancel(_L["DELETE"], _L["DELETE_CONFIRM"].format(','.join(dlist))):
             for i in self.tree.selection():
                 self.tree.delete(i)
-            self.lb_save.config(text=_loc["UNSAVED"],foreground="red")
+            self.lb_save.config(text=_L["UNSAVED"],foreground="red")
             if self._afterf: self._afterf()
 
     def moveup(self):
         for i in self.tree.selection():
             p = self.tree.index(i)
             self.tree.move(i, "", p-1)
-        self.lb_save.config(text=_loc["UNSAVED"],foreground="red")
+        self.lb_save.config(text=_L["UNSAVED"],foreground="red")
         if self._afterf: self._afterf()
     
     def movedown(self):
         for i in self.tree.selection():
             p = self.tree.index(i)
             self.tree.move(i, "", p+1)
-        self.lb_save.config(text=_loc["UNSAVED"],foreground="red")
+        self.lb_save.config(text=_L["UNSAVED"],foreground="red")
         if self._afterf: self._afterf()
     
     def save(self):
         if self.onSave:
             if self.onSave(self.getAllData()):
-                self.lb_save.config(text=_loc["SAVED"],foreground="green")
+                self.lb_save.config(text=_L["SAVED"],foreground="green")
     
     def setOnSave(self, onSave:Callable[[List[tuple]], bool]):
         self.onSave = onSave
@@ -324,7 +282,7 @@ class ScrollableTreeView(Frame):
         if not isinstance(self.delegate_widget, Toplevel):
             self.delegate_widget.place(width=w, height=h, x=x, y=y)
         self.delegate_widget.focus()
-        self.lb_save.config(text=_loc["UNSAVED"],foreground="red")
+        self.lb_save.config(text=_L["UNSAVED"],foreground="red")
 
     def tree_item_edit_done(self, e):
         if self.delegate_widget and not isinstance(self.delegate_widget, Toplevel):
@@ -381,25 +339,25 @@ class ScrollableTreeView(Frame):
     
     def clear(self):
         self.delete(*self.get_children())
-        self.lb_save.config(text=_loc["SAVED"], foreground="green")
+        self.lb_save.config(text=_L["SAVED"], foreground="green")
     
     @property
     def saved(self):
-        return self.lb_save.cget("text") != _loc["UNSAVED"]
+        return self.lb_save.cget("text") != _L["UNSAVED"]
 
 
 class RangeListEditor(Toplevel):
     def __init__(self, data:RangeList, var:StringVar, hint_hms:bool=False):
         super().__init__()
-        self.title(_loc["RANGE_LIST_EDITOR"])
+        self.title(_L["RANGE_LIST_EDITOR"])
         self.data = data
         self.tree = ScrollableTreeView(self, allowSave=False)
         self.tree['show'] = 'headings'
         self.tree["columns"] = ("lb", "rb")
         self.tree.column("lb", width=120, stretch=NO)
         self.tree.column("rb", width=120, stretch=NO)
-        self.tree.heading("lb", text=_loc["LEFT_BOUND"])
-        self.tree.heading("rb", text=_loc["RIGHT_BOUND"])
+        self.tree.heading("lb", text=_L["LEFT_BOUND"])
+        self.tree.heading("rb", text=_L["RIGHT_BOUND"])
         self.tree.pack(fill="both", expand=True)
         for l,r in data:
             self.tree.insert("", "end", values=(l, r))
@@ -408,19 +366,19 @@ class RangeListEditor(Toplevel):
         self.tree.setColEditMode("rb", ConfigItem(
             name="rb", editor=EditMode.ENTRY, desc="Right Bound", default_value=0))
         if hint_hms:
-            self.lb_hint = Label(self, text=_loc["TIME_FORMAT"])
+            self.lb_hint = Label(self, text=_L["TIME_FORMAT"])
             self.lb_hint.pack(fill="x", expand=False)
         self.fr = Frame(self)
         self.fr.pack(fill="x", expand=False)
-        self.btn_add = Button(self.fr, text=_loc["ADD"], command=self.add, width=6)
+        self.btn_add = Button(self.fr, text=_L["ADD"], command=self.add, width=6)
         self.btn_add.grid(row=0,column=0,pady=3,sticky="w")
-        self.btn_del = Button(self.fr, text=_loc["DELETE"], command=self.delete, width=6)
+        self.btn_del = Button(self.fr, text=_L["DELETE"], command=self.delete, width=6)
         self.btn_del.grid(row=0,column=1,pady=3,sticky="w")
-        self.btn_moveup = Button(self.fr, text=_loc["UP"], command=self.moveup, width=6)
+        self.btn_moveup = Button(self.fr, text=_L["UP"], command=self.moveup, width=6)
         self.btn_moveup.grid(row=0,column=2,pady=3,sticky="w")
-        self.btn_movedown = Button(self.fr, text=_loc["DOWN"], command=self.movedown, width=6)
+        self.btn_movedown = Button(self.fr, text=_L["DOWN"], command=self.movedown, width=6)
         self.btn_movedown.grid(row=0,column=3,pady=3,sticky="w")
-        self.btn_save = Button(self.fr, text=_loc["SAVE_AND_CLOSE"], command=self.save)
+        self.btn_save = Button(self.fr, text=_L["SAVE_AND_CLOSE"], command=self.save)
         self.btn_save.grid(row=0,column=4,padx=3,pady=3,sticky="e")
         self.var = var
     
@@ -445,7 +403,7 @@ class RangeListEditor(Toplevel):
         try:
             d = self.getAllData()
         except:
-            MB.showerror(_loc["ERROR"], _loc["INVALID_TIME_FORMAT"])
+            MB.showerror(_L["ERROR"], _L["INVALID_TIME_FORMAT"])
             return
         if len(d) == 0:
             self.var.set(ALWAYS_ONLINE)
@@ -464,7 +422,7 @@ class RangeListEditor(Toplevel):
 class SegFuncEditor(Toplevel):
     def __init__(self, data:SegFunc, var:StringVar):
         super().__init__()
-        self.title(_loc["SEG_FUNC_EDITOR"])
+        self.title(_L["SEG_FUNC_EDITOR"])
         self.data = data
         self.tree = ScrollableTreeView(self, allowSave=False)
         self.tree['show'] = 'headings'
@@ -482,15 +440,15 @@ class SegFuncEditor(Toplevel):
             name="d", editor=EditMode.ENTRY, desc="Data"))
         self.fr = Frame(self)
         self.fr.pack(fill="x", expand=False)
-        self.btn_add = Button(self.fr, text=_loc["ADD"], command=self.add, width=6)
+        self.btn_add = Button(self.fr, text=_L["ADD"], command=self.add, width=6)
         self.btn_add.grid(row=0,column=0,pady=3,sticky="w")
-        self.btn_del = Button(self.fr, text=_loc["DELETE"], command=self.delete, width=6)
+        self.btn_del = Button(self.fr, text=_L["DELETE"], command=self.delete, width=6)
         self.btn_del.grid(row=0,column=1,pady=3,sticky="w")
-        self.btn_moveup = Button(self.fr, text=_loc["UP"], command=self.moveup, width=6)
+        self.btn_moveup = Button(self.fr, text=_L["UP"], command=self.moveup, width=6)
         self.btn_moveup.grid(row=0,column=2,pady=3,sticky="w")
-        self.btn_movedown = Button(self.fr, text=_loc["DOWN"], command=self.movedown, width=6)
+        self.btn_movedown = Button(self.fr, text=_L["DOWN"], command=self.movedown, width=6)
         self.btn_movedown.grid(row=0,column=3,pady=3,sticky="w")
-        self.btn_save = Button(self.fr, text=_loc["SAVE_AND_CLOSE"], command=self.save)
+        self.btn_save = Button(self.fr, text=_L["SAVE_AND_CLOSE"], command=self.save)
         self.btn_save.grid(row=0,column=4,padx=3,pady=3,sticky="e")
         self.var = var
     
@@ -515,7 +473,7 @@ class SegFuncEditor(Toplevel):
         try:
             d = self.getAllData()
         except:
-            MB.showerror(_loc["ERROR"], _loc["INVALID_SEG_FUNC"])
+            MB.showerror(_L["ERROR"], _L["INVALID_SEG_FUNC"])
             return
         if len(d) == 0:
             self.var.set(str(None))
@@ -569,7 +527,7 @@ class EditDescGroup:
 class PropertyPanel(Frame):
     def __onclick(self, event):
         if len(self.tree.selection()) == 0:
-            self.__desc_var.set(_loc["PROP_NODESC"])
+            self.__desc_var.set(_L["PROP_NODESC"])
             return
         self.selected_item = self.tree.selection()[0]
         selected_row = self.tree.item(self.selected_item, "values")[0]
@@ -592,11 +550,11 @@ class PropertyPanel(Frame):
         self.tree["columns"] = ("t", "d")
         self.tree.column("t", width=120, stretch=NO)
         self.tree.column("d", width=120, stretch=YES)
-        self.tree.heading("t", text=_loc["PROPERTY"])
-        self.tree.heading("d", text=_loc["VALUE"])
+        self.tree.heading("t", text=_L["PROPERTY"])
+        self.tree.heading("d", text=_L["VALUE"])
         self.tree.tree.bind("<<TreeviewSelect>>", self.__onclick)
         self.tree.pack(fill="both", expand=True)
-        self.__desc_var = StringVar(self, _loc["PROP_NODESC"])
+        self.__desc_var = StringVar(self, _L["PROP_NODESC"])
         self.__desc = Label(self, textvariable=self.__desc_var)
         self.__desc.pack(fill="x", expand=False)
         self.setData(data, edit_modes)
@@ -611,12 +569,12 @@ class PropertyPanel(Frame):
 class PropertyEditor(Toplevel):
     def __init__(self, data:Dict[str,str], var:StringVar, edit_modes:ConfigItemDict):
         super().__init__()
-        self.title(_loc["PROPERTY_EDITOR"])
+        self.title(_L["PROPERTY_EDITOR"])
         self.__panel = PropertyPanel(self, data, edit_modes)
         self.__panel.pack(fill="both", expand=True)
         self.__fr = Frame(self)
         self.__fr.pack(fill="x", expand=False)
-        self.__btn_save = Button(self.__fr, text=_loc["SAVE_AND_CLOSE"], command=self.save)
+        self.__btn_save = Button(self.__fr, text=_L["SAVE_AND_CLOSE"], command=self.save)
         self.__btn_save.grid(row=0,column=4,padx=3,pady=3,sticky="e")
         self.var = var
     
@@ -636,12 +594,12 @@ class PDFuncEditor(Toplevel):
     
     def __init__(self, var: StringVar):
         super().__init__()
-        self.title(_loc["PDFUNC_EDITOR"])
+        self.title(_L["PDFUNC_EDITOR"])
         pdfunc = eval(var.get())
         assert isinstance(pdfunc, PDFunc)
         self.model = StringVar(self, _removeprefix(pdfunc.__class__.__name__, "PD"))
         self.fr0 = Frame(self)
-        self.mlabel = Label(self.fr0, text=_loc["PDMODEL"])
+        self.mlabel = Label(self.fr0, text=_L["PDMODEL"])
         self.mlabel.grid(row=0,column=0,padx=3,pady=3,sticky="w")
         self.cb = Combobox(self.fr0, textvariable=self.model,
             values=["Normal", "Uniform", "Triangular", 
@@ -655,14 +613,14 @@ class PDFuncEditor(Toplevel):
         self.tree["columns"] = ("t", "d")
         self.tree.column("t", width=120, stretch=NO)
         self.tree.column("d", width=120, stretch=YES)
-        self.tree.heading("t", text=_loc["PROPERTY"])
-        self.tree.heading("d", text=_loc["VALUE"])
+        self.tree.heading("t", text=_L["PROPERTY"])
+        self.tree.heading("d", text=_L["VALUE"])
         self.tree.pack(fill="both", expand=True)
         self.reset_tree(pdfunc)
         self.tree.setColEditMode("d", ConfigItem(name="d", editor=EditMode.ENTRY, desc="Value"))
         self.fr = Frame(self)
         self.fr.pack(fill="x", expand=False)
-        self.btn_save = Button(self.fr, text=_loc["SAVE_AND_CLOSE"], command=self.save)
+        self.btn_save = Button(self.fr, text=_L["SAVE_AND_CLOSE"], command=self.save)
         self.btn_save.grid(row=0,column=4,padx=3,pady=3,sticky="e")
         self.var = var
 
@@ -677,3 +635,75 @@ class PDFuncEditor(Toplevel):
         d = self.getAllData()
         self.var.set(repr(d))
         self.destroy()
+
+def get_clog_mtime(folder:Path):
+    clog_path = folder / "cproc.clog"
+    if clog_path.is_file():
+        return clog_path.stat().st_mtime
+    return None
+
+def format_time(ts):
+    if ts is None:
+        return _L("NOT_FOUND")
+    return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+
+class SelectItemDialog(Toplevel):
+    def __init__(self, items:List[List[Any]], title:str, columns:List[Union[str, Tuple[str, str]]]):
+        super().__init__()
+        self.title(title)
+        self.geometry("500x300")
+        self.__dkt:Dict[str, Any] = {}
+        self.selected_item = None
+
+        col_id = []
+        col_name = []
+        for col in columns:
+            if isinstance(col, str):
+                col_id.append(col)
+                col_name.append(col.capitalize())
+            else:
+                col_id.append(col[0])
+                col_name.append(col[1])
+        tree = Treeview(self, columns=col_id, show="headings", selectmode="browse")
+        for i, n in zip(col_id, col_name):
+            tree.heading(i, text=n)
+
+        for item in items:
+            idx = tree.insert("", "end", values=item)
+            self.__dkt[idx] = item
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+        tree.bind("<<TreeviewSelect>>", self.on_select)
+        self.tree = tree
+
+        btn = Button(self, text=_L("CONFIRM"), command=self.confirm_selection)
+        btn.pack(pady=5)
+
+    def on_select(self, event):
+        selected = self.tree.selection()
+        if selected:
+            self.selected_item = self.__dkt[selected[0]]
+
+    def confirm_selection(self):
+        if self.selected_item is not None:
+            self.destroy()
+        else:
+            messagebox.showwarning(_L("WARNING"), _L("HINT_SELECT_ITEM"))
+
+class SelectResultsDialog(SelectItemDialog):
+    def __init__(self, items:List[Path]):
+        new_items = []
+        self.__folders:Dict[str, Path] = {}
+        for item in items:
+            mtime = get_clog_mtime(item)
+            new_items.append([item.name, format_time(mtime)])
+            self.__folders[item.name] = item.absolute()
+        super().__init__(new_items, title=_L("SELECT_RESULTS"), 
+                         columns=[("folder",_L("FOLDER")), ("mtime",_L("MODIFIED_TIME"))])
+        self.tree.column("folder", width=300)
+        self.tree.column("mtime", width=180)
+    
+    @property
+    def folder(self) -> Union[Path, None]:
+        if self.selected_item is None:
+            return None
+        return self.__folders[self.selected_item[0]]

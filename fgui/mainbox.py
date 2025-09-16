@@ -9,13 +9,12 @@ from tkinter import messagebox as MB
 from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
 import xml.etree.ElementTree as ET
-from fgui.dirsel import SelectItemDialog
 from fgui.evtq import EventQueue
 import v2sim
 from v2sim import *
 from .langhelper import add_lang_menu
 from .view import *
-from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, _removeprefix
+from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, SelectItemDialog
 from .network import NetworkPanel, OAfter
 
 AMAP_KEY_FILE = "amap_key.txt"
@@ -54,6 +53,13 @@ class PluginEditor(ScrollableTreeView):
         self.setCellEditMode(plgname, "Extra", ConfigItem("Extra", EditMode.PROP, "Extra properties", prop_config=plgtype.ElemShouldHave()))
         return [plgname, 300, SIM_YES, ALWAYS_ONLINE, plgtype.ElemShouldHave().default_value_dict()]
     
+    def GetEnabledPlugins(self):
+        enabled_plg = []
+        for i in self.get_children():
+            if self.item(i, 'values')[2] == SIM_YES:
+                enabled_plg.append(self.item(i, 'values')[0])
+        return enabled_plg
+            
     def __init__(self, master, onEnabledSet:Callable[[Tuple[Any,...], str], None] = empty_postfunc, **kwargs):
         super().__init__(master, True, True, True, True, self.__addgetter, **kwargs)
         self.sta_pool = StaPool()
@@ -78,14 +84,15 @@ class PluginEditor(ScrollableTreeView):
         self.setColEditMode("Enabled", ConfigItem("Enabled", EditMode.COMBO, "Enabled or not", combo_values=[SIM_YES, SIM_NO]), post_func=onEnabledSet)
         self.setColEditMode("Online", ConfigItem("Online", EditMode.RANGELIST, "Online time ranges", rangelist_hint=True))
         self.setColEditMode("Extra", ConfigItem("Extra", EditMode.DISABLED, "Extra properties"))
+        self.__onEnabledSet = onEnabledSet
     
     def add(self, plg_name:str, interval:Union[int, str], enabled:str, online:Union[RangeList, str], extra:Dict[str, Any]):
-        self.insert("", "end", values= (
-            plg_name, interval, enabled, online, repr(extra)
-        ))
+        new_line = (plg_name, interval, enabled, online, str(extra))
+        self.insert("", "end", values=new_line)
         plg_type = self.plg_pool.GetPluginType(plg_name)
         assert issubclass(plg_type, PluginBase)
         self.setCellEditMode(plg_name, "Extra", ConfigItem("Extra", EditMode.PROP, "Extra properties", prop_config=plg_type.ElemShouldHave()))
+        self.__onEnabledSet(new_line, plg_name)
     
     def is_enabled(self, plg_name:str):
         for i in self.get_children():
@@ -597,14 +604,9 @@ class LoadingBox(Toplevel):
     
 
 class MainBox(Tk):
-    def _OnPDNEnabledSet(self):
-        def _setSimStat(itm:Tuple[Any,...], v:str):
-            if itm[0] != "pdn": return
-            t = v == SIM_YES
-            for x in ("gen","bus","line","pvw","ess"):
-                self.sim_statistic[x] = t
-                self.sim_statistic.setEnabled(x, t)
-        return _setSimStat
+    def __OnPluginEnabledSet(self, itm:Tuple[Any,...]=(), v:str=""):
+        plgs = self.sim_plglist.GetEnabledPlugins()
+        self.sim_statistic.check_by_enabled_plugins(plgs)
     
     def __init__(self, to_open:str = ""):
         super().__init__()
@@ -789,23 +791,16 @@ class MainBox(Tk):
         self.sim_cb_visualize.grid(row=5, column=2, padx=3, pady=3, sticky="w")
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
-        self.sim_plglist = PluginEditor(self.sim_plugins, self._OnPDNEnabledSet())
+        self.sim_plglist = PluginEditor(self.sim_plugins, self.__OnPluginEnabledSet)
         self.sim_plglist.pack(fill="both", expand=True)
         self.sim_plugins.pack(fill="x", expand=False)
         self.sim_plglist.setOnSave(self.savePlugins())
+        self.sim_plglist.AfterFunc = self.__OnPluginEnabledSet
 
-        self.sim_statistic = LogItemPad(self.tab_sim, _L["SIM_STAT"],{
-            "fcs":_L["SIM_FCS"],
-            "scs":_L["SIM_SCS"],
-            "ev":_L["SIM_VEH"],
-            "gen":_L["SIM_GEN"],
-            "bus":_L["SIM_BUS"],
-            "line":_L["SIM_LINE"],
-            "pvw":_L["SIM_PVW"],
-            "ess":_L["SIM_ESS"],
-        })
+        self.sim_statistic = LogItemPad(self.tab_sim, _L["SIM_STAT"],self.sim_plglist.sta_pool)
         self.sim_statistic["ev"] = False
         self.sim_statistic.pack(fill="x", expand=False)
+        self.__OnPluginEnabledSet()
 
         self.sim_btn = Button(self.tab_sim, text=_L["SIM_START"], command=self.simulate)
         self.sim_btn.pack(anchor="w", padx=3, pady=3)
@@ -1318,17 +1313,13 @@ class MainBox(Tk):
             plg_set.add("pdn")
             plg_enabled_set.add("pdn")
         
-        t = "pdn" in plg_set and "pdn" in plg_enabled_set
-
-        for x in ("gen","bus","line","pvw","ess"):
-            self.sim_statistic[x] = t
-            self.sim_statistic.setEnabled(x, t)
-        
         # Check if V2G exists
         if "v2g" not in plg_set:
             self.sim_plglist.add("v2g", 300, SIM_YES, ALWAYS_ONLINE, {})
         if not self.state.plg:
             self.sim_plglist.save()
+        
+        self.__OnPluginEnabledSet()
         
     def _load_fcs(self, afterx:OAfter = None):
         assert self.state is not None
