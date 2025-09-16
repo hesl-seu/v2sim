@@ -1,11 +1,11 @@
 import gzip
-import threading, os
+import os
 import pickle
 from pathlib import Path
 from typing import Literal, Optional, Dict, List, Tuple
 from fgui import add_lang_menu, EventQueue
 from fgui.view import *
-from fgui import ScrollableTreeView, TripsFrame, DirSelApp
+from fgui import ScrollableTreeView, TripsFrame, SelectResultsDialog
 from v2sim import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
 from tkinter import filedialog
 from tkinter import messagebox as MB
@@ -694,7 +694,7 @@ class PlotBox(Tk):
                 res_path = res_path_list[0]
             else:
                 self.disable_all()
-                dsa = DirSelApp(res_path_list)
+                dsa = SelectResultsDialog(res_path_list)
                 self.wait_window(dsa)
                 if dsa.folder is None:
                     self._Q.trigger("exit")

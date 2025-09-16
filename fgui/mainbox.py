@@ -14,7 +14,7 @@ import v2sim
 from v2sim import *
 from .langhelper import add_lang_menu
 from .view import *
-from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, parseEditMode, _removeprefix
+from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, SelectItemDialog
 from .network import NetworkPanel, OAfter
 
 AMAP_KEY_FILE = "amap_key.txt"
@@ -39,13 +39,35 @@ EXT_COMP = "external_components"
 
     
 class PluginEditor(ScrollableTreeView):
+    def __addgetter(self):
+        # 获取第1列所有值
+        plgs_exist = set(self.item(i, 'values')[0] for i in self.get_children())
+        plgs = [[x] for x in self.plg_pool.GetAllPlugins() if x not in plgs_exist]
+        f = SelectItemDialog(plgs, _L["SIM_SELECTPLG"], [("Name", _L["PLG_NAME"])])
+        f.wait_window()
+        if f.selected_item is None:
+            return None
+        plgname = f.selected_item[0]
+        plgtype = self.plg_pool.GetPluginType(plgname)
+        assert issubclass(plgtype, PluginBase)
+        self.setCellEditMode(plgname, "Extra", ConfigItem("Extra", EditMode.PROP, "Extra properties", prop_config=plgtype.ElemShouldHave()))
+        return [plgname, 300, SIM_YES, ALWAYS_ONLINE, plgtype.ElemShouldHave().default_value_dict()]
+    
+    def GetEnabledPlugins(self):
+        enabled_plg = []
+        for i in self.get_children():
+            if self.item(i, 'values')[2] == SIM_YES:
+                enabled_plg.append(self.item(i, 'values')[0])
+        return enabled_plg
+            
     def __init__(self, master, onEnabledSet:Callable[[Tuple[Any,...], str], None] = empty_postfunc, **kwargs):
-        super().__init__(master, True, **kwargs)
+        super().__init__(master, True, True, True, True, self.__addgetter, **kwargs)
         self.sta_pool = StaPool()
         self.plg_pool = PluginPool()
         if Path(EXT_COMP).exists():
             load_external_components(EXT_COMP, self.plg_pool, self.sta_pool)
-        self.__onset = onEnabledSet
+        else:
+            print(f"Warning: external components folder '{EXT_COMP}' not found.")
         self["show"] = 'headings'
         self["columns"] = ("Name", "Interval", "Enabled", "Online", "Extra")
         self.column("Name", width=120, stretch=NO)
@@ -58,26 +80,23 @@ class PluginEditor(ScrollableTreeView):
         self.heading("Enabled", text=_L["SIM_ENABLED"])
         self.heading("Online", text=_L["SIM_PLGOL"])
         self.heading("Extra", text=_L["SIM_PLGPROP"])
-        self.setColEditMode("Interval", EditMode.SPIN, spin_from=1, spin_to=86400)
-        self.setColEditMode("Enabled", EditMode.COMBO, combo_values=[SIM_YES, SIM_NO], post_func=onEnabledSet)
-        self.setColEditMode("Online", EditMode.RANGELIST, rangelist_hint = True)
-        self.setColEditMode("Extra", EditMode.DISABLED)
+        self.setColEditMode("Interval", ConfigItem("Interval", EditMode.SPIN, "Time interval", spin_range=(1, 86400)))
+        self.setColEditMode("Enabled", ConfigItem("Enabled", EditMode.COMBO, "Enabled or not", combo_values=[SIM_YES, SIM_NO]), post_func=onEnabledSet)
+        self.setColEditMode("Online", ConfigItem("Online", EditMode.RANGELIST, "Online time ranges", rangelist_hint=True))
+        self.setColEditMode("Extra", ConfigItem("Extra", EditMode.DISABLED, "Extra properties"))
+        self.__onEnabledSet = onEnabledSet
     
     def add(self, plg_name:str, interval:Union[int, str], enabled:str, online:Union[RangeList, str], extra:Dict[str, Any]):
-        self.insert("", "end", values= (
-            plg_name, interval, enabled, online, repr(extra)
-        ))
+        new_line = (plg_name, interval, enabled, online, str(extra))
+        self.insert("", "end", values=new_line)
         plg_type = self.plg_pool.GetPluginType(plg_name)
         assert issubclass(plg_type, PluginBase)
-        self.setCellEditMode(plg_name, "Extra", EditMode.PROP, 
-            prop_edit_modes = plg_type.ElemShouldHave().editor_dict(),
-            prop_desc = plg_type.ElemShouldHave().desc_dict(),
-            prop_default_mode = EditMode.ENTRY
-        )
+        self.setCellEditMode(plg_name, "Extra", ConfigItem("Extra", EditMode.PROP, "Extra properties", prop_config=plg_type.ElemShouldHave()))
+        self.__onEnabledSet(new_line, plg_name)
     
     def is_enabled(self, plg_name:str):
         for i in self.get_children():
-            if self.item(i, 'values')[0] == "pdn":
+            if self.item(i, 'values')[0] == plg_name:
                 return self.item(i, 'values')[2] == SIM_YES
         return False       
         
@@ -127,23 +146,23 @@ class CSEditorGUI(Frame):
         self.tree.heading("PriceBuy", text=_L["CSE_PRICEBUY"])
         self.tree.heading("PcAlloc", text=_L["CSE_PCALLOC"])
 
-        self.tree.setColEditMode("Edge", EditMode.ENTRY)
-        self.tree.setColEditMode("Slots", EditMode.SPIN, spin_from = 0, spin_to = 100)
-        self.tree.setColEditMode("Bus", EditMode.ENTRY)
-        self.tree.setColEditMode("x", EditMode.ENTRY)
-        self.tree.setColEditMode("y", EditMode.ENTRY)
-        self.tree.setColEditMode("Online", EditMode.RANGELIST, rangelist_hint=True)
-        self.tree.setColEditMode("MaxPc", EditMode.SPIN, spin_from = 0, spin_to = 1000)
-        self.tree.setColEditMode("PriceBuy", EditMode.SEGFUNC)
-        self.tree.setColEditMode("PcAlloc", EditMode.COMBO, combo_values=["Average", "Prioritized"])
-        
+        self.tree.setColEditMode("Edge", EditMode.entry())
+        self.tree.setColEditMode("Slots", EditMode.spin(0, 100))
+        self.tree.setColEditMode("Bus", EditMode.entry())
+        self.tree.setColEditMode("x", EditMode.entry())
+        self.tree.setColEditMode("y", EditMode.entry())
+        self.tree.setColEditMode("Online", EditMode.rangelist(hint=True))
+        self.tree.setColEditMode("MaxPc", EditMode.spin(0, 1000))
+        self.tree.setColEditMode("PriceBuy", EditMode.segfunc())
+        self.tree.setColEditMode("PcAlloc", EditMode.combo(values=["Average", "Prioritized"]))
+
         if canV2g:
             self.tree.heading("PriceSell", text=_L["CSE_PRICESELL"])
             self.tree.heading("MaxPd", text=_L["CSE_MAXPD"])
             self.tree.heading("PdAlloc", text=_L["CSE_PDALLOC"])
-            self.tree.setColEditMode("PriceSell", EditMode.SEGFUNC)
-            self.tree.setColEditMode("MaxPd", EditMode.SPIN, spin_from = 0, spin_to = 1000)
-            self.tree.setColEditMode("PdAlloc", EditMode.COMBO, combo_values=["Average"])
+            self.tree.setColEditMode("PriceSell", EditMode.segfunc())
+            self.tree.setColEditMode("MaxPd", EditMode.spin(0, 1000))
+            self.tree.setColEditMode("PdAlloc", EditMode.combo(values=["Average"]))
         self.tree.pack(fill="both", expand=True)
 
         self.panel2 = Frame(self)
@@ -585,14 +604,9 @@ class LoadingBox(Toplevel):
     
 
 class MainBox(Tk):
-    def _OnPDNEnabledSet(self):
-        def _setSimStat(itm:Tuple[Any,...], v:str):
-            if itm[0] != "pdn": return
-            t = v == SIM_YES
-            for x in ("gen","bus","line","pvw","ess"):
-                self.sim_statistic[x] = t
-                self.sim_statistic.setEnabled(x, t)
-        return _setSimStat
+    def __OnPluginEnabledSet(self, itm:Tuple[Any,...]=(), v:str=""):
+        plgs = self.sim_plglist.GetEnabledPlugins()
+        self.sim_statistic.check_by_enabled_plugins(plgs)
     
     def __init__(self, to_open:str = ""):
         super().__init__()
@@ -777,23 +791,16 @@ class MainBox(Tk):
         self.sim_cb_visualize.grid(row=5, column=2, padx=3, pady=3, sticky="w")
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
-        self.sim_plglist = PluginEditor(self.sim_plugins, self._OnPDNEnabledSet())
+        self.sim_plglist = PluginEditor(self.sim_plugins, self.__OnPluginEnabledSet)
         self.sim_plglist.pack(fill="both", expand=True)
         self.sim_plugins.pack(fill="x", expand=False)
         self.sim_plglist.setOnSave(self.savePlugins())
+        self.sim_plglist.AfterFunc = self.__OnPluginEnabledSet
 
-        self.sim_statistic = LogItemPad(self.tab_sim, _L["SIM_STAT"],{
-            "fcs":_L["SIM_FCS"],
-            "scs":_L["SIM_SCS"],
-            "ev":_L["SIM_VEH"],
-            "gen":_L["SIM_GEN"],
-            "bus":_L["SIM_BUS"],
-            "line":_L["SIM_LINE"],
-            "pvw":_L["SIM_PVW"],
-            "ess":_L["SIM_ESS"],
-        })
+        self.sim_statistic = LogItemPad(self.tab_sim, _L["SIM_STAT"],self.sim_plglist.sta_pool)
         self.sim_statistic["ev"] = False
         self.sim_statistic.pack(fill="x", expand=False)
+        self.__OnPluginEnabledSet()
 
         self.sim_btn = Button(self.tab_sim, text=_L["SIM_START"], command=self.simulate)
         self.sim_btn.pack(anchor="w", padx=3, pady=3)
@@ -874,13 +881,13 @@ class MainBox(Tk):
             "KSC":repr(PDUniform(0.4, 0.6)),
             "KFC":repr(PDUniform(0.2, 0.25)),
             "KV2G":repr(PDUniform(0.65, 0.75)),
-        }, default_edit_mode=EditMode.PDFUNC, desc = {
-            "Omega": _L["VEH_OMEGA_DESC"],
-            "KRel": _L["VEH_KREL_DESC"],
-            "KSC": _L["VEH_KSC_DESC"],
-            "KFC": _L["VEH_KFC_DESC"],
-            "KV2G": _L["VEH_KV2G_DESC"],
-        })
+        }, ConfigItemDict((
+            ConfigItem("Omega", EditMode.PDFUNC, _L["VEH_OMEGA_DESC"]),
+            ConfigItem("KRel", EditMode.PDFUNC, _L["VEH_KREL_DESC"]),
+            ConfigItem("KSC", EditMode.PDFUNC, _L["VEH_KSC_DESC"]),
+            ConfigItem("KFC", EditMode.PDFUNC, _L["VEH_KFC_DESC"]),
+            ConfigItem("KV2G", EditMode.PDFUNC, _L["VEH_KV2G_DESC"]),
+        )))
         self.veh_pars.pack(fill="x", expand=False, pady=10)
 
         self.veh_gen_src = IntVar(self, 0)
@@ -1249,7 +1256,7 @@ class MainBox(Tk):
                     if x in self.sim_statistic:
                         self.sim_statistic[x] = True
                     else:
-                        showerr(f"Unknown statistic: {x}")
+                        showerr(_L["UKN_STA_TYPE"].format(x, ', '.join(self.sim_statistic.keys())))
         self.update()
 
         self.setStatus(_L["STA_READY"])
@@ -1257,7 +1264,6 @@ class MainBox(Tk):
         if len(loads) == 0: self._ldfrm.destroy()
     
     def _load_plugins(self):
-        
         plg_set:Set[str] = set()
         plg_enabled_set:Set[str] = set()
 
@@ -1266,17 +1272,18 @@ class MainBox(Tk):
         if self.state.plg:
             et = ReadXML(self.state.plg)
             if et is None:
-                showerr("Error loading plugins")
+                showerr(_L["ERR_LOAD_PLG"])
                 return
             rt = et.getroot()
             if rt is None:
-                showerr("Error loading plugins")
+                showerr(_L["ERR_LOAD_PLG"])
                 return
             for p in rt:
                 try:
                     plg_type = self.sim_plglist.plg_pool.GetPluginType(p.tag.lower())
                 except KeyError:
-                    showerr(f"Unknown plugin type: {p.tag}")
+                    plg_list = ', '.join(self.sim_plglist.plg_pool.GetAllPlugins().keys())
+                    showerr(_L["UKN_PLG_TYPE"].format(p.tag, plg_list))
                     continue
                 assert issubclass(plg_type, PluginBase), "Plugin type is not a subclass of PluginBase"
 
@@ -1306,17 +1313,13 @@ class MainBox(Tk):
             plg_set.add("pdn")
             plg_enabled_set.add("pdn")
         
-        t = "pdn" in plg_set and "pdn" in plg_enabled_set
-
-        for x in ("gen","bus","line","pvw","ess"):
-            self.sim_statistic[x] = t
-            self.sim_statistic.setEnabled(x, t)
-        
         # Check if V2G exists
         if "v2g" not in plg_set:
             self.sim_plglist.add("v2g", 300, SIM_YES, ALWAYS_ONLINE, {})
         if not self.state.plg:
             self.sim_plglist.save()
+        
+        self.__OnPluginEnabledSet()
         
     def _load_fcs(self, afterx:OAfter = None):
         assert self.state is not None

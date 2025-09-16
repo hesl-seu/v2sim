@@ -1,15 +1,35 @@
 from itertools import chain, repeat
+from ..locale import CustomLocaleLib
 from .base import *
 
 FILE_FCS = "fcs"
 FILE_SCS = "scs"
 CS_ATTRIB = ["cnt","c","d","v2g","pb","ps"]
 
+_L = CustomLocaleLib(["en", "zh_CN"])
+_L.SetLanguageLib("en",
+    FCS = "FCS",
+    SCS = "SCS",
+)
+_L.SetLanguageLib("zh_CN",
+    FCS = "快充站",
+    SCS = "慢充站",
+)
+
 class StaFCS(StaBase):
     def __init__(self,path:str,tinst:TrafficInst,plugins:Dict[str,PluginBase]):
         head = cross_list(tinst.FCSList.get_CS_names(),["cnt","c","pb"])
         super().__init__(FILE_FCS,path,head,tinst,plugins)
 
+    @staticmethod
+    def GetLocalizedName() -> str:
+        return _L("FCS")
+    
+    @staticmethod
+    def GetPluginDependency() -> List[str]:
+        '''Get Plugin Dependency'''
+        return []
+    
     def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         t = inst.current_time
         IL = inst.FCSList
@@ -26,6 +46,16 @@ class StaSCS(StaBase):
         self.supv2g = self.L > 0 and tinst.SCSList[0].supports_V2G
         self.hasv2g = "v2g" in plugins
 
+    @staticmethod
+    def GetLocalizedName() -> str:
+        return _L("SCS")
+    
+    @staticmethod
+    def GetPluginDependency() -> List[str]:
+        '''Get Plugin Dependency'''
+        return []
+    
+    
     def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         L = self.L
         IL = inst.SCSList

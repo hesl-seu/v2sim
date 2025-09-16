@@ -39,10 +39,10 @@ class ParamsEditor(tk.Toplevel):
         self.tree.pack(fill="both", expand=True)
         for l,r in data.items():
             self.tree.insert("", "end", values=(l, r))
-        self.tree.setColEditMode("lb", EditMode.COMBO, combo_values=[
+        self.tree.setColEditMode("lb", EditMode.combo([
             'b','e','l','no-plg','seed','gen-veh','gen-fcs','gen-scs','plot'
-        ])
-        self.tree.setColEditMode("rb", EditMode.ENTRY)
+        ]))
+        self.tree.setColEditMode("rb", EditMode.entry())
         self.fr = ttk.Frame(self)
         self.fr.pack(fill="x", expand=False)
         self.btn_add = ttk.Button(self.fr, text=_L["ADD"], command=self.add, width=6)
@@ -110,16 +110,7 @@ class LoadGroupBox(tk.Toplevel):
         self.lb_t.grid(row=4, column=0, padx=3, pady=3)
         self.en_t = ttk.Entry(self.fr)
         self.en_t.grid(row=4, column=1, padx=3, pady=3)
-        self.lip = LogItemPad(self, _L["SIM_STAT"],{
-            "fcs":_L["SIM_FCS"],
-            "scs":_L["SIM_SCS"],
-            "ev":_L["SIM_VEH"],
-            "gen":_L["SIM_GEN"],
-            "bus":_L["SIM_BUS"],
-            "line":_L["SIM_LINE"],
-            "pvw":_L["SIM_PVW"],
-            "ess":_L["SIM_ESS"],
-        })
+        self.lip = LogItemPad(self, _L["SIM_STAT"], StaPool())
         self.lip["ev"]=False
         self.lip.pack(padx=3, pady=3)
         self.btn = ttk.Button(self, text=_L("LGB_WORK"), command=self.work)

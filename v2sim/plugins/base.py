@@ -24,21 +24,60 @@ PIExec = Callable[[int,PluginStatus],Tuple[bool,PIResult]]
 PINoRet = Callable[[],None]
 
 @dataclass
-class PluginConfigItem:
-    '''Plugin configuration item'''
+class ConfigItem:
+    '''Configuration item'''
     name:str
-    editor:str
+    editor:'EditMode'
     desc:str
     default_value:Optional[Any] = None
+    combo_values:Optional[List[str]] = None
+    spin_range:Optional[Tuple[int,int]] = None
+    rangelist_hint:bool = False
+    prop_config:'Optional[ConfigItemDict]' = None
 
-class ConfigDict(Dict[str, PluginConfigItem]):
+class EditMode(enum.Enum):
+    DISABLED = "disabled"
+    ENTRY = "entry"
+    SPIN = "spin"
+    COMBO = "combo"
+    CHECKBOX = "checkbox"
+    RANGELIST = "rangelist"
+    SEGFUNC = "segfunc"
+    PROP = "prop"
+    PDFUNC = "pdfunc"
+
+    @staticmethod
+    def entry(): return ConfigItem("", EditMode.ENTRY, "", "")
+    @staticmethod
+    def spin(l:int, r:int): return ConfigItem("", EditMode.SPIN, "", spin_range=(l, r))
+    @staticmethod
+    def combo(values:List[Any]): return ConfigItem("", EditMode.COMBO, "", combo_values=values)
+    @staticmethod
+    def checkbox(checked:bool = False): return ConfigItem("", EditMode.CHECKBOX, "", default_value=checked)
+    @staticmethod
+    def rangelist(hint:bool = False): return ConfigItem("", EditMode.RANGELIST, "", rangelist_hint=hint)
+    @staticmethod
+    def segfunc(): return ConfigItem("", EditMode.SEGFUNC, "")
+    @staticmethod
+    def prop(prop_cfg:'ConfigItemDict'): return ConfigItem("", EditMode.PROP, "", prop_config=prop_cfg)
+    @staticmethod
+    def pdfunc(): return ConfigItem("", EditMode.PDFUNC, "")
+
+
+class ConfigItemDict(Dict[str, ConfigItem]):
     '''Plugin configuration item dictionary'''
-    def __init__(self, items: Optional[Iterable[PluginConfigItem]] = None):
+    def __init__(self, items: Optional[Iterable[ConfigItem]] = None, default_config_item:Optional[ConfigItem]=None):
         if items is None:
             super().__init__()
         else:
             super().__init__((x.name, x) for x in items)
-    
+        self.default_config_item = default_config_item if default_config_item is not None else ConfigItem(
+            name="",
+            editor=EditMode.ENTRY,
+            desc="(No description)",
+            default_value="",
+        )
+
     def default_value_dict(self):
         return {k:v.default_value for k, v in self.items()}
     
@@ -47,6 +86,21 @@ class ConfigDict(Dict[str, PluginConfigItem]):
     
     def editor_dict(self):
         return {k:v.editor for k, v in self.items()}
+    
+    def get_editor(self, name:str) -> EditMode:
+        return self.get(name).editor
+    
+    def get_desc(self, name:str) -> str:
+        return self.get(name).desc
+    
+    def get_default_value(self, name:str) -> Any:
+        return self.get(name).default_value
+    
+    def get(self, key: str) -> ConfigItem:
+        return super().get(key, self.default_config_item)
+
+PluginConfigItem = ConfigItem
+ConfigDict = ConfigItemDict
 
 @runtime_checkable
 class IGridPlugin(Protocol):

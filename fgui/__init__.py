@@ -9,10 +9,10 @@ from .controls import (
     PropertyPanel,
     EditMode,
     LogItemPad,
+    SelectResultsDialog,
     empty_postfunc,
 )
 from .trips import TripsFrame
 from .network import NetworkPanel, OAfter
 from .langhelper import add_lang_menu, setLang
 from .evtq import EventQueue
-from .dirsel import DirSelApp

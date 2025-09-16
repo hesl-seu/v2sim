@@ -10,27 +10,29 @@ from v2sim import CustomLocaleLib, TrafficInst
 from v2sim.plugins import *
 from v2sim.statistics import *
 
-_locale = CustomLocaleLib(["zh_CN","en"])
-_locale.SetLanguageLib("zh_CN",
+_L = CustomLocaleLib(["zh_CN","en"])
+_L.SetLanguageLib("zh_CN",
     DESCRIPTION = "插件描述",
+    STA_NAME = "示例统计项",
     # More language information
 )
-_locale.SetLanguageLib("en",
+_L.SetLanguageLib("en",
     DESCRIPTION = "Plugin description",
+    STA_NAME = "Demo",
     # More language information
 )
 
 class DemoExternalPlugin(PluginBase):
     @property
     def Description(self)->str:
-        return _locale["DESCRIPTION"]
+        return _L["DESCRIPTION"]
     
     def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,plg_deps:'List[PluginBase]') -> object:
         '''
         Add plugin initialization code here, return:
             Return value when the plugin is offline
         '''
-        self.SetPreStep(self.Work)
+        self.SetPreStep(self.Work) # Indicate that the Work function should be called in PreStep (i.e. before SUMO simulation step)
         return None
 
     def Work(self,_t:int,/,sta:PluginStatus)->Tuple[bool,None]:
@@ -40,13 +42,23 @@ class DemoExternalPlugin(PluginBase):
 class DemoStatisticItem(StaBase):
     @property
     def Description(self)->str:
-        return _locale["DESCRIPTION"]
+        return _L["DESCRIPTION"]
     
     def __init__(self, name:str, path:str, items:List[str], tinst:TrafficInst, 
             plugins:Dict[str,PluginBase], precision:Dict[str, int]={}, compress:bool=True):
         super().__init__(name, path, items, tinst, plugins, precision, compress)
         raise NotImplementedError
 
+    @staticmethod
+    def GetLocalizedName() -> str:
+        '''Get Localized Name'''
+        return _L["STA_NAME"]
+    
+    @staticmethod
+    def GetPluginDependency() -> List[str]:
+        '''Get Plugin Dependency'''
+        return ["demo"] # Example: This statistic item depends on the "demo" plugin
+    
     def GetData(self, inst:TrafficInst, plugins:Dict[str,PluginBase]) -> Iterable[Any]: 
         '''Get Data'''
         raise NotImplementedError

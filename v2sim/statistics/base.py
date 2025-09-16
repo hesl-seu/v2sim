@@ -37,6 +37,16 @@ class StaBase:
         self._writer.write("Time,Item,Value\n")
         self._lastT = -1
     
+    @staticmethod
+    @abstractmethod
+    def GetLocalizedName() -> str:
+        '''Get Localized Name'''
+    
+    @staticmethod
+    def GetPluginDependency() -> List[str]:
+        '''Get Plugin Dependency'''
+        return []
+    
     @property
     def Writer(self):
         return self._writer

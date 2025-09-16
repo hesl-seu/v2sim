@@ -1,6 +1,7 @@
 from itertools import chain
 from typing import Optional
 from feasytools import TimeFunc
+from ..locale import CustomLocaleLib
 from .base import *
 
 FILE_GEN = "gen"
@@ -17,6 +18,23 @@ LINE_ATTRIB = ["P","Q","I"]
 PVW_ATTRIB = ["P","curt"]
 ESS_ATTRIB = ["P","soc"]
 
+_L = CustomLocaleLib(["en", "zh_CN"])
+_L.SetLanguageLib("en",
+    GEN = "Generator",
+    BUS = "Bus",
+    LINE = "Line",
+    PVW = "PV/Wind",
+    ESS = "ESS",
+)
+
+_L.SetLanguageLib("zh_CN",
+    GEN = "发电机",
+    BUS = "母线",
+    LINE = "线路",
+    PVW = "光伏/风电",
+    ESS = "储能",
+)
+
 def _chk(x:Optional[float])->float:
     if x is None: return 0
     return x
@@ -32,6 +50,15 @@ class StaGen(StaBase):
         self.__plg = _find_grid_plugin(plugins)
         gen_names = self.__plg.Grid.GenNames
         super().__init__(FILE_GEN,path,cross_list(gen_names,GEN_ATTRIB)+GEN_TOT_ATTRIB,tinst,plugins)
+    
+    @staticmethod
+    def GetLocalizedName() -> str:
+        return _L("GEN")
+    
+    @staticmethod
+    def GetPluginDependency() -> List[str]:
+        '''Get Plugin Dependency'''
+        return ["pdn"]
 
     def GetData(self,inst:TrafficInst,plugins:List[PluginBase])->Iterable[Any]:
         mpdn = self.__plg
@@ -58,6 +85,15 @@ class StaBus(StaBase):
         super().__init__(FILE_BUS,path,cross_list(bus_names,["Pd","Qd","V"]) 
             + cross_list(self.__bus_with_gens,["Pg","Qg"]) + BUS_TOT_ATTRIB,tinst,plugins)
 
+    @staticmethod
+    def GetLocalizedName() -> str:
+        return _L("BUS")
+    
+    @staticmethod
+    def GetPluginDependency() -> List[str]:
+        '''Get Plugin Dependency'''
+        return ["pdn"]
+    
     def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         mpdn = self.__plg.Grid
         sb_MVA = mpdn.Sb
@@ -82,6 +118,15 @@ class StaLine(StaBase):
         self.__plg = _find_grid_plugin(plugins)
         super().__init__(FILE_LINE,path,cross_list(self.__plg.Grid._lines.keys(),LINE_ATTRIB),tinst,plugins)
 
+    @staticmethod
+    def GetLocalizedName() -> str:
+        return _L("LINE")
+    
+    @staticmethod
+    def GetPluginDependency() -> List[str]:
+        '''Get Plugin Dependency'''
+        return ["pdn"]
+    
     def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         mpdn = self.__plg.Grid
         P = (_chk(b.P)*mpdn.Sb for b in mpdn.Lines)
@@ -94,6 +139,15 @@ class StaPVWind(StaBase):
         self.__plg = _find_grid_plugin(plugins)
         super().__init__(FILE_PVW, path, cross_list(self.__plg.Grid._pvws.keys(),PVW_ATTRIB),tinst,plugins)
 
+    @staticmethod
+    def GetLocalizedName() -> str:
+        return _L("PVW")
+    
+    @staticmethod
+    def GetPluginDependency() -> List[str]:
+        '''Get Plugin Dependency'''
+        return ["pdn"]
+    
     def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         mpdn = self.__plg.Grid
         P = (b.P(inst.current_time)*mpdn.Sb for b in mpdn.PVWinds)
@@ -105,6 +159,15 @@ class StaESS(StaBase):
         self.__plg = _find_grid_plugin(plugins)
         super().__init__(FILE_ESS, path, cross_list(self.__plg.Grid._esss.keys(),ESS_ATTRIB),tinst,plugins)
 
+    @staticmethod
+    def GetLocalizedName() -> str:
+        return _L("ESS")
+    
+    @staticmethod
+    def GetPluginDependency() -> List[str]:
+        '''Get Plugin Dependency'''
+        return ["pdn"]
+    
     def GetData(self,inst:TrafficInst,plugins:Dict[str,PluginBase])->Iterable[Any]:
         mpdn = self.__plg.Grid
         P = (_chk(b.P)*mpdn.Sb for b in mpdn.ESSs)
