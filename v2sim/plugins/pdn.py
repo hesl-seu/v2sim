@@ -61,15 +61,15 @@ class PluginPDN(PluginBase[float], IGridPlugin):
     @staticmethod
     def ElemShouldHave() -> ConfigDict:
         '''Get the plugin configuration item list'''
-        EST = f"'{Estimator.DistFlow.value}'"
-        CAL = f"'{Calculator.OpenDSS.value}','{Calculator.Newton.value}','{Calculator.NoneSolver.value}'"
+        EST = [Estimator.DistFlow.value]
+        CAL = [Calculator.OpenDSS.value, Calculator.Newton.value, Calculator.NoneSolver.value]
         return ConfigDict([
-            PluginConfigItem("estimator", "combo={'values': ["+EST+"]}", f"Estimator of the solver, must be {EST}", Estimator.DistFlow.value),
-            PluginConfigItem("calculator", "combo={'values': ["+CAL+"]}", f"Calculator of the solver, can be {CAL}", Calculator.NoneSolver.value),
-            PluginConfigItem("MLRP", "entry", "Maximum load reduction percentage", 0.5),
-            PluginConfigItem("source_bus", "entry", "Source bus of the grid", ""),
-            PluginConfigItem("DecBuses", "entry", "List of buses for load reduction, separated by commas", ""),
-            PluginConfigItem("SmartCharge", "combo={'values': ['YES', 'NO']}", "Whether to enable smart charging, 'YES' or 'NO'", "NO"),
+            ConfigItem("estimator", EditMode.COMBO, f"Estimator of the solver, must be {EST}", Estimator.DistFlow.value, combo_values=EST),
+            ConfigItem("calculator", EditMode.COMBO, f"Calculator of the solver, can be {CAL}", Calculator.NoneSolver.value, combo_values=CAL),
+            ConfigItem("MLRP", EditMode.ENTRY, "Maximum load reduction percentage", 0.5),
+            ConfigItem("source_bus", EditMode.ENTRY, "Source bus of the grid", ""),
+            ConfigItem("DecBuses", EditMode.ENTRY, "List of buses for load reduction, separated by commas", ""),
+            ConfigItem("SmartCharge", EditMode.COMBO, "Whether to enable smart charging, 'YES' or 'NO'", "NO", combo_values=['YES', 'NO']),
         ])
     
     def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path,

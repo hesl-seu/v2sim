@@ -8,6 +8,7 @@ import sumolib
 from v2sim import RoadNetConnectivityChecker as ELGraph
 from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy
 from fpowerkit import Grid as fGrid
+from v2sim import ConfigItemDict
 from .controls import EditMode, PropertyPanel
 from .view import *
 
@@ -103,7 +104,7 @@ class NetworkPanel(Frame):
         self._cv.bind("<ButtonRelease-1>", self._onRelease)
         self._cv.bind("<ButtonRelease-3>", self._onRelease)
 
-        self._pr = PropertyPanel(self, {})
+        self._pr = PropertyPanel(self, {}, ConfigItemDict())
         self._pr.tree.AfterFunc = self.__finish_edit
         self._pr.pack(side='right',anchor='e',fill=Y, expand=0)
         self.clear()

@@ -47,6 +47,10 @@ class PluginPool:
         '''Get all plugins'''
         return self.__curPlugins
     
+    def GetAllPluginNames(self)->List[str]:
+        '''Get all plugin names'''
+        return list(self.__curPlugins.keys())
+    
     def __contains__(self,name:str)->bool:
         '''Check if plugin exists'''
         return self.__curPlugins.__contains__(name)

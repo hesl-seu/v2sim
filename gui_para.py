@@ -39,10 +39,10 @@ class ParamsEditor(tk.Toplevel):
         self.tree.pack(fill="both", expand=True)
         for l,r in data.items():
             self.tree.insert("", "end", values=(l, r))
-        self.tree.setColEditMode("lb", EditMode.COMBO, combo_values=[
+        self.tree.setColEditMode("lb", EditMode.combo([
             'b','e','l','no-plg','seed','gen-veh','gen-fcs','gen-scs','plot'
-        ])
-        self.tree.setColEditMode("rb", EditMode.ENTRY)
+        ]))
+        self.tree.setColEditMode("rb", EditMode.entry())
         self.fr = ttk.Frame(self)
         self.fr.pack(fill="x", expand=False)
         self.btn_add = ttk.Button(self.fr, text=_L["ADD"], command=self.add, width=6)

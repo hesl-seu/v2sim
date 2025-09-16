@@ -1,7 +1,10 @@
 from pathlib import Path
-from typing import Dict, List
-from .view import *
+from typing import Any, Dict, List, Tuple, Union
+from v2sim import CustomLocaleLib
 import datetime
+from .view import *
+
+_L = CustomLocaleLib.LoadFromFolder(Path(__file__).parent.parent / "resources/controls")
 
 def get_clog_mtime(folder:Path):
     clog_path = folder / "cproc.clog"
@@ -11,45 +14,66 @@ def get_clog_mtime(folder:Path):
 
 def format_time(ts):
     if ts is None:
-        return "Not Found"
+        return _L("NOT_FOUND")
     return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
 
-class DirSelApp(Toplevel):
-    def __init__(self, folders:List[Path]):
+class SelectItemDialog(Toplevel):
+    def __init__(self, items:List[List[Any]], title:str, columns:List[Union[str, Tuple[str, str]]]):
         super().__init__()
-        self.title("Select Result Folder")
+        self.title(title)
         self.geometry("500x300")
-        self.__sel_folder = StringVar()
-        self.__dkt:Dict[str, Path] = {}
-        self.create_widgets(folders)
-        self.folder = None
+        self.__dkt:Dict[str, Any] = {}
+        self.selected_item = None
 
-    def create_widgets(self, folders:List[Path]):
-        columns = ("folder", "mtime")
-        tree = Treeview(self, columns=columns, show="headings", selectmode="browse")
-        tree.heading("folder", text="Result Folder")
-        tree.heading("mtime", text="Modified Time")
-        tree.column("folder", width=300)
-        tree.column("mtime", width=180)
-        for folder in folders:
-            mtime = get_clog_mtime(folder)
-            idx = tree.insert("", "end", values=(folder.name, format_time(mtime)))
-            self.__dkt[idx] = folder
+        col_id = []
+        col_name = []
+        for col in columns:
+            if isinstance(col, str):
+                col_id.append(col)
+                col_name.append(col.capitalize())
+            else:
+                col_id.append(col[0])
+                col_name.append(col[1])
+        tree = Treeview(self, columns=col_id, show="headings", selectmode="browse")
+        for i, n in zip(col_id, col_name):
+            tree.heading(i, text=n)
+
+        for item in items:
+            idx = tree.insert("", "end", values=item)
+            self.__dkt[idx] = item
         tree.pack(fill="both", expand=True, padx=10, pady=10)
         tree.bind("<<TreeviewSelect>>", self.on_select)
         self.tree = tree
 
-        btn = Button(self, text="Confirm", command=self.confirm_selection)
+        btn = Button(self, text=_L("CONFIRM"), command=self.confirm_selection)
         btn.pack(pady=5)
 
     def on_select(self, event):
         selected = self.tree.selection()
         if selected:
-            self.__sel_folder.set(self.__dkt[selected[0]].as_posix())
+            self.selected_item = self.__dkt[selected[0]]
 
     def confirm_selection(self):
-        self.folder = self.__sel_folder.get()
-        if self.folder:
+        if self.selected_item is not None:
             self.destroy()
         else:
-            messagebox.showwarning("Warning", "Please select a folder first")
+            messagebox.showwarning(_L("WARNING"), _L("HINT_SELECT_ITEM"))
+
+class SelectResultsDialog(SelectItemDialog):
+    def __init__(self, items:List[Path]):
+        new_items = []
+        self.__folders:Dict[str, Path] = {}
+        for item in items:
+            mtime = get_clog_mtime(item)
+            new_items.append([item.name, format_time(mtime)])
+            self.__folders[item.name] = item.absolute()
+        super().__init__(new_items, title=_L("SELECT_RESULTS"), 
+                         columns=[("folder",_L("FOLDER")), ("mtime",_L("MODIFIED_TIME"))])
+        self.tree.column("folder", width=300)
+        self.tree.column("mtime", width=180)
+    
+    @property
+    def folder(self) -> Union[Path, None]:
+        if self.selected_item is None:
+            return None
+        return self.__folders[self.selected_item[0]]

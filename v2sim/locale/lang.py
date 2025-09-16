@@ -1,7 +1,7 @@
 import copy
 import importlib, locale
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 class Lang:
     LANG_CODE = "en"
@@ -315,8 +315,8 @@ class CustomLocaleLib:
         self.__lib = {lang: {} for lang in supports_lang}
     
     @staticmethod
-    def LoadFromFolder(folder:str):
-        p = Path(folder)
+    def LoadFromFolder(folder:Union[str, Path]):
+        p = folder if isinstance(folder, Path) else Path(folder)
         if not p.exists():
             raise FileNotFoundError(f"Folder {folder} not found.")
         if not p.is_dir():
