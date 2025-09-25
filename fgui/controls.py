@@ -541,7 +541,18 @@ class PropertyPanel(Frame):
         self.tree.clear()
         for l, r in data.items():
             self.tree.insert("", "end", values=(l, r))
-            self.tree.setCellEditMode(l, "d", edit_modes.get(l))      
+            self.tree.setCellEditMode(l, "d", edit_modes.get(l))
+
+    def setDataEmpty(self):
+        self.setData({}, ConfigItemDict())
+        
+    def setData2(self, *val_and_modes:Tuple[Any, ConfigItem]):
+        data = {}
+        edit_modes = ConfigItemDict()
+        for v, m in val_and_modes:
+            data[m.name] = v
+            edit_modes[m.name] = m
+        self.setData(data, edit_modes)
     
     def __init__(self, master, data:Dict[str,str], edit_modes:ConfigItemDict, **kwargs):
         super().__init__(master, **kwargs)

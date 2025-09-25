@@ -8,7 +8,7 @@ import sumolib
 from v2sim import RoadNetConnectivityChecker as ELGraph
 from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy
 from fpowerkit import Grid as fGrid
-from v2sim import ConfigItemDict
+from v2sim import ConfigItemDict, ConfigItem
 from .controls import EditMode, PropertyPanel
 from .view import *
 
@@ -230,26 +230,27 @@ class NetworkPanel(Frame):
             assert self._r is not None
             assert self._g is not None
             if itm.type == "edge":
-                self._pr.setData({
-                    "Name": itm.desc, 
-                    "Has FCS": str(itm.desc in self._r.FCSNames),
-                    "Has SCS": str(itm.desc in self._r.SCSNames),
-                }, default_edit_mode=EditMode.DISABLED)
+                self._pr.setData2(
+                    (itm.desc, ConfigItem("Name", EditMode.DISABLED, "Name of the edge")),
+                    (str(itm.desc in self._r.FCSNames), ConfigItem("Has FCS", EditMode.DISABLED, "Name of the edge")),
+                    (str(itm.desc in self._r.SCSNames), ConfigItem("Has SCS", EditMode.DISABLED, "Name of the edge")),
+                )
                 self.LocateEdge(itm.desc, 'purple')
             elif itm.type in ("bus", "bustext"):
                 if itm.type == 'bustext':
                     b = self._g.Bus(_removesuffix(itm.desc,".text"))
                 else:
                     b = self._g.Bus(itm.desc)
-                self._pr.setData({
-                    "Name":b.ID,"Longitude":b.Lon,"Latitude":b.Lat,
-                    "V/pu":b.V,"Vmin/pu":b.MinV,"Vmax/pu":b.MaxV,
-                    "Pd/pu":b.Pd,"Qd/pu":b.Qd,
-                }, default_edit_mode=EditMode.ENTRY,
-                edit_modes={
-                    "Pd/pu":EditMode.SEGFUNC,
-                    "Qd/pu":EditMode.SEGFUNC,
-                })
+                self._pr.setData2(
+                    (b.ID, ConfigItem("Name", EditMode.ENTRY, "Name of the bus")),
+                    (b.Lon, ConfigItem("Longitude", EditMode.ENTRY, "Longitude of the bus.\nIf longtitude not available, set it to an X coordinate")),
+                    (b.Lat, ConfigItem("Latitude", EditMode.ENTRY, "Latitude of the bus.\nIf latitude not available, set it to a Y coordinate")),
+                    (b.V, ConfigItem("V/pu", EditMode.ENTRY, "Voltage magnitude in per unit.\nSet to None if not fixed")),
+                    (b.MinV, ConfigItem("Vmin/pu", EditMode.ENTRY, "Minimum voltage magnitude in per unit")),
+                    (b.MaxV, ConfigItem("Vmax/pu", EditMode.ENTRY, "Maximum voltage magnitude in per unit")),
+                    (b.Pd, ConfigItem("Pd/pu", EditMode.SEGFUNC, "Active power demand in per unit")),
+                    (b.Qd, ConfigItem("Qd/pu", EditMode.SEGFUNC, "Reactive power demand in per unit")),
+                )
                 self._item_editing = b
                 self._item_editing_id = clicked_item if itm.type == 'bus' else clicked_item + 1
             elif itm.type == "line":
@@ -257,13 +258,15 @@ class NetworkPanel(Frame):
                 self._pr.setData({
                     "Name":l.ID,"From Bus":l.fBus,"To Bus":l.tBus,
                     "R/pu":l.R,"X/pu":l.X,"MaxI/kA":l.max_I,"Length/km":l.L
-                }, default_edit_mode=EditMode.ENTRY,
-                edit_modes={
-                    "From Bus":EditMode.COMBO, "To Bus":EditMode.COMBO
-                }, edit_modes_kwargs={
-                    "From Bus": {"combo_values":self._g.BusNames},
-                    "To Bus": {"combo_values":self._g.BusNames}
-                })
+                }, ConfigItemDict((
+                    ConfigItem("Name", EditMode.ENTRY, "Name of the line"),
+                    ConfigItem("From Bus", EditMode.COMBO, "Sending-end bus of the line", combo_values=self._g.BusNames),
+                    ConfigItem("To Bus", EditMode.COMBO, "Receiving-end bus of the line", combo_values=self._g.BusNames),
+                    ConfigItem("R/pu", EditMode.ENTRY, "Resistance of the line in per unit"),
+                    ConfigItem("X/pu", EditMode.ENTRY, "Reactance of the line in per unit"),
+                    ConfigItem("MaxI/kA", EditMode.ENTRY, "Thermal limit of the line in kA"),
+                    ConfigItem("Length/km", EditMode.ENTRY, "Length of the line in km"),
+                )))
                 self._item_editing = l
                 self._item_editing_id = clicked_item
             elif itm.type in ("gen", "gentext", "genconn"):
@@ -275,30 +278,35 @@ class NetworkPanel(Frame):
                     "Pmax/pu":g.Pmax,"Pmin/pu":g.Pmin,
                     "Qmax/pu":g.Qmax,"Qmin/pu":g.Qmin,
                     "CostA":g.CostA,"CostB":g.CostB,"CostC":g.CostC
-                }, default_edit_mode=EditMode.SEGFUNC, desc={
-                    "CostA": "Unit = $/(pu pwr·h)^2",
-                    "CostB": "Unit = $/(pu pwr·h)",
-                    "CostC": "Unit = $"
-                }, edit_modes={
-                    "Name":EditMode.ENTRY, "Bus":EditMode.COMBO,
-                    "Longitude":EditMode.ENTRY, "Latitude":EditMode.ENTRY,
-                }, edit_modes_kwargs={
-                    "Bus": {"combo_values":self._g.BusNames}
-                })
+                }, ConfigItemDict((
+                    ConfigItem("Name", EditMode.ENTRY, "Name of the generator"),
+                    ConfigItem("Bus", EditMode.COMBO, "Bus to which the generator is connected", combo_values=self._g.BusNames),
+                    ConfigItem("Longitude", EditMode.ENTRY, "Longitude of the generator.\nIf longtitude not available, set it to an X coordinate"),
+                    ConfigItem("Latitude", EditMode.ENTRY, "Latitude of the generator.\nIf latitude not available, set it to a Y coordinate"),
+                    ConfigItem("P/pu", EditMode.ENTRY, "Active power output in per unit.\nSet to None if not fixed"),
+                    ConfigItem("Q/pu", EditMode.ENTRY, "Reactive power output in per unit.\nSet to None if not fixed"),
+                    ConfigItem("Pmax/pu", EditMode.SEGFUNC, "Maximum active power output in per unit"),
+                    ConfigItem("Pmin/pu", EditMode.SEGFUNC, "Minimum active power output in per unit"),
+                    ConfigItem("Qmax/pu", EditMode.SEGFUNC, "Maximum reactive power output in per unit"),
+                    ConfigItem("Qmin/pu", EditMode.SEGFUNC, "Minimum reactive power output in per unit"),
+                    ConfigItem("CostA", EditMode.SEGFUNC, "Quadratic cost coefficient A in $/(pu pwr·h)^2"),
+                    ConfigItem("CostB", EditMode.SEGFUNC, "Quadratic cost coefficient B in $/(pu pwr·h)"),
+                    ConfigItem("CostC", EditMode.SEGFUNC, "Quadratic cost coefficient C in $"),
+                )))
                 self._item_editing = g
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
             elif itm.type in ("pvw", "pvwtext", "pvwconn"):
                 p = self._g.PVWind(_removesuffix(_removesuffix(itm.desc,".text"), ".conn"))
-                self._pr.setData2({
-                    "Name":         (p.ID,      "Name of the PV/Wind generator"),
-                    "Bus":          (p.BusID,   "Bus to which the PV/Wind generator is connected",  EditMode.COMBO, {"combo_values":self._g.BusNames}),
-                    "Longitude":    (p.Lon,),
-                    "Latitude":     (p.Lat,),
-                    "P/pu":         (p.P,       "Active power output of the PV/Wind generator", EditMode.SEGFUNC),
-                    "Power Factor": (p.PF,      "Power Factor should be 0.0~1.0"),
-                    "Tag":          (p._tag,    "Tag should be 'PV' or 'Wind'", EditMode.COMBO, {"combo_values":['PV', 'Wind']}),
-                    "Curtail Cost": (p.CC,      "Unit = $/(pu pwr·h)"),
-                }, EditMode.ENTRY)
+                self._pr.setData2(
+                    (p.ID, ConfigItem("Name", EditMode.ENTRY, "Name of the PV/Wind generator")),
+                    (p.BusID, ConfigItem("Bus", EditMode.COMBO, "Bus to which the PV/Wind generator is connected", combo_values=self._g.BusNames)),
+                    (p.Lon, ConfigItem("Longitude", EditMode.ENTRY, "Longitude of the PV/Wind generator.\nIf longtitude not available, set it to an X coordinate")),
+                    (p.Lat, ConfigItem("Latitude", EditMode.ENTRY, "Latitude of the PV/Wind generator.\nIf latitude not available, set it to a Y coordinate")),
+                    (p.P, ConfigItem("P/pu", EditMode.SEGFUNC, "Active power output of the PV/Wind generator")),
+                    (p.PF, ConfigItem("Power Factor", EditMode.ENTRY, "Power Factor should be 0.0~1.0")),
+                    (p._tag, ConfigItem("Tag", EditMode.COMBO, "Tag should be 'PV' or 'Wind'", combo_values=['PV', 'Wind'])),
+                    (p.CC, ConfigItem("Curtail Cost", EditMode.ENTRY, "Unit = $/(pu pwr·h)")),
+                )
                 self._item_editing = p
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
             elif itm.type in ('ess', 'esstext', 'essconn'):
@@ -307,28 +315,28 @@ class NetworkPanel(Frame):
                 if cp is not None: cp /= self._g.Sb_kVA
                 dp = e._dprice
                 if dp is not None: dp /= self._g.Sb_kVA
-                self._pr.setData2({
-                    "Name":         (e.ID,      "Name of the ESS"),
-                    "Bus":          (e.BusID,   "Bus to which the ESS is connected",  EditMode.COMBO, {"combo_values":self._g.BusNames}),
-                    "Longitude":    (e.Lon,),
-                    "Latitude":     (e.Lat,),
-                    "Capacity/MWh": (e.Cap * self._g.Sb_MVA, "Maximum active power output of the ESS"),
-                    "SOC":          (e.SOC,     "State of Charge of the ESS, 0~1"),
-                    "Ec":           (e.EC,      "Charging Efficiency of the ESS"),
-                    "Ed":           (e.ED,      "Discharging Efficiency of the ESS"),
-                    "Max Pc/kW":    (e.MaxPc * self._g.Sb_kVA, "Maximum Charging Power, kW"),
-                    "Max Pd/kW":    (e.MaxPd * self._g.Sb_kVA, "Maximum Discharging Power, kW"),
-                    "Power factor": (e.PF,      "Power factor"),
-                    "Policy":       (e._policy.value, "Charging and discharging policy", EditMode.COMBO, {"combo_values":(ESSPolicy.Manual.value,ESSPolicy.Price.value,ESSPolicy.Time.value)}),
-                    "CTime":        (str(e._ctime), "Charging time if policy is time-based", EditMode.RANGELIST),
-                    "DTime":        (str(e._dtime), "Discharging time if policy is time-based", EditMode.RANGELIST),
-                    "CPrice/$/kWh": (cp,        "Charging if price is strictly below than this given price under price-based policy"),
-                    "DPrice/$/kWh": (dp,        "Discharging if price is strictly greater than this given price under price-based policy"),
-                }, EditMode.ENTRY)
+                self._pr.setData2(
+                    (e.ID, ConfigItem("Name", EditMode.ENTRY, "Name of the ESS")),
+                    (e.BusID, ConfigItem("Bus", EditMode.COMBO, "Bus to which the ESS is connected", combo_values=self._g.BusNames)),
+                    (e.Lon, ConfigItem("Longitude", EditMode.ENTRY, "Longitude of the ESS.\nIf longtitude not available, set it to an X coordinate")),
+                    (e.Lat, ConfigItem("Latitude", EditMode.ENTRY, "Latitude of the ESS.\nIf latitude not available, set it to a Y coordinate")),
+                    (e.Cap * self._g.Sb_MVA, ConfigItem("Capacity/MWh", EditMode.ENTRY, "Maximum active power output of the ESS")),
+                    (e.SOC, ConfigItem("SOC", EditMode.ENTRY, "State of Charge of the ESS, 0~1")),
+                    (e.EC, ConfigItem("Ec", EditMode.ENTRY, "Charging Efficiency of the ESS")),
+                    (e.ED, ConfigItem("Ed", EditMode.ENTRY, "Discharging Efficiency of the ESS")),
+                    (e.MaxPc * self._g.Sb_kVA, ConfigItem("Max Pc/kW", EditMode.ENTRY, "Maximum Charging Power, kW")),
+                    (e.MaxPd * self._g.Sb_kVA, ConfigItem("Max Pd/kW", EditMode.ENTRY, "Maximum Discharging Power, kW")),
+                    (e.PF, ConfigItem("Power factor", EditMode.ENTRY, "Power factor")),
+                    (e._policy.value, ConfigItem("Policy", EditMode.COMBO, "Charging and discharging policy", combo_values=[ESSPolicy.Manual.value,ESSPolicy.Price.value,ESSPolicy.Time.value])),
+                    (str(e._ctime), ConfigItem("CTime", EditMode.RANGELIST, "Charging time if policy is time-based")),
+                    (str(e._dtime), ConfigItem("DTime", EditMode.RANGELIST, "Discharging time if policy is time-based")),
+                    (cp if cp is not None else "None", ConfigItem("CPrice/$/kWh", EditMode.ENTRY, "Charging if price is strictly below than this given price under price-based policy")),
+                    (dp if dp is not None else "None", ConfigItem("DPrice/$/kWh", EditMode.ENTRY, "Discharging if price is strictly greater than this given price under price-based policy")),
+                )
                 self._item_editing = e
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
             else:
-                self._pr.setData({})
+                self._pr.setDataEmpty()
             self._pr.tree.show_title(f"Type: {itm.type} (ID = {clicked_item})")
             if itm.type in ('bus', 'gen', 'pvw', 'ess'):
                 self._drag['item'] = clicked_item
