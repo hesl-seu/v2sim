@@ -307,6 +307,12 @@ class TrafficInst:
         # Return the path and weight to the charging station with the minimum weight
         return stages[_argmin(weight)].edges, wret  # type: ignore
 
+    def __get_edge_pos(self, eid:str) -> Tuple[float, float]:
+        e:Edge = self.__rnet.getEdge(eid)
+        sp = e.getShape()
+        assert isinstance(sp, list) and len(sp) > 0
+        return sp[0][0], sp[0][1]
+    
     def __start_trip(self, veh_id: str) -> Tuple[bool, Optional[TWeights]]:
         """
         Start the current trip of a vehicle
@@ -336,10 +342,8 @@ class TrafficInst:
             else:
                 self.__add_veh2(veh_id, trip.depart_edge, trip.arrive_edge)
         else:  # Charge once on the way
-            e:Edge = self.__rnet.getEdge(trip.depart_edge)
-            sp = e.getShape()
-            assert isinstance(sp, list) and len(sp) > 0
-            route, weights = self.__sel_best_CS(veh, veh.omega, trip.depart_edge, Point(*sp[0]))
+            x, y = self.__get_edge_pos(trip.depart_edge)
+            route, weights = self.__sel_best_CS(veh, veh.omega, trip.depart_edge, Point(x, y))
             if len(route) == 0:
                 # The power is not enough to drive to any charging station, you need to charge for a while
                 veh.target_CS = None
@@ -554,9 +558,7 @@ class TrafficInst:
 
         for cs in chain(self.FCSList, self.SCSList):
             if cs._x == float('inf') or cs._y == float('inf'):
-                sp = traci.lane.getShape(cs.name + "_0")
-                assert len(sp) > 0, f"{sp}"
-                cs._x, cs._y = sp[0]
+                cs._x, cs._y = self.__get_edge_pos(cs.name)
         
         if self.FCSList._kdtree == None:
             self.FCSList._kdtree = KDTree(
