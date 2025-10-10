@@ -91,6 +91,7 @@ def get_sim_params(
             "copy_state":           args.pop_bool("copy-state"),
             "route_algo":           args.pop_str("route-algo", "CH"),
             "static_routing":       args.pop_bool("static-routing"),
+            "ignore_driving":       args.pop_bool("ignore-driving"),
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
@@ -140,6 +141,7 @@ class V2SimInstance:
         copy_state: bool = False,
         route_algo: str = "CH",
         static_routing: bool = False,
+        ignore_driving: bool = False,
     ):
         '''
         Initialization
@@ -306,6 +308,7 @@ class V2SimInstance:
             initial_state_folder = initial_state,
             routing_algo = route_algo,
             force_static_routing=static_routing,
+            ignore_driving=ignore_driving,
         )
 
         # Enable plugins
