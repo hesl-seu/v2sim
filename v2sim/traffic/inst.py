@@ -1,29 +1,23 @@
+from collections import deque
 from itertools import chain
 from pathlib import Path
-import platform, random
-import pickle, gzip
+import random
+import heapq
+import pickle
+import gzip
 from typing import Sequence, List, Tuple, Dict
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
-from feasytools import PQueue, Point#, FEasyTimer
+from sumolib.net.node import Node
+from feasytools import PQueue, Point
+from uxsim import World, Link, Vehicle
 
 from .trip import TripsLogger
 from .cslist import *
 from .ev import *
-from .win_vis import WINDOWS_VISUALIZE
-from .utils import random_string, TWeights
+from .utils import TWeights
 
-if platform.system() == "Linux":
-    import libsumo as traci
-else:  # Windows & Mac
-    if WINDOWS_VISUALIZE:
-        import traci
-    else:
-        import libsumo as traci
 
-from traci._simulation import Stage
-
-TC = traci.constants
 
 def _mean(x: Sequence[float]) -> float:
     """Calculate the mean of a list of floats."""
@@ -39,54 +33,13 @@ def _argmin(x: Iterable[float]) -> int:
             minv_i = i
     return minv_i
 
+@dataclass
+class Stage:
+    nodes: List[str]
+    travelTime: float
+    length: float
+
 class TrafficInst:
-    #@FEasyTimer
-    def __find_route(self, e1: str, e2: str) -> Stage:
-        if self.__force_static_routing: return self.__find_route_static(e1, e2)
-        ret:Stage = traci.simulation.findRoute(
-            e1, e2, routingMode=TC.ROUTING_MODE_AGGREGATED
-        )
-        if len(ret.edges) == 0:
-            if SUPPRESS_ROUTE_NOT_FOUND:
-                ret = Stage(edges=[e1,e2], length=1e9, travelTime=1e9)
-                print(Lang.ERROR_ROUTE_NOT_FOUND.format(e1, e2))
-            else:
-                raise RuntimeError(Lang.ERROR_ROUTE_NOT_FOUND.format(e1, e2))
-        return ret
-
-    def __find_route_trip(self, t: Trip, cache_route:bool = False) -> Stage:
-        if t.fixed_route:
-            einst:List[Edge] = [self.__rnet.getEdge(e) for e in t.route]
-            k = (t.route[0], t.route[-1])
-            st = Stage(
-                edges = t.route,
-                length = sum(e.getLength() for e in einst),
-                travelTime = sum(e.getLength() / e.getSpeed() for e in einst),
-            )
-            self.__shortest_paths[k] = st
-            return st
-        else:
-            st = self.__find_route(t.route[0], t.route[-1])
-            if cache_route:
-                t.route = st.edges
-            return st
-    
-    def __find_route_static(self, e1: str, e2: str) -> Stage:
-        k = (e1, e2)
-        if k not in self.__shortest_paths:
-            stage:Stage = traci.simulation.findRoute(
-                e1, e2, routingMode=TC.ROUTING_MODE_DEFAULT
-            )
-            if len(stage.edges) == 0:
-                if SUPPRESS_ROUTE_NOT_FOUND:
-                    stage = Stage(edges=[e1,e2], length=1e9, travelTime=1e9)
-                    print(Lang.ERROR_ROUTE_NOT_FOUND.format(e1, e2))
-                else:
-                    raise RuntimeError(Lang.ERROR_ROUTE_NOT_FOUND.format(e1, e2))
-            else:
-                self.__shortest_paths[k] = stage
-        return self.__shortest_paths[k]
-
     def __init__(
         self,
         road_net_file: str,
@@ -99,9 +52,6 @@ class TrafficInst:
         fcsfile: str, fcs_obj:Optional[CSList] = None,
         scsfile: str, scs_obj:Optional[CSList] = None,
         initial_state_folder: str = "",
-        routing_algo:str = "CH",
-        force_static_routing:bool = False,
-        ignore_driving:bool = False,
     ):
         """
         TrafficInst initialization
@@ -117,16 +67,10 @@ class TrafficInst:
             routing_algo: Routing algorithm
             force_static_routing: Always use static routing to accelerate
             ignore_driving: Skip the battery update during driving, 
-                only update the battery at origin and destination of a trip
         """
         random.seed(seed)
-        self.__gui = None
         self.__logger = TripsLogger(clogfile)
-        self.__ralgo = routing_algo
-        self.__ignore_driving = ignore_driving
-        assert self.__ralgo in ["CH", "dijkstra", "astar", "CHWrapper"], f"Invalid routing algorithm: {self.__ralgo}"
         
-        self.__force_static_routing = force_static_routing
         self.__vehfile = vehfile
         self.__fcsfile = fcsfile
         self.__scsfile = scsfile
@@ -141,18 +85,16 @@ class TrafficInst:
         # Get all road names
         self.__names: List[str] = [e.getID() for e in self.__edges]
 
-        # Load static shortest paths
-        self.__shortest_paths: Dict[Tuple[str,str], Stage] = {}
-
         self.__istate_folder = initial_state_folder
 
         if self.__istate_folder != "":
-            self.__load_v2sim_state(self.__istate_folder)
+            self.load_state(self.__istate_folder)
             return
         
         # Load vehicles
         self._fQ = PQueue()  # Fault queue
         self._que = PQueue()  # Departure queue
+        self._aQ = deque()  # Arrival queue
         self._VEHs = veh_obj if veh_obj else EVDict(vehfile)
 
         # Load charging stations
@@ -160,16 +102,61 @@ class TrafficInst:
         self._scs:CSList[SCS] = scs_obj if scs_obj else CSList(self._VEHs, filePath=scsfile, csType=SCS)
         self.__names_fcs: List[str] = [cs.name for cs in self._fcs]
         self.__names_scs: List[str] = [cs.name for cs in self._scs]
+        
+        # Create uxsim world
+        self.W = World(tmax = self.__etime, deltan = self.__step_len, name = Path(road_net_file).stem, random_seed=seed)
+        self._uvi:Dict[str, Vehicle] = {}
 
+        self.nodes:Dict[str, Node] = {n.getID(): n for n in self.__rnet.getNodes()}
+        for u in self.nodes.values():
+            x, y = u.getCoord()
+            self.W.addNode(name = u.getID(), x = x, y = y)
+        
+        self.gl:Dict[str, List[Tuple[str, str, Link]]] = {nid: [] for nid in self.nodes}
+        self.edges_dict:Dict[str, Edge] = {e.getID(): e for e in self.__rnet.getEdges()}
+        for e in self.edges_dict.values():
+            en:str = e.getID()
+            fr:Node = e.getFromNode()
+            frn:str = fr.getID()
+            to:Node = e.getToNode()
+            ton:str = to.getID()
+            link = self.W.addLink(name = en, start_node = frn, end_node = ton,
+                length = e.getLength(), free_flow_speed = e.getSpeed(), number_of_lanes = e.getLaneNumber())
+            self.gl[frn].append((ton, en, link))
+        
         # Load vehicles to charging stations and prepare to depart
         for veh in self._VEHs.values():
             self._que.push(veh.trip.depart_time, veh.ID)
-            if veh.trip.depart_edge not in self.__names_scs:
+            if veh.trip.from_node not in self.__names_scs:
                 continue  # Only vehicles with slow charging stations can be added to the slow charging station
             # There is a 20% chance of adding to a rechargeable parking point
             if veh.SOC < veh.ksc or random.random() <= 0.2:
-                self._scs.add_veh(veh.ID, veh.trip.depart_edge)
+                self._scs.add_veh(veh.ID, veh.trip.from_node)
 
+    def find_route(self, from_node: str, to_node: str) -> Stage:
+        """
+        Use heap-optimized Dijkstra algorithm to find the shortest time route from from_node to to_node.
+        """
+        heap = [(0, 0, from_node, [from_node])]
+        visited = set()
+        min_time = {from_node: 0}
+        while heap:
+            cur_time, cur_len, cur_node, path = heapq.heappop(heap)
+            if cur_node in visited:
+                continue
+            visited.add(cur_node)
+            if cur_node == to_node:
+                return Stage(path, cur_time, cur_len)
+            for neighbor, _, link in self.gl[cur_node]:
+                if neighbor in visited:
+                    continue
+                next_time = cur_time + link.instant_travel_time(self.__ctime)
+                next_len = cur_len + link.length
+                if neighbor not in min_time or next_time < min_time[neighbor]:
+                    min_time[neighbor] = next_time
+                    heapq.heappush(heap, (next_time, next_len, neighbor, path + [neighbor]))
+        return Stage([], float('inf'), float('inf'))
+    
     @property
     def trips_logger(self) -> TripsLogger:
         """Trip logger"""
@@ -224,23 +211,17 @@ class TrafficInst:
     def vehicles(self) -> EVDict:
         """Vehicle dictionary, key is vehicle ID, value is EV instance"""
         return self._VEHs
-
-    def __add_veh(self, veh_id: str, route: List[str]):
-        self._VEHs[veh_id].clear_odometer()
-        rou_id = random_string(16)
-        traci.route.add(rou_id, route)
-        traci.vehicle.add(veh_id, rou_id)
     
-    def __add_veh2(self, veh_id:str, st_edge:str, ed_edge:str, agg_routing:bool = False):
+
+    def __add_veh2(self, veh_id:str, from_node:str, to_node:str):
         self._VEHs[veh_id].clear_odometer()
-        try:
-            traci.vehicle.add(veh_id, "")
-            traci.vehicle.setRoute(veh_id, [st_edge])
-            if agg_routing:
-                traci.vehicle.setRoutingMode(veh_id, TC.ROUTING_MODE_AGGREGATED)
-            traci.vehicle.changeTarget(veh_id, ed_edge)
-        except Exception as e:
-            raise RuntimeError(f"(Time = {self.__ctime})Fail to add vehicle '{veh_id}' into SUMO: {st_edge}->{ed_edge}") from e
+        tn = self.W.get_node(to_node)
+        v = self.W.addVehicle(orig=from_node, dest=to_node, departure_time=self.__ctime, name=veh_id)
+        def __add_to_arrQ():
+            self._aQ.append(veh_id)
+        v.node_event[tn] = __add_to_arrQ
+        self._uvi[veh_id] = v
+
 
     @property
     def edges(self) -> List[Edge]:
@@ -257,7 +238,8 @@ class TrafficInst:
         return self.__names
     
     def __sel_best_CS(
-        self, veh: EV, omega: float, current_edge: Optional[str] = None, cur_pos: Optional[Point] = None
+        self, veh: EV, omega: float, current_node: Optional[str] = None, 
+        current_edge: Optional[str] = None, cur_pos: Optional[Point] = None
     ) -> Tuple[List[str], TWeights]:
         """
         Select the nearest available charging station based on the edge where the car is currently located, and return the path and average weight
@@ -269,11 +251,24 @@ class TrafficInst:
             If no charging station is found, return [],(-1,-1,-1)
         """
         to_charge = veh.charge_target - veh.battery
-        c_edge = (
-            traci.vehicle.getRoadID(veh.ID) if current_edge is None else current_edge
-        )
-
-        cur_pos = (traci.vehicle.getPosition(veh.ID) if cur_pos is None else cur_pos)
+        
+        if current_node is None:
+            if veh.ID not in self._uvi:
+                raise RuntimeError(f"Vehicle {veh.ID} not found in simulator")
+            if current_edge is None:
+                link:Optional[Link] = self._uvi[veh.ID].link
+            else:
+                link = self.W.get_link(current_edge)
+            if link is None:
+                raise RuntimeError(f"Vehicle {veh.ID} has no current link")
+            current_node = link.end_node.name
+        assert isinstance(current_node, str)
+        
+        if cur_pos is None:
+            if veh.ID not in self._uvi:
+                raise RuntimeError(f"Vehicle {veh.ID} not found in simulator")
+            x, y = self._uvi[veh.ID].get_xy_coords()
+            cur_pos = Point(x, y)
 
         # Distance check
         cs_names: List[str] = []
@@ -284,7 +279,7 @@ class TrafficInst:
         for cs_i in self._fcs.select_near(cur_pos,10):
             cs = self._fcs[cs_i]
             if not cs.is_online(self.__ctime): continue
-            stage = self.__find_route(c_edge, cs.name)
+            stage = self.find_route(current_node, cs.name)
             if veh.is_batt_enough(stage.length):
                 cs_names.append(cs.name)
                 veh_cnt.append(cs.veh_count())
@@ -305,13 +300,7 @@ class TrafficInst:
 
         wret = (_mean(t_drive), _mean(t_wait), _mean(prices))
         # Return the path and weight to the charging station with the minimum weight
-        return stages[_argmin(weight)].edges, wret  # type: ignore
-
-    def __get_edge_pos(self, eid:str) -> Tuple[float, float]:
-        e:Edge = self.__rnet.getEdge(eid)
-        sp = e.getShape()
-        assert isinstance(sp, list) and len(sp) > 0
-        return sp[0][0], sp[0][1]
+        return stages[_argmin(weight)].nodes, wret
     
     def __start_trip(self, veh_id: str) -> Tuple[bool, Optional[TWeights]]:
         """
@@ -327,7 +316,7 @@ class TrafficInst:
         direct_depart = True
 
         if ENABLE_DIST_BASED_CHARGING_DECISION:
-            stage = self.__find_route_trip(trip, veh._cache_route)
+            stage = self.find_route(trip.from_node, trip.to_node)
             # Determine whether the battery is sufficient
             direct_depart = veh.is_batt_enough(stage.length)
         else:
@@ -337,23 +326,21 @@ class TrafficInst:
         if direct_depart:  # Direct departure
             veh.target_CS = None
             veh.charge_target = veh.full_battery
-            if stage:
-                self.__add_veh(veh_id, stage.edges)
-            else:
-                self.__add_veh2(veh_id, trip.depart_edge, trip.arrive_edge)
+            self.__add_veh2(veh_id, trip.from_node, trip.to_node)
         else:  # Charge once on the way
-            x, y = self.__get_edge_pos(trip.depart_edge)
-            route, weights = self.__sel_best_CS(veh, veh.omega, trip.depart_edge, Point(x, y))
+            x, y = self.__rnet.getNode(trip.from_node).getCoord()
+            route, weights = self.__sel_best_CS(veh, veh.omega, 
+                current_node = trip.from_node, cur_pos = Point(x, y))
             if len(route) == 0:
                 # The power is not enough to drive to any charging station, you need to charge for a while
                 veh.target_CS = None
                 return False, None
             else: # Found a charging station
                 veh.target_CS = route[-1]
-                self.__add_veh(veh_id, route)
+                self.__add_veh2(veh_id, trip.from_node, trip.to_node)
         # Stop slow charging of the vehicle and add it to the waiting to depart set
         if self._scs.pop_veh(veh_id):
-            self.__logger.leave_SCS(self.__ctime, veh, trip.depart_edge)
+            self.__logger.leave_SCS(self.__ctime, veh, trip.from_node)
         veh.stop_charging()
         veh.status = VehStatus.Pending
         return True, weights
@@ -388,12 +375,12 @@ class TrafficInst:
         """
         ret = False
         try:
-            self._scs.add_veh(veh.ID, veh.trip.arrive_edge)
+            self._scs.add_veh(veh.ID, veh.trip.to_node)
             ret = True
         except:
             pass
         if ret:
-            self.__logger.join_SCS(self.__ctime, veh, veh.trip.arrive_edge)
+            self.__logger.join_SCS(self.__ctime, veh, veh.trip.to_node)
         return ret
 
     def __start_charging_FCS(self, veh: EV):
@@ -406,7 +393,7 @@ class TrafficInst:
         if ENABLE_DIST_BASED_CHARGING_QUANTITY:
             ch_tar = (
                 veh.consumption
-                * self.__find_route_static(veh.target_CS, veh.trip.arrive_edge).length
+                * self.find_route(veh.target_CS, veh.trip.to_node).length
             )
             if ch_tar > veh.full_battery:
                 # Even if the battery is fully charged mid-way, the vehicle is still not able to reach the destination
@@ -431,7 +418,7 @@ class TrafficInst:
         trip = veh.trip
         self.__logger.depart_CS(self.__ctime, veh, veh.target_CS)
         
-        self.__add_veh2(veh.ID, veh.target_CS, trip.arrive_edge)
+        self.__add_veh2(veh.ID, veh.target_CS, trip.to_node)
         veh.target_CS = None
         veh.charge_target = veh.full_battery
         veh.status = VehStatus.Pending
@@ -448,7 +435,7 @@ class TrafficInst:
         min_cs_dist = 1e400
         min_cs_stage = None
         for cs in self._fcs.get_online_CS_names(self.__ctime):
-            route = self.__find_route(cur_edge, cs)
+            route = self.find_route(cur_edge, cs)
             if route.length < min_cs_dist:
                 min_cs_dist = route.length
                 min_cs_name = cs
@@ -474,7 +461,7 @@ class TrafficInst:
                 self.__logger.depart(self.__ctime, veh, depart_delay, veh.target_CS, weights)
                 ret[veh_id] = weights
             else:
-                cs_name, cs_dist, cs_stage = self.__get_nearest_CS(trip.depart_edge)
+                cs_name, cs_dist, cs_stage = self.__get_nearest_CS(trip.from_node)
                 batt_req = cs_dist * veh.consumption * veh.krel
                 if self._scs.has_veh(veh.ID):
                     # Plugged in the charging pile, you can wait
@@ -527,7 +514,7 @@ class TrafficInst:
         sumocfg_file: str,
         net_file: str,
         start_time: Optional[int] = None,
-        gui: bool = True,
+        gui: bool = False,
     ):
         """
         Start simulation
@@ -535,30 +522,15 @@ class TrafficInst:
             start_time: Start time (seconds), if not specified, provided by the SUMO configuration file
             gui: Whether to display the graphical interface
         """
-        self.__gui = gui
-        sumoCmd = [
-            "sumo-gui" if self.__gui else "sumo",
-            "-c", sumocfg_file,
-            "-n", net_file,
-            "--no-warnings",
-            "--routing-algorithm", self.__ralgo,
-            # Keep the vehicle in the network for a exactly one step after arriving at the destination
-            "--keep-after-arrival", str(self.__step_len),
-        ]
-        if start_time is not None:
-            sumoCmd.extend(["-b", str(start_time)])
-        traci.start(sumoCmd)
-
-        if self.__istate_folder:
-            self.__load_sumo_state(self.__istate_folder)
-            self.__istate_folder = ""
         
-        self.__ctime = int(traci.simulation.getTime())
+        self.__ctime = self.__stime if start_time is None else start_time
+        self.W.exec_simulation(until_t=self.__ctime)
+        
         self.__batch_depart()
 
         for cs in chain(self.FCSList, self.SCSList):
             if cs._x == float('inf') or cs._y == float('inf'):
-                cs._x, cs._y = self.__get_edge_pos(cs.name)
+                cs._x, cs._y = self.__rnet.getNode(cs.name).getCoord()
         
         if self.FCSList._kdtree == None:
             self.FCSList._kdtree = KDTree(
@@ -578,8 +550,8 @@ class TrafficInst:
             step_len: Step length (seconds)
             v2g_demand: V2G demand list (kWh/s)
         """
-        traci.simulationStep(float(self.__ctime + step_len))
-        new_time = int(traci.simulation.getTime())
+        new_time = self.__ctime + step_len
+        self.W.exec_simulation(new_time)
         deltaT = new_time - self.__ctime
         self.__ctime = new_time
         
@@ -589,59 +561,20 @@ class TrafficInst:
         self.__batch_depart()
 
         # Process arrived vehicles
-        arr_vehs: List[str] = traci.simulation.getArrivedIDList()
-        for v in arr_vehs:
+        while self._aQ:
+            v = self._aQ.popleft()
             veh = self._VEHs[v]
-            veh.drive(traci.vehicle.getDistance(v))
+            v0 = self._uvi[v]
+            v0.node_event.clear() # Trigger only once
+            route, timepoint = v0.traveled_route()
+            dist = sum(link.length for link in route.links)
+            veh.drive(dist)
             if veh.target_CS is None:
                 self.__end_trip(v)
             else:
                 self.__start_charging_FCS(self._VEHs[v])
-
-        if self.__ignore_driving:
-            # Process departed vehicles
-            dep_vehs: List[str] = traci.simulation.getDepartedIDList()
-            for v in dep_vehs:
-                veh = self._VEHs[v]
-                if veh._sta == VehStatus.Pending:
-                    veh._sta = VehStatus.Driving
-        else:
-            # Process driving vehicles
-            cur_vehs: List[str] = traci.vehicle.getIDList()
-            for veh_id in cur_vehs:
-                veh = self._VEHs[veh_id]
-                veh.drive(traci.vehicle.getDistance(veh_id))
-                if veh._elec <= 0:
-                    # Vehicles with depleted batteries will be sent to the nearest fast charging station (time * 2)
-                    veh._sta = VehStatus.Depleted
-                    cur_edge = traci.vehicle.getRoadID(veh_id)
-                    veh._cs, _, cs_stage = self.__get_nearest_CS(cur_edge)
-                    assert cs_stage is not None and veh.target_CS is not None
-                    trT = int(self.__ctime + 2 * cs_stage.travelTime)
-                    self._fQ.push(trT, veh_id)
-                    traci.vehicle.remove(veh_id)
-                    self.__logger.fault_deplete(self.__ctime, veh, veh.target_CS, trT)
-                    continue
-                if veh._sta == VehStatus.Pending:
-                    veh._sta = VehStatus.Driving
-                if veh._sta == VehStatus.Driving:
-                    if veh.target_CS is not None and not self._fcs[veh.target_CS].is_online(self.__ctime):
-                        # Target FCS is offline, redirected to the nearest FCS
-                        route, weights = self.__sel_best_CS(veh, veh.omega)
-                        if len(route) == 0:  
-                            # The power is not enough to drive to any charging station, remove from the network
-                            veh._sta = VehStatus.Depleted
-                            traci.vehicle.remove(veh_id)
-                            self._fQ.push(self.__ctime, veh_id)
-                            self.__logger.fault_nocharge(self.__ctime, veh, veh.target_CS)
-                            veh.target_CS = None
-                        else:  # Found the charging station
-                            new_cs = route[-1]
-                            traci.vehicle.setRoute(veh_id, route)
-                            self.__logger.fault_redirect(self.__ctime, veh, veh.target_CS, new_cs)
-                            veh.target_CS = new_cs
-                else:
-                    print(f"Error: {veh.brief()}, {veh._sta}")
+            self.W.VEHICLES.pop(v)
+            self._uvi.pop(v)
 
         # Process vehicles in charging stations and parked vehicles
         self.__FCS_update(deltaT)
@@ -653,9 +586,6 @@ class TrafficInst:
             self.__start_charging_FCS(self._VEHs[v])
 
     def simulation_stop(self):
-        if self.__gui is None:
-            raise RuntimeError("Simulation has not started. Call 'simulation_start' first.")
-        traci.close()
         self.__logger.close()
     
     def save_state(self, folder: str):
@@ -665,21 +595,25 @@ class TrafficInst:
         """
         f = Path(folder)
         f.mkdir(parents=True, exist_ok=True)
-        traci.simulation.saveState(str(f / "traffic.xml.gz"))
         with gzip.open(str(f / "inst.gz"), "wb") as f:
             pickle.dump({
                 "ctime":self.__ctime,
                 "fQ":self._fQ,
+                "aQ":self._aQ,
                 "que":self._que,
                 "VEHs":self._VEHs,
                 "fcs":self._fcs,
                 "scs":self._scs,
                 "names_fcs":self.__names_fcs,
                 "names_scs":self.__names_scs,
+                "W":self.W,
             }, f)
         
-    
-    def __load_v2sim_state(self, folder: str):
+    def load_state(self, folder: str):
+        """
+        Load the state of the simulation
+            folder: Folder path
+        """
         inst = Path(folder) / "inst.gz"
         if not inst.exists():
             raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(inst))
@@ -687,27 +621,12 @@ class TrafficInst:
             d = pickle.load(f)
         self.__ctime = d["ctime"]
         self._fQ = d["fQ"]
+        self._aQ = d["aQ"]
         self._que = d["que"]
         self._VEHs = d["VEHs"]
         self._fcs = d["fcs"]
         self._scs = d["scs"]
         self.__names_fcs = d["names_fcs"]
         self.__names_scs = d["names_scs"]
-    
-    def __load_sumo_state(self, folder: str):
-        traffic = Path(folder) / "traffic.xml.gz"
-        if not traffic.exists():
-            raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(traffic))
-        traci.simulation.loadState(str(traffic))
-        #cur_vehs = traci.vehicle.getIDList()
-        #for veh_id in cur_vehs:
-        #    traci.vehicle.subscribe(veh_id, (TC.VAR_DISTANCE,))
-
-    def load_state(self, folder: str):
-        """
-        Load the state of the simulation
-            folder: Folder path
-        """
-        self.__load_v2sim_state(folder)
-        self.__load_sumo_state(folder)
+        self.W = d["W"]
         

@@ -1,7 +1,7 @@
 from typing import DefaultDict, List, Dict, Set, Tuple
 import threading
 import sumolib
-from feasytools import EdgeFinder, Point
+from feasytools import Point, KDTree
 Net = sumolib.net.Net
 Edge = sumolib.net.edge.Edge
 Node = sumolib.net.node.Node
@@ -80,39 +80,39 @@ class RoadNetConnectivityChecker:
         self._fcs_names = set() if fcs_file == "" else LoadFCS(fcs_file)
         self._scs_names = set() if scs_file == "" else LoadSCS(scs_file)
         self._cs_names = self._fcs_names.union(self._scs_names)
-        self.all_edges:List[Edge] = self._net.getEdges()
-        self.all_edgeIDs:List[str] = [e.getID() for e in self.all_edges]
-        self._id2num:Dict[str, int] = {e:i for i,e in enumerate(self.all_edgeIDs)}
-        gl:List[List[int]] = [[] for _ in range(len(self.all_edges))]
-        for e in self.all_edges:
-            e: Edge
-            if not e.allows("passenger"): continue
-            ret: Dict[Edge, List[Conn]] = e.getAllowedOutgoing("passenger")
-            u = self._id2num[e.getID()]
-            gl[u] = [self._id2num[edge.getID()] for edge in ret.keys()]
+        self.all_nodes:List[Node] = self._net.getNodes()
+        self.all_nodeIDs:List[str] = [e.getID() for e in self.all_nodes]
+        self._id2num:Dict[str, int] = {e:i for i,e in enumerate(self.all_nodeIDs)}
+        gl:List[List[int]] = [[] for _ in range(len(self.all_nodes))]
+        for nd in self.all_nodes:
+            u = self._id2num[nd.getID()]
+            gl[u] = [self._id2num[neighbor.getToNode().getID()] for neighbor in nd.getOutgoing()]
         
-        tscc = _TarjanSCC(n=len(self.all_edges), gl=gl)
+        tscc = _TarjanSCC(n=len(self.all_nodes), gl=gl)
         _largeStackExec(tscc.get_scc)
         assert tscc.max_scc is not None
 
-        self.edgeIDs:List[str] = [self.all_edgeIDs[x] for x in tscc.max_scc]
-        self.edges:List[Edge] = [self._net.getEdge(e) for e in self.edgeIDs]
+        self.nodeIDs:List[str] = [self.all_nodeIDs[x] for x in tscc.max_scc]
+        self.nodes:List[Node] = [self._net.getNode(e) for e in self.nodeIDs]
         
-        self.edgeIDset:Set[str] = set(self.edgeIDs)
+        self.nodeIDset:Set[str] = set(self.nodeIDs)
         bad_fcs:Set[str] = set()
         bad_scs:Set[str] = set()
         for e in self._net.getEdges():
             eid:str = e.getID()
-            if eid in self._fcs_names and eid not in self.edgeIDset:
+            if eid in self._fcs_names and eid not in self.nodeIDset:
                 bad_fcs.add(eid)
-            if eid in self._scs_names and eid not in self.edgeIDset:
+            if eid in self._scs_names and eid not in self.nodeIDset:
                 bad_scs.add(eid)
         self.unreachable_CS = bad_fcs.union(bad_scs)
 
-        self.__edge_finder = EdgeFinder({e.getID():e.getShape() for e in self.edges}) # type: ignore
+        self.__node_finder = KDTree(
+            points=[Point(*self.get_node_pos(nd.getID())) for nd in self.all_nodes],
+            labels=[nd.getID() for nd in self.all_nodes]
+        )
 
     def checkBadCS(self, display:bool = True) -> bool:
-        '''Check if there are any CS edges that are not in the largest strongly connected component'''
+        '''Check if there are any CS nodes that are not in the largest strongly connected component'''
         if len(self.unreachable_CS) > 0:
             if display: print(Lang.WARN_CS_NOT_IN_SCC.format(self.unreachable_CS))
             return False
@@ -120,50 +120,42 @@ class RoadNetConnectivityChecker:
 
     def checkSCCSize(self, display:bool = True) -> bool:
         '''Check if the size of the largest strongly connected component is large enough'''
-        if len(self.edgeIDs) < 0.8 * len(self.all_edges):
-            if display: print(Lang.WARN_SCC_TOO_SMALL.format(len(self.edgeIDs), len(self.all_edges)))
+        if len(self.nodeIDs) < 0.8 * len(self.all_nodes):
+            if display: print(Lang.WARN_SCC_TOO_SMALL.format(len(self.nodeIDs), len(self.all_nodes)))
             return False
         return True
     
-    def find_nearest_edge_id(self, point: Point, threshold_m:float=1000) -> str:
+    def find_nearest_node_id(self, point: Point, threshold_m:float=1000) -> str:
         '''
-        Find the nearest edge ID to the given point.
+        Find the nearest node ID to the given point.
         If the distance is greater than threshold_m, raise a RuntimeError.
         '''
-        dist, edge_id = self.__edge_finder.find_nearest_edge(point)
+        node_id, dist = self.__node_finder.nearest_mapped_with_distance(point)
         if dist > threshold_m:
             raise RuntimeError(str(dist))
-        return edge_id
+        return node_id
     
-    def get_edge_pos(self, edge:str):
+    def get_node_pos(self, node:str):
         '''
-        Get the position of the edge in the road network.
-        The position is the average of the shape of the edge.
+        Get the position of the node in the road network.
+        The position is the average of the shape of the node.
         '''
-        e:Edge = self._net.getEdge(edge)
-        shp = e.getShape()
-        assert shp is not None
-        sx = sy = 0
-        for (x,y) in shp:
-            sx += x; sy+= y
-        sx /= len(shp); sy /= len(shp)
-        assert isinstance(sx, (float,int))
-        assert isinstance(sy, (float,int))
-        return sx, sy
+        nd:Node = self._net.getNode(node)
+        return nd.getCoord()
     
     @property
     def FCSNames(self) -> Set[str]:
-        '''Return the set of FCS edge names'''
+        '''Return the set of FCS node names'''
         return self._fcs_names
     
     @property
     def SCSNames(self) -> Set[str]:
-        '''Return the set of SCS edge names'''
+        '''Return the set of SCS node names'''
         return self._scs_names
 
     @property
     def CSNames(self) -> Set[str]:
-        '''Return the set of CS edge names'''
+        '''Return the set of CS node names'''
         return self._cs_names
     
     @property
@@ -172,33 +164,33 @@ class RoadNetConnectivityChecker:
         return self._net
     
     @property
-    def EdgeIDs(self):
-        '''List of edge IDs in the largest strongly connected component'''
-        return self.edgeIDs
+    def NodeIDs(self):
+        '''List of node IDs in the largest strongly connected component'''
+        return self.nodeIDs
 
     @property
-    def EdgeIDSet(self):
-        '''List of edge IDs in the largest strongly connected component'''
-        return self.edgeIDset
+    def NodeIDSet(self):
+        '''List of node IDs in the largest strongly connected component'''
+        return self.nodeIDset
     
     @property
-    def AllEdgeIDs(self):
-        '''List of all edge IDs in the road network'''
-        return self.all_edgeIDs
+    def AllNodeIDs(self):
+        '''List of all node IDs in the road network'''
+        return self.all_nodeIDs
     
     @property
-    def Edges(self):
-        '''List of edges in the largest strongly connected component'''
-        return self.edges
+    def Nodes(self):
+        '''List of nodes in the largest strongly connected component'''
+        return self.nodes
     
     @property
-    def AllEdges(self):
-        '''List of all edges in the road network'''
-        return self.all_edges
-    
+    def AllNodes(self):
+        '''List of all nodes in the road network'''
+        return self.all_nodes
+
     @property
     def BadCS(self):
-        '''CS edges that are not in the largest strongly connected component'''
+        '''CS nodes that are not in the largest strongly connected component'''
         return self.unreachable_CS
 
 PointList = List[Tuple[float, float]]

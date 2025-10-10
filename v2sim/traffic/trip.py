@@ -88,7 +88,7 @@ class TripsLogger:
             nt = veh.trips[tid + 1]
         else:
             nt = None
-        self.__pr(simT, 'A', veh.brief(), status, veh.trip.arrive_edge, nt)
+        self.__pr(simT, 'A', veh.brief(), status, veh.trip.to_node, nt)
         for l in self.__arrive_listeners:
             l(simT, veh, status)
 
@@ -124,7 +124,7 @@ class TripsLogger:
             l(simT, veh, batt_req, delay)
     
     def depart_FCS(self, simT: int, veh: EV, cs: str):
-        self.__pr(simT, 'DC', veh.brief(), cs, veh.trip.arrive_edge)
+        self.__pr(simT, 'DC', veh.brief(), cs, veh.trip.to_node)
         for l in self.__depart_cs_listeners:
             l(simT, veh, cs)
     

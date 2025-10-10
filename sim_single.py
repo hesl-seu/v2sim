@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Dict, Optional
 from v2sim import (
     Lang, PluginPool, StaPool,
-    WINDOWS_VISUALIZE,
     load_external_components,
     simulate_single,
     get_sim_params,
@@ -69,7 +68,7 @@ def work(pars:Optional[dict] = None, clntID:int = -1, q=None, alt:Optional[Dict[
             if "show" in args.keys():
                 print(Lang.WARN_MAIN_SHOW_MEANINGLESS)
                 args.pop_bool("show")
-            visible = WINDOWS_VISUALIZE
+            visible = False
         else:
             visible = args.pop_bool("show")
 

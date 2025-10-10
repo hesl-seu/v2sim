@@ -28,7 +28,7 @@ class TripsGenMode(Enum):
     """Generation mode"""
 
     AUTO = "Auto"  # Automatic
-    TAZ = "TAZ"  # TAZ-based
+    TYPE = "TYPE"  # Type-based
     POLY = "Poly"  # Polygon-based
 
     def __str__(self):
@@ -54,46 +54,35 @@ class EVsGenerator:
         # Define various functional area types
         self._route_cache_mode = route_cache
         self.__route_cache:Dict[Tuple[str,str], List[str]] = {}
-        self.dic_taz = {}
         self.net:sumolib.net.Net = sumolib.net.readNet(_fn["net"])
         if mode == TripsGenMode.AUTO:
-            if _fn.taz and _fn.taz_type: mode = TripsGenMode.TAZ
+            if _fn.node_type: mode = TripsGenMode.TYPE
             elif _fn.poly and _fn.net and _fn.fcs: mode = TripsGenMode.POLY
             else: raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
-        if mode == TripsGenMode.TAZ:
-            assert _fn.taz and _fn.taz_type, Lang.ERROR_NO_TAZ_OR_POLY
-            self._mode = "taz"
-            self.dic_taztype = {}
-            with open(_fn.taz_type, "r") as fp:
+        if mode == TripsGenMode.TYPE:
+            assert _fn.node_type, Lang.ERROR_NO_TAZ_OR_POLY
+            self._mode = "type"
+            self.dic_nodetype = {}
+            with open(_fn.node_type, "r") as fp:
                 for ln in fp.readlines():
                     name, lst = ln.split(":")
-                    self.dic_taztype[name.strip()] = [x.strip() for x in lst.split(",")]
-            root = ReadXML(_fn.taz).getroot()
-            if root is None: raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
-            for taz in root.findall("taz"):
-                taz_id = taz.attrib["id"]
-                if "edges" in taz.attrib:
-                    self.dic_taz[taz_id] = taz.attrib["edges"].split(" ")
-                else:
-                    self.dic_taz[taz_id] = [edge.attrib["id"] for edge in taz.findall("tazSource")]
+                    self.dic_nodetype[name.strip()] = [x.strip() for x in lst.split(",")]
         elif mode == TripsGenMode.POLY:
             assert _fn.poly and _fn.net and _fn.fcs, Lang.ERROR_NO_TAZ_OR_POLY
             self._mode = "poly"
             from .graph import RoadNetConnectivityChecker
             net = RoadNetConnectivityChecker(_fn.net, _fn.fcs)
             polys = PolygonMan(_fn.poly)
-            self.dic_taztype = {k:[] for k in TAZ_TYPE_LIST}
+            self.dic_nodetype = {k:[] for k in TAZ_TYPE_LIST}
             for poly in polys:
-                taz_id = poly.ID
-                taz_type = poly.getConvertedType()
+                poly_type = poly.getConvertedType()
                 poi_pos = poly.center()
-                if taz_type:
+                if poly_type:
                     try:
-                        eid = net.find_nearest_edge_id(poi_pos)
+                        node_id = net.find_nearest_node_id(poi_pos)
                     except RuntimeError:
                         continue
-                    self.dic_taztype[taz_type].append(taz_id)
-                    self.dic_taz[taz_id] = [eid]
+                    self.dic_nodetype[poly_type].append(node_id)
         else:
             raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
         
@@ -163,38 +152,8 @@ class EVsGenerator:
         cdf = self.__getPs(weekday, from_type, init_time_i)
         return "Home" if cdf is None else TAZ_TYPE_LIST[cdf.sample()]
 
-    def __getNextTAZandPlace(self, from_TAZ:str, from_EDGE:str, next_place_type:str) -> Tuple[str,str,List[str]]:
-        trial = 0
-        while True:
-            if self._mode == "taz":
-                to_TAZ = random.choice(self.dic_taztype[next_place_type])
-                assert to_TAZ in self.dic_taz, f"TAZ {to_TAZ} not found in TAZ dictionary"
-                to_EDGE = random_diff(self.dic_taz[to_TAZ], from_EDGE)
-            else: # self._mode == "diff"
-                to_TAZ = random_diff(self.dic_taztype[next_place_type], from_TAZ)
-                assert to_TAZ in self.dic_taz, f"TAZ {to_TAZ} not found in TAZ dictionary"
-                to_EDGE = random.choice(self.dic_taz[to_TAZ])
-            if from_EDGE != to_EDGE:
-                if self._route_cache_mode == RoutingCacheMode.STATIC:
-                    if (from_EDGE, to_EDGE) in self.__route_cache:
-                        route = self.__route_cache[from_EDGE, to_EDGE]
-                    else:
-                        route0, _ = self.net.getFastestPath(
-                            self.net.getEdge(from_EDGE),
-                            self.net.getEdge(to_EDGE)
-                        )
-                        if route0 is None:
-                            route = [from_EDGE, to_EDGE]
-                        else:
-                            route = [x.getID() for x in route0]
-                        self.__route_cache[from_EDGE, to_EDGE] = route
-                else:
-                    route = [from_EDGE, to_EDGE]
-                return to_TAZ, to_EDGE, route
-            trial += 1
-            if trial >= 5:
-                raise RuntimeError("from_EDGE == to_EDGE")
-        
+    def __getNextNode(self, from_node:str, next_place_type:str) -> str:
+        return random_diff(self.dic_nodetype[next_place_type], from_node)        
     
     def __genFirstTrip1(self, trip_id, weekday: bool = True):
         """
@@ -204,14 +163,11 @@ class EVsGenerator:
         Return a InnerTrip instance
         """
         from_Type = "Home"
-        from_TAZ = random.choice(self.dic_taztype[from_Type])
-        from_EDGE = random.choice(self.dic_taz[from_TAZ])
+        from_node = random.choice(self.dic_nodetype[from_Type])
         # Get departure time and destination area type
         depart_time_min, to_Type = self.__getDest1(from_Type, weekday)  
-        to_TAZ, to_EDGE, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, to_Type)
-        return _TripInner(trip_id, depart_time_min * 60, 
-            from_TAZ, from_EDGE, from_Type,
-            to_TAZ, to_EDGE, to_Type, route,)
+        to_node = self.__getNextNode(from_node, to_Type)
+        return _TripInner(trip_id, depart_time_min * 60, from_node, from_Type, to_node, to_Type)
 
     cdf_dict = {}
 
@@ -220,27 +176,25 @@ class EVsGenerator:
         return int(cdf.sample() + 1)
 
     def __genTripA(
-        self, trip_id:str, from_TAZ:str, from_type:str, from_EDGE:str, start_time:int, weekday: bool = True
+        self, trip_id:str, from_type:str, from_node:str, start_time:int, weekday: bool = True
     )->_TripInner:
         """
         Generate the second trip
             trip_id: Trip ID
-            from_TAZ: Departure area TAZ type, such as "TAZ1"
             from_type: Departure area type, such as "Home"
-            from_EDGE: Departure roadside, such as "gnE29"
+            from_node: Departure roadside, such as "T6"
             start_time: Departure time of the first trip, in seconds since midnight
             weekday: Whether it is weekday or weekend
         """
         stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
         depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
-        next_place2 = self.__getDestA(from_type, stop_time_idx, weekday)
-        taz_choose2, edge_choose2, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place2)
-        return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE, from_type,
-            taz_choose2, edge_choose2, next_place2, route)
+        next_place_type = self.__getDestA(from_type, stop_time_idx, weekday)
+        to_node = self.__getNextNode(from_node, next_place_type)
+        return _TripInner(trip_id, depart_time_min * 60, from_node, from_type, to_node, next_place_type)
 
     def __genTripF(
-        self, trip_id:str, from_TAZ:str, from_type, from_EDGE:str,
-        start_time:int, first_TAZ:str, first_EDGE:str, weekday: bool = True,
+        self, trip_id:str, from_type:str, from_node:str,
+        start_time:int, first_node:str, weekday: bool = True,
     ):
         """
         Generate the third trip
@@ -253,14 +207,11 @@ class EVsGenerator:
             first_EDGE: First trip's destination roadside, such as "gnE2"
             weekday: Whether it is weekday or weekend
         """
-        if first_EDGE == from_EDGE:
+        if first_node == from_node:
             return None
         stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
         depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
-        return _TripInner(
-            trip_id, depart_time_min * 60, from_TAZ, from_EDGE, from_type, 
-            first_TAZ, first_EDGE, "Home", [from_EDGE, first_EDGE], 
-        )
+        return _TripInner(trip_id, depart_time_min * 60, from_node, from_type, first_node, "Home")
 
     def __genTripsChain1(self, ev:_EVInner):  # vehicle_trip
         """
@@ -270,11 +221,8 @@ class EVsGenerator:
         daynum = 0
         weekday = True
         trip_1 = self.__genFirstTrip1("trip0_1", weekday)
-        trip_2 = self.__genTripA("trip0_2",trip_1.toTAZ,
-            trip_1.toT,trip_1.toE,trip_1.DPTT,weekday)
-        trip_3 = self.__genTripF("trip0_3",trip_2.toTAZ,
-            trip_2.toT,trip_2.toE,trip_2.DPTT,
-            trip_1.frTAZ,trip_1.route[0],weekday)
+        trip_2 = self.__genTripA("trip0_2",trip_1.toT,trip_1.toN,trip_1.DPTT,weekday)
+        trip_3 = self.__genTripF("trip0_3",trip_2.toT,trip_2.toN,trip_2.DPTT,trip_1.frN,weekday)
         
         ev._add_trip(daynum, trip_1)
         ev._add_trip(daynum, trip_2)
@@ -282,8 +230,7 @@ class EVsGenerator:
             if trip_3.DPTT < 86400:  # If the departure time is after midnight, it is not valid
                 ev._add_trip(daynum, trip_3)
             else:
-                trip_2.toTAZ = trip_1.frTAZ
-                trip_2.toE = trip_1.frE
+                trip_2.toN = trip_1.frN
 
     def __genFirstTripA(self, trip_id, ev: _EVInner, weekday: bool = True):
         """
@@ -293,14 +240,12 @@ class EVsGenerator:
             weekday: Whether it is weekday or weekend
         """
         trip_last = ev.trips[-1]
-        from_EDGE = trip_last.route[-1]
-        from_TAZ = trip_last.toTAZ
+        from_node = trip_last.toN
         # Get departure time and destination area type
         from_Type = "Home"
         depart_time_min, to_Type = self.__getDest1(from_Type, weekday)
-        to_TAZ, to_EDGE, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, to_Type)
-        return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE, from_Type,
-            to_TAZ, to_EDGE, to_Type, route)
+        to_node = self.__getNextNode(from_node, from_Type)
+        return _TripInner(trip_id, depart_time_min * 60, from_node, from_Type, to_node, to_Type)
 
     def __genTripsChainA(self, ev: _EVInner, daynum: int = 1):  # vehicle_trip
         """
@@ -308,11 +253,8 @@ class EVsGenerator:
         """
         weekday = (daynum - 1) % 7 + 1 in [1, 2, 3, 4, 5]
         trip2_1 = self.__genFirstTripA(f"trip{daynum}_1", ev, weekday)
-        trip2_2 = self.__genTripA(f"trip{daynum}_2",trip2_1.toTAZ,
-            trip2_1.toT,trip2_1.toE,trip2_1.DPTT,weekday)
-        trip2_3 = self.__genTripF(f"trip{daynum}_3",
-            trip2_2.toTAZ,trip2_2.toT,trip2_2.toE,
-            trip2_2.DPTT,trip2_1.frTAZ,trip2_1.route[0],weekday)
+        trip2_2 = self.__genTripA(f"trip{daynum}_2", trip2_1.toT,trip2_1.toN,trip2_1.DPTT,weekday)
+        trip2_3 = self.__genTripF(f"trip{daynum}_3", trip2_2.toT,trip2_2.toN, trip2_2.DPTT,trip2_1.frN,weekday)
                     
         ev._add_trip(daynum, trip2_1)
         ev._add_trip(daynum, trip2_2)
@@ -320,8 +262,7 @@ class EVsGenerator:
             if trip2_3.DPTT < 86400:  # If the departure time is after midnight, it is not valid
                 ev._add_trip(daynum, trip2_3)
             else:
-                trip2_2.toTAZ = trip2_1.frTAZ
-                trip2_2.toE = trip2_1.frE
+                trip2_2.toN = trip2_1.frN
         
     def __genEV(self, veh_id: str, day_count:int, **kwargs) -> _EVInner:
         '''

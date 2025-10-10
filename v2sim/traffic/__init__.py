@@ -14,4 +14,3 @@ from .utils import (
     ReadXML, LoadFCS, LoadSCS, GetTimeAndNetwork, ReadSUMONet,
     V2SimConfig,
 )
-from .win_vis import WINDOWS_VISUALIZE

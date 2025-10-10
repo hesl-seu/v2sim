@@ -20,24 +20,14 @@ class EVDict(Dict[str, EV]):
         if rt is None:
             raise RuntimeError(f"Failed to load EV file {file_path}")
         for veh in rt:
-            trips: list[Trip] = []
+            trips: list[Trip] = []            
             for trip in veh:
-                route = trip.attrib.pop("route_edges").split(" ")
-                fixed_route = trip.attrib.pop("fixed_route", "none")
-                if fixed_route.lower() == "true": fixed_route = True
-                elif fixed_route.lower() == "false": fixed_route = False
-                else: fixed_route = None
-                trips.append(
-                    Trip(
-                        trip.attrib.pop("id"),
-                        int(float(trip.attrib.pop("depart"))),
-                        trip.attrib.pop("fromTaz"),
-                        trip.attrib.pop("toTaz"),
-                        route,
-                        fixed_route,
-                        trip.attrib.copy(),
-                    )
-                )
+                trips.append(Trip(
+                    trip.attrib.pop("id"),
+                    int(float(trip.attrib.pop("depart"))),
+                    trip.attrib.pop("fromNode"),
+                    trip.attrib.pop("toNode"),
+                ))
             attr = FloatDictWrapper(veh.attrib)
             elem_sctime = veh.find("sctime")
             elem_v2gtime = veh.find("v2gtime")

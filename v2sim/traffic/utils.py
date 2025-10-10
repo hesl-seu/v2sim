@@ -35,26 +35,26 @@ def ReadXML(file: str, compressed:Optional[bool]=None) -> ET.ElementTree:
         raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(file))
 
 def LoadFCS(filename: str) -> Set[str]:
-    '''Load FCS file and return a set of edge names'''
+    '''Load FCS file and return a set of node names'''
     fcs_root = ReadXML(filename).getroot()
     if fcs_root is None:
         raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(filename))
-    fcs_edges = set()
+    fcs_nodes = set()
     for fcs in fcs_root:
         if fcs.tag == "fcs":
-            fcs_edges.add(fcs.attrib["edge"])
-    return fcs_edges
+            fcs_nodes.add(fcs.attrib["node"])
+    return fcs_nodes
 
 def LoadSCS(filename: str) -> Set[str]:
-    '''Load SCS file and return a set of edge names'''
+    '''Load SCS file and return a set of node names'''
     scs_root = ReadXML(filename).getroot()
     if scs_root is None:
         raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(filename))
-    scs_edges = set()
+    scs_nodes = set()
     for scs in scs_root:
         if scs.tag == "scs":
-            scs_edges.add(scs.attrib["edge"])
-    return scs_edges
+            scs_nodes.add(scs.attrib["node"])
+    return scs_nodes
     
 def GetTimeAndNetwork(file: str):
     """
@@ -124,7 +124,7 @@ class FileDetectResult:
     cfg: Optional[str] = None
     taz: Optional[str] = None
     py: Optional[str] = None
-    taz_type: Optional[str] = None
+    node_type: Optional[str] = None
     osm: Optional[str] = None
     poly: Optional[str] = None
     cscsv: Optional[str] = None
@@ -206,8 +206,8 @@ def DetectFiles(dir: str) -> FileDetectResult:
             add("cfg", filename)
         elif filenamel.endswith(".py"):
             add("py",filename)
-        elif filenamel.endswith("taz_type.txt"):
-            add("taz_type", filename)
+        elif filenamel.endswith("node_type.txt"):
+            add("node_type", filename)
         elif filenamel.endswith(".osm.xml") or filenamel.endswith(".osm.xml.gz"):
             add("osm", filename)
         elif filenamel.endswith("cs.csv"):

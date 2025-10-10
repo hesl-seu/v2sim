@@ -134,8 +134,8 @@ class TrafficGenerator:
         mode_str = args.pop_str("mode", "auto").lower()
         if mode_str == "auto":
             mode = TripsGenMode.AUTO
-        elif mode_str == "taz":
-            mode = TripsGenMode.TAZ
+        elif mode_str == "type":
+            mode = TripsGenMode.TYPE
         elif mode_str == "poly":
             mode = TripsGenMode.POLY
         else:
@@ -244,8 +244,8 @@ class TrafficGenerator:
                     x,y = self.__rnet.convertLonLat2XY(float(lng), float(lat))
                     try:
                         p = Point(x, y)
-                        ename = el.find_nearest_edge_id(p)
-                        cs_pos[ename]=p
+                        node_name = el.find_nearest_node_id(p)
+                        cs_pos[node_name]=p
                     except RuntimeError as e:
                         print(f"Warning: Point {lat},{lng} (XY: {x:.1f},{y:.1f}) is far away ({float(e.args[0]):.1f}m) from the road network.")
                         continue
@@ -260,8 +260,8 @@ class TrafficGenerator:
                 if t is None or t == "Other": continue
                 p = poly.center()
                 try:
-                    ename = el.find_nearest_edge_id(p)
-                    cs_type[ename] = t
+                    node_name = el.find_nearest_node_id(p)
+                    cs_type[node_name] = t
                 except RuntimeError as e:
                     print(f"Warning: Polygon (Center: {p.x:.1f},{p.y:.1f}) is far away ({float(e.args[0]):.1f}m) from the road network.")
                     continue
@@ -294,7 +294,7 @@ class TrafficGenerator:
             bus_names = gr.BusNames
         if use_grid:
             bkdt:KDTree[Point, str] = KDTree(bp, bus_names)
-            selector = lambda cname: bkdt.nearest_mapped(Point(*el.get_edge_pos(cname)))  
+            selector = lambda cname: bkdt.nearest_mapped(Point(*el.get_node_pos(cname)))  
         else:
             bus_names = bus.select(self.__bus_names, busCount, givenBus)
             selector = lambda cname: random.choice(bus_names)

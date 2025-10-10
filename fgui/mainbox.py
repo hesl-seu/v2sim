@@ -118,11 +118,11 @@ class CSEditorGUI(Frame):
         self.tree['show'] = 'headings'
         if canV2g:
             self.csType = SCS
-            self.tree["columns"] = ("Edge", "Slots", "Bus", "x", "y", "Online", "MaxPc", "MaxPd", "PriceBuy", "PriceSell", "PcAlloc", "PdAlloc")
+            self.tree["columns"] = ("Node", "Slots", "Bus", "x", "y", "Online", "MaxPc", "MaxPd", "PriceBuy", "PriceSell", "PcAlloc", "PdAlloc")
         else:
             self.csType = FCS
-            self.tree["columns"] = ("Edge", "Slots", "Bus", "x", "y", "Online", "MaxPc", "PriceBuy", "PcAlloc")
-        self.tree.column("Edge", width=120, stretch=NO)
+            self.tree["columns"] = ("Node", "Slots", "Bus", "x", "y", "Online", "MaxPc", "PriceBuy", "PcAlloc")
+        self.tree.column("Node", width=120, stretch=NO)
         self.tree.column("Slots", width=90, stretch=NO)
         self.tree.column("Bus", width=80, stretch=NO)
         self.tree.column("x", width=60, stretch=NO)
@@ -136,7 +136,7 @@ class CSEditorGUI(Frame):
             self.tree.column("PcAlloc", width=80, stretch=NO)
             self.tree.column("PdAlloc", width=80, stretch=NO)
         
-        self.tree.heading("Edge", text=_L["CSE_EDGE"])
+        self.tree.heading("Node", text=_L["CSE_NODE"])
         self.tree.heading("Slots", text=_L["CSE_SLOTS"])
         self.tree.heading("Bus", text=_L["CSE_BUS"])
         self.tree.heading("x", text=_L["CSE_X"])
@@ -146,7 +146,7 @@ class CSEditorGUI(Frame):
         self.tree.heading("PriceBuy", text=_L["CSE_PRICEBUY"])
         self.tree.heading("PcAlloc", text=_L["CSE_PCALLOC"])
 
-        self.tree.setColEditMode("Edge", EditMode.entry())
+        self.tree.setColEditMode("Node", EditMode.entry())
         self.tree.setColEditMode("Slots", EditMode.spin(0, 100))
         self.tree.setColEditMode("Bus", EditMode.entry())
         self.tree.setColEditMode("x", EditMode.entry())
@@ -193,7 +193,7 @@ class CSEditorGUI(Frame):
 
         self.use_cscsv = IntVar(self, 0)
         self.group_src = LabelFrame(self.gens, text=_L["CS_SRC"])
-        self.rb_rnet = Radiobutton(self.group_src, text=_L["CS_USEEDGES"], value=0, variable=self.use_cscsv)
+        self.rb_rnet = Radiobutton(self.group_src, text=_L["CS_USENODES"], value=0, variable=self.use_cscsv)
         self.rb_rnet.grid(row=0,column=0,padx=3,pady=3,sticky="w")
         self.rb_cscsv = Radiobutton(self.group_src, text=_L["CS_USECSV"], value=1, variable=self.use_cscsv, state="disabled")
         self.rb_cscsv.grid(row=0,column=1,padx=3,pady=3,sticky="w")
@@ -281,7 +281,7 @@ class CSEditorGUI(Frame):
                         c = self.cslist[i]
                         c._name = name
                         c._slots = slots
-                        c._node = bus
+                        c._bus = bus
                         c._x = float(x)
                         c._y = float(y)
                         c._pc_lim1 = float(maxpc) / 3600
@@ -297,7 +297,7 @@ class CSEditorGUI(Frame):
                         c = self.cslist[i]
                         c._name = name
                         c._slots = slots
-                        c._node = bus
+                        c._bus = bus
                         c._x = float(x)
                         c._y = float(y)
                         c._pc_lim1 = float(maxpc) / 3600
@@ -490,13 +490,13 @@ class CSEditorGUI(Frame):
         if self.csType == FCS:
             for cs in self.cslist:
                 ol = str(cs._offline) if len(cs._offline)>0 else ALWAYS_ONLINE
-                v = (cs.name, cs.slots, cs.node, cs._x, cs._y, ol, cs._pc_lim1 * 3600, cs.pbuy, cs._pc_alloc_str)
+                v = (cs.name, cs.slots, cs.bus, cs._x, cs._y, ol, cs._pc_lim1 * 3600, cs.pbuy, cs._pc_alloc_str)
                 self._Q.delegate(self.tree.insert, "", "end", values=v)
         else:
             for cs in self.cslist:
                 assert isinstance(cs, SCS)
                 ol = str(cs._offline) if len(cs._offline)>0 else ALWAYS_ONLINE
-                v = (cs.name, cs.slots, cs.node, cs._x, cs._y, ol, cs._pc_lim1 * 3600, cs._pd_lim1 * 3600, 
+                v = (cs.name, cs.slots, cs.bus, cs._x, cs._y, ol, cs._pc_lim1 * 3600, cs._pd_lim1 * 3600, 
                             cs.pbuy, cs.psell, cs._pc_alloc_str, cs._pd_alloc_str)
                 self._Q.delegate(self.tree.insert, "", "end", values=v)
     
@@ -786,9 +786,6 @@ class MainBox(Tk):
         self.sim_static_route = BooleanVar(self, False)
         self.sim_cb_static_route = Checkbutton(self.sim_time, text=_L["SIM_STATIC_ROUTE"], variable=self.sim_static_route)
         self.sim_cb_static_route.grid(row=4, column=2, padx=3, pady=3, sticky="w")
-        self.sim_visualize = BooleanVar(self, False)
-        self.sim_cb_visualize = Checkbutton(self.sim_time, text=_L["SIM_VISUALIZE"], variable=self.sim_visualize)
-        self.sim_cb_visualize.grid(row=5, column=2, padx=3, pady=3, sticky="w")
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
         self.sim_plglist = PluginEditor(self.sim_plugins, self.__OnPluginEnabledSet)
@@ -895,7 +892,7 @@ class MainBox(Tk):
         self.fr_veh_src.pack(fill="x", expand=False)
         self.rb_veh_src0 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODAUTO"], value=0, variable=self.veh_gen_src)
         self.rb_veh_src0.grid(row=0, column=0, padx=3, pady=3, sticky="w")
-        self.rb_veh_src1 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODTAZ"], value=1, variable=self.veh_gen_src)
+        self.rb_veh_src1 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODTYPE"], value=1, variable=self.veh_gen_src)
         self.rb_veh_src1.grid(row=1, column=0, padx=3, pady=3, sticky="w")
         self.rb_veh_src2 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODPOLY"], value=2, variable=self.veh_gen_src)
         self.rb_veh_src2.grid(row=2, column=0, padx=3, pady=3, sticky="w")
@@ -1036,7 +1033,6 @@ class MainBox(Tk):
         vcfg.end_time = end
         vcfg.traffic_step = step
         vcfg.seed = seed
-        vcfg.visualize = self.sim_visualize.get()
         vcfg.load_state = self.sim_load_last_state.get()
         vcfg.save_state_on_abort = self.sim_save_on_abort.get()
         vcfg.save_state_on_finish = self.sim_save_on_finish.get()
@@ -1061,12 +1057,6 @@ class MainBox(Tk):
                     "--copy-state" if self.sim_copy_state.get() else "",
                 ]
         
-        visualize = self.sim_visualize.get()
-        if platform.system() == "Windows":
-            with open(v2sim.traffic.win_vis.__file__,"w") as f:
-                f.write(f"WINDOWS_VISUALIZE = {visualize}")
-        else:
-            if visualize: commands.append("--show")
         self.destroy()
         try:
             os.system(" ".join(commands))
@@ -1249,7 +1239,6 @@ class MainBox(Tk):
             self.sim_save_on_abort.set(vcfg.save_state_on_abort)
             self.sim_load_last_state.set(vcfg.load_state)
             self.sim_copy_state.set(vcfg.copy_state)
-            self.sim_visualize.set(vcfg.visualize)
             self.sim_static_route.set(vcfg.force_caching)
             if vcfg.stats:
                 for x in vcfg.stats:
@@ -1390,8 +1379,8 @@ class MainBox(Tk):
 
     def on_cvnet_loaded(self, el:RoadNetConnectivityChecker, after:OAfter=None):
         print("ELGraph loaded.")
-        if len(el.Edges) > 15000:
-            print("Large network detected. Skipping drawing edges.")
+        if len(el.Nodes) > 15000:
+            print("Large network detected. Skipping drawing nodes.")
             return
         self.cv_net.setRoadNet(el, after = after)
 
@@ -1480,7 +1469,7 @@ class MainBox(Tk):
         if self.veh_gen_src.get() == 0:
             mode = TripsGenMode.AUTO
         elif self.veh_gen_src.get() == 1:
-            mode = TripsGenMode.TAZ
+            mode = TripsGenMode.TYPE
         else:
             mode = TripsGenMode.POLY
         route_cache = RoutingCacheMode(self.veh_route_cache.get())

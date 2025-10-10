@@ -30,8 +30,7 @@ perf*
 *.bak
 deploy
 cases/*
-!cases/std_*
-!cases/pwe_*
+!cases/ux_*
 
 # Setup files
 build

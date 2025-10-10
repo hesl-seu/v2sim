@@ -1,45 +1,17 @@
 from __future__ import annotations
+from dataclasses import dataclass
 import enum, math
-from typing import Callable, Dict, Iterable, List, Tuple, Union, Optional
+from typing import Callable, Dict, Iterable, Tuple, Union
 from feasytools import RangeList
 from .utils import IntPairList
 
 
+@dataclass
 class Trip:
-    def __init__(
-        self, trip_id: str, depart_time: int, fromTAZ: str, toTAZ: str, route: List[str], 
-        fixed_route: Optional[bool] = None, addtional: Optional[Dict[str, str]] = None
-    ):
-        self.ID = trip_id
-        self.depart_time = depart_time
-        self.from_TAZ = fromTAZ
-        self.to_TAZ = toTAZ
-        assert isinstance(route, list) and len(route) >= 2, "Route should be a list with at least 2 elements"
-        self.route = route
-        if fixed_route:
-            self.fixed_route = True
-        elif fixed_route is None:
-            self.fixed_route = len(route)>=2
-        else:
-            self.fixed_route = True
-        self.additional = addtional if addtional else {}
-    
-    @property
-    def depart_edge(self):
-        return self.route[0]
-
-    @property
-    def arrive_edge(self):
-        return self.route[-1]
-
-    def get(self, key: str, default:str="")->str:
-        return self.additional.get(key, "")
-    
-    def __repr__(self):
-        return str(self)
-    
-    def __str__(self):
-        return f"{self.depart_edge}->{self.arrive_edge}@{self.depart_time}"
+    id:str
+    depart_time:int
+    from_node:str
+    to_node:str
     
 
 class VehStatus(enum.IntEnum):

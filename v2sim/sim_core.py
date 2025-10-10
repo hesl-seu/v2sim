@@ -11,7 +11,6 @@ from .statistics import *
 from .traffic import *
 from .locale import Lang
 from .trafficgen import TrafficGenerator, RoadNetConnectivityChecker
-from .traffic.inst import traci
 
 
 @dataclass
@@ -306,9 +305,6 @@ class V2SimInstance:
             fcsfile = fcs_file, fcs_obj = fcs_obj,
             scsfile = scs_file, scs_obj = scs_obj,
             initial_state_folder = initial_state,
-            routing_algo = route_algo,
-            force_static_routing=static_routing,
-            ignore_driving=ignore_driving,
         )
 
         # Enable plugins
@@ -599,17 +595,14 @@ class V2SimInstance:
         self.start()
 
         while self.__inst.current_time < self.__end_time:
-            try:
-                self.step()
-            except traci.FatalTraCIError as e:
-                self.__stopsig = True
+            self.step()
             if self.__stopsig:
                 if self.save_on_abort:
                     p = self.__pres / "saved_state"
                     p.mkdir(parents=True, exist_ok=True)
                     self.save_state(str(p))
                 break
-            self._istep()
+            # self._istep()
         
         dur = time.time() - self.__st_time
         print(Lang.MAIN_SIM_DONE.format(time2str(dur)),file=self.__out)
@@ -623,52 +616,32 @@ class V2SimInstance:
         self.__mpsend("plot:done")
         return not self.__stopsig, self.__inst, self.__sta
 
-    def __vis_str(self):
-        for fcs in self.__inst.FCSList:
-            yield fcs._name, f"{fcs.veh_count()} cars, {fcs.Pc_kW:.1f} kW"
-
     def _istep(self):
-        # Visualization
-        if self.__vb is not None:
-            counter = [0, 0, 0, 0, 0]
-            for veh in self.__inst._VEHs.values():
-                counter[veh._sta] += 1
-            upd:Dict[str, Any] = {
-                "Time": time2str(self.__inst.current_time),
-                "Driving": counter[VehStatus.Driving],
-                "Pending": counter[VehStatus.Pending],
-                "Charging": counter[VehStatus.Charging],
-                "Parking": counter[VehStatus.Parking],
-                "Depleted": counter[VehStatus.Depleted],
-            }
-            upd.update(self.__vis_str())
-            self.__vb.set_val(upd)
-        else:
-            ctime = time.time()
-            if ctime - self.__last_print_time > 1 or self.__inst.current_time >= self.__end_time:
-                # Progress in command line updates once per second
-                progress = 100 * (self.__inst.current_time - self.__start_time) / self.__sim_dur
-                eta = (
-                    time2str((ctime - self.__st_time) * (100 - progress) / progress)
-                    if ctime - self.__st_time > 3
-                    else "N/A"
-                )
-                self.__print("\r",end="")
-                self.__print(
-                    Lang.MAIN_SIM_PROG.format(
-                        round(progress,2), 
-                        self.__inst.current_time, 
-                        self.__end_time, 
-                        time2str(ctime-self.__st_time), 
-                        eta
-                    ),
-                    end="",
-                )
-                if ctime - self.__last_mp_time > 5:
-                    # Communicate with the main process every 5 seconds in multi-process mode
-                    self.__mpsend(f"sim:{progress:.2f}")
-                    self.__last_mp_time = ctime
-                self.__last_print_time = ctime
+        ctime = time.time()
+        if ctime - self.__last_print_time > 1 or self.__inst.current_time >= self.__end_time:
+            # Progress in command line updates once per second
+            progress = 100 * (self.__inst.current_time - self.__start_time) / self.__sim_dur
+            eta = (
+                time2str((ctime - self.__st_time) * (100 - progress) / progress)
+                if ctime - self.__st_time > 3
+                else "N/A"
+            )
+            self.__print("\r",end="")
+            self.__print(
+                Lang.MAIN_SIM_PROG.format(
+                    round(progress,2), 
+                    self.__inst.current_time, 
+                    self.__end_time, 
+                    time2str(ctime-self.__st_time), 
+                    eta
+                ),
+                end="",
+            )
+            if ctime - self.__last_mp_time > 5:
+                # Communicate with the main process every 5 seconds in multi-process mode
+                self.__mpsend(f"sim:{progress:.2f}")
+                self.__last_mp_time = ctime
+            self.__last_print_time = ctime
 
 #@FEasyTimer
 def simulate_single(vb=None, **kwargs)->bool:

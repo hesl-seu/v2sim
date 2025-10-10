@@ -1,0 +1,66 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+<scs name="T1" node="T1" slots="25" bus="b1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+<offline>
+<item btime="0" etime="3600" />
+</offline>
+</scs>
+<scs name="T10" node="T10" slots="25" bus="b1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+<scs name="T11" node="T11" slots="25" bus="b0" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+<scs name="T12" node="T12" slots="25" bus="b1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+<scs name="T2" node="T2" slots="25" bus="b2" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+<scs name="T3" node="T3" slots="25" bus="b1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+<scs name="T4" node="T4" slots="25" bus="b1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+<scs name="T5" node="T5" slots="25" bus="b1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+<scs name="T6" node="T6" slots="25" bus="b1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+<scs name="T7" node="T7" slots="25" bus="b1" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+<scs name="T8" node="T8" slots="25" bus="b2" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+<scs name="T9" node="T9" slots="25" bus="b0" x="inf" y="inf">
+<pbuy>
+  <item btime="0" price="1.0" />
+</pbuy>
+</scs>
+</root>

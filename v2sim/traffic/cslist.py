@@ -36,7 +36,7 @@ def _LoadCSList(filePath:str, csType:CS_Type) -> List[T_CS]:
             raise ValueError(Lang.CSLIST_PBUY_NOT_SPECIFIED)
         _cs.append(
             csType(
-                name = cs_node.attrib["edge"],
+                name = cs_node.attrib["node"],
                 slots = int(cs_node.attrib["slots"]),
                 bus = cs_node.attrib.get("bus", "None"),
                 max_pc = float(cs_node.attrib.get("max_pc", "inf")) / 3600,

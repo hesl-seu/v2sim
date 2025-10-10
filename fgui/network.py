@@ -232,8 +232,6 @@ class NetworkPanel(Frame):
             if itm.type == "edge":
                 self._pr.setData2(
                     (itm.desc, ConfigItem("Name", EditMode.DISABLED, "Name of the edge")),
-                    (str(itm.desc in self._r.FCSNames), ConfigItem("Has FCS", EditMode.DISABLED, "Name of the edge")),
-                    (str(itm.desc in self._r.SCSNames), ConfigItem("Has SCS", EditMode.DISABLED, "Name of the edge")),
                 )
                 self.LocateEdge(itm.desc, 'purple')
             elif itm.type in ("bus", "bustext"):
@@ -608,12 +606,7 @@ class NetworkPanel(Frame):
         
     def __get_edge_prop(self, edge:str) -> Tuple[str, float]:
         assert self._r is not None
-        if edge in self._r.FCSNames:
-            return ("darkblue",3) if edge in self._r.EdgeIDSet else ("darkgray",3)
-        elif edge in self._r.SCSNames:
-            return ("blue",2) if edge in self._r.EdgeIDSet else ("gray",2)
-        else:
-            return ("blue",1) if edge in self._r.EdgeIDSet else ("gray",1)
+        return ("blue",2)
 
     def _draw_edge(self, shape:PointList, color:str, lw:float, ename:str):
         shape = [(p[0], -p[1]) for p in shape]
