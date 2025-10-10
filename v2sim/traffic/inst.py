@@ -101,6 +101,7 @@ class TrafficInst:
         initial_state_folder: str = "",
         routing_algo:str = "CH",
         force_static_routing:bool = False,
+        ignore_driving:bool = False,
     ):
         """
         TrafficInst initialization
@@ -115,11 +116,14 @@ class TrafficInst:
             initial_state_folder: Initial state folder path]
             routing_algo: Routing algorithm
             force_static_routing: Always use static routing to accelerate
+            ignore_driving: Skip the battery update during driving, 
+                only update the battery at origin and destination of a trip
         """
         random.seed(seed)
         self.__gui = None
         self.__logger = TripsLogger(clogfile)
         self.__ralgo = routing_algo
+        self.__ignore_driving = ignore_driving
         assert self.__ralgo in ["CH", "dijkstra", "astar", "CHWrapper"], f"Invalid routing algorithm: {self.__ralgo}"
         
         self.__force_static_routing = force_static_routing
@@ -153,11 +157,7 @@ class TrafficInst:
 
         # Load charging stations
         self._fcs:CSList[FCS] = fcs_obj if fcs_obj else CSList(self._VEHs, filePath=fcsfile, csType=FCS)
-        #if len(self._fcs) == 0:
-        #    raise RuntimeError("No fast charging station found")
         self._scs:CSList[SCS] = scs_obj if scs_obj else CSList(self._VEHs, filePath=scsfile, csType=SCS)
-        #if len(self._scs) == 0:
-        #    raise RuntimeError("No slow charging station found")
         self.__names_fcs: List[str] = [cs.name for cs in self._fcs]
         self.__names_scs: List[str] = [cs.name for cs in self._scs]
 
@@ -230,19 +230,17 @@ class TrafficInst:
         rou_id = random_string(16)
         traci.route.add(rou_id, route)
         traci.vehicle.add(veh_id, rou_id)
-        traci.vehicle.subscribe(veh_id, (TC.VAR_DISTANCE,))
     
     def __add_veh2(self, veh_id:str, st_edge:str, ed_edge:str, agg_routing:bool = False):
         self._VEHs[veh_id].clear_odometer()
-        traci.vehicle.add(veh_id, "")
-        traci.vehicle.setRoute(veh_id, [st_edge])
-        if agg_routing:
-            traci.vehicle.setRoutingMode(veh_id, TC.ROUTING_MODE_AGGREGATED)
         try:
+            traci.vehicle.add(veh_id, "")
+            traci.vehicle.setRoute(veh_id, [st_edge])
+            if agg_routing:
+                traci.vehicle.setRoutingMode(veh_id, TC.ROUTING_MODE_AGGREGATED)
             traci.vehicle.changeTarget(veh_id, ed_edge)
         except Exception as e:
-            raise RuntimeError(f"Fail to add vehicle '{veh_id}' into SUMO: {st_edge}->{ed_edge}") from e
-        traci.vehicle.subscribe(veh_id, (TC.VAR_DISTANCE,))
+            raise RuntimeError(f"(Time = {self.__ctime})Fail to add vehicle '{veh_id}' into SUMO: {st_edge}->{ed_edge}") from e
 
     @property
     def edges(self) -> List[Edge]:
@@ -540,6 +538,8 @@ class TrafficInst:
             "-n", net_file,
             "--no-warnings",
             "--routing-algorithm", self.__ralgo,
+            # Keep the vehicle in the network for a exactly one step after arriving at the destination
+            "--keep-after-arrival", str(self.__step_len),
         ]
         if start_time is not None:
             sumoCmd.extend(["-b", str(start_time)])
@@ -570,11 +570,6 @@ class TrafficInst:
                 range(self.SCSList._n)
             )
 
-    #@FEasyTimer
-    #def __sumo_step(self, _t):
-    #    traci.simulationStep(_t)
-
-    #@FEasyTimer
     def simulation_step(self, step_len: int):
         """
         Simulation step.
@@ -582,63 +577,73 @@ class TrafficInst:
             v2g_demand: V2G demand list (kWh/s)
         """
         traci.simulationStep(float(self.__ctime + step_len))
-        #self.__sumo_step(self.__ctime + step_len)
         new_time = int(traci.simulation.getTime())
         deltaT = new_time - self.__ctime
         self.__ctime = new_time
         
+        # Depart vehicles before processing arrivals
+        # If a vehicle arrives and departs in the same step, performing departure after arrival immediately will cause the vehicle to be unable to depart
+        # Therefore, all departures are processed first can delay the departure to the next step and cause no problem
+        self.__batch_depart()
+
         # Process arrived vehicles
         arr_vehs: List[str] = traci.simulation.getArrivedIDList()
-
         for v in arr_vehs:
             veh = self._VEHs[v]
+            veh.drive(traci.vehicle.getDistance(v))
             if veh.target_CS is None:
                 self.__end_trip(v)
             else:
                 self.__start_charging_FCS(self._VEHs[v])
 
-        # Process driving vehicles
-        cur_vehs: List[str] = traci.vehicle.getIDList()
-
-        for veh_id in cur_vehs:
-            veh = self._VEHs[veh_id]
-            veh.drive(traci.vehicle.getDistance(veh_id))
-            if veh._elec <= 0:
-                # Vehicles with depleted batteries will be sent to the nearest fast charging station (time * 2)
-                veh._sta = VehStatus.Depleted
-                cur_edge = traci.vehicle.getRoadID(veh_id)
-                veh._cs, _, cs_stage = self.__get_nearest_CS(cur_edge)
-                assert cs_stage is not None and veh.target_CS is not None
-                trT = int(self.__ctime + 2 * cs_stage.travelTime)
-                self._fQ.push(trT, veh_id)
-                traci.vehicle.remove(veh_id)
-                self.__logger.fault_deplete(self.__ctime, veh, veh.target_CS, trT)
-                continue
-            if veh._sta == VehStatus.Pending:
-                veh._sta = VehStatus.Driving
-            if veh._sta == VehStatus.Driving:
-                if veh.target_CS is not None and not self._fcs[veh.target_CS].is_online(self.__ctime):
-                    # Target FCS is offline, redirected to the nearest FCS
-                    route, weights = self.__sel_best_CS(veh, veh.omega)
-                    if len(route) == 0:  
-                        # The power is not enough to drive to any charging station, remove from the network
-                        veh._sta = VehStatus.Depleted
-                        traci.vehicle.remove(veh_id)
-                        self._fQ.push(self.__ctime, veh_id)
-                        self.__logger.fault_nocharge(self.__ctime, veh, veh.target_CS)
-                        veh.target_CS = None
-                    else:  # Found the charging station
-                        new_cs = route[-1]
-                        traci.vehicle.setRoute(veh_id, route)
-                        self.__logger.fault_redirect(self.__ctime, veh, veh.target_CS, new_cs)
-                        veh.target_CS = new_cs
-            else:
-                print(f"Error: {veh.brief()}, {veh._sta}")
+        if self.__ignore_driving:
+            # Process departed vehicles
+            dep_vehs: List[str] = traci.simulation.getDepartedIDList()
+            for v in dep_vehs:
+                veh = self._VEHs[v]
+                if veh._sta == VehStatus.Pending:
+                    veh._sta = VehStatus.Driving
+        else:
+            # Process driving vehicles
+            cur_vehs: List[str] = traci.vehicle.getIDList()
+            for veh_id in cur_vehs:
+                veh = self._VEHs[veh_id]
+                veh.drive(traci.vehicle.getDistance(veh_id))
+                if veh._elec <= 0:
+                    # Vehicles with depleted batteries will be sent to the nearest fast charging station (time * 2)
+                    veh._sta = VehStatus.Depleted
+                    cur_edge = traci.vehicle.getRoadID(veh_id)
+                    veh._cs, _, cs_stage = self.__get_nearest_CS(cur_edge)
+                    assert cs_stage is not None and veh.target_CS is not None
+                    trT = int(self.__ctime + 2 * cs_stage.travelTime)
+                    self._fQ.push(trT, veh_id)
+                    traci.vehicle.remove(veh_id)
+                    self.__logger.fault_deplete(self.__ctime, veh, veh.target_CS, trT)
+                    continue
+                if veh._sta == VehStatus.Pending:
+                    veh._sta = VehStatus.Driving
+                if veh._sta == VehStatus.Driving:
+                    if veh.target_CS is not None and not self._fcs[veh.target_CS].is_online(self.__ctime):
+                        # Target FCS is offline, redirected to the nearest FCS
+                        route, weights = self.__sel_best_CS(veh, veh.omega)
+                        if len(route) == 0:  
+                            # The power is not enough to drive to any charging station, remove from the network
+                            veh._sta = VehStatus.Depleted
+                            traci.vehicle.remove(veh_id)
+                            self._fQ.push(self.__ctime, veh_id)
+                            self.__logger.fault_nocharge(self.__ctime, veh, veh.target_CS)
+                            veh.target_CS = None
+                        else:  # Found the charging station
+                            new_cs = route[-1]
+                            traci.vehicle.setRoute(veh_id, route)
+                            self.__logger.fault_redirect(self.__ctime, veh, veh.target_CS, new_cs)
+                            veh.target_CS = new_cs
+                else:
+                    print(f"Error: {veh.brief()}, {veh._sta}")
 
         # Process vehicles in charging stations and parked vehicles
         self.__FCS_update(deltaT)
         self.__SCS_update(deltaT)
-        self.__batch_depart()
 
         # Process faulty vehicles
         while not self._fQ.empty() and self._fQ.top[0] <= self.__ctime:
