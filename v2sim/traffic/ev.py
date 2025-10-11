@@ -12,6 +12,12 @@ class Trip:
     depart_time:int
     from_node:str
     to_node:str
+
+    def __repr__(self):
+        return str(self)
+    
+    def __str__(self):
+        return f"{self.from_node}->{self.to_node}@{self.depart_time}"
     
 
 class VehStatus(enum.IntEnum):

@@ -273,7 +273,7 @@ class CSList(Generic[T_CS]):
         cs = self._veh[veh_id]
         return self._cs[cs].is_charging(veh_id)
 
-    def __getitem__(self, indices: Union[str, int]) -> CS:
+    def __getitem__(self, indices: Union[str, int]) -> T_CS:
         """
         Get the index of given charging station. It can be either indices or a charging station name.
         """

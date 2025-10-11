@@ -11,6 +11,7 @@ from .statistics import *
 from .traffic import *
 from .locale import Lang
 from .trafficgen import TrafficGenerator, RoadNetConnectivityChecker
+import inspect
 
 
 @dataclass
@@ -88,9 +89,8 @@ def get_sim_params(
             "save_on_abort":        args.pop_bool("save-on-abort"),
             "save_on_finish":       args.pop_bool("save-on-finish"),
             "copy_state":           args.pop_bool("copy-state"),
-            "route_algo":           args.pop_str("route-algo", "CH"),
-            "static_routing":       args.pop_bool("static-routing"),
-            "ignore_driving":       args.pop_bool("ignore-driving"),
+            "route_algo":           args.pop_str("route-algo", "astar"),
+            "show_uxsim_info":      args.pop_bool("show-uxsim-info"),
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
@@ -138,9 +138,8 @@ class V2SimInstance:
         save_on_abort: bool = False,
         save_on_finish: bool = False,
         copy_state: bool = False,
-        route_algo: str = "CH",
-        static_routing: bool = False,
-        ignore_driving: bool = False,
+        route_algo: str = "astar",
+        show_uxsim_info: bool = False,
     ):
         '''
         Initialization
@@ -169,8 +168,7 @@ class V2SimInstance:
             save_on_abort: Whether to save the state when Ctrl+C is pressed
             save_on_finish: Whether to save the state when the simulation ends
             copy_state: Whether to copy the state folder after the simulation ends or when Ctrl+C is pressed
-            route_algo: SUMO Routing algorithm, can be dijsktra, astar, CH or CHWrapper
-            static_routing: Static routing, default is False
+            route_algo: Routing algorithm, can be dijkstra or astar
         '''
 
         if plg_pool is None: plg_pool = PluginPool()
@@ -212,6 +210,16 @@ class V2SimInstance:
         # Create cproc.log
         self.__out = open(str(pres / "cproc.log"), "w", encoding="utf-8")
 
+        # Record all __init__ parameters to file
+        frame = inspect.currentframe()
+        assert frame is not None
+        args, _, _, values = inspect.getargvalues(frame)
+        self.__out.write("Parameters:\n")
+        for arg in args:
+            if arg in ('self', 'vb', 'mpQ') or 'pool' in arg:
+                continue
+            self.__out.write(f"  {arg}: {values[arg]}\n")
+            
         proj_dir = Path(cfgdir)
 
         if gen_veh_command != "" or gen_scs_command != "" or gen_fcs_command != "":
@@ -242,7 +250,7 @@ class V2SimInstance:
         if not proj_cfg.cfg:
             raise FileNotFoundError(Lang.ERROR_SUMO_CONFIG_NOT_SPECIFIED)
         sumocfg_file = proj_cfg.cfg
-        _stt, _edt, _rnet,_addf = GetTimeAndNetwork(sumocfg_file)
+        _stt, _edt, _rnet, _addf = GetTimeAndNetwork(sumocfg_file)
         self.__print(f"  SUMO: {sumocfg_file}")
 
         # Detect road network file
@@ -305,6 +313,8 @@ class V2SimInstance:
             fcsfile = fcs_file, fcs_obj = fcs_obj,
             scsfile = scs_file, scs_obj = scs_obj,
             initial_state_folder = initial_state,
+            routing_algo = route_algo,
+            show_uxsim_info = show_uxsim_info,
         )
 
         # Enable plugins
@@ -352,6 +362,7 @@ class V2SimInstance:
         self.save_on_finish = save_on_finish
         self.copy_state = copy_state
         self.routing_algo = route_algo
+        self.show_uxsim_info = show_uxsim_info
 
         if alt_command is not None:
             for k,v in alt_command.items():
@@ -602,7 +613,8 @@ class V2SimInstance:
                     p.mkdir(parents=True, exist_ok=True)
                     self.save_state(str(p))
                 break
-            # self._istep()
+            if not self.show_uxsim_info:
+                self._istep()
         
         dur = time.time() - self.__st_time
         print(Lang.MAIN_SIM_DONE.format(time2str(dur)),file=self.__out)

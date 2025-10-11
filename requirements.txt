@@ -1,7 +1,8 @@
 libsumo
 numpy
 matplotlib
-feasytools>=0.1.0
+scikit-learn
+feasytools>=0.1.2
 fpowerkit>=0.3.2
 pyproj
 requests
