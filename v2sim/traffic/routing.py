@@ -9,11 +9,12 @@ import math
 @dataclass
 class Stage:
     nodes: List[str]
+    edges: List[str]
     travelTime: float
     length: float
 
 CoordsDict = Dict[str, Tuple[float, float]]  # node ID -> (x, y)
-Graph = Dict[str, List[Tuple[str, str, Link]]]  # node ID -> List of (to_node ID, link ID, Link object)
+Graph = Dict[str, List[Tuple[str, Link]]]  # node ID -> List of (to_node ID, Link object)
 
 
 def dijMC(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str], omega: float, 
@@ -23,15 +24,15 @@ def dijMC(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str], omega: floa
     Find the BEST route based on score = omega * (time + waiting) + charging_cost.
     Uses time as primary key, length as secondary key.
     """
-    # (time, length, node, path)
-    heap = [(0, 0, from_node, [from_node])]
+    # (time, length, node, path, path_edges)
+    heap = [(0, 0, from_node, [from_node], [])]
     visited = set()
     min_time = {from_node: 0}
     best_score = float('inf')
-    best_stage = Stage([], float('inf'), float('inf'))
+    best_stage = Stage([], [], float('inf'), float('inf'))
     
     while heap:
-        cur_time, cur_len, cur_node, path = heapq.heappop(heap)
+        cur_time, cur_len, cur_node, path, path_edges = heapq.heappop(heap)
         
         if cur_node in visited:
             continue
@@ -42,10 +43,10 @@ def dijMC(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str], omega: floa
             score = omega * (cur_time / 60.0 + wt[cur_node]) + to_charge * p[cur_node]
             if score < best_score:
                 best_score = score
-                best_stage = Stage(path.copy(), cur_time, cur_len)
+                best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
         
         # 探索邻居节点
-        for neighbor, _, link in gl.get(cur_node, []):
+        for neighbor, link in gl.get(cur_node, []):
             if neighbor in visited:
                 continue
                 
@@ -57,7 +58,7 @@ def dijMC(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str], omega: floa
                 
             if neighbor not in min_time or next_time < min_time[neighbor]:
                 min_time[neighbor] = next_time
-                heapq.heappush(heap, (next_time, next_len, neighbor, path + [neighbor]))
+                heapq.heappush(heap, (next_time, next_len, neighbor, path + [neighbor], path_edges + [link.name]))
     
     return best_stage
 
@@ -66,24 +67,24 @@ def dijMF(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str]) -> Stage:
     Find the FASTEST route to any node in to_nodes.
     Uses time as primary key, length as secondary key.
     """
-    # (time, length, node, path)
-    heap = [(0, 0, from_node, [from_node])]
+    # (time, length, node, path, path_edges)
+    heap = [(0, 0, from_node, [from_node], [])]
     visited = set()
     min_time = {from_node: 0}
-    best_stage = Stage([], float('inf'), float('inf'))
+    best_stage = Stage([], [], float('inf'), float('inf'))
     
     while heap:
-        cur_time, cur_len, cur_node, path = heapq.heappop(heap)
-        
+        cur_time, cur_len, cur_node, path, path_edges = heapq.heappop(heap)
+
         if cur_node in visited:
             continue
         visited.add(cur_node)
         
         if cur_node in to_nodes:
             if cur_time < best_stage.travelTime:
-                best_stage = Stage(path.copy(), cur_time, cur_len)
+                best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
         
-        for neighbor, _, link in gl.get(cur_node, []):
+        for neighbor, link in gl.get(cur_node, []):
             if neighbor in visited:
                 continue
                 
@@ -92,7 +93,7 @@ def dijMF(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str]) -> Stage:
             
             if neighbor not in min_time or next_time < min_time[neighbor]:
                 min_time[neighbor] = next_time
-                heapq.heappush(heap, (next_time, next_len, neighbor, path + [neighbor]))
+                heapq.heappush(heap, (next_time, next_len, neighbor, path + [neighbor], path_edges + [link.name]))
     
     return best_stage
 
@@ -101,14 +102,14 @@ def dijMS(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str]) -> Stage:
     Find the SHORTEST route to any node in to_nodes.
     Uses length as primary key, time as secondary key.
     """
-    # (length, time, node, path)
-    heap = [(0, 0, from_node, [from_node])]
+    # (length, time, node, path, path_edges)
+    heap = [(0, 0, from_node, [from_node], [])]
     visited = set()
     min_length = {from_node: 0}
-    best_stage = Stage([], float('inf'), float('inf'))
+    best_stage = Stage([], [],float('inf'), float('inf'))
     
     while heap:
-        cur_len, cur_time, cur_node, path = heapq.heappop(heap)
+        cur_len, cur_time, cur_node, path, path_edges = heapq.heappop(heap)
         
         if cur_node in visited:
             continue
@@ -116,9 +117,9 @@ def dijMS(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str]) -> Stage:
         
         if cur_node in to_nodes:
             if cur_len < best_stage.length:
-                best_stage = Stage(path.copy(), cur_time, cur_len)
-        
-        for neighbor, _, link in gl.get(cur_node, []):
+                best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
+
+        for neighbor, link in gl.get(cur_node, []):
             if neighbor in visited:
                 continue
                 
@@ -127,7 +128,7 @@ def dijMS(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str]) -> Stage:
             
             if neighbor not in min_length or next_len < min_length[neighbor]:
                 min_length[neighbor] = next_len
-                heapq.heappush(heap, (next_len, next_time, neighbor, path + [neighbor]))
+                heapq.heappush(heap, (next_len, next_time, neighbor, path + [neighbor], path_edges + [link.name]))
     
     return best_stage
 
@@ -152,24 +153,24 @@ def astarF(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_no
     
     heap = []
     initial_h = heuristic(from_node)
-    # (f_score, time, length, node, path)
-    heapq.heappush(heap, (initial_h, 0, 0, from_node, [from_node]))
+    # (f_score, time, length, node, path, path_edges)
+    heapq.heappush(heap, (initial_h, 0, 0, from_node, [from_node], []))
     
     visited = set()
     g_scores = {from_node: 0}  # g_score = actual travel time
     
     while heap:
-        f_score, cur_time, cur_len, cur_node, path = heapq.heappop(heap)
+        f_score, cur_time, cur_len, cur_node, path, path_edges = heapq.heappop(heap)
         
         if cur_node in visited:
             continue
             
         if cur_node == to_node:
-            return Stage(path, cur_time, cur_len)
+            return Stage(path, path_edges, cur_time, cur_len)
             
         visited.add(cur_node)
-        
-        for neighbor, _, link in gl.get(cur_node, []):
+
+        for neighbor, link in gl.get(cur_node, []):
             if neighbor in visited:
                 continue
                 
@@ -182,9 +183,9 @@ def astarF(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_no
                 h_score = heuristic(neighbor)
                 f_score = next_time + h_score
                 
-                heapq.heappush(heap, (f_score, next_time, next_len, neighbor, path + [neighbor]))
+                heapq.heappush(heap, (f_score, next_time, next_len, neighbor, path + [neighbor], path_edges + [link.name]))
     
-    return Stage([], float('inf'), float('inf'))
+    return Stage([], [], float('inf'), float('inf'))
 
 def astarS(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_node: str) -> Stage:
     """
@@ -199,24 +200,24 @@ def astarS(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_no
     
     heap = []
     initial_h = heuristic(from_node)
-    # (f_score, length, time, node, path)
-    heapq.heappush(heap, (initial_h, 0, 0, from_node, [from_node]))
+    # (f_score, length, time, node, path, path_edges)
+    heapq.heappush(heap, (initial_h, 0, 0, from_node, [from_node], []))
     
     visited = set()
     g_scores = {from_node: 0}  # g_score = actual path length
     
     while heap:
-        f_score, cur_len, cur_time, cur_node, path = heapq.heappop(heap)
+        f_score, cur_len, cur_time, cur_node, path, path_edges = heapq.heappop(heap)
         
         if cur_node in visited:
             continue
             
         if cur_node == to_node:
-            return Stage(path, cur_time, cur_len)
+            return Stage(path, path_edges, cur_time, cur_len)
             
         visited.add(cur_node)
         
-        for neighbor, _, link in gl.get(cur_node, []):
+        for neighbor, link in gl.get(cur_node, []):
             if neighbor in visited:
                 continue
                 
@@ -228,10 +229,10 @@ def astarS(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_no
                 g_scores[neighbor] = next_len
                 h_score = heuristic(neighbor)
                 f_score = next_len + h_score
-                
-                heapq.heappush(heap, (f_score, next_len, next_time, neighbor, path + [neighbor]))
+
+                heapq.heappush(heap, (f_score, next_len, next_time, neighbor, path + [neighbor], path_edges + [link.name]))
     
-    return Stage([], float('inf'), float('inf'))
+    return Stage([], [], float('inf'), float('inf'))
 
 # 构建kDTree的预处理函数
 def build_target_kdtree(node_coords: CoordsDict, to_nodes: Set[str]) -> Tuple[KDTree, Dict[int, str]]:
@@ -293,27 +294,27 @@ def astarMF(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_n
     # 创建启发式函数
     heuristic = create_time_heuristic_with_kdtree(node_coords, kdtree, avg_speed=avg_speed)
     
-    # (estimated_total_time, time, length, node, path)
+    # (estimated_total_time, time, length, node, path, path_edges)
     initial_h = heuristic(from_node)
-    heap = [(initial_h, 0, 0, from_node, [from_node])]
+    heap = [(initial_h, 0, 0, from_node, [from_node], [])]
     
     visited = set()
     g_scores = {from_node: 0}  # g_score = actual travel time
-    best_stage = Stage([], float('inf'), float('inf'))
+    best_stage = Stage([], [], float('inf'), float('inf'))
     
     while heap:
-        est_total_time, cur_time, cur_len, cur_node, path = heapq.heappop(heap)
+        est_total_time, cur_time, cur_len, cur_node, path, path_edges = heapq.heappop(heap)
         
         if cur_node in visited:
             continue
             
         if cur_node in to_nodes:
             if cur_time < best_stage.travelTime:
-                best_stage = Stage(path.copy(), cur_time, cur_len)
+                best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
         
         visited.add(cur_node)
-        
-        for neighbor, _, link in gl.get(cur_node, []):
+
+        for neighbor, link in gl.get(cur_node, []):
             if neighbor in visited:
                 continue
                 
@@ -325,9 +326,9 @@ def astarMF(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_n
                 g_scores[neighbor] = next_time
                 h_score = heuristic(neighbor)
                 est_total = next_time + h_score
-                
-                heapq.heappush(heap, (est_total, next_time, next_len, neighbor, path + [neighbor]))
-    
+
+                heapq.heappush(heap, (est_total, next_time, next_len, neighbor, path + [neighbor], path_edges + [link.name]))
+
     return best_stage
 
 def astarMS(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_nodes: Set[str]) -> Stage:
@@ -340,27 +341,27 @@ def astarMS(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_n
     # 创建启发式函数
     heuristic = create_heuristic_with_kdtree(node_coords, kdtree)
     
-    # (estimated_total_length, length, time, node, path)
+    # (estimated_total_length, length, time, node, path, path_edges)
     initial_h = heuristic(from_node)
-    heap = [(initial_h, 0, 0, from_node, [from_node])]
+    heap = [(initial_h, 0, 0, from_node, [from_node], [])]
     
     visited = set()
     g_scores = {from_node: 0}  # g_score = actual path length
-    best_stage = Stage([], float('inf'), float('inf'))
+    best_stage = Stage([], [], float('inf'), float('inf'))
     
     while heap:
-        est_total_len, cur_len, cur_time, cur_node, path = heapq.heappop(heap)
+        est_total_len, cur_len, cur_time, cur_node, path, path_edges = heapq.heappop(heap)
         
         if cur_node in visited:
             continue
             
         if cur_node in to_nodes:
             if cur_len < best_stage.length:
-                best_stage = Stage(path.copy(), cur_time, cur_len)
+                best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
         
         visited.add(cur_node)
-        
-        for neighbor, _, link in gl.get(cur_node, []):
+
+        for neighbor, link in gl.get(cur_node, []):
             if neighbor in visited:
                 continue
                 
@@ -373,7 +374,7 @@ def astarMS(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_n
                 h_score = heuristic(neighbor)
                 est_total = next_len + h_score
                 
-                heapq.heappush(heap, (est_total, next_len, next_time, neighbor, path + [neighbor]))
+                heapq.heappush(heap, (est_total, next_len, next_time, neighbor, path + [neighbor], path_edges + [link.name]))
     
     return best_stage
 
@@ -395,19 +396,19 @@ def astarMC(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_n
         # 将距离转换为近似的score增量（这是一个保守估计）
         return omega * (dist / avg_speed / 60.0)  # 假设平均速度20.0m/s，转换为分钟
     
-    # (estimated_total_score, actual_score, time, length, node, path)
+    # (estimated_total_score, actual_score, time, length, node, path, path_edges)
     initial_h = score_heuristic(from_node)
     initial_score = omega * (0 / 60.0 + wt.get(from_node, 0)) + to_charge * p.get(from_node, 0)
-    heap = [(initial_h + initial_score, initial_score, 0, 0, from_node, [from_node])]
+    heap = [(initial_h + initial_score, initial_score, 0, 0, from_node, [from_node], [])]
     
     visited = set()
     best_score = {from_node: initial_score}
-    best_stage = Stage([], float('inf'), float('inf'))
+    best_stage = Stage([], [], float('inf'), float('inf'))
     min_actual_score = float('inf')
     
     while heap:
-        est_total_score, cur_score, cur_time, cur_len, cur_node, path = heapq.heappop(heap)
-        
+        est_total_score, cur_score, cur_time, cur_len, cur_node, path, path_edges = heapq.heappop(heap)
+
         if cur_score > min_actual_score:
             continue
             
@@ -418,9 +419,9 @@ def astarMC(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_n
         if cur_node in to_nodes and cur_len <= max_length:
             if cur_score < min_actual_score:
                 min_actual_score = cur_score
-                best_stage = Stage(path.copy(), cur_time, cur_len)
-        
-        for neighbor, _, link in gl.get(cur_node, []):
+                best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
+
+        for neighbor, link in gl.get(cur_node, []):
             if neighbor in visited:
                 continue
                 
@@ -438,6 +439,6 @@ def astarMC(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_n
                 est_total = neighbor_score + h_score
                 
                 heapq.heappush(heap, (est_total, neighbor_score, next_time, next_len, 
-                                    neighbor, path + [neighbor]))
-    
+                                    neighbor, path + [neighbor], path_edges + [link.name]))
+
     return best_stage

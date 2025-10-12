@@ -1,15 +1,11 @@
 from typing import DefaultDict, List, Dict, Set, Tuple
 import threading
-import sumolib
 from feasytools import Point, KDTree
-Net = sumolib.net.Net
-Edge = sumolib.net.edge.Edge
-Node = sumolib.net.node.Node
-Conn = sumolib.net.connection.Connection
 import matplotlib
 matplotlib.use('Agg')
 from ..locale import Lang
 from ..traffic import LoadFCS, LoadSCS
+from ..traffic.net import *
 
 def _largeStackExec(func, *args):
     import sys
@@ -76,39 +72,37 @@ class RoadNetConnectivityChecker:
     CS edges that are not in the largest strongly connected component are also stored.
     '''
     def __init__(self, net_file:str, fcs_file:str="", scs_file:str=""):
-        self._net:Net = sumolib.net.readNet(net_file)
+        self._net = RoadNet.load(net_file)
         self._fcs_names = set() if fcs_file == "" else LoadFCS(fcs_file)
         self._scs_names = set() if scs_file == "" else LoadSCS(scs_file)
         self._cs_names = self._fcs_names.union(self._scs_names)
-        self.all_nodes:List[Node] = self._net.getNodes()
-        self.all_nodeIDs:List[str] = [e.getID() for e in self.all_nodes]
+        self.all_nodeIDs:List[str] = list(self._net.nodes.keys())
         self._id2num:Dict[str, int] = {e:i for i,e in enumerate(self.all_nodeIDs)}
-        gl:List[List[int]] = [[] for _ in range(len(self.all_nodes))]
-        for nd in self.all_nodes:
-            u = self._id2num[nd.getID()]
-            gl[u] = [self._id2num[neighbor.getToNode().getID()] for neighbor in nd.getOutgoing()]
-        
-        tscc = _TarjanSCC(n=len(self.all_nodes), gl=gl)
+        gl:List[List[int]] = [[] for _ in range(len(self.all_nodeIDs))]
+        for nd in self._net.nodes.values():
+            u = self._id2num[nd.id]
+            gl[u] = [self._id2num[neighbor.to_node.id] for neighbor in nd.outgoing_edges]
+
+        tscc = _TarjanSCC(n=len(self.all_nodeIDs), gl=gl)
         _largeStackExec(tscc.get_scc)
         assert tscc.max_scc is not None
 
         self.nodeIDs:List[str] = [self.all_nodeIDs[x] for x in tscc.max_scc]
-        self.nodes:List[Node] = [self._net.getNode(e) for e in self.nodeIDs]
+        self.nodes:List[Node] = [self._net.get_node(nd) for nd in self.nodeIDs]
         
         self.nodeIDset:Set[str] = set(self.nodeIDs)
         bad_fcs:Set[str] = set()
         bad_scs:Set[str] = set()
-        for e in self._net.getEdges():
-            eid:str = e.getID()
-            if eid in self._fcs_names and eid not in self.nodeIDset:
-                bad_fcs.add(eid)
-            if eid in self._scs_names and eid not in self.nodeIDset:
-                bad_scs.add(eid)
+        for node_id in self.all_nodeIDs:
+            if node_id in self._fcs_names and node_id not in self.nodeIDset:
+                bad_fcs.add(node_id)
+            if node_id in self._scs_names and node_id not in self.nodeIDset:
+                bad_scs.add(node_id)
         self.unreachable_CS = bad_fcs.union(bad_scs)
 
         self.__node_finder = KDTree(
-            points=[Point(*self.get_node_pos(nd.getID())) for nd in self.all_nodes],
-            labels=[nd.getID() for nd in self.all_nodes]
+            points=[Point(*self.get_node_pos(nd.id)) for nd in self._net.nodes.values()],
+            labels=[nd.id for nd in self._net.nodes.values()]
         )
 
     def checkBadCS(self, display:bool = True) -> bool:
@@ -120,8 +114,8 @@ class RoadNetConnectivityChecker:
 
     def checkSCCSize(self, display:bool = True) -> bool:
         '''Check if the size of the largest strongly connected component is large enough'''
-        if len(self.nodeIDs) < 0.8 * len(self.all_nodes):
-            if display: print(Lang.WARN_SCC_TOO_SMALL.format(len(self.nodeIDs), len(self.all_nodes)))
+        if len(self.nodeIDs) < 0.8 * len(self.all_nodeIDs):
+            if display: print(Lang.WARN_SCC_TOO_SMALL.format(len(self.nodeIDs), len(self.all_nodeIDs)))
             return False
         return True
     
@@ -130,7 +124,10 @@ class RoadNetConnectivityChecker:
         Find the nearest node ID to the given point.
         If the distance is greater than threshold_m, raise a RuntimeError.
         '''
-        node_id, dist = self.__node_finder.nearest_mapped_with_distance(point)
+        ret = self.__node_finder.nearest_mapped_with_distance(point)
+        if ret is None:
+            raise RuntimeError("No node found")
+        node_id, dist = ret
         if dist > threshold_m:
             raise RuntimeError(str(dist))
         return node_id
@@ -140,8 +137,8 @@ class RoadNetConnectivityChecker:
         Get the position of the node in the road network.
         The position is the average of the shape of the node.
         '''
-        nd:Node = self._net.getNode(node)
-        return nd.getCoord()
+        nd:Node = self._net.get_node(node)
+        return (nd.x, nd.y)
     
     @property
     def FCSNames(self) -> Set[str]:
@@ -159,7 +156,7 @@ class RoadNetConnectivityChecker:
         return self._cs_names
     
     @property
-    def Net(self) -> Net:
+    def Net(self):
         '''Return the road network'''
         return self._net
     
@@ -186,7 +183,7 @@ class RoadNetConnectivityChecker:
     @property
     def AllNodes(self):
         '''List of all nodes in the road network'''
-        return self.all_nodes
+        return list(self._net.nodes.values())
 
     @property
     def BadCS(self):

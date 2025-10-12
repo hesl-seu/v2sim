@@ -497,7 +497,7 @@ class CSEditorGUI(Frame):
                 assert isinstance(cs, SCS)
                 ol = str(cs._offline) if len(cs._offline)>0 else ALWAYS_ONLINE
                 v = (cs.name, cs.slots, cs.bus, cs._x, cs._y, ol, cs._pc_lim1 * 3600, cs._pd_lim1 * 3600, 
-                            cs.pbuy, cs.psell, cs._pc_alloc_str, cs._pd_alloc_str)
+                            cs.pbuy, cs._psell, cs._pc_alloc_str, cs._pd_alloc_str)
                 self._Q.delegate(self.tree.insert, "", "end", values=v)
     
     

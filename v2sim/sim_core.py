@@ -511,7 +511,7 @@ class V2SimInstance:
             Follow the start - step - stop paradigm.
         '''
         self.__working_flag = True
-        self.__inst.simulation_start(self.__sumocfg_file, self.__rnet_file, self.__start_time, self.__vb is not None)
+        self.__inst.simulation_start(self.__start_time)
         self.__plgman.PreSimulationAll()
         if load_from != "":
             self.load_state(load_from)

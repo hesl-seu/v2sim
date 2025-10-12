@@ -1,6 +1,8 @@
-libsumo
+sumolib
 numpy
 matplotlib
+joblib
+threadpoolctl
 scikit-learn
 feasytools>=0.1.2
 fpowerkit>=0.3.2
@@ -9,3 +11,4 @@ requests
 ordered-set
 cvxpy
 ecos
+uxsim

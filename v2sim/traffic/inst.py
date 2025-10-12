@@ -4,10 +4,7 @@ from pathlib import Path
 import random
 import pickle
 import gzip
-from typing import Sequence, List, Tuple, Dict
-from sumolib.net import readNet, Net
-from sumolib.net.edge import Edge
-from sumolib.net.node import Node
+from typing import List, Tuple, Dict
 from feasytools import PQueue, Point
 from uxsim import World, Link, Vehicle
 from .routing import *
@@ -15,6 +12,8 @@ from .trip import TripsLogger
 from .cslist import *
 from .ev import *
 from .utils import TWeights
+from .paraworlds import WorldSpec, ParaWorlds, SingleWorld
+from .net import RoadNet
 
 
 class TrafficInst:
@@ -60,10 +59,9 @@ class TrafficInst:
         self.__etime: int = end_time
         
         # Read road network
-        self.__rnet: Net = readNet(road_net_file)
-        self.__edges: List[Edge] = self.__rnet.getEdges()
+        self.__rnet: RoadNet = RoadNet.load(road_net_file)
         # Get all road names
-        self.__names: List[str] = [e.getID() for e in self.__edges]
+        self.__names: List[str] = list(self.__rnet.edges.keys())
 
         self.__istate_folder = initial_state_folder
 
@@ -84,36 +82,17 @@ class TrafficInst:
         self.__names_scs: List[str] = [cs.name for cs in self._scs]
         
         # Create uxsim world
-        self.W = World(
-            tmax = self.__etime,
-            print_mode = 1 if show_uxsim_info else 0,
-            deltan = 1, 
-            name = Path(road_net_file).stem, 
-            random_seed = seed,
-            hard_deterministic_mode = True,
-            vehicle_logging_timestep_interval = -1,
-            instantaneous_TT_timestep_interval = self.__step_len,
-            reduce_memory_delete_vehicle_route_pref = True,
+        self.W = self.__rnet.create_world(
+            tmax = end_time,
+            deltan = 1,
+            instantaneous_TT_timestep_interval=step_len,
+            random_seed=seed,
+            hard_deterministic_mode=True,
+            reduce_memory_delete_vehicle_route_pref=True,
+            print_mode=1 if show_uxsim_info else 0
         )
-        self._uvi:Dict[str, Vehicle] = {}
+        print(f"World created: {type(self.W).__name__}")
 
-        self.nodes:Dict[str, Node] = {n.getID(): n for n in self.__rnet.getNodes()}
-        self.node_coords:Dict[str, Tuple[float, float]] = {k: u.getCoord() for k,u in self.nodes.items()}
-        for k, (x, y) in self.node_coords.items():
-            self.W.addNode(name = k, x = x, y = y)
-        
-        self.gl:Dict[str, List[Tuple[str, str, Link]]] = {nid: [] for nid in self.nodes}
-        self.edges_dict:Dict[str, Edge] = {e.getID(): e for e in self.__rnet.getEdges()}
-        for e in self.edges_dict.values():
-            en:str = e.getID()
-            fr:Node = e.getFromNode()
-            frn:str = fr.getID()
-            to:Node = e.getToNode()
-            ton:str = to.getID()
-            link = self.W.addLink(name = en, start_node = frn, end_node = ton,
-                length = e.getLength(), free_flow_speed = e.getSpeed(), number_of_lanes = e.getLaneNumber())
-            self.gl[frn].append((ton, en, link))
-        
         # Load vehicles to charging stations and prepare to depart
         for veh in self._VEHs.values():
             self._que.push(veh.trip.depart_time, veh.ID)
@@ -130,37 +109,37 @@ class TrafficInst:
         """
         if self.__use_astar:
             if fastest:
-                return astarF(self.gl, self.node_coords, self.__ctime, from_node, to_node)
+                return astarF(self.W.get_gl(), self.W.get_coords(), self.__ctime, from_node, to_node)
             else:
-                return astarS(self.gl, self.node_coords, self.__ctime, from_node, to_node)
+                return astarS(self.W.get_gl(), self.W.get_coords(), self.__ctime, from_node, to_node)
         else:
             if fastest:
-                return dijMF(self.gl, self.__ctime, from_node, {to_node})
+                return dijMF(self.W.get_gl(), self.__ctime, from_node, {to_node})
             else:
-                return dijMS(self.gl, self.__ctime, from_node, {to_node})
+                return dijMS(self.W.get_gl(), self.__ctime, from_node, {to_node})
         
     def find_best_route(self, from_node:str, to_nodes: set[str], fastest:bool = True):
         if self.__use_astar:
             if fastest:
-                return astarMF(self.gl, self.node_coords, self.__ctime, 
-                    from_node, to_nodes, max(0.1, self.W.analyzer.average_speed))
+                return astarMF(self.W.get_gl(), self.W.get_coords(), self.__ctime,
+                    from_node, to_nodes, max(0.1, self.W.get_average_speed()))
             else:
-                return astarMS(self.gl, self.node_coords, self.__ctime, from_node, to_nodes)
+                return astarMS(self.W.get_gl(), self.W.get_coords(), self.__ctime, from_node, to_nodes)
         else:
             if fastest:
-                return dijMF(self.gl, self.__ctime, from_node, to_nodes)
+                return dijMF(self.W.get_gl(), self.__ctime, from_node, to_nodes)
             else:
-                return dijMS(self.gl, self.__ctime, from_node, to_nodes)
+                return dijMS(self.W.get_gl(), self.__ctime, from_node, to_nodes)
     
     def find_best_fcs(self, from_node:str, to_fcs: List[str], omega:float, to_charge:float, max_dist:float):
         wt = {c: self._fcs[c].wait_count() * 30.0 for c in to_fcs}
         p = {c: self._fcs[c].pbuy(self.__ctime) for c in to_fcs}
         if self.__use_astar:
-            return astarMC(self.gl, self.node_coords, self.__ctime, from_node, set(to_fcs), 
-                omega, to_charge, wt, p, max_dist,  max(0.1, self.W.analyzer.average_speed))
+            return astarMC(self.W.get_gl(), self.W.get_coords(), self.__ctime, from_node, set(to_fcs),
+                omega, to_charge, wt, p, max_dist,  max(0.1, self.W.get_average_speed()))
         else:
-            return dijMC(self.gl, self.__ctime, from_node, set(to_fcs), omega, to_charge, wt, p, max_dist)
-    
+            return dijMC(self.W.get_gl(), self.__ctime, from_node, set(to_fcs), omega, to_charge, wt, p, max_dist)
+
     @property
     def trips_logger(self) -> TripsLogger:
         """Trip logger"""
@@ -219,19 +198,13 @@ class TrafficInst:
 
     def __add_veh2(self, veh_id:str, from_node:str, to_node:str):
         self._VEHs[veh_id].clear_odometer()
-        tn = self.W.get_node(to_node)
-        v = self.W.addVehicle(orig=from_node, dest=to_node, departure_time=self.__ctime, name=veh_id)
-        def __add_to_arrQ():
-            self._aQ.append(veh_id)
-            v.node_event.clear()
-        v.node_event[tn] = __add_to_arrQ
-        self._uvi[veh_id] = v
+        self.W.add_vehicle(veh_id, from_node, to_node)
 
 
     @property
-    def edges(self) -> List[Edge]:
+    def edges(self):
         """Get all roads"""
-        return self.__edges
+        return list(self.__rnet.edges.values())
 
     @property
     def trips_iterator(self):
@@ -259,10 +232,10 @@ class TrafficInst:
         to_charge = veh.charge_target - veh.battery
         
         if cur_node is None:
-            if veh.ID not in self._uvi:
+            if not self.W.has_vehicle(veh.ID):
                 raise RuntimeError(f"Vehicle {veh.ID} not found in simulator")
             if cur_edge is None:
-                link:Optional[Link] = self._uvi[veh.ID].link
+                link:Optional[Link] = self.W.get_vehicle(veh.ID).link
             else:
                 link = self.W.get_link(cur_edge)
             if link is None:
@@ -271,9 +244,9 @@ class TrafficInst:
         assert isinstance(cur_node, str)
         
         if cur_pos is None:
-            if veh.ID not in self._uvi:
+            if not self.W.has_vehicle(veh.ID):
                 raise RuntimeError(f"Vehicle {veh.ID} not found in simulator")
-            x, y = self._uvi[veh.ID].get_xy_coords()
+            x, y = self.W.get_vehicle(veh.ID).get_xy_coords()
             cur_pos = Point(x, y)
         
         best = self.find_best_fcs(cur_node, self._fcs.get_online_CS_names(self.__ctime),
@@ -307,7 +280,7 @@ class TrafficInst:
             veh.charge_target = veh.full_battery
             self.__add_veh2(veh_id, trip.from_node, trip.to_node)
         else:  # Charge once on the way
-            x, y = self.__rnet.getNode(trip.from_node).getCoord()
+            x, y = self.__rnet.get_node(trip.from_node).get_coord()
             route, weights = self.__sel_best_CS(veh, trip.from_node, cur_pos = Point(x, y))
             if len(route.nodes) == 0:
                 # The power is not enough to drive to any charging station, you need to charge for a while
@@ -482,13 +455,7 @@ class TrafficInst:
         """
         return self._fcs.get_veh_count() + self._scs.get_veh_count()
 
-    def simulation_start(
-        self,
-        sumocfg_file: str,
-        net_file: str,
-        start_time: Optional[int] = None,
-        gui: bool = False,
-    ):
+    def simulation_start(self, start_time: Optional[int] = None):
         """
         Start simulation
             sumocfg_file: SUMO configuration file path
@@ -497,13 +464,13 @@ class TrafficInst:
         """
         
         self.__ctime = self.__stime if start_time is None else start_time
-        self.W.exec_simulation(until_t=self.__ctime)
+        self.W.exec_simulation(self.__ctime)
         
         self.__batch_depart()
 
         for cs in chain(self.FCSList, self.SCSList):
             if cs._x == float('inf') or cs._y == float('inf'):
-                cs._x, cs._y = self.__rnet.getNode(cs.name).getCoord()
+                cs._x, cs._y = self.__rnet.get_node(cs.name).get_coord()
         
         if self.FCSList._kdtree == None:
             self.FCSList._kdtree = KDTree(
@@ -534,10 +501,8 @@ class TrafficInst:
         self.__batch_depart()
 
         # Process arrived vehicles
-        while self._aQ:
-            v = self._aQ.popleft()
+        for v, v0 in self.W.get_arrived_vehicles():
             veh = self._VEHs[v]
-            v0 = self._uvi[v]
             route, timepoint = v0.traveled_route()
             dist = sum(link.length for link in route.links)
             veh.drive(dist)
@@ -545,8 +510,6 @@ class TrafficInst:
                 self.__end_trip(v)
             else:
                 self.__start_charging_FCS(self._VEHs[v])
-            self.W.VEHICLES.pop(v)
-            self._uvi.pop(v)
 
         # Process vehicles in charging stations and parked vehicles
         self.__FCS_update(deltaT)
