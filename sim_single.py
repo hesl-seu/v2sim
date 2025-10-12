@@ -7,7 +7,7 @@ from v2sim import (
     get_sim_params,
 )
 import threading, sys, logging, platform
-from feasytools import ArgChecker, KeyNotSpecifiedError#, FEasyTimer
+from feasytools import ArgChecker, KeyNotSpecifiedError, FEasyTimer
 
 
 def error_exit(err=None, print_help: bool = False):
@@ -122,3 +122,4 @@ if __name__ == "__main__":
     from version_checker import check_requirements
     check_requirements()
     work()
+    FEasyTimer.report()

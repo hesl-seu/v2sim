@@ -1,9 +1,11 @@
-from collections import deque
 import enum
 import os
+import time
+from collections import deque
 from typing import DefaultDict, Deque, Dict, Generator, List, Optional, Set, Tuple
 from uxsim import World, Vehicle
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from .routing import *
 
 
@@ -56,6 +58,9 @@ class WorldSpec(ABC):
     @abstractmethod
     def get_link(self, link_id:str) -> Optional[Link]: ...
 
+    @abstractmethod
+    def shutdown(self): ...
+
 class SingleWorld(WorldSpec):
     def __init__(self, world:World, gl:Graph):
         self.world = world
@@ -64,6 +69,7 @@ class SingleWorld(WorldSpec):
         self.__uvi:Dict[str, Vehicle] = {}
         self.__aQ:Deque[str] = deque()
         self.coords:CoordsDict = {}
+        self.__cnt = 0
         for node in self.world.NODES:
             self.coords[node.name] = (node.x, node.y)
     
@@ -71,10 +77,11 @@ class SingleWorld(WorldSpec):
         self.__aQ.clear()
         self.world.exec_simulation(until_s)
         self.__ct = until_s
+        self.__cnt += 1
     
     def add_vehicle(self, veh_id:str, from_node:str, to_node:str):
         tn = self.world.get_node(to_node)
-        v = self.world.addVehicle(orig=from_node, dest=to_node, departure_time=self.__ct, name=veh_id)
+        v = self.world.addVehicle(orig=from_node, dest=to_node, departure_time=self.__ct, name=veh_id, auto_rename=True)
         def __add_to_arrQ():
             self.__aQ.append(veh_id)
             v.node_event.clear()
@@ -109,6 +116,9 @@ class SingleWorld(WorldSpec):
     def get_average_speed(self) -> float:
         return self.world.analyzer.average_speed
     
+    def shutdown(self):
+        return f"Total steps: {self.__cnt}"
+    
 class ParaWorlds(WorldSpec):
     def __init__(self, worlds:Dict[int, World], gl:Graph):
         self.worlds = worlds
@@ -140,6 +150,13 @@ class ParaWorlds(WorldSpec):
         self.__veh_itineraies:Dict[str, List[Tuple[str, int]]] = {}
 
         self.__uvi: Dict[str, Vehicle] = {}
+
+        self.__lt: float = 0.0
+
+        self.__pool = ThreadPoolExecutor(os.cpu_count())
+
+        self.__cnt_para = 0
+        self.__cnt_ser = 0
         
     
     def get_coords(self) -> CoordsDict:
@@ -159,15 +176,28 @@ class ParaWorlds(WorldSpec):
     
     def get_time(self) -> int:
         return self.__ctime
-    
+
     def exec_simulation(self, until_s:int):
         self.__aQ.clear()
         
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(os.cpu_count()) as executor:
-            futures = [executor.submit(W.exec_simulation, until_s) for W in self.worlds.values()]
-            done, not_done = concurrent.futures.wait(futures)
-            assert len(not_done) == 0, "Some worlds did not finish simulation."
+        st = time.time()
+        if self.__lt < 0.01:
+            for W in self.worlds.values():
+                W.exec_simulation(until_s)
+            self.__cnt_ser += 1
+        else:
+            
+            futures = []
+            for W in self.worlds.values():
+                if len(futures) + 1 == len(self.worlds):
+                    # The last task in conduct in main thread to reduce the overhead
+                    W.exec_simulation(until_s)
+                else:
+                    futures.append(self.__pool.submit(W.exec_simulation, until_s))
+            self.__cnt_para += 1
+            for _ in as_completed(futures): pass
+
+        self.__lt = time.time() - st
         
         self.__ctime = until_s
 
@@ -195,7 +225,7 @@ class ParaWorlds(WorldSpec):
             f"Node {to_node} is not in world {world_id}, cannot add vehicle {veh_id}."
         W = self.worlds[world_id]
         tn = W.get_node(to_node)
-        v = W.addVehicle(orig=from_node, dest=to_node, departure_time=self.__ctime, name=veh_id)
+        v = W.addVehicle(orig=from_node, dest=to_node, departure_time=self.__ctime, name=veh_id, auto_rename=True)
         def add_to_aQ():
             self.__aQs[world_id].append((veh_id, trip_segment))
             v.node_event.clear()
@@ -210,7 +240,7 @@ class ParaWorlds(WorldSpec):
         else:
             stage = algo.run(self.gl, self.node_coords, self.__ctime, from_node, to_node)
             Ecnt = len(stage.edges)
-            assert len(stage.nodes) > 1, "Too short route, no need to add vehicle."
+            assert Ecnt > 0, "Route not found."
             splitting_nodes:List[Tuple[str, int]] = [(stage.nodes[0], self.wid_of_edges[stage.edges[0]])]  # (node_name, prev_world_id, next_world_id)
             for i in range(Ecnt - 1):
                 if self.wid_of_edges[stage.edges[i]] != self.wid_of_edges[stage.edges[i + 1]]:
@@ -228,3 +258,7 @@ class ParaWorlds(WorldSpec):
     
     def get_average_speed(self) -> float:
         return sum(W.analyzer.average_speed for W in self.worlds.values()) / len(self.worlds)
+    
+    def shutdown(self):
+        self.__pool.shutdown(wait=True)
+        return f"Total steps: {self.__cnt_ser} serial + {self.__cnt_para} parallel"

@@ -46,7 +46,7 @@ class PluginOvercurrent(PluginBase[None]):
             raise RuntimeError(_locale["ERROR_SMART_CHARGE"])
         self.__csatb:Dict[str, List[CS]] = defaultdict(list)
         for cs in chain(inst.SCSList, inst.FCSList):
-            self.__csatb[cs.node].append(cs)
+            self.__csatb[cs._bus].append(cs)
         self.__csatb_closed:Dict[str, bool] = {
             b:False for b in self.__csatb
         }

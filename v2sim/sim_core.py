@@ -10,7 +10,7 @@ from .plugins import *
 from .statistics import *
 from .traffic import *
 from .locale import Lang
-from .trafficgen import TrafficGenerator, RoadNetConnectivityChecker
+from .trafficgen import TrafficGenerator
 import inspect
 
 
@@ -72,8 +72,8 @@ def get_sim_params(
             "outdir":               args.pop_str("o", ""),
             "outdir_direct":        args.pop_str("od", ""),
             "traffic_step":         args.pop_int("l", 10),
-            "start_time":           args.pop_int("b", -1),
-            "end_time":             args.pop_int("e", -1),
+            "start_time":           args.pop_int("b", 0),
+            "end_time":             args.pop_int("e", 172800),
             "no_plg":               args.pop_str("no-plg", ""),
             "log":                  args.pop_str("log", "fcs,scs"),
             "seed":                 args.pop_int("seed", time.time_ns() % 65536),
@@ -91,6 +91,7 @@ def get_sim_params(
             "copy_state":           args.pop_bool("copy-state"),
             "route_algo":           args.pop_str("route-algo", "astar"),
             "show_uxsim_info":      args.pop_bool("show-uxsim-info"),
+            "no_parallel":          args.pop_bool("no-parallel"),
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
@@ -140,6 +141,7 @@ class V2SimInstance:
         copy_state: bool = False,
         route_algo: str = "astar",
         show_uxsim_info: bool = False,
+        no_parallel: bool = False,
     ):
         '''
         Initialization
@@ -169,6 +171,8 @@ class V2SimInstance:
             save_on_finish: Whether to save the state when the simulation ends
             copy_state: Whether to copy the state folder after the simulation ends or when Ctrl+C is pressed
             route_algo: Routing algorithm, can be dijkstra or astar
+            show_uxsim_info: Whether to show the information of uxsim
+            no_parallel: Disable parallel simulation even if possible
         '''
 
         if plg_pool is None: plg_pool = PluginPool()
@@ -245,28 +249,12 @@ class V2SimInstance:
             with open(proj_cfg.py,"r",encoding="utf-8") as f:
                 code = f.read()
                 exec(code)
-            
-        # Detect SUMO configuration
-        if not proj_cfg.cfg:
-            raise FileNotFoundError(Lang.ERROR_SUMO_CONFIG_NOT_SPECIFIED)
-        sumocfg_file = proj_cfg.cfg
-        _stt, _edt, _rnet, _addf = GetTimeAndNetwork(sumocfg_file)
-        self.__print(f"  SUMO: {sumocfg_file}")
-
+        
         # Detect road network file
-        if _rnet is None:
-            if not proj_cfg.net:
-                raise RuntimeError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
-            else:
-                rnet_file = proj_cfg.net
+        if not proj_cfg.net:
+            raise RuntimeError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
         else:
-            rnet_file = proj_dir / _rnet
-            if rnet_file.exists():
-                rnet_file = str(rnet_file)
-            else:
-                raise FileNotFoundError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
-        elg = RoadNetConnectivityChecker(rnet_file)
-        elg.checkBadCS()
+            rnet_file = proj_cfg.net
         self.__print(Lang.INFO_NET.format(rnet_file))
         
         # Check vehicles and trips
@@ -294,10 +282,6 @@ class V2SimInstance:
         #if scs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
 
         # Check start and end time
-        if start_time == -1:
-            start_time = _stt
-        if end_time == -1:
-            end_time = _edt
         if start_time == -1 or end_time == -1:
             raise ValueError(Lang.ERROR_ST_ED_TIME_NOT_SPECIFIED)
         self.__start_time = start_time
@@ -315,6 +299,7 @@ class V2SimInstance:
             initial_state_folder = initial_state,
             routing_algo = route_algo,
             show_uxsim_info = show_uxsim_info,
+            no_parallel = no_parallel
         )
 
         # Enable plugins
@@ -347,8 +332,6 @@ class V2SimInstance:
         if initial_state:
             self.__load_plugin_states(Path(initial_state) / "plugins.gz")
         self.__steplen = traffic_step
-        self.__sumocfg_file = sumocfg_file
-        self.__rnet_file = rnet_file
         self.__copy = copy
         self.__plot_cmd = plot_command
         self.__veh_file = veh_file
@@ -577,7 +560,6 @@ class V2SimInstance:
             shutil.copy(self.__fcs_file, self.__pres / Path(self.__fcs_file).name)
             shutil.copy(self.__scs_file, self.__pres / Path(self.__scs_file).name)
             shutil.copy(self.__plg_file, self.__pres / Path(self.__plg_file).name)
-            shutil.copy(self.__sumocfg_file, self.__pres / Path(self.__sumocfg_file).name)
         self.__working_flag = False
     
     #@FEasyTimer

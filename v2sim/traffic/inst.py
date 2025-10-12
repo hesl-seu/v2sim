@@ -1,18 +1,19 @@
 from collections import deque
 from itertools import chain
+from warnings import warn
 from pathlib import Path
 import random
 import pickle
 import gzip
 from typing import List, Tuple, Dict
-from feasytools import PQueue, Point
-from uxsim import World, Link, Vehicle
+from feasytools import PQueue, Point, FEasyTimer
+from uxsim import Link
 from .routing import *
 from .trip import TripsLogger
 from .cslist import *
 from .ev import *
 from .utils import TWeights
-from .paraworlds import WorldSpec, ParaWorlds, SingleWorld
+from .paraworlds import ParaWorlds
 from .net import RoadNet
 
 
@@ -31,6 +32,7 @@ class TrafficInst:
         initial_state_folder: str = "",
         routing_algo: str = "dijkstra",  # or "astar"
         show_uxsim_info: bool = False,
+        no_parallel: bool = False
     ):
         """
         TrafficInst initialization
@@ -80,18 +82,27 @@ class TrafficInst:
         self._scs:CSList[SCS] = scs_obj if scs_obj else CSList(self._VEHs, filePath=scsfile, csType=SCS)
         self.__names_fcs: List[str] = [cs.name for cs in self._fcs]
         self.__names_scs: List[str] = [cs.name for cs in self._scs]
+
+        # Check if all CS are in the largest SCC
+        bad_cs = set(cs.name for cs in chain(self._fcs, self._scs) if not self.__rnet.is_node_in_largest_scc(cs.name))
+        if len(bad_cs) > 0:
+            warn(Lang.WARN_CS_NOT_IN_SCC.format(','.join(bad_cs)))
         
         # Create uxsim world
-        self.W = self.__rnet.create_world(
-            tmax = end_time,
-            deltan = 1,
-            instantaneous_TT_timestep_interval=step_len,
+        create_func = self.__rnet.create_singleworld if no_parallel else self.__rnet.create_world
+        self.W = create_func(
+            tmax=end_time,
+            deltan=1,
+            reaction_time=step_len,
             random_seed=seed,
             hard_deterministic_mode=True,
             reduce_memory_delete_vehicle_route_pref=True,
+            vehicle_logging_timestep_interval=-1,
             print_mode=1 if show_uxsim_info else 0
         )
         print(f"World created: {type(self.W).__name__}")
+        if isinstance(self.W, ParaWorlds):
+            print(f"Number of sub-worlds: {len(self.W.worlds)}")
 
         # Load vehicles to charging stations and prepare to depart
         for veh in self._VEHs.values():
@@ -455,6 +466,7 @@ class TrafficInst:
         """
         return self._fcs.get_veh_count() + self._scs.get_veh_count()
 
+    # @FEasyTimer
     def simulation_start(self, start_time: Optional[int] = None):
         """
         Start simulation
@@ -484,6 +496,7 @@ class TrafficInst:
                 range(self.SCSList._n)
             )
 
+    # @FEasyTimer
     def simulation_step(self, step_len: int):
         """
         Simulation step.
@@ -521,6 +534,7 @@ class TrafficInst:
             self.__start_charging_FCS(self._VEHs[v])
 
     def simulation_stop(self):
+        print(self.W.shutdown())
         self.__logger.close()
     
     def save_state(self, folder: str):

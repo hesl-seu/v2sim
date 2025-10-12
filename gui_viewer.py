@@ -519,13 +519,13 @@ class PlotBox(Tk):
         else:
             if cs.supports_V2G:
                 res = (
-                    f"ID: {cs.name} (V2G)\nBus: {cs.node}\n  Pc_kW:{cs.Pc_kW}\n  Pd_kW: {cs.Pd_kW}\n  Pv2g_kW: {cs.Pv2g_kW}\n" +
+                    f"ID: {cs.name} (V2G)\nBus: {cs.bus}\n  Pc_kW:{cs.Pc_kW}\n  Pd_kW: {cs.Pd_kW}\n  Pv2g_kW: {cs.Pv2g_kW}\n" +
                     f"Slots: {cs.slots}\n  Count: {cs.veh_count()} total, {cs.veh_count(True)} charging\n"+
                     f"Price:\n  Buy: {cs.pbuy}\n  Sell: {cs.psell}\n"
                 )
             else:
                 res = (
-                    f"ID: {cs.name}\nBus: {cs.node}\n  Pc_kW:{cs.Pc_kW}\n" +
+                    f"ID: {cs.name}\nBus: {cs.bus}\n  Pc_kW:{cs.Pc_kW}\n" +
                     f"Slots: {cs.slots}\n  Count: {cs.veh_count()} total, {cs.veh_count(True)} charging\n"+
                     f"Price:\n  Buy: {cs.pbuy}\n"
                 )

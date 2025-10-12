@@ -1,10 +1,9 @@
 from enum import Enum
-import random, time, sumolib
-from typing import Dict, List, Optional, Union, Tuple
+import random, time
+from typing import Dict, Optional, Union
 from feasytools import ReadOnlyTable, CDDiscrete, PDDiscrete, PDGamma, DTypeEnum
-
 from ..locale import Lang
-from ..traffic import EV, EVDict, ReadXML, DetectFiles
+from ..traffic import EV, EVDict, RoadNet, DetectFiles
 from .misc import VehicleType, random_diff, _TripInner, _EVInner, _xmlSaver
 from .poly import PolygonMan
 
@@ -53,8 +52,7 @@ class EVsGenerator:
         self.vTypes = [VehicleType(**x) for x in ReadOnlyTable(CROOT + "/ev_types.csv",dtype=DTypeEnum.FLOAT32).to_list_of_dict()]
         # Define various functional area types
         self._route_cache_mode = route_cache
-        self.__route_cache:Dict[Tuple[str,str], List[str]] = {}
-        self.net:sumolib.net.Net = sumolib.net.readNet(_fn["net"])
+        self.net = RoadNet.load(_fn["net"])
         if mode == TripsGenMode.AUTO:
             if _fn.node_type: mode = TripsGenMode.TYPE
             elif _fn.poly and _fn.net and _fn.fcs: mode = TripsGenMode.POLY
@@ -70,16 +68,13 @@ class EVsGenerator:
         elif mode == TripsGenMode.POLY:
             assert _fn.poly and _fn.net and _fn.fcs, Lang.ERROR_NO_TAZ_OR_POLY
             self._mode = "poly"
-            from .graph import RoadNetConnectivityChecker
-            net = RoadNetConnectivityChecker(_fn.net, _fn.fcs)
             polys = PolygonMan(_fn.poly)
             self.dic_nodetype = {k:[] for k in TAZ_TYPE_LIST}
             for poly in polys:
                 poly_type = poly.getConvertedType()
-                poi_pos = poly.center()
                 if poly_type:
                     try:
-                        node_id = net.find_nearest_node_id(poi_pos)
+                        node_id = self.net.find_nearest_node(*poly.center()).id
                     except RuntimeError:
                         continue
                     self.dic_nodetype[poly_type].append(node_id)

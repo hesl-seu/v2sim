@@ -55,44 +55,6 @@ def LoadSCS(filename: str) -> Set[str]:
         if scs.tag == "scs":
             scs_nodes.add(scs.attrib["node"])
     return scs_nodes
-    
-def GetTimeAndNetwork(file: str):
-    """
-    Parse the SUMO configuration file to get the simulation time and network file.
-    Returns:
-        bt (int): Begin time
-        et (int): End time
-        nf (str): Net file path
-        af (List[str]): Additional file path (if any)
-    """
-    root = ReadXML(file,compressed=False).getroot()
-    if root is None:
-        raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(file))
-    bt, et = -1, -1
-    tnode = root.find("time")
-    if isinstance(tnode, ET.Element):
-        bnode = tnode.find("begin")
-        enode = tnode.find("end")
-        if isinstance(bnode, ET.Element) and isinstance(enode, ET.Element):
-            bt, et = int(bnode.attrib.get("value", "-1")), int(enode.attrib.get("value", "-1")),
-    
-    nf = None
-    af = []
-    inode = root.find("input")
-    if isinstance(inode, ET.Element):
-        nfnode = inode.find("net-file")
-        if isinstance(nfnode, ET.Element):
-            nf = nfnode.attrib.get("value")
-        afnode = inode.find("additional-files")
-        if isinstance(afnode, ET.Element):
-            af = afnode.attrib.get("value")
-            if af is not None:
-                af = af.split(" ")
-            else:
-                af = []
-    
-    assert nf != None, "Net file must be defined!"
-    return bt, et, nf, af
 
 def CheckFile(file: str):
     p = Path(file)
@@ -202,8 +164,6 @@ def DetectFiles(dir: str) -> FileDetectResult:
             add("veh", filename)
         elif filenamel.endswith(".plg.xml") or filenamel.endswith(".plg.xml.gz"):
             add("plg", filename)
-        elif filenamel.endswith(".sumocfg"):
-            add("cfg", filename)
         elif filenamel.endswith(".py"):
             add("py",filename)
         elif filenamel.endswith("node_type.txt"):
@@ -218,13 +178,6 @@ def DetectFiles(dir: str) -> FileDetectResult:
             filenamel.endswith(".poly.xml") or filenamel.endswith(".poly.xml.gz") or
             filenamel.endswith(".taz.xml") or filenamel.endswith(".taz.xml.gz")):
             addtional.add(Path(filename).absolute().as_posix())
-
-    if ret.get("cfg", None) is not None:
-        _,_,_,a2 = GetTimeAndNetwork(ret["cfg"])
-        for a in a2:
-            a0 = Path(ret["cfg"]).parent.joinpath(a).absolute().as_posix()
-            if a0 not in addtional:
-                addtional.add(a0)
 
     for a in addtional:
         aret = CheckAddtionalType(a)

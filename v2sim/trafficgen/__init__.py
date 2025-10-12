@@ -3,7 +3,6 @@ from .core import (
     ProcExisting, ListSelection, PricingMethod,
 )
 from .csquery import csQuery
-from .graph import RoadNetConnectivityChecker
 from .tripgen import (
     EVsGenerator, ManualEVsGenerator,
     RoutingCacheMode, TripsGenMode,

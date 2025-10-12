@@ -1,18 +1,17 @@
 import random
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from xml.etree.ElementTree import Element
-from feasytools import Point
 from ..traffic import ReadXML
 
 class Polygon:
     def __init__(self, elem:Element):
         self.ID = elem.attrib["id"]
         self.type = elem.attrib.get("type", "building.yes")
-        self.points:List[Point] = []
+        self.points:List[Tuple[float, float]] = []
         shape = elem.attrib["shape"]
         for p in shape.split(' '):
             x,y = p.split(',')
-            self.points.append(Point(float(x), float(y)))
+            self.points.append((float(x), float(y)))
     
     def getConvertedType(self) -> Optional[str]:
         """
@@ -40,10 +39,10 @@ class Polygon:
         else:
             return None
     
-    def center(self) -> Point:
-        x = sum([p.x for p in self.points]) / len(self.points)
-        y = sum([p.y for p in self.points]) / len(self.points)
-        return Point(x, y)
+    def center(self):
+        x = sum([p[0] for p in self.points]) / len(self.points)
+        y = sum([p[1] for p in self.points]) / len(self.points)
+        return (x, y)
     
     def __iter__(self):
         return iter(self.points)

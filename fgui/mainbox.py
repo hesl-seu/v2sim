@@ -18,7 +18,6 @@ from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, 
 from .network import NetworkPanel, OAfter
 
 AMAP_KEY_FILE = "amap_key.txt"
-DEFAULT_GRID_NAME = "pdn.grid.xml"
 DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
 
 def showerr(msg:str):
@@ -28,7 +27,6 @@ _L = CustomLocaleLib.LoadFromFolder("resources/gui_main")
 
 SIM_YES = "YES"
 SIM_NO = "NO"
-LOAD_CFG = "SUMO Config"
 LOAD_FCS = "Fast CS"
 LOAD_SCS = "Slow CS"
 LOAD_NET = "Network"
@@ -830,7 +828,7 @@ class MainBox(Tk):
             else:
                 self.lb_gridsave.config(text=_L["UNSAVED"],foreground="red")
         self.cv_net.save_callback = on_saved_changed
-        self.btn_savegrid = Button(self.panel_net, text=_L["SAVE_GRID"], command=self.saveGrid)
+        self.btn_savegrid = Button(self.panel_net, text=_L["SAVE_GRID"], command=self.save)
         self.btn_savegrid.pack(side='left',padx=3,pady=3, anchor='w')
         self.lb_puvalues = Label(self.panel_net, text=_L["PU_VALS"].format('Null','Null'))
         self.lb_puvalues.pack(side='left',padx=3,pady=3, anchor='w')
@@ -947,18 +945,30 @@ class MainBox(Tk):
         if not self.sim_plglist.saved: self.sim_plglist.save()
         if not self.FCS_editor.saved: self.FCS_editor.save()
         if not self.SCS_editor.saved: self.SCS_editor.save()
-        if not self.cv_net.saved: self.saveGrid()
+        if not self.cv_net.saved: self.saveNet()
     
-    def saveGrid(self):
-        defpath = self.folder+"/"+DEFAULT_GRID_NAME
+    def get_default_grid_path(self) -> str:
+        return str(Path(self.folder) / Path(self.folder).name) + ".grid.xml"
+    
+    def get_default_roadnet_path(self) -> str:
+        return str(Path(self.folder) / Path(self.folder).name) + ".net.xml"
+    
+    def saveNet(self):
         assert self.state is not None
         if self.state.grid:
-            path = self.state.grid
-            os.remove(path)
-            if not path.lower().endswith(".xml"): path = defpath
+            gpath = self.state.grid
+            os.remove(gpath)
+            if not gpath.lower().endswith(".xml"):
+                gpath = self.get_default_grid_path()
         else:
-            path = defpath
-        self.cv_net.saveGrid(path)
+            gpath = self.get_default_grid_path()
+        if self.state.net:
+            npath = self.state.net
+            if not npath.lower().endswith(".xml"):
+                npath = self.get_default_roadnet_path()
+        else:
+            npath = self.get_default_roadnet_path()
+        self.cv_net.save(gpath, npath)
         
     def onDestroy(self):
         if not self.saved:
@@ -1000,21 +1010,6 @@ class MainBox(Tk):
         if not self.saved:
             if not MB.askyesno(_L["MB_INFO"],_L["MB_SAVE_AND_SIM"]): return
             self.save()
-
-        #Check SUMOCFG
-        if not self.state.cfg:
-            showerr(_L["NO_SUMO_CFG"])
-            return
-        
-        cflag, tr, route_file_name = FixSUMOConfig(self.state.cfg, start, end)
-        if cflag:
-            if MB.askyesno(_L["MB_INFO"],_L["MB_CFG_MODIFY"]):
-                tr.write(self.state.cfg)
-                route_path = Path(self.state.cfg).absolute().parent / route_file_name
-                if route_file_name.strip() != "" and route_path.exists():
-                    route_path.unlink()
-            else:
-                return
         
         # If PDN is enabled, check if cvxpy and ecos are installed
         if self.sim_plglist.is_enabled("pdn"):
@@ -1123,7 +1118,7 @@ class MainBox(Tk):
             showerr("No project folder selected")
             return
         if loads is None: loads = [
-            LOAD_GEN, LOAD_CFG, LOAD_FCS, LOAD_SCS, LOAD_CSCSV, LOAD_NET, LOAD_PLG
+            LOAD_GEN, LOAD_FCS, LOAD_SCS, LOAD_CSCSV, LOAD_NET, LOAD_PLG
         ]
         self._ldfrm = LoadingBox(loads, self._Q)
         self.update()
@@ -1136,7 +1131,7 @@ class MainBox(Tk):
 
         # Check if grid exists
         if not res.grid: 
-            with open(self.folder+"/"+DEFAULT_GRID_NAME,"w") as f:
+            with open(self.get_default_grid_path(),"w") as f:
                 f.write(DEFAULT_GRID)
             self.state = res = DetectFiles(self.folder)
         
@@ -1146,20 +1141,6 @@ class MainBox(Tk):
         if LOAD_GEN in loads:
             self._Q.submit("TrafficGenLoaded", self._load_tg)
 
-        self.update()
-
-        # Load SUMO config
-        if LOAD_CFG in loads:
-            if res.cfg:
-                st,et,x,addf = GetTimeAndNetwork(res.cfg)
-                if st == -1: st = 0
-                if et == -1: et = 172800
-                self.entry_start.delete(0, END)
-                self.entry_start.insert(0, str(st))
-                self.entry_end.delete(0, END)
-                self.entry_end.insert(0, str(et))
-            self._ldfrm.setText(LOAD_CFG, _L['DONE'])
-        
         self.update()
 
         # Load FCS
@@ -1369,19 +1350,12 @@ class MainBox(Tk):
 
             def __el(state: FileDetectResult, after:OAfter=None):
                 assert state.net is not None
-                el = RoadNetConnectivityChecker(state.net,
-                    state.fcs if state.fcs else "",
-                    state.scs if state.scs else "",
-                )
+                el = RoadNet.load(state.net)
                 return el, after
             
             self._Q.submit("cvnetloaded", __el, self.state, after)
 
-    def on_cvnet_loaded(self, el:RoadNetConnectivityChecker, after:OAfter=None):
-        print("ELGraph loaded.")
-        if len(el.Nodes) > 15000:
-            print("Large network detected. Skipping drawing nodes.")
-            return
+    def on_cvnet_loaded(self, el:RoadNet, after:OAfter=None):
         self.cv_net.setRoadNet(el, after = after)
 
     def openFolder(self):

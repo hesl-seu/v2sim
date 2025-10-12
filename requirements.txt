@@ -4,11 +4,9 @@ matplotlib
 joblib
 threadpoolctl
 scikit-learn
-feasytools>=0.1.2
-fpowerkit>=0.3.2
+feasytools>=0.1.3
+fpowerkit>=0.3.4
 pyproj
 requests
 ordered-set
-cvxpy
-ecos
 uxsim

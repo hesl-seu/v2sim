@@ -2,15 +2,15 @@ from collections import defaultdict
 from enum import IntEnum
 from itertools import repeat
 from pathlib import Path
-from feasytools import ArgChecker, KDTree, Point
+from feasytools import ArgChecker
 from fpowerkit import Grid
-from sumolib.net import readNet, Net
-from typing import IO, Any, Literal, TypeVar, Union, Dict, List
+from sklearn.neighbors import KDTree
+from typing import IO, Any, Literal, Tuple, TypeVar, Union, Dict, List
 import time
 import random
+
 from ..locale import Lang
-from ..traffic import DetectFiles, GetTimeAndNetwork
-from .graph import RoadNetConnectivityChecker as ELGraph
+from ..traffic import DetectFiles, V2SimConfig, RoadNet
 from .poly import PolygonMan
 from .tripgen import EVsGenerator, RoutingCacheMode, TripsGenMode
 from .misc import *
@@ -86,15 +86,16 @@ class TrafficGenerator:
         self.__name = self.__cfg["name"]
         self.__silent = silent
         self.__existing = existing
-        if not self.__cfg.cfg:
-            raise FileNotFoundError(Lang.ERROR_SUMO_CONFIG_NOT_SPECIFIED)
-        self.__start_time, self.__end_time, self.__rnet_file, self.__addfile = GetTimeAndNetwork(self.__cfg.cfg)
-        if self.__rnet_file is not None:
-            self.__cfg.net = str(Path(self.__cfg.cfg).parent / self.__rnet_file)
+        self.__start_time = 0
+        self.__end_time = 172800
+        if self.__cfg.pref:
+            pref = V2SimConfig.load(self.__cfg.pref)
+            self.__start_time = pref.start_time
+            self.__end_time = pref.end_time
         if not self.__cfg.net:
             raise FileNotFoundError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
-        self.__rnet: Net = readNet(self.__cfg.net)
-        self.__edges: List[str] = [e.getID() for e in self.__rnet.getEdges()]
+        self.__rnet = RoadNet.load(self.__cfg.net)
+        self.__edges: List[str] = self.__rnet.edge_ids
         self.__ava_fcs: List[str] = [
             e for e in self.__edges
             if e.upper().startswith("CS") and not e.lower().endswith("rev")
@@ -226,9 +227,10 @@ class TrafficGenerator:
         fname = f"{self.__root}/{self.__name}.{mode}.xml"
         fp = open(fname, "w")
         fp.write("<root>\n")
-        cs_pos:Dict[str,Point] = {}
+        cs_pos:Dict[str, Tuple[float, float]] = {}
         if cs_file != "":
-            el = ELGraph(f"{self.__root}/{self.__rnet_file}")
+            assert self.__cfg.net is not None, Lang.ERROR_NET_FILE_NOT_SPECIFIED
+            el = RoadNet.load(self.__cfg.net)
             with open(cs_file, "r") as f:
                 con = f.readlines()
                 _,_,i0,i1 = con[0].strip().split(",")
@@ -243,9 +245,8 @@ class TrafficGenerator:
                     if swap: lat,lng = lng,lat
                     x,y = self.__rnet.convertLonLat2XY(float(lng), float(lat))
                     try:
-                        p = Point(x, y)
-                        node_name = el.find_nearest_node_id(p)
-                        cs_pos[node_name]=p
+                        node_name = el.find_nearest_node(x, y).id
+                        cs_pos[node_name] = (x, y)
                     except RuntimeError as e:
                         print(f"Warning: Point {lat},{lng} (XY: {x:.1f},{y:.1f}) is far away ({float(e.args[0]):.1f}m) from the road network.")
                         continue
@@ -253,17 +254,18 @@ class TrafficGenerator:
             cs_slots = repeat(slots, len(con) - 1)
         elif poly_file != "":
             cs_type:Dict[str,Any] = defaultdict(int)
-            el = ELGraph(f"{self.__root}/{self.__rnet_file}")
+            assert self.__cfg.net is not None, Lang.ERROR_NET_FILE_NOT_SPECIFIED
+            el = RoadNet.load(self.__cfg.net)
             PolyMan = PolygonMan(poly_file)
             for poly in PolyMan:
                 t = poly.getConvertedType()
                 if t is None or t == "Other": continue
                 p = poly.center()
                 try:
-                    node_name = el.find_nearest_node_id(p)
+                    node_name = el.find_nearest_node(*p).id
                     cs_type[node_name] = t
                 except RuntimeError as e:
-                    print(f"Warning: Polygon (Center: {p.x:.1f},{p.y:.1f}) is far away ({float(e.args[0]):.1f}m) from the road network.")
+                    print(f"Warning: Polygon (Center: {p[0]:.1f},{p[1]:.1f}) is far away ({float(e.args[0]):.1f}m) from the road network.")
                     continue
             cs_names = cs.select(sorted(cs_type.keys()), csCount, givenCS)
             def trans(x:str):
@@ -278,7 +280,7 @@ class TrafficGenerator:
             cs_names = cs.select(self.__ava_fcs if mode == "fcs" else self.__ava_scs, csCount, givenCS)
             cs_slots = repeat(slots, len(cs_names))
         use_grid = False
-        bp:List[Point] = []
+        bus_pos:List[Tuple[float, float]] = []
         if grid_file != "":
             gr = Grid.fromFile(grid_file)
             use_grid = True
@@ -286,20 +288,20 @@ class TrafficGenerator:
                 lon, lat = b.LonLat
                 try:
                     assert lon is not None or lat is not None
-                    x, y = el.Net.convertLonLat2XY(lon, lat)
+                    x, y = el.convertLonLat2XY(lon, lat)
                 except:
                     use_grid = False
                     break
-                bp.append(Point(x,y))
+                bus_pos.append((x, y))
             bus_names = gr.BusNames
         if use_grid:
-            bkdt:KDTree[Point, str] = KDTree(bp, bus_names)
-            selector = lambda cname: bkdt.nearest_mapped(Point(*el.get_node_pos(cname)))  
+            bkdt = KDTree(bus_pos, metric="euclidean")
+            selector = lambda cname: bus_names[bkdt.query([el.get_node(cname).get_coord()], k = 1)[1][0][0]]
         else:
             bus_names = bus.select(self.__bus_names, busCount, givenBus)
             selector = lambda cname: random.choice(bus_names)
         for sl, cname in zip(cs_slots, cs_names):            
-            fp.write(f'<{mode} name="{mode}_{cname}" edge="{cname}" slots="{sl}" bus="{selector(cname)}"')
+            fp.write(f'<{mode} name="{mode}_{cname}" node="{cname}" slots="{sl}" bus="{selector(cname)}"')
             if mode == "scs":
                 fp.write(f' v2galloc="Average"')
             if cname in cs_pos:

@@ -1,0 +1,53 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+<scs name="C1" node="C1" slots="10" bus="b2" x="inf" y="inf" max_pc="1000.00" pc_alloc="Average">
+<pbuy>
+  <item btime="0" price="1.5" />
+</pbuy>
+</scs>
+<scs name="C2" node="C2" slots="10" bus="b4" x="inf" y="inf" max_pc="1000.00" pc_alloc="Average">
+<pbuy>
+  <item btime="0" price="1.5" />
+</pbuy>
+</scs>
+<scs name="C3" node="C3" slots="10" bus="b15" x="inf" y="inf" max_pc="1000.00" pc_alloc="Average">
+<pbuy>
+  <item btime="0" price="1.5" />
+</pbuy>
+</scs>
+<scs name="C4" node="C4" slots="10" bus="b33" x="inf" y="inf" max_pc="1000.00" pc_alloc="Average">
+<pbuy>
+  <item btime="0" price="1.5" />
+</pbuy>
+</scs>
+<scs name="C5" node="C5" slots="10" bus="b24" x="inf" y="inf" max_pc="1000.00" pc_alloc="Average">
+<pbuy>
+  <item btime="0" price="1.5" />
+</pbuy>
+</scs>
+<scs name="C6" node="C6" slots="10" bus="b3" x="inf" y="inf" max_pc="1000.00" pc_alloc="Average">
+<pbuy>
+  <item btime="0" price="1.5" />
+</pbuy>
+</scs>
+<scs name="C7" node="C7" slots="10" bus="b10" x="inf" y="inf" max_pc="1000.00" pc_alloc="Average">
+<pbuy>
+  <item btime="0" price="1.5" />
+</pbuy>
+</scs>
+<scs name="C8" node="C8" slots="10" bus="b10" x="inf" y="inf" max_pc="1000.00" pc_alloc="Average">
+<pbuy>
+  <item btime="0" price="1.5" />
+</pbuy>
+</scs>
+<scs name="C9" node="C9" slots="10" bus="b11" x="inf" y="inf" max_pc="1000.00" pc_alloc="Average">
+<pbuy>
+  <item btime="0" price="1.5" />
+</pbuy>
+</scs>
+<scs name="C10" node="C10" slots="10" bus="b8" x="inf" y="inf" max_pc="1000.00" pc_alloc="Average">
+<pbuy>
+  <item btime="0" price="1.5" />
+</pbuy>
+</scs>
+</root>
