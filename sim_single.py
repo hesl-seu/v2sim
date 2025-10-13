@@ -122,4 +122,3 @@ if __name__ == "__main__":
     from version_checker import check_requirements
     check_requirements()
     work()
-    FEasyTimer.report()

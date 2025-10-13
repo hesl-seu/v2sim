@@ -3,7 +3,7 @@ import pickle
 import importlib, os, queue, shutil, signal, time, sys
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
-from feasytools import ArgChecker, time2str#, FEasyTimer
+from feasytools import ArgChecker, time2str
 from pathlib import Path
 from .plotkit import AdvancedPlot
 from .plugins import *

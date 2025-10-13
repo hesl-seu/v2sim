@@ -1,4 +1,9 @@
 import enum
+try:
+    # For Python 3.14+
+    import compression.gzip as gzip # type: ignore
+except ImportError:
+    import gzip
 import os
 import time
 from collections import deque
@@ -61,6 +66,13 @@ class WorldSpec(ABC):
     @abstractmethod
     def shutdown(self): ...
 
+    @abstractmethod
+    def save(self, filepath:str): ...
+
+    @staticmethod
+    @abstractmethod
+    def load(filepath:str): ...
+
 class SingleWorld(WorldSpec):
     def __init__(self, world:World, gl:Graph):
         self.world = world
@@ -119,6 +131,19 @@ class SingleWorld(WorldSpec):
     def shutdown(self):
         return f"Total steps: {self.__cnt}"
     
+    def save(self, filepath:str):
+        import cloudpickle as pickle
+        with open(filepath, 'wb') as f:
+            pickle.dump(self, f)
+
+    @staticmethod
+    def load(filepath:str):
+        import cloudpickle as pickle
+        with open(filepath, 'rb') as f:
+            data = pickle.load(f)
+        assert isinstance(data, SingleWorld)
+        return data
+
 class ParaWorlds(WorldSpec):
     def __init__(self, worlds:Dict[int, World], gl:Graph):
         self.worlds = worlds
@@ -152,12 +177,12 @@ class ParaWorlds(WorldSpec):
         self.__uvi: Dict[str, Vehicle] = {}
 
         self.__lt: float = 0.0
-
-        self.__pool = ThreadPoolExecutor(os.cpu_count())
-
         self.__cnt_para = 0
         self.__cnt_ser = 0
-        
+        self.__create_pool()
+    
+    def __create_pool(self):
+        self.__pool = ThreadPoolExecutor(os.cpu_count())
     
     def get_coords(self) -> CoordsDict:
         return self.node_coords
@@ -214,6 +239,7 @@ class ParaWorlds(WorldSpec):
                     self.__add_veh(next_wid, veh_id, from_node, to_node, trip_segment)
                 else:
                     self.__aQ.append(veh_id)
+                    self.__veh_itineraies.pop(veh_id)
 
     def get_link(self, link_id:str) -> Optional[Link]:
         return self.worlds[self.wid_of_edges[link_id]].get_link(link_id)
@@ -262,3 +288,28 @@ class ParaWorlds(WorldSpec):
     def shutdown(self):
         self.__pool.shutdown(wait=True)
         return f"Total steps: {self.__cnt_ser} serial + {self.__cnt_para} parallel"
+
+    def save(self, filepath:str):
+        self.__pool.shutdown(wait=True)
+        del self.__pool
+        import cloudpickle as pickle
+        with open(filepath, 'wb') as f:
+            pickle.dump(self, f)
+        self.__create_pool()
+
+    @staticmethod
+    def load(filepath:str):
+        import cloudpickle as pickle
+        with open(filepath, 'rb') as f:
+            data = pickle.load(f)
+        assert isinstance(data, ParaWorlds)
+        return data
+
+def load_world(filepath:str) -> WorldSpec:
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"File {filepath} does not exist.")
+    with open(filepath, 'rb') as f:
+        import cloudpickle as pickle
+        data = pickle.load(f)
+    assert isinstance(data, (SingleWorld, ParaWorlds))
+    return data

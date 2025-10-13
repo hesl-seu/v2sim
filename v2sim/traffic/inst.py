@@ -6,14 +6,14 @@ import random
 import pickle
 import gzip
 from typing import List, Tuple, Dict
-from feasytools import PQueue, Point, FEasyTimer
+from feasytools import PQueue, Point
 from uxsim import Link
 from .routing import *
 from .trip import TripsLogger
 from .cslist import *
 from .ev import *
 from .utils import TWeights
-from .paraworlds import ParaWorlds
+from .paraworlds import ParaWorlds, load_world
 from .net import RoadNet
 
 
@@ -36,16 +36,19 @@ class TrafficInst:
     ):
         """
         TrafficInst initialization
-            road_net_file: SUMO road network configuration file
+            road_net_file: Road network file
             start_time: Simulation start time
+            step_len: Simulation step length
             end_time: Simulation end time
             clogfile: Log file path
             seed: Randomization seed
             vehfile: Vehicle information and itinerary file
             fcsfile: Fast charging station list file
             scsfile: Slow charging station list file
-            initial_state_folder: Initial state folder path]
-            routing_algo: Routing algorithm
+            initial_state_folder: Initial state folder path
+            routing_algo: Routing algorithm, can be "dijkstra" or "astar"
+            show_uxsim_info: Whether to display uxsim information
+            no_parallel: Whether to disable parallel worlds
         """
         random.seed(seed)
         self.__logger = TripsLogger(clogfile)
@@ -100,9 +103,10 @@ class TrafficInst:
             vehicle_logging_timestep_interval=-1,
             print_mode=1 if show_uxsim_info else 0
         )
-        print(f"World created: {type(self.W).__name__}")
         if isinstance(self.W, ParaWorlds):
-            print(f"Number of sub-worlds: {len(self.W.worlds)}")
+            print(f"Paraworlds created. Number of sub-worlds: {len(self.W.worlds)}")
+        else:
+            print("Single world created.")
 
         # Load vehicles to charging stations and prepare to depart
         for veh in self._VEHs.values():
@@ -386,7 +390,6 @@ class TrafficInst:
         veh.status = VehStatus.Pending
         veh.stop_charging()
 
-    #@FEasyTimer
     def __batch_depart(self) -> Dict[str, Optional[TWeights]]:
         """
         All vehicles that arrive at the departure queue are sent out
@@ -435,18 +438,15 @@ class TrafficInst:
                     self.__logger.depart_failed(self.__ctime, veh, batt_req, cs_name, trT)
         return ret
 
-    #@FEasyTimer
     def __FCS_update(self, sec: int):
         """
         Charging station update: Charge all vehicles in the charging station, and send out the vehicles that have completed charging
             sec: Simulation seconds
         """
         veh_ids = self._fcs.update(sec, self.__ctime)
-        #veh_ids.sort()
         for i in veh_ids:
             self.__end_charging_FCS(self._VEHs[i])
 
-    #@FEasyTimer
     def __SCS_update(self, sec: int):
         """
         Parking vehicle update: Charge and V2G all parked vehicles in the charging station
@@ -466,7 +466,6 @@ class TrafficInst:
         """
         return self._fcs.get_veh_count() + self._scs.get_veh_count()
 
-    # @FEasyTimer
     def simulation_start(self, start_time: Optional[int] = None):
         """
         Start simulation
@@ -496,7 +495,6 @@ class TrafficInst:
                 range(self.SCSList._n)
             )
 
-    # @FEasyTimer
     def simulation_step(self, step_len: int):
         """
         Simulation step.
@@ -534,6 +532,7 @@ class TrafficInst:
             self.__start_charging_FCS(self._VEHs[v])
 
     def simulation_stop(self):
+        print()
         print(self.W.shutdown())
         self.__logger.close()
     
@@ -544,6 +543,7 @@ class TrafficInst:
         """
         f = Path(folder)
         f.mkdir(parents=True, exist_ok=True)
+        self.W.save(str(f / "world.pkl"))
         with gzip.open(str(f / "inst.gz"), "wb") as f:
             pickle.dump({
                 "ctime":self.__ctime,
@@ -555,7 +555,6 @@ class TrafficInst:
                 "scs":self._scs,
                 "names_fcs":self.__names_fcs,
                 "names_scs":self.__names_scs,
-                "W":self.W,
             }, f)
         
     def load_state(self, folder: str):
@@ -577,5 +576,5 @@ class TrafficInst:
         self._scs = d["scs"]
         self.__names_fcs = d["names_fcs"]
         self.__names_scs = d["names_scs"]
-        self.W = d["W"]
+        self.W = load_world(str(Path(folder) / "world.pkl"))
         
