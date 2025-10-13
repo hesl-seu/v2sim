@@ -1,14 +1,12 @@
-# V2Sim: An Open-Source Microscopic V2G Simulation Platform in Urban Power and Transportation Network
+# V2Sim Family: Open-Source V2G Simulation Platform in Urban Power and Transportation Network
 
+V2Sim family includes several open-source software for coupled urban power and transportation network. They are different in the transportation simulation part.
 
-Paper link: https://ieeexplore.ieee.org/document/10970754
++ **V2Sim**: Use SUMO for **MICROSCOPIC** traffic simulation. It could identify the microscopic motion of a single vehicle, including its lane, speed, accerlation, etc. This version is suitable if your research concerns the implication of delicate motion of EVs on power grid. (Link: [V2Sim](https://github.com/hesl-seu/v2sim/))
 
++ **V2Sim-UX**: Use UXsim for **MESOCOPIC** traffic simulation. It runs much faster than the microscopic version, and can be accelerated furthermore with free-threading Python (3.14+). This version is suitable if your research need fast iterations and focus on the overall implication of the traffic flow. (Please scroll down to read instructions.)
 
-[Click here to read the Wiki](https://github.com/fmy-xfk/v2sim/wiki) 
-
-V2Sim is a microscopic V2G simulation platform in urban power and transportation network. It is open-source under BSD license. 
-
-If you are using this platform, please cite the paper:
+If you are using V2Sim family, please cite the paper:
 ```
 @ARTICLE{10970754,
   author={Qian, Tao and Fang, Mingyu and Hu, Qinran and Shao, Chengcheng and Zheng, Junyi},
@@ -20,33 +18,30 @@ If you are using this platform, please cite the paper:
   pages={3167-3178},
   keywords={Vehicle-to-grid;Partial discharges;Microscopy;Batteries;Planning;Discharges (electric);Optimization;Vehicle dynamics;Transportation;Roads;EV charging load simulation;microscopic EV behavior;vehicle-to-grid;charging station fault sensing},
   doi={10.1109/TSG.2025.3560976}}
-
 ```
+Paper link for the microscopic version: https://ieeexplore.ieee.org/document/10970754
 
-Another early version on arXiv is [here](https://arxiv.org/abs/2412.09808).
+# V2Sim-UX: The Mesoscopic Version
 
-+ **Note**: Current code of V2Sim is ahead of the paper described. The exact older code used in the paper is [here](https://github.com/fmy-xfk/v2sim/commit/940ebd5d988f53fde90f4d83d107f136334952f9). The code used in arXiv is the initial commit.
-
-+ **Note 2**: Code of PDN part is not included in the repository, it is stored in another repository: [FPowerKit](https://gitee.com/fmy_xfk/fpowerkit).
+V2Sim-UX is a mesoscopic V2G simulation platform in urban power and transportation network. It is open-source under BSD license. The traffic simulation is based on [UXsim](https://github.com/toruseo/UXsim).
 
 ## Quick Start
 
 ### A. Setup the environment
 
-NOTE: We do not recommend use conda or other virtual environment, because some users have reported that libsumo may not work normally in these environments. 
+1. Setup Python: Visit `https://www.python.org/download` to get Python. Minimal version required is Python 3.9. For parallel acceleration, minimal version required is **free-threading** Python 3.14. This means you have to tick te box of `download free-threading binaries` when installing Python 3.14.
 
-1. Setup Python: Visit `https://www.python.org/download` to get Python (version >=3.8 is required. Older version cannot run this program normally).
-
-2. Setup SUMO: Visit `https://eclipse.dev/sumo/` to get SUMO (version 1.19 and above are recommended). Note: This step can be skipped if you do not want to edit the road network.
-
-3. Setup necessary packages. Ensure you have installed `pip` together with Python. Note: As for package `libsumo`, its version must be same as the vesion of SUMO!
+2. Setup necessary packages. Ensure you have installed `pip` together with Python.
 ```bash
+# For normal Python
 pip install -r requirements.txt
+# For free-threading Python (Take Python 3.14t as an example)
+python3.14t -m pip install -r requirements.txt
 ```
 
-5. Download this repo. You can directly download this repo by clicking the `download` button on this page. Or you can setup `git` and clone this repo by the following command. The official tutorial about using `git` is [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+3. Download this repo. You can directly download this repo by clicking the `download` button on this page. Or you can setup `git` and clone this repo by the following command. The official tutorial about using `git` is [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
 ```bash
-git clone https://github.com/fmy-xfk/v2sim.git
+git clone -b uxsim https://github.com/fmy-xfk/v2sim.git
 ```
 
 ### B. Create a case
