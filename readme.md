@@ -29,31 +29,50 @@ V2Sim-UX is a mesoscopic V2G simulation platform in urban power and transportati
 
 ### A. Setup the environment
 
-1. Setup Python: Visit `https://www.python.org/download` to get Python. Minimal version required is Python 3.9. For parallel acceleration, minimal version required is **free-threading** Python 3.14. This means you have to tick te box of `download free-threading binaries` when installing Python 3.14.
+1. Setup **Free-threading** Python 3.14: Visit `https://www.python.org/download` to get Python. Note that you have to tick the box of `download free-threading binaries` when installing Python 3.14. If you do not want to use parallel acceleration, the minimal version required is Python 3.9.
 
-2. Setup necessary packages. Ensure you have installed `pip` together with Python.
-```bash
-# For normal Python
-pip install -r requirements.txt
-# For free-threading Python (Take Python 3.14t as an example)
-python3.14t -m pip install -r requirements.txt
-```
-
-3. Download this repo. You can directly download this repo by clicking the `download` button on this page. Or you can setup `git` and clone this repo by the following command. The official tutorial about using `git` is [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+2. **Download this repo**. You can directly download this repo by clicking the `download` button on this page. Or you can setup `git` and clone this repo by the following command. The official tutorial about using `git` is [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
 ```bash
 git clone -b uxsim https://github.com/fmy-xfk/v2sim.git
 ```
+
+3. **Create a `venv` virtual environment**. You can use the following command or IDE to accomplish this, but do **NOT** install any packages from `requirements.txt` or `pyproject.toml` at this step.
+```bash
+cd v2sim
+# For free-threading Python 3.14, run this command to create
+python3.14t -m venv ./.venv
+# For normal Python, run this command to create
+python -m venv ./.venv
+```
+4. **Activate virtual environment**. Select proper script according to your situation. After entering the virtual environment, run `Python` and ensure it containing messages like `free threading` if you want to use 
+```bash
+# Windows CMD
+./.venv/Scripts/activate.bat
+# Windows Powershell
+./.venv/Scripts/activate.ps1
+# Linux/MacOS
+source ./.venv/bin/activate
+```
+
+5. **Install necessary packages**. Ensure you have installed `pip` together with Python. If you do not need parallel acceleration,you can directly install by `pip install -r requirements.txt`. For free threading Python 3.14, since it has just been released shortly before, some packages (like PyQt5) do not support it yet. Please use following commands:
+```bash
+python -m ensurepip
+
+# For Windows with free threading Python 3.14
+./install_deps.bat
+# For Linux/MacOS with free threading Python 3.14
+mv install_deps.bat install_deps.sh
+chmod u+x install_deps.sh
+./install_deps.sh
+```
+
 
 ### B. Create a case
 There are 3 pre-defined cases in the `cases` folder. You can exploit the 3 cases directly, or create a new case from scratch.
 
 The following is a full tutorial for creating a case:
 
-1. Download transportation network: Use the OSMWebWizard provided by SUMO to download the road network. 
-
-|Do NOT add vehicles|Only preserve 'highway'|
-|---|---|
-|![alt text](docs/1.png)|![alt text](docs/2.png)|
+1. Download transportation network: (to be added)
 
 Copy your case generated with OSMWebWizard to a proper place. Then run `gui_main.py` in the command prompt by:
 ```bash
@@ -83,7 +102,7 @@ Click the `Project` menu and open the folder you have created. You will see some
 
 ![alt text](docs/5.png)
 
-4. **Edit grid**: Switch to `Network` page to view the road netowrk (in blue) and distribution network (in black). Hold the mouse's right button to pan. Distribution network can be moved and edited by left click. **However, editing road network is not available here. Please use SUMO NetEdit.**
+4. **Edit network**: Switch to `Network` page to view the road netowrk (in non-black color) and distribution network (in black). Hold the mouse's right button to pan. Network can be dragged and edited by left click.
 
 ![alt text](docs/11.png)
 
@@ -93,14 +112,13 @@ Click the `Project` menu and open the folder you have created. You will see some
 
 + Do **NOT** click `Generate` repeatedly even if it seems not working. The progress will be shown in the command prompt instead of popping up another window.
 
-6. **Start simulation**: Make sure the `FCS`, `SCS`,` Road Network`, and `Vehicles` are not `None` in the left column. Then go back to `Simulation` page, tick your desired statistic items, and click `Start Simulation!`.
+6. **Start simulation**: Make sure the `FCS`, `SCS`, `Road Network`, and `Vehicles` are not `None` in the left column. Then go back to `Simulation` page, tick your desired statistic items, and click `Start Simulation!`.
 
 
 ### C. Simulation
 The window will shut down once you clicked `Start Simulation!`. Please wait patiently during simulation. It may cost several hours when simulate a large real-world network. You can watch the progress and estimated time required displayed in the command prompt.
 
-If you want to run several simulation parallelly (which can fully utilize your CPU), you can use `gui_para.py`. This function is quite useful 
-when you want to change a specific parameter to measure its implication. Like the following image:
+If you want to run several simulation parallelly (which can fully utilize your CPU), you can use `gui_para.py`. This function is quite useful when you want to change a specific parameter to measure its implication. Like the following image:
 ![alt text](docs/10.png)
 
 ### D. View the results

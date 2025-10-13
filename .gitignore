@@ -15,10 +15,10 @@ buf.csv
 amap_key.txt
 v2sim/locale/lang.txt
 *.json
-preference.v2simcfg
 recent_projects.txt
 
 # Logs
+out*
 *.log
 *results*
 profiling
@@ -26,7 +26,6 @@ perf*
 
 # Cases
 *.veh.xml*
-*.bat
 *.bak
 deploy
 cases/*

@@ -781,9 +781,9 @@ class MainBox(Tk):
         self.sim_copy_state = BooleanVar(self, False)
         self.sim_cb_copy_state = Checkbutton(self.sim_time, text=_L["SIM_COPY_STATE"], variable=self.sim_copy_state)
         self.sim_cb_copy_state.grid(row=3, column=2, padx=3, pady=3, sticky="w")
-        self.sim_static_route = BooleanVar(self, False)
-        self.sim_cb_static_route = Checkbutton(self.sim_time, text=_L["SIM_STATIC_ROUTE"], variable=self.sim_static_route)
-        self.sim_cb_static_route.grid(row=4, column=2, padx=3, pady=3, sticky="w")
+        self.sim_no_gil = BooleanVar(self, False)
+        self.sim_cb_no_gil = Checkbutton(self.sim_time, text=_L["SIM_NO_GIL"], variable=self.sim_no_gil)
+        self.sim_cb_no_gil.grid(row=4, column=2, padx=3, pady=3, sticky="w")
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
         self.sim_plglist = PluginEditor(self.sim_plugins, self.__OnPluginEnabledSet)
@@ -1032,12 +1032,14 @@ class MainBox(Tk):
         vcfg.save_state_on_abort = self.sim_save_on_abort.get()
         vcfg.save_state_on_finish = self.sim_save_on_finish.get()
         vcfg.copy_state = self.sim_copy_state.get()
-        vcfg.force_caching = self.sim_static_route.get()
+        vcfg.force_nogil = self.sim_no_gil.get()
         vcfg.routing_method = self.ralgo.get()
         vcfg.stats = logs
         vcfg.save(self.folder + "/preference.v2simcfg")
             
-        commands = [sys.executable, "sim_single.py",
+        commands = [sys.executable, 
+                    "-Xgil=0" if self.sim_no_gil.get() else "",
+                    "sim_single.py",
                     "-d", '"'+self.folder+'"', 
                     "-b", str(start), 
                     "-e", str(end), 
@@ -1048,7 +1050,6 @@ class MainBox(Tk):
                     "--save-on-abort" if self.sim_save_on_abort.get() else "",
                     "--save-on-finish" if self.sim_save_on_finish.get() else "",
                     "--route-algo", self.ralgo.get(),
-                    "--static-routing" if self.sim_static_route.get() else "",
                     "--copy-state" if self.sim_copy_state.get() else "",
                 ]
         
@@ -1220,7 +1221,7 @@ class MainBox(Tk):
             self.sim_save_on_abort.set(vcfg.save_state_on_abort)
             self.sim_load_last_state.set(vcfg.load_state)
             self.sim_copy_state.set(vcfg.copy_state)
-            self.sim_static_route.set(vcfg.force_caching)
+            self.sim_no_gil.set(vcfg.force_nogil)
             if vcfg.stats:
                 for x in vcfg.stats:
                     if x in self.sim_statistic:

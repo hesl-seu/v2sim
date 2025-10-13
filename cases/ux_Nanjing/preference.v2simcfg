@@ -1,0 +1,17 @@
+{
+    "start_time": 0,
+    "end_time": 172800,
+    "traffic_step": 30,
+    "seed": 0,
+    "routing_method": "astar",
+    "load_state": false,
+    "save_state_on_abort": false,
+    "save_state_on_finish": false,
+    "copy_state": false,
+    "visualize": false,
+    "force_nogil": true,
+    "stats": [
+        "fcs",
+        "scs"
+    ]
+}

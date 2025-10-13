@@ -1,8 +1,5 @@
-sumolib
 numpy
 matplotlib
-joblib
-threadpoolctl
 scikit-learn
 feasytools>=0.1.3
 fpowerkit>=0.3.4
@@ -11,3 +8,4 @@ requests
 ordered-set
 uxsim
 cloudpickle
+sumolib

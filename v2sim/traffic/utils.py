@@ -254,7 +254,7 @@ class V2SimConfig:
     save_state_on_finish: bool = False
     copy_state: bool = False
     visualize: bool = False
-    force_caching: bool = False
+    force_nogil: bool = False
     stats: Optional[List[str]] = None
 
     @staticmethod
