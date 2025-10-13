@@ -70,9 +70,13 @@ chmod u+x install_deps.sh
 ### B. Create a case
 There are 3 pre-defined cases in the `cases` folder. You can exploit the 3 cases directly, or create a new case from scratch.
 
+If you have an existing v2sim (microscopic version with) case, you can use `convert_case.py -i <old_case_folder> -o <new_case_folder>` to convert it. Vehicles, charging stations will not be preserved.
+
 The following is a full tutorial for creating a case:
 
-1. Download transportation network: (to be added)
+1. Download transportation network: 
+
+(to be added)
 
 Copy your case generated with OSMWebWizard to a proper place. Then run `gui_main.py` in the command prompt by:
 ```bash
@@ -80,7 +84,7 @@ python gui_main.py
 ```
 * **Notice:** Double click to open this file is **NOT** recommended since many users have reported it doesn't work as expected.
 
-Click the `Project` menu and open the folder you have created. You will see something like this:
+Click the `Add existing project` link and click `Open` to load the folder you have created. You will see something like this:
 ![alt text](docs/3.png)
 
 2. Download charging station positions: If the area you downloaded is in **China Mainland**, you can download charging station positions in this program. Otherwise, please skip this step.
