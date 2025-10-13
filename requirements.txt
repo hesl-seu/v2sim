@@ -10,3 +10,4 @@ pyproj
 requests
 ordered-set
 uxsim
+cloudpickle
