@@ -81,6 +81,7 @@ class EventQueue:
                     result = (result,)
                 self.trigger(name, *result)
             except Exception as e:
+                traceback.print_exc()
                 print(f"Error in submitting function '{func.__name__}' for event '{name}': {e}")
         threading.Thread(target=_run_and_trigger, args=(name, func, *args), kwargs=kwargs).start()
     
@@ -90,6 +91,7 @@ class EventQueue:
             try:
                 func(*args, **kwargs)
             except Exception as e:
+                traceback.print_exc()
                 print(f"Error in delegating function '{func.__name__}': {e}")
         threading.Thread(target=_run, args=(func, *args), kwargs=kwargs).start()
 

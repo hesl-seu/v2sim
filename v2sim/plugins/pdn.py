@@ -96,9 +96,9 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         self.__badcnt = 0
         self.__pds:dict[str, List[CS]] = defaultdict(list)
         for c in chain(inst.FCSList,inst.SCSList):
-            if not c.node in self.__gr.BusNames:
+            if not c._bus in self.__gr.BusNames:
                 raise ValueError(_locale["ERROR_CS_NODE_NOT_EXIST"].format(c.name,c.node))
-            self.__pds[c.node].append(c)
+            self.__pds[c._bus].append(c)
         for b, css in self.__pds.items():
             v = TimeImplictFunc(self.__create_closure(css, self.__gr.Sb_MVA))
             self.__gr.Bus(b).Pd += v

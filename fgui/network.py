@@ -53,6 +53,10 @@ class BIDC:
     
     def get(self, id:int):
         return self._mp[id]
+
+    def set_desc(self, id:int, desc:Any):
+        cls, _ = self._mp[id]
+        self._mp[id] = (cls, desc)
     
     def __getitem__(self, id:int):
         return itemdesc(*self._mp[id])
@@ -136,7 +140,7 @@ class NetworkPanel(Frame):
             self._scale['x'] += dx
             self._scale['y'] += dy
     
-    def convLL2XY(self, lon:Optional[float], lat:Optional[float]) -> Tuple[float, float]:
+    def convLL2PlotXY(self, lon:Optional[float], lat:Optional[float]) -> Tuple[float, float]:
         '''Convert longitude and latitude to canvas coordinates'''
         if lon is None: lon = 0
         if lat is None: lat = 0
@@ -150,7 +154,7 @@ class NetworkPanel(Frame):
         y = -y
         return x * self._scale['k'] + self._scale['x'], y * self._scale['k'] + self._scale['y']
     
-    def convXY2LL(self, x:float, y:float) -> Tuple[float, float]:
+    def convPlotXY2LL(self, x:float, y:float) -> Tuple[float, float]:
         '''Convert canvas coordinates to longitude and latitude'''
         x = (x - self._scale['x'])/self._scale['k']
         y = -(y - self._scale['y'])/self._scale['k']
@@ -363,8 +367,8 @@ class NetworkPanel(Frame):
     
     def __move_gen(self, i:int, e:GenLike, nLon:float, nLat:float, move_gen:bool=True):
         assert e.Lon is not None and e.Lat is not None
-        x0, y0 = self.convLL2XY(e.Lon, e.Lat)
-        x1, y1 = self.convLL2XY(nLon, nLat)
+        x0, y0 = self.convLL2PlotXY(e.Lon, e.Lat)
+        x1, y1 = self.convLL2PlotXY(nLon, nLat)
         e.Lon = nLon
         e.Lat = nLat
         dx, dy = x1 - x0, y1 - y0
@@ -376,24 +380,24 @@ class NetworkPanel(Frame):
     def __replot_genline(self, i:int, e:GenLike, b:Bus):
         assert e.Lon is not None and e.Lat is not None
         assert b.Lon is not None and b.Lat is not None
-        x0, y0 = self.convLL2XY(e.Lon, e.Lat)
-        x1, y1 = self.convLL2XY(b.Lon, b.Lat)
+        x0, y0 = self.convLL2PlotXY(e.Lon, e.Lat)
+        x1, y1 = self.convLL2PlotXY(b.Lon, b.Lat)
         self._cv.coords(i, x0, y0, x1, y1)
     
     def __move_line(self, i:int, e:Line):
         assert self._g is not None
         latf1, lonf1 = self._g.Bus(e.fBus).position
         assert latf1 is not None and lonf1 is not None
-        pf1 = self.convLL2XY(lonf1,latf1)
+        pf1 = self.convLL2PlotXY(lonf1,latf1)
         latt1, lont1 = self._g.Bus(e.tBus).position
         assert latt1 is not None and lont1 is not None
-        pt1 = self.convLL2XY(lont1,latt1)
+        pt1 = self.convLL2PlotXY(lont1,latt1)
         self._cv.coords(i, pf1[0], pf1[1], pt1[0], pt1[1])
     
     def __move_bus(self, i:int, e:Bus, nLon:float, nLat:float, move_bus:bool=True):
         assert e.Lon is not None and e.Lat is not None
-        x0, y0 = self.convLL2XY(e.Lon, e.Lat)
-        x1, y1 = self.convLL2XY(nLon, nLat)
+        x0, y0 = self.convLL2PlotXY(e.Lon, e.Lat)
+        x1, y1 = self.convLL2PlotXY(nLon, nLat)
         e.Lon = nLon
         e.Lat = nLat
         dx, dy = x1-x0, y1-y0
@@ -436,7 +440,7 @@ class NetworkPanel(Frame):
             e.MaxV = float(ret['Vmax/pu'])
             self.__move_bus(i, e, nLon, nLat)
             self._g.ChangeBusID(e.ID, ret['Name'])
-            e._id = ret['Name']
+            self._items.set_desc(i, ret['Name'])
             self._cv.itemconfig(i-1, text = e.ID)
         elif isinstance(e, Generator):
             nLon = float(ret['Longitude'])
@@ -461,7 +465,7 @@ class NetworkPanel(Frame):
             e.Pmin = self._float2func(ret['Pmin/pu'])
             e.Qmin = self._float2func(ret['Qmin/pu'])
             self._g.ChangeGenID(e.ID, ret['Name'])
-            e._id = ret['Name']
+            self._items.set_desc(i, ret['Name'])
         elif isinstance(e, PVWind):
             nLon = float(ret['Longitude'])
             nLat = float(ret["Latitude"])
@@ -470,7 +474,7 @@ class NetworkPanel(Frame):
             p = self.__chk(ret['P/pu'])
             e.P = self._float2func(p) if p is not None else 0
             self._g.ChangePVWindID(e.ID, ret['Name'])
-            e._id = ret['Name']
+            self._items.set_desc(i, ret['Name'])
         elif isinstance(e, Line):
             self._g.ChangeLineFromBus(e.ID, ret['From Bus'])
             self._g.ChangeLineToBus(e.ID, ret['To Bus'])
@@ -480,7 +484,7 @@ class NetworkPanel(Frame):
             e.max_I = float(ret['MaxI/kA'])
             self.__move_line(i, e)
             self._g.ChangeLineID(e.ID, ret['Name'])
-            e._id = ret['Name']
+            self._items.set_desc(i, ret['Name'])
         elif isinstance(e, ESS):
             nLon = float(ret['Longitude'])
             nLat = float(ret["Latitude"])
@@ -502,7 +506,7 @@ class NetworkPanel(Frame):
             e.PF = float(ret['Power factor'])
             self._g.ChangeESSBus(e.ID, ret['Bus'])
             self._g.ChangeESSID(e.ID, ret['Name'])
-            e._id = ret['Name']
+            self._items.set_desc(i, ret['Name'])
         self.saved = False
 
     def _onRClick(self, event):
@@ -540,7 +544,7 @@ class NetworkPanel(Frame):
                 cy = (y1+y2)/2
             else:
                 raise RuntimeError("Invalid item")
-            nLon, nLat = self.convXY2LL(cx, cy)
+            nLon, nLat = self.convPlotXY2LL(cx, cy)
             if self._items[i].type == 'bus':
                 e = self._g.Bus(self._items[i].desc)
                 self.__move_bus(i, e, nLon, nLat, False)
@@ -677,27 +681,27 @@ class NetworkPanel(Frame):
                 if b.Lon is None or b.Lat is None:
                     x,y = cx+(locless//20)*7*r, cy+(locless%20)*7*r
                     locless += 1
-                    b.Lon, b.Lat = self.convXY2LL(x,y)
+                    b.Lon, b.Lat = self.convPlotXY2LL(x,y)
                     print(f"Bus {b.ID} has no location, set to Lon, Lat = ({b.Lon:.6f},{b.Lat:.6f})")
             for line in self._g.Lines:
-                x1, y1 = self.convLL2XY(*self._g.Bus(line.fBus).LonLat)
-                x2, y2 = self.convLL2XY(*self._g.Bus(line.tBus).LonLat)
+                x1, y1 = self.convLL2PlotXY(*self._g.Bus(line.fBus).LonLat)
+                x2, y2 = self.convLL2PlotXY(*self._g.Bus(line.tBus).LonLat)
                 self._Q.delegate(self._draw_line, x1, y1, x2, y2, 'black', 2, line.ID)
             
             for g in chain(self._g.Gens, self._g.PVWinds, self._g.ESSs):
                 tp = g.__class__.__name__.lower()[:3]
-                xb, yb = self.convLL2XY(*self._g.Bus(g.BusID).LonLat)
+                xb, yb = self.convLL2PlotXY(*self._g.Bus(g.BusID).LonLat)
                 if g.Lon is None or g.Lat is None:
                     x,y = xb, yb+3*r
                     locless += 1
-                    g.Lon, g.Lat = self.convXY2LL(x,y)
+                    g.Lon, g.Lat = self.convPlotXY2LL(x,y)
                     t = g.__class__.__name__
                     print(f"{t} {g.ID} has no location, set to Lon, Lat = ({b.Lon:.6f},{b.Lat:.6f})")
-                x, y = self.convLL2XY(g.Lon, g.Lat)
+                x, y = self.convLL2PlotXY(g.Lon, g.Lat)
                 self._Q.delegate(self._draw_gen, x, y, r, 'white', 2, g.ID, xb, yb, tp)
 
             for b in self._g.Buses:
-                x, y = self.convLL2XY(b.Lon, b.Lat)
+                x, y = self.convLL2PlotXY(b.Lon, b.Lat)
                 self._Q.delegate(self._draw_bus, x, y, r, 'white', 2, b.ID)
         
         if center: self._Q.trigger("draw_done_center")

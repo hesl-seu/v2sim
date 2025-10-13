@@ -1,9 +1,10 @@
 import gzip
 import pickle
+import inspect
 import importlib, os, queue, shutil, signal, time, sys
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
-from feasytools import ArgChecker, time2str#, FEasyTimer
+from feasytools import ArgChecker, time2str
 from pathlib import Path
 from .plotkit import AdvancedPlot
 from .plugins import *
@@ -213,6 +214,16 @@ class V2SimInstance:
         # Create cproc.log
         self.__out = open(str(pres / "cproc.log"), "w", encoding="utf-8")
 
+        # Record all __init__ parameters to file
+        frame = inspect.currentframe()
+        assert frame is not None
+        args, _, _, values = inspect.getargvalues(frame)
+        self.__out.write("Parameters:\n")
+        for arg in args:
+            if arg in ('self', 'vb', 'mpQ') or 'pool' in arg:
+                continue
+            self.__out.write(f"  {arg}: {values[arg]}\n")
+        
         proj_dir = Path(cfgdir)
 
         if gen_veh_command != "" or gen_scs_command != "" or gen_fcs_command != "":
@@ -509,7 +520,6 @@ class V2SimInstance:
         if load_from != "":
             self.load_state(load_from)
     
-    #@FEasyTimer
     def step(self) -> int:
         '''
         Simulation steps. 
@@ -573,7 +583,6 @@ class V2SimInstance:
             shutil.copy(self.__sumocfg_file, self.__pres / Path(self.__sumocfg_file).name)
         self.__working_flag = False
     
-    #@FEasyTimer
     def simulate(self):
         '''
         Main simulation function
@@ -670,7 +679,6 @@ class V2SimInstance:
                     self.__last_mp_time = ctime
                 self.__last_print_time = ctime
 
-#@FEasyTimer
 def simulate_single(vb=None, **kwargs)->bool:
     '''
     Single process simulation
