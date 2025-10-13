@@ -49,7 +49,7 @@ class PluginV2G(PluginBase[V2GRes]):
         self._cap:List[float] = [0.] * len(inst.SCSList)
 
         for i,pk in enumerate(inst.SCSList):
-            self.__pdn.Grid.AddGen(Generator("V2G_"+pk.name,pk.node,0.,pk.psell*(self.__pdn.Grid.Sb*1000),0.,
+            self.__pdn.Grid.AddGen(Generator("V2G_"+pk.name,pk._bus,0.,pk.psell*(self.__pdn.Grid.Sb*1000),0.,
                 0.,ComFunc(self.__get_cap(i)),0.,0.,))
         if isinstance(self.__pdn, PluginPDN):
             self.__pdn.Solver.est.UpdateGrid(self.__pdn.Grid)

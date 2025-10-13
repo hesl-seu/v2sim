@@ -3,6 +3,7 @@ from collections import deque
 from dataclasses import dataclass
 from itertools import chain
 from typing import Callable, Optional, Sequence, List, Dict
+import warnings
 from feasytools import RangeList, makeFunc, OverrideFunc, TimeFunc, ConstFunc, SegFunc
 from ordered_set import OrderedSet
 from .evdict import EVDict
@@ -136,7 +137,7 @@ class CS(ABC):
         """
         self._name: str = name
         self._slots: int = slots
-        self._node: str = bus
+        self._bus: str = bus
         self._offline: RangeList = RangeList(offline)
         self._manual_offline: Optional[bool] = None
         self._pbuy: OverrideFunc = OverrideFunc(makeFunc(*price_buy))
@@ -191,9 +192,15 @@ class CS(ABC):
         return self._slots
 
     @property
+    def bus(self) -> str:
+        """The distribution network bus to which the charging station belongs"""
+        return self._bus
+    
+    @property
     def node(self) -> str:
-        """The distribution network node to which the charging station belongs"""
-        return self._node
+        """The distribution network bus to which the charging station belongs"""
+        warnings.warn("The 'node' property is deprecated. Please use 'bus' instead.", DeprecationWarning)
+        return self._bus
 
     @property
     def pbuy(self) -> OverrideFunc:
@@ -385,7 +392,7 @@ class SCS(CS):
         self._free: set[str] = set()  # Vehicles that have been fully charged
 
     def to_xml(self) -> str:
-        ret = f'<scs name="{self._name}" edge="{self._name}" slots="{self._slots}" bus="{self._node}" ' \
+        ret = f'<scs name="{self._name}" edge="{self._name}" slots="{self._slots}" bus="{self._bus}" ' \
             f'x="{self._x}" y="{self._y}" max_pc="{self._pc_lim1 * 3600:.2f}" max_pd="{self._pd_lim1 * 3600:.2f}" ' \
             f'pc_alloc="{self._pc_alloc_str}" pd_alloc="{self._pd_alloc_str}">\n'
         ret += _get_price_xml(self._pbuy, "pbuy") + "\n"
@@ -493,7 +500,7 @@ class FCS(CS):
         self._veh: set[str] = set()  # All vehicles in the station
 
     def to_xml(self) -> str:
-        ret = f'<fcs name="{self._name}" edge="{self._name}" slots="{self._slots}" bus="{self._node}" ' \
+        ret = f'<fcs name="{self._name}" edge="{self._name}" slots="{self._slots}" bus="{self._bus}" ' \
             f'x="{self._x}" y="{self._y}" max_pc="{self._pc_lim1 * 3600:.2f}" pc_alloc="{self._pc_alloc_str}">\n'
         ret += _get_price_xml(self._pbuy, "pbuy") + "\n"
         if len(self._offline) > 0: ret += self._offline.toXML("offline") + "\n"
