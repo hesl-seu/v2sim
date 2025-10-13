@@ -1,17 +1,18 @@
 from itertools import repeat
-from typing import Dict, Iterable, Type, Union, Optional, TypeVar, Generic, List
-from feasytools import RangeList, KDTree, Point
+from typing import Dict, Iterable, Tuple, Type, Union, Optional, TypeVar, Generic, List
+from feasytools import RangeList
+from sklearn.neighbors import KDTree
 from ..locale import Lang
 from .utils import ReadXML
 from .params import *
 from .evdict import EVDict
-from .cs import CS, SCS, FCS
+from .cs import SCS, FCS
 
 T_CS = TypeVar("T_CS", FCS, SCS)
 CS_Type = Type[T_CS]
 
 
-def _LoadCSList(filePath:str, csType:CS_Type) -> List[T_CS]:
+def LoadCSList(filePath:str, csType:CS_Type) -> List[T_CS]:
     assert csType == FCS or csType == SCS
     _cs = []
     root = ReadXML(filePath).getroot()
@@ -52,7 +53,7 @@ def _LoadCSList(filePath:str, csType:CS_Type) -> List[T_CS]:
         )
     return _cs
 
-LoadCSList = _LoadCSList
+_LoadCSList = LoadCSList
 
 class CSList(Generic[T_CS]):
     """CS List. Index starts from 0."""
@@ -105,26 +106,30 @@ class CSList(Generic[T_CS]):
         self.__v2g_demand: List[float] = []
         for i, cs in enumerate(self._cs):
             self._remap[cs.name] = i
+        self.create_kdtree()
+    
+    def create_kdtree(self):
         pts = []
         for cs in self._cs:
             if cs._x == float("inf") or cs._y == float("inf"):
                 self._kdtree = None
                 break
-            pts.append(Point(cs._x, cs._y))
+            pts.append((cs._x, cs._y))
         else:
-            self._kdtree = KDTree(pts, range(self._n))
+            self._kdtree = KDTree(pts)
     
-    def select_near(self, pos: Point, n: int = 2147483647) -> Iterable[int]:
+    def select_near(self, pos: Tuple[float, float], n: int = 1) -> Iterable[int]:
         """
         Select the n nearest charging station numbers to (x, y).
             pos: coordinate
             n: Number of selections
         Return
-            Selected number list
+            Selected indices. If n is greater than or equal to the total number of charging stations, all charging stations are returned.
         """
         if n >= self._n or self._kdtree is None:
             return range(self._n)
-        return self._kdtree.k_nearest_mapped(pos, n)
+        dist, idx = self._kdtree.query(pos, k=n, return_distance=True)
+        return idx.reshape(-1)
 
     def index(self, name: str) -> int:
         """
@@ -330,3 +335,7 @@ class CSList(Generic[T_CS]):
     
     def __str__(self):
         return repr(self)
+
+__all__ = [
+    "LoadCSList", "CSList"
+]

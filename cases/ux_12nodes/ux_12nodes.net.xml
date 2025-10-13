@@ -1,0 +1,90 @@
+<roadnet v2simfmtver="1.0">
+  <node id="T1" x="30" y="150"/>
+  <node id="CS1" x="30" y="156"/>
+  <node id="T10" x="230" y="-30"/>
+  <node id="CS10" x="234" y="-30"/>
+  <node id="T11" x="30" y="-130"/>
+  <node id="CS11" x="30" y="-134"/>
+  <node id="T12" x="130" y="-130"/>
+  <node id="CS12" x="130" y="-134"/>
+  <node id="T2" x="130" y="150"/>
+  <node id="CS2" x="130" y="156"/>
+  <node id="T3" x="-70" y="50"/>
+  <node id="CS3" x="-74" y="50"/>
+  <node id="T4" x="30" y="50"/>
+  <node id="CS4" x="23" y="55"/>
+  <node id="T5" x="130" y="50"/>
+  <node id="CS5" x="136" y="55"/>
+  <node id="T6" x="230" y="50"/>
+  <node id="CS6" x="234" y="50"/>
+  <node id="T7" x="-70" y="-30"/>
+  <node id="CS7" x="-75" y="-30"/>
+  <node id="T8" x="30" y="-30"/>
+  <node id="CS8" x="23" y="-35"/>
+  <node id="T9" x="130" y="-30"/>
+  <node id="CS9" x="134" y="-34"/>
+  <edge id="CS1" from="T1" to="CS1" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS10" from="T10" to="CS10" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS10rev" from="CS10" to="T10" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS11" from="T11" to="CS11" length="100.0" lanes="1" speed="5.0" world_id="-1"/>
+  <edge id="CS11rev" from="CS11" to="T11" length="100.0" lanes="1" speed="20.0" world_id="-1"/>
+  <edge id="CS12" from="T12" to="CS12" length="500.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS12rev" from="CS12" to="T12" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS1rev" from="CS1" to="T1" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS2" from="T2" to="CS2" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS2rev" from="CS2" to="T2" length="100.0" lanes="1" speed="20.0" world_id="-1"/>
+  <edge id="CS3" from="T3" to="CS3" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS3rev" from="CS3" to="T3" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS4" from="T4" to="CS4" length="100.0" lanes="1" speed="5.0" world_id="-1"/>
+  <edge id="CS4rev" from="CS4" to="T4" length="100.0" lanes="1" speed="20.0" world_id="-1"/>
+  <edge id="CS5" from="T5" to="CS5" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS5rev" from="CS5" to="T5" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS6" from="T6" to="CS6" length="100.0" lanes="1" speed="5.0" world_id="-1"/>
+  <edge id="CS6rev" from="CS6" to="T6" length="100.0" lanes="1" speed="20.0" world_id="-1"/>
+  <edge id="CS7" from="T7" to="CS7" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS7rev" from="CS7" to="T7" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS8" from="T8" to="CS8" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS8rev" from="CS8" to="T8" length="100.0" lanes="1" speed="13.89" world_id="-1"/>
+  <edge id="CS9" from="T9" to="CS9" length="100.0" lanes="1" speed="5.0" world_id="-1"/>
+  <edge id="CS9rev" from="CS9" to="T9" length="100.0" lanes="1" speed="20.0" world_id="-1"/>
+  <edge id="gneE0" from="T1" to="T2" length="6000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE1" from="T3" to="T1" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE10" from="T11" to="T12" length="5000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE11" from="T12" to="T10" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE12" from="T3" to="T7" length="6000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE13" from="T8" to="T4" length="7000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE14" from="T5" to="T9" length="8000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE16" from="T2" to="T6" length="4000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE17" from="T2" to="T5" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE18" from="T1" to="T4" length="2000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE19" from="T8" to="T11" length="2000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE2" from="T3" to="T4" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE20" from="T9" to="T12" length="2000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE21" from="T1" to="T3" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE22" from="T4" to="T1" length="2000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE23" from="T7" to="T3" length="6000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE24" from="T2" to="T1" length="6000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE25" from="T5" to="T4" length="8000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE26" from="T9" to="T5" length="8000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE27" from="T8" to="T9" length="7000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE28" from="T11" to="T7" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE29" from="T11" to="T8" length="2000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE3" from="T4" to="T5" length="8000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE31" from="T12" to="T9" length="2000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE32" from="T10" to="T12" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE33" from="T6" to="T2" length="4000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE34" from="T6" to="T5" length="4000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE35" from="T12" to="T11" length="5000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE36" from="T9" to="T10" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE37" from="T10" to="T6" length="6000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE38" from="T5" to="T2" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE39" from="T4" to="T8" length="7000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE4" from="T5" to="T6" length="4000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE40" from="T4" to="T3" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE42" from="T7" to="T8" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE5" from="T6" to="T10" length="6000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE6" from="T10" to="T9" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE7" from="T9" to="T8" length="7000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE8" from="T8" to="T7" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+  <edge id="gneE9" from="T7" to="T11" length="3000.0" lanes="2" speed="13.89" world_id="-1"/>
+</roadnet>

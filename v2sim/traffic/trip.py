@@ -417,3 +417,5 @@ class TripsReader:
                 if m.trip_id != trip_id:
                     continue
             yield r, m, t
+
+__all__ = ["TripsLogger", "TripLogItem", "TripsReader"]

@@ -129,6 +129,8 @@ class EVsGenerator:
         pdf = None
         while pdf is None:
             init_time = self.pdf_start_weekday.sample() if weekday else self.pdf_start_weekend.sample()
+            if init_time >= 86400:
+                continue
             # Time index (0~95, each unit = 15min)
             init_time_i = int(init_time / 15)
             pdf = self.__getPs(weekday, pfr, init_time_i)
@@ -160,7 +162,7 @@ class EVsGenerator:
         from_Type = "Home"
         from_node = random.choice(self.dic_nodetype[from_Type])
         # Get departure time and destination area type
-        depart_time_min, to_Type = self.__getDest1(from_Type, weekday)  
+        depart_time_min, to_Type = self.__getDest1(from_Type, weekday)  # Minimum departure time is 0
         to_node = self.__getNextNode(from_node, to_Type)
         return _TripInner(trip_id, depart_time_min * 60, from_node, from_Type, to_node, to_Type)
 
@@ -172,7 +174,7 @@ class EVsGenerator:
 
     def __genTripA(
         self, trip_id:str, from_type:str, from_node:str, start_time:int, weekday: bool = True
-    )->_TripInner:
+    ) -> _TripInner:
         """
         Generate the second trip
             trip_id: Trip ID
@@ -181,8 +183,15 @@ class EVsGenerator:
             start_time: Departure time of the first trip, in seconds since midnight
             weekday: Whether it is weekday or weekend
         """
-        stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
-        depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
+        depart_time_min = 1440
+        cnt = 0
+        while depart_time_min >= 1440:  # If the departure time is after midnight, regenerate
+            stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
+            depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
+            cnt += 1
+            if cnt > 10:
+                depart_time_min = start_time // 60 + 1
+                break
         next_place_type = self.__getDestA(from_type, stop_time_idx, weekday)
         to_node = self.__getNextNode(from_node, next_place_type)
         return _TripInner(trip_id, depart_time_min * 60, from_node, from_type, to_node, next_place_type)
@@ -204,8 +213,14 @@ class EVsGenerator:
         """
         if first_node == from_node:
             return None
-        stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
-        depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
+        depart_time_min = 1440
+        cnt = 0
+        while depart_time_min >= 1440:  # If the departure time is after midnight, regenerate
+            stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
+            depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
+            cnt += 1
+            if cnt > 10:
+                return None
         return _TripInner(trip_id, depart_time_min * 60, from_node, from_type, first_node, "Home")
 
     def __genTripsChain1(self, ev:_EVInner):  # vehicle_trip
@@ -227,7 +242,7 @@ class EVsGenerator:
             else:
                 trip_2.toN = trip_1.frN
 
-    def __genFirstTripA(self, trip_id, ev: _EVInner, weekday: bool = True):
+    def __genFirstTripA(self, trip_id:str, ev: _EVInner, weekday: bool = True):
         """
         Generate the first trip of a non-first day
             trip_id: Trip ID

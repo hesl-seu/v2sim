@@ -9,8 +9,7 @@ from dataclasses import dataclass, field
 from sklearn.cluster import KMeans
 from sklearn.neighbors import KDTree
 from collections import defaultdict
-
-from v2sim.locale.lang import Lang
+from ..locale.lang import Lang
 
 
 def _largeStackExec(func, *args):
@@ -154,6 +153,13 @@ class RoadNet:
         """
         dist, idx = self.kdtree.query([[x, y]], k=1)
         return self.__nodeL[idx[0][0]]
+    
+    def find_nearest_node_with_distance(self, x:float, y:float) -> Tuple[float, Node]:
+        """
+        Find the nearest node to the given coordinates.
+        """
+        dist, idx = self.kdtree.query([[x, y]], k=1)
+        return dist[0][0], self.__nodeL[idx[0][0]]
     
     def calc_max_scc(self):
         """
@@ -774,3 +780,5 @@ class RoadNet:
         
         # 打印统计
         self._print_partition_stats()
+
+__all__ = ["Node", "Edge", "SubNet", "RoadNet"]

@@ -25,11 +25,14 @@ def dijMC(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str], omega: floa
     Uses time as primary key, length as secondary key.
     """
     # (time, length, node, path, path_edges)
+    
     heap = [(0, 0, from_node, [from_node], [])]
     visited = set()
     min_time = {from_node: 0}
     best_score = float('inf')
     best_stage = Stage([], [], float('inf'), float('inf'))
+
+    # history = []
     
     while heap:
         cur_time, cur_len, cur_node, path, path_edges = heapq.heappop(heap)
@@ -39,9 +42,10 @@ def dijMC(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str], omega: floa
         visited.add(cur_node)
         
         # 检查是否到达目标节点且满足长度约束
-        if cur_node in to_nodes and cur_len <= max_length:
-            score = omega * (cur_time / 60.0 + wt[cur_node]) + to_charge * p[cur_node]
+        if cur_node in to_nodes:
+            score = omega * (cur_time / 60 + wt[cur_node]) + to_charge * p[cur_node]
             if score < best_score:
+                # history.append((cur_node, cur_len, cur_time / 60, wt[cur_node], p[cur_node], score))
                 best_score = score
                 best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
         
@@ -60,6 +64,14 @@ def dijMC(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str], omega: floa
                 min_time[neighbor] = next_time
                 heapq.heappush(heap, (next_time, next_len, neighbor, path + [neighbor], path_edges + [link.name]))
     
+    # print("\n=== dijMC History ===")
+    # print("From Node:", from_node, "To Nodes:", to_nodes, "Max Length:", max_length)
+    # print("Omega:", omega, "To Charge:", to_charge)
+    # print("Node\tLen(m)\tTd(min)\tTw(min)\tPrice\tScore")
+    # for record in history:
+    #     print(f"{record[0]}\t{record[1]:.1f}\t{record[2]:.1f}\t{record[3]:.1f}\t{record[4]:.1f}\t{record[5]:.1f}")
+    # print()
+    # input()
     return best_stage
 
 def dijMF(gl: Graph, ctime: int, from_node: str, to_nodes: Set[str]) -> Stage:

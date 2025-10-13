@@ -105,19 +105,6 @@ class FileDetectResult:
     def __contains__(self, key: str) -> bool:
         return hasattr(self, key) and getattr(self, key) != None
 
-def ReadSUMONet(file: str):
-    """
-    Read SUMO net file and return a sumolib.net.Net object.
-    Args:
-        file (str): Path to the SUMO net file
-    Returns:
-        sumolib.net.Net: A sumolib.net.Net object
-    """
-    import sumolib
-    ret = sumolib.net.readNet(file)
-    assert isinstance(ret, sumolib.net.Net), "Failed to read SUMO net file"
-    return ret
-
 @dataclass
 class AddtionalTypes:
     Poly: bool
@@ -190,58 +177,6 @@ def DetectFiles(dir: str) -> FileDetectResult:
 
     return FileDetectResult(**ret)
 
-def FixSUMOConfig(cfg_path: str, start: int=0, end: int=172800) -> Tuple[bool, ET.ElementTree, str]:
-    """
-    Fix the SUMO configuration file by adding time and removing report and routing nodes.
-    Args:
-        cfg_path (str): Path to the SUMO configuration file
-        start (int): Start time (default: 0)
-        end (int): End time (default: 172800)
-    Returns:
-        Tuple[bool, ET.ElementTree, str]: A tuple containing:
-            - cflag (bool): Whether the configuration file was modified
-            - tr (ET.ElementTree): The modified configuration file as an ElementTree object
-            - route_file_name (str): The name of the route file
-    """
-    cflag = False
-    tr = ET.ElementTree(file = cfg_path)
-    cfg = tr.getroot()
-    if cfg is None:
-        raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(cfg_path))
-    node_report = cfg.find("report")
-    route_file_name = ""
-    if node_report is not None:
-        cfg.remove(node_report)
-        cflag = True
-    node_routing = cfg.find("routing")
-    if node_routing is not None:
-        cfg.remove(node_routing)
-        cflag = True
-    node_input = cfg.find("input")
-    if node_input is not None:
-        node_rf = node_input.find("route-files")
-        if node_rf is not None:
-            route_file_name = node_rf.get("value")
-            if not isinstance(route_file_name, str):
-                route_file_name = ""
-            node_input.remove(node_rf)
-            cflag = True
-    node_time = cfg.find("time")
-    if node_time is None:
-        node_time = ET.Element("time")
-        node_time.append(ET.Element("begin", {"value":str(start)}))
-        node_time.append(ET.Element("end", {"value":str(end)}))
-        cfg.append(node_time)
-        cflag = True
-    else:
-        if node_time.find("begin") is None: 
-            node_time.append(ET.Element("begin", {"value":str(start)}))
-            cflag = True
-        if node_time.find("end") is None:
-            node_time.append(ET.Element("end", {"value":str(end)}))
-            cflag = True
-    return cflag, tr, route_file_name
-
 @dataclass
 class V2SimConfig:
     start_time: int = 0
@@ -269,6 +204,9 @@ class V2SimConfig:
         import json
         with open(file, "r") as f:
             data = json.load(f)
+        # Remove deprecated fields if present
+        if "force_caching" in data:
+            del data["force_caching"]
         return V2SimConfig(**data)
     
     def save(self, file:str):
@@ -280,3 +218,8 @@ class V2SimConfig:
         import json
         with open(file, "w") as f:
             json.dump(self.__dict__, f, indent=4)
+
+__all__ = [
+    "IntPairList", "PriceList", "TWeights", "FileDetectResult", "V2SimConfig",
+    "DetectFiles", "CheckFile", "ClearBakFiles", "ReadXML", "LoadFCS", "LoadSCS",
+]

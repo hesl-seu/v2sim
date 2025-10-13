@@ -1,4 +1,3 @@
-from __future__ import annotations
 from dataclasses import dataclass
 import enum, math
 from typing import Callable, Dict, Iterable, Tuple, Union
@@ -415,3 +414,5 @@ class EV:
 
     def __str__(self):
         return repr(self)
+
+__all__ = ["Trip", "VehStatus", "EV", "ChargeRatePool"]

@@ -1,0 +1,62 @@
+<root>
+<fcs name="fcs_CS1" node="CS1" slots="10" bus="b1" x="30.0" y="156.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS10" node="CS10" slots="10" bus="b1" x="234.0" y="-30.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS11" node="CS11" slots="10" bus="b0" x="30.0" y="-134.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS12" node="CS12" slots="10" bus="b1" x="130.0" y="-134.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS2" node="CS2" slots="10" bus="b2" x="130.0" y="156.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS3" node="CS3" slots="10" bus="b1" x="-74.0" y="50.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS4" node="CS4" slots="10" bus="b1" x="23.0" y="55.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS5" node="CS5" slots="10" bus="b1" x="136.0" y="55.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS6" node="CS6" slots="10" bus="b1" x="234.0" y="50.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS7" node="CS7" slots="10" bus="b1" x="-75.0" y="-30.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS8" node="CS8" slots="10" bus="b2" x="23.0" y="-35.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+<fcs name="fcs_CS9" node="CS9" slots="10" bus="b0" x="134.0" y="-34.0">
+  <pbuy>
+    <item btime="0" price="1.0" />
+  </pbuy>
+</fcs>
+</root>

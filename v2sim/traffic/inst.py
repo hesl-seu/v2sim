@@ -5,16 +5,20 @@ from pathlib import Path
 import random
 import pickle
 import gzip
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from feasytools import PQueue, Point
 from uxsim import Link
 from .routing import *
+from ..locale import Lang
 from .trip import TripsLogger
+from .cs import *
 from .cslist import *
+from .evdict import *
 from .ev import *
 from .utils import TWeights
 from .paraworlds import ParaWorlds, load_world
 from .net import RoadNet
+from .params import *
 
 
 class TrafficInst:
@@ -484,16 +488,10 @@ class TrafficInst:
                 cs._x, cs._y = self.__rnet.get_node(cs.name).get_coord()
         
         if self.FCSList._kdtree == None:
-            self.FCSList._kdtree = KDTree(
-                (Point(cs._x, cs._y) for cs in self.FCSList),
-                range(self.FCSList._n)
-            )
+            self.FCSList.create_kdtree()
         
         if self.SCSList._kdtree == None:
-            self.SCSList._kdtree = KDTree(
-                (Point(cs._x, cs._y) for cs in self.SCSList),
-                range(self.SCSList._n)
-            )
+            self.SCSList.create_kdtree()
 
     def simulation_step(self, step_len: int):
         """
@@ -577,4 +575,5 @@ class TrafficInst:
         self.__names_fcs = d["names_fcs"]
         self.__names_scs = d["names_scs"]
         self.W = load_world(str(Path(folder) / "world.pkl"))
-        
+
+__all__ = ["TrafficInst"]

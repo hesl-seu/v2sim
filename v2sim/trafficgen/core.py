@@ -95,13 +95,11 @@ class TrafficGenerator:
         if not self.__cfg.net:
             raise FileNotFoundError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
         self.__rnet = RoadNet.load(self.__cfg.net)
-        self.__edges: List[str] = self.__rnet.edge_ids
         self.__ava_fcs: List[str] = [
-            e for e in self.__edges
-            if e.upper().startswith("CS") and not e.lower().endswith("rev")
+            e for e in self.__rnet.node_ids if e.upper().startswith("CS")
         ]
         self.__ava_scs: List[str] = [
-            e for e in self.__edges if not e.upper().startswith("CS")
+            e for e in self.__rnet.node_ids if not e.upper().startswith("CS")
         ]
         
         self.__bus_names = ["None"]
@@ -110,15 +108,8 @@ class TrafficGenerator:
         else:
             print("Grid is not defined, and thus buses are not included. CS generation may meet errors.")
         
-        if "cscsv" in self.__cfg:
-            self.__cs_file = self.__cfg["cscsv"]
-        else:
-            self.__cs_file = ""
-        
-        if "grid" in self.__cfg:
-            self.__grid_file = self.__cfg["grid"]
-        else:
-            self.__grid_file = ""
+        self.__cs_file = self.__cfg["cscsv"] if "cscsv" in self.__cfg else ""
+        self.__grid_file = self.__cfg["grid"] if "grid" in self.__cfg else ""
 
     def EVTripsFromArgs(self, args: Union[str, ArgChecker]):
         """
@@ -229,11 +220,9 @@ class TrafficGenerator:
         fp.write("<root>\n")
         cs_pos:Dict[str, Tuple[float, float]] = {}
         if cs_file != "":
-            assert self.__cfg.net is not None, Lang.ERROR_NET_FILE_NOT_SPECIFIED
-            el = RoadNet.load(self.__cfg.net)
             with open(cs_file, "r") as f:
                 con = f.readlines()
-                _,_,i0,i1 = con[0].strip().split(",")
+                _, _, i0, i1 = con[0].strip().split(",")
                 if i0 == "lat" and i1 == "lng":
                     swap = False
                 elif i0 == "lng" and i1 == "lat":
@@ -241,34 +230,33 @@ class TrafficGenerator:
                 else:
                     raise ValueError("Invalid CSV file.")
                 for i in range(1, len(con) - 1):
-                    _,_,lat,lng = con[i].strip().split(",")
-                    if swap: lat,lng = lng,lat
-                    x,y = self.__rnet.convertLonLat2XY(float(lng), float(lat))
-                    try:
-                        node_name = el.find_nearest_node(x, y).id
-                        cs_pos[node_name] = (x, y)
-                    except RuntimeError as e:
-                        print(f"Warning: Point {lat},{lng} (XY: {x:.1f},{y:.1f}) is far away ({float(e.args[0]):.1f}m) from the road network.")
+                    _, _, lat, lng = con[i].strip().split(",")
+                    if swap: lat, lng = lng, lat
+                    x, y = self.__rnet.convertLonLat2XY(float(lng), float(lat))
+                    dist, node = self.__rnet.find_nearest_node_with_distance(x, y)
+                    if dist < 200:
+                        cs_pos[node.id] = (x, y)
+                    else:
+                        print(f"Warning: Point {lat},{lng} (XY: {x:.1f},{y:.1f}) is far away ({dist:.1f}m) from the road network.")
                         continue
-            cs_names = cs.select(sorted(cs_pos.keys()), csCount, givenCS)
+            cs_names = cs.select(sorted(set(cs_pos.keys())), csCount, givenCS)
             cs_slots = repeat(slots, len(con) - 1)
         elif poly_file != "":
             cs_type:Dict[str,Any] = defaultdict(int)
-            assert self.__cfg.net is not None, Lang.ERROR_NET_FILE_NOT_SPECIFIED
-            el = RoadNet.load(self.__cfg.net)
             PolyMan = PolygonMan(poly_file)
             for poly in PolyMan:
                 t = poly.getConvertedType()
                 if t is None or t == "Other": continue
                 p = poly.center()
-                try:
-                    node_name = el.find_nearest_node(*p).id
-                    cs_type[node_name] = t
-                except RuntimeError as e:
-                    print(f"Warning: Polygon (Center: {p[0]:.1f},{p[1]:.1f}) is far away ({float(e.args[0]):.1f}m) from the road network.")
+                dist, node = self.__rnet.find_nearest_node_with_distance(*p)
+                if dist < 200:
+                    cs_pos[node.id] = p
+                    cs_type[node.id] = t
+                else:
+                    print(f"Warning: Polygon (Center: {p[0]:.1f},{p[1]:.1f}) is far away ({dist:.1f}m) from the road network.")
                     continue
             cs_names = cs.select(sorted(cs_type.keys()), csCount, givenCS)
-            def trans(x:str):
+            def trans(x: str):
                 if x == "Home" or x == "Work":
                     return 10 #50
                 elif x == "Relax":
@@ -279,6 +267,8 @@ class TrafficGenerator:
         else:
             cs_names = cs.select(self.__ava_fcs if mode == "fcs" else self.__ava_scs, csCount, givenCS)
             cs_slots = repeat(slots, len(cs_names))
+            for name in cs_names:
+                cs_pos[name] = self.__rnet.get_node(name).get_coord()
         use_grid = False
         bus_pos:List[Tuple[float, float]] = []
         if grid_file != "":
@@ -288,7 +278,7 @@ class TrafficGenerator:
                 lon, lat = b.LonLat
                 try:
                     assert lon is not None or lat is not None
-                    x, y = el.convertLonLat2XY(lon, lat)
+                    x, y = self.__rnet.convertLonLat2XY(lon, lat)
                 except:
                     use_grid = False
                     break
@@ -296,7 +286,7 @@ class TrafficGenerator:
             bus_names = gr.BusNames
         if use_grid:
             bkdt = KDTree(bus_pos, metric="euclidean")
-            selector = lambda cname: bus_names[bkdt.query([el.get_node(cname).get_coord()], k = 1)[1][0][0]]
+            selector = lambda cname: bus_names[bkdt.query([self.__rnet.get_node(cname).get_coord()], k=1)[1][0][0]]
         else:
             bus_names = bus.select(self.__bus_names, busCount, givenBus)
             selector = lambda cname: random.choice(bus_names)
@@ -305,7 +295,7 @@ class TrafficGenerator:
             if mode == "scs":
                 fp.write(f' v2galloc="Average"')
             if cname in cs_pos:
-                x,y = cs_pos[cname]
+                x, y = cs_pos[cname]
                 fp.write(f' x="{x:.1f}" y="{y:.1f}"')
             fp.write(">\n")
             fp.write(f"  <pbuy>\n")

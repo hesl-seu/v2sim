@@ -1,5 +1,6 @@
 from typing import Dict
 from feasytools import RangeList
+from ..locale.lang import Lang
 from .utils import ReadXML
 from .params import *
 from .ev import EV, Trip
@@ -22,12 +23,20 @@ class EVDict(Dict[str, EV]):
         for veh in rt:
             trips: list[Trip] = []            
             for trip in veh:
-                trips.append(Trip(
+                new_trip = Trip(
                     trip.attrib.pop("id"),
                     int(float(trip.attrib.pop("depart"))),
                     trip.attrib.pop("fromNode"),
                     trip.attrib.pop("toNode"),
-                ))
+                )
+                if len(trips) > 0:
+                    if new_trip.depart_time <= trips[-1].depart_time:
+                        raise ValueError(Lang.BAD_TRIP_DEPART_TIME.format(
+                            new_trip.depart_time, trips[-1].depart_time, veh.attrib['id'], new_trip.id))
+                    if new_trip.from_node != trips[-1].to_node:
+                        raise ValueError(Lang.BAD_TRIP_OD.format(
+                            new_trip.from_node, trips[-1].to_node, veh.attrib['id'], new_trip.id))
+                trips.append(new_trip)
             attr = FloatDictWrapper(veh.attrib)
             elem_sctime = veh.find("sctime")
             elem_v2gtime = veh.find("v2gtime")
@@ -64,3 +73,5 @@ class EVDict(Dict[str, EV]):
         Remove a vehicle by ID, return the removed value
         """
         return super().pop(veh_id)
+
+__all__ = ["EVDict"]
