@@ -24,6 +24,9 @@ DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" gr
 def showerr(msg:str):
     MB.showerror(_L["MB_ERROR"], msg)
 
+def showwarn(msg:str):
+    MB.showwarning(_L["MB_INFO"], msg)
+
 _L = CustomLocaleLib.LoadFromFolder("resources/gui_main")
 
 SIM_YES = "YES"
@@ -281,7 +284,7 @@ class CSEditorGUI(Frame):
                         c = self.cslist[i]
                         c._name = name
                         c._slots = slots
-                        c._node = bus
+                        c._bus = bus
                         c._x = float(x)
                         c._y = float(y)
                         c._pc_lim1 = float(maxpc) / 3600
@@ -297,7 +300,7 @@ class CSEditorGUI(Frame):
                         c = self.cslist[i]
                         c._name = name
                         c._slots = slots
-                        c._node = bus
+                        c._bus = bus
                         c._x = float(x)
                         c._y = float(y)
                         c._pc_lim1 = float(maxpc) / 3600
@@ -619,9 +622,33 @@ class MainBox(Tk):
             else:
                 self.setStatus(_L["STA_READY"])
        
-        def on_CSGendone(ctl: CSEditorGUI, e: Optional[Exception] = None):
+        def on_CSGendone(ctl: CSEditorGUI, e: Optional[Exception] = None, 
+                warns:List[Tuple] = [], far_cnt = 0, scc_cnt = 0):
             ctl.btn_regen.config(state=NORMAL)
             proc_exception(e)
+
+            with open("CS_generation_warnings.log", "w") as fh:
+                for ln in warns:
+                    if ln[0] == "far_poly":
+                        fh.write(f"A polygon (center: {ln[1]:.1f},{ln[2]:.1f}) is far away ({ln[3]:.1f}m) from the road network.\n")
+                    elif ln[0] == "scc_poly":
+                        fh.write(f"A polygon (center: {ln[1]:.1f},{ln[2]:.1f}) is not neighbouring to an edge in the largest SCC and allowing passengers.\n")
+                    elif ln[0] == "far_down":
+                        fh.write(f"Point {ln[1]},{ln[2]} (XY: {ln[3]:.1f},{ln[4]:.1f}) is far away ({ln[5]:.1f}m) from the road network.\n")
+                    elif ln[0] == "scc_down":
+                        fh.write(f"The nearest edge of point {ln[1]},{ln[2]} (XY: {ln[3]:.1f},{ln[4]:.1f}) is not in the max SCC which allows passengers.\n")
+                    elif ln[0] == "scc_name":
+                        fh.write(f"Edge {ln[1]} disallows passenger vehicles.")
+
+            if len(warns) > 0:
+                text = "Some warnings have been written in CS_generation_warnings.log:"
+                if far_cnt: 
+                    text += f"{far_cnt} CS(s) are abondoned since their distance to the nearest edge is greater than 200m."
+                if scc_cnt: 
+                    if text != "": text += "\n"
+                    text += f"{far_cnt} CS(s) are abondoned since they are not in the largest strongly connected component or disallow passenger vehicles."
+                showwarn(text)
+            
         
         self._Q.register("CSGenDone", on_CSGendone)
 
@@ -1380,19 +1407,15 @@ class MainBox(Tk):
 
             def __el(state: FileDetectResult, after:OAfter=None):
                 assert state.net is not None
-                el = RoadNetConnectivityChecker(state.net,
-                    state.fcs if state.fcs else "",
-                    state.scs if state.scs else "",
-                )
+                el = RoadNet.load(state.net)
                 return el, after
             
             self._Q.submit("cvnetloaded", __el, self.state, after)
 
-    def on_cvnet_loaded(self, el:RoadNetConnectivityChecker, after:OAfter=None):
-        print("ELGraph loaded.")
-        if len(el.Edges) > 15000:
-            print("Large network detected. Skipping drawing edges.")
-            return
+    def on_cvnet_loaded(self, el:RoadNet, after:OAfter=None):
+        assert self.state is not None
+        self.cv_net.FCSNames = LoadFCS(self.state.fcs) if self.state.fcs else set()
+        self.cv_net.SCSNames = LoadSCS(self.state.scs) if self.state.scs else set()
         self.cv_net.setRoadNet(el, after = after)
 
     def openFolder(self):
@@ -1430,16 +1453,16 @@ class MainBox(Tk):
         def work(ctl, **kwargs):
             try:
                 if not self.tg: return
-                self.tg._CS(**kwargs)
+                warns, far_cnt, scc_cnt = self.tg._CS(**kwargs)
                 if kwargs["mode"] == "fcs":
                     self._load([LOAD_FCS, LOAD_GEN])
                 else:
                     self._load([LOAD_SCS, LOAD_GEN])
-                return ctl, None
+                return ctl, None, warns, far_cnt, scc_cnt
             except Exception as e:
                 print(f"\nError generating CS: {e}")
                 traceback.print_exc()
-                return ctl, e
+                return ctl, e, [], 0, 0
             
         self._Q.submit("CSGenDone", work, ctl, **kwargs)   
     

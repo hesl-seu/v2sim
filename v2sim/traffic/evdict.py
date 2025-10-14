@@ -1,5 +1,6 @@
 from typing import Dict
 from feasytools import RangeList
+from ..locale.lang import Lang
 from .utils import ReadXML
 from .params import *
 from .ev import EV, Trip
@@ -27,17 +28,23 @@ class EVDict(Dict[str, EV]):
                 if fixed_route.lower() == "true": fixed_route = True
                 elif fixed_route.lower() == "false": fixed_route = False
                 else: fixed_route = None
-                trips.append(
-                    Trip(
-                        trip.attrib.pop("id"),
-                        int(float(trip.attrib.pop("depart"))),
-                        trip.attrib.pop("fromTaz"),
-                        trip.attrib.pop("toTaz"),
-                        route,
-                        fixed_route,
-                        trip.attrib.copy(),
-                    )
+                new_trip = Trip(
+                    trip.attrib.pop("id"),
+                    int(float(trip.attrib.pop("depart"))),
+                    trip.attrib.pop("fromTaz"),
+                    trip.attrib.pop("toTaz"),
+                    route,
+                    fixed_route,
+                    trip.attrib.copy(),
                 )
+                if len(trips) > 0:
+                    if new_trip.depart_time <= trips[-1].depart_time:
+                        raise ValueError(Lang.BAD_TRIP_DEPART_TIME.format(
+                            new_trip.depart_time, trips[-1].depart_time, veh.attrib['id'], new_trip.ID))
+                    if new_trip.depart_edge != trips[-1].arrive_edge:
+                        raise ValueError(Lang.BAD_TRIP_OD.format(
+                            new_trip.depart_edge, trips[-1].arrive_edge, veh.attrib['id'], new_trip.ID))
+                trips.append(new_trip)
             attr = FloatDictWrapper(veh.attrib)
             elem_sctime = veh.find("sctime")
             elem_v2gtime = veh.find("v2gtime")

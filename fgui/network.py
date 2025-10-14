@@ -5,10 +5,9 @@ from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
 from typing import Any, Callable, Iterable, Optional, Union, Dict, List, Tuple, Set
 from fgui.evtq import EventQueue
 import sumolib
-from v2sim import RoadNetConnectivityChecker as ELGraph
 from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy
 from fpowerkit import Grid as fGrid
-from v2sim import ConfigItemDict, ConfigItem
+from v2sim import ConfigItemDict, ConfigItem, RoadNet
 from .controls import EditMode, PropertyPanel
 from .view import *
 
@@ -87,7 +86,7 @@ class NetworkPanel(Frame):
         self._center()
         self.__en = True
     
-    def __init__(self, master, roadnet:Optional[ELGraph]=None, 
+    def __init__(self, master, roadnet:Optional[RoadNet]=None, 
             grid:Optional[fGrid]=None, save_callback:Optional[Callable[[bool],None]]=None, **kwargs):
         super().__init__(master, **kwargs)
 
@@ -146,7 +145,7 @@ class NetworkPanel(Frame):
         if lat is None: lat = 0
         if self._r:
             try:
-                x, y = self._r.Net.convertLonLat2XY(lon, lat)
+                x, y = self._r.sumo.convertLonLat2XY(lon, lat)
             except:
                 x, y = lon, lat
         else:
@@ -160,7 +159,7 @@ class NetworkPanel(Frame):
         y = -(y - self._scale['y'])/self._scale['k']
         if self._r is None: return (x, y)
         try:
-            return self._r.Net.convertXY2LonLat(x, y)
+            return self._r.sumo.convertXY2LonLat(x, y)
         except:
             return (x, y)
     
@@ -173,14 +172,12 @@ class NetworkPanel(Frame):
         self._drag = {'item': None,'x': 0,'y': 0}
         self._scale = {'k':1.0, 'x':0, 'y':0}
         self._r = None
+        self.FCSNames = set()
+        self.SCSNames = set()
         self._g = None
         self.__en = False
     
-    @property
-    def RoadNet(self) -> Optional[ELGraph]:
-        return self._r
-    
-    def setRoadNet(self, roadnet:ELGraph, repaint:bool=True, after:OAfter=None):
+    def setRoadNet(self, roadnet:RoadNet, repaint:bool=True, after:OAfter=None):
         '''
         Set the road network to be displayed
             roadnet: ELGraph, the road network to be displayed
@@ -189,7 +186,6 @@ class NetworkPanel(Frame):
                 If after is None, this repaint operation will block the main thread!
                 If after is not None, this repaint operation will be done asynchronously.
         '''
-        assert isinstance(roadnet, ELGraph)
         self._r = roadnet
         if repaint: 
             self._draw_async(after=after)
@@ -236,8 +232,8 @@ class NetworkPanel(Frame):
             if itm.type == "edge":
                 self._pr.setData2(
                     (itm.desc, ConfigItem("Name", EditMode.DISABLED, "Name of the edge")),
-                    (str(itm.desc in self._r.FCSNames), ConfigItem("Has FCS", EditMode.DISABLED, "Name of the edge")),
-                    (str(itm.desc in self._r.SCSNames), ConfigItem("Has SCS", EditMode.DISABLED, "Name of the edge")),
+                    (str(itm.desc in self.FCSNames), ConfigItem("Has FCS", EditMode.DISABLED, "Name of the edge")),
+                    (str(itm.desc in self.SCSNames), ConfigItem("Has SCS", EditMode.DISABLED, "Name of the edge")),
                 )
                 self.LocateEdge(itm.desc, 'purple')
             elif itm.type in ("bus", "bustext"):
@@ -612,12 +608,13 @@ class NetworkPanel(Frame):
         
     def __get_edge_prop(self, edge:str) -> Tuple[str, float]:
         assert self._r is not None
-        if edge in self._r.FCSNames:
-            return ("darkblue",3) if edge in self._r.EdgeIDSet else ("darkgray",3)
-        elif edge in self._r.SCSNames:
-            return ("blue",2) if edge in self._r.EdgeIDSet else ("gray",2)
+        good = self._r.is_edge_in_largest_scc(edge)
+        if edge in self.FCSNames:
+            return ("darkblue",3) if good else ("darkgray",3)
+        elif edge in self.SCSNames:
+            return ("blue",2) if good else ("gray",2)
         else:
-            return ("blue",1) if edge in self._r.EdgeIDSet else ("gray",1)
+            return ("blue",1) if good else ("gray",1)
 
     def _draw_edge(self, shape:PointList, color:str, lw:float, ename:str):
         shape = [(p[0], -p[1]) for p in shape]
@@ -652,21 +649,22 @@ class NetworkPanel(Frame):
         if self._r is None: return
         self.__en = False
         self._cv.delete('all')
-        minx, miny, maxx, maxy = 1e100, 1e100, -1e100, -1e100
+        
+        minx = min(n.x for n in self._r.nodes.values())
+        maxx = max(n.x for n in self._r.nodes.values())
+        miny = min(n.y for n in self._r.nodes.values())
+        maxy = max(n.y for n in self._r.nodes.values())
 
-        if self._r.Net is not None:
-            minx, miny, maxx, maxy = self._r.Net.getBoundary()
-            edges = self._r.Net.getEdges()
-            for e in edges:
-                assert isinstance(e, sumolib.net.edge.Edge)
-                ename:str = e.getID()
-                shape = e.getShape() # type: ignore
-                if shape is None:
-                    raise ValueError(f"Edge {ename} has no shape")
-                shape:PointList
-                c, lw = self.__get_edge_prop(ename)
-                shape = [(p[0]*scale+dx,p[1]*scale+dy) for p in shape]
-                self._Q.delegate(self._draw_edge, shape, c, lw, ename)
+        for e in self._r.sumo.getEdges():
+            assert isinstance(e, sumolib.net.edge.Edge)
+            ename:str = e.getID()
+            shape = e.getShape()
+            if shape is None:
+                raise ValueError(f"Edge {ename} has no shape")
+            assert isinstance(shape, list) and len(shape) >= 2
+            c, lw = self.__get_edge_prop(ename)
+            shape = [(p[0]*scale+dx,p[1]*scale+dy) for p in shape]
+            self._Q.delegate(self._draw_edge, shape, c, lw, ename)
             
         if self._g is not None:
             if minx > maxx or miny > maxy:

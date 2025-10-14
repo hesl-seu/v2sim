@@ -40,7 +40,6 @@ def _argmin(x: Iterable[float]) -> int:
     return minv_i
 
 class TrafficInst:
-    #@FEasyTimer
     def __find_route(self, e1: str, e2: str) -> Stage:
         if self.__force_static_routing: return self.__find_route_static(e1, e2)
         ret:Stage = traci.simulation.findRoute(
@@ -48,7 +47,7 @@ class TrafficInst:
         )
         if len(ret.edges) == 0:
             if SUPPRESS_ROUTE_NOT_FOUND:
-                ret = Stage(edges=[e1,e2], length=1e9, travelTime=1e9)
+                ret = Stage(edges=[e1, e2], length=1e9, travelTime=1e9)
                 print(Lang.ERROR_ROUTE_NOT_FOUND.format(e1, e2))
             else:
                 raise RuntimeError(Lang.ERROR_ROUTE_NOT_FOUND.format(e1, e2))
@@ -277,8 +276,7 @@ class TrafficInst:
 
         # Distance check
         cs_names: List[str] = []
-        veh_cnt: List[int] = []
-        slots: List[int] = []
+        wait_cnt: List[int] = []
         prices: List[float] = []
         stages: List[Stage] = []
         for cs_i in self._fcs.select_near(cur_pos,10):
@@ -287,16 +285,15 @@ class TrafficInst:
             stage = self.__find_route(c_edge, cs.name)
             if veh.is_batt_enough(stage.length):
                 cs_names.append(cs.name)
-                veh_cnt.append(cs.veh_count())
-                slots.append(cs.slots)
+                wait_cnt.append(cs.wait_count())
                 prices.append(cs.pbuy(self.__ctime))
                 stages.append(stage)
 
         if len(cs_names) == 0:
             return [], (-1, -1, -1)
 
-        t_drive = [t.travelTime/60 for t in stages]  # Convert travel time to minutes
-        t_wait = [max((t-lim)*30, 0) for t, lim in zip(veh_cnt, slots)]  # Queue time: 30 minutes per vehicle
+        t_drive = [t.travelTime / 60 for t in stages]  # Convert travel time to minutes
+        t_wait = [wait_cnt * 30 for wait_cnt in wait_cnt]  # Queue time: 30 minutes per vehicle
 
         # Total weight
         weight = [
@@ -305,7 +302,7 @@ class TrafficInst:
 
         wret = (_mean(t_drive), _mean(t_wait), _mean(prices))
         # Return the path and weight to the charging station with the minimum weight
-        return stages[_argmin(weight)].edges, wret  # type: ignore
+        return stages[_argmin(weight)].edges, wret
 
     def __get_edge_pos(self, eid:str) -> Tuple[float, float]:
         e:Edge = self.__rnet.getEdge(eid)

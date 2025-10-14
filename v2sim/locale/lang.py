@@ -244,6 +244,9 @@ You can load the commands from a file as an argument in the command prompt/termi
     PLOT_PVW = "PV or Wind Turbine: {0}"
     PLOT_ESS = "ESS: {0}"
 
+    BAD_TRIP_OD = "Trip start node must be the same as the previous trip's end node, but got {0} after {1} for vehicle {2}'s trip {3}"
+    BAD_TRIP_DEPART_TIME = "Trip departure time must be in ascending order, but got {0} after {1} for vehicle {2}'s trip {3}"
+
     @staticmethod
     def format(item:str, **kwargs):
         fmt = getattr(Lang, item)

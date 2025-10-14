@@ -14,4 +14,5 @@ from .utils import (
     ReadXML, LoadFCS, LoadSCS, GetTimeAndNetwork, ReadSUMONet,
     V2SimConfig,
 )
+from .net import RoadNet, SubNet, Node, Edge
 from .win_vis import WINDOWS_VISUALIZE

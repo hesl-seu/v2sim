@@ -2,7 +2,7 @@ from enum import Enum
 import random, time, sumolib
 from typing import Dict, List, Optional, Union, Tuple
 from feasytools import ReadOnlyTable, CDDiscrete, PDDiscrete, PDGamma, DTypeEnum
-
+from ..traffic.net import RoadNet
 from ..locale import Lang
 from ..traffic import EV, EVDict, ReadXML, DetectFiles
 from .misc import VehicleType, random_diff, _TripInner, _EVInner, _xmlSaver
@@ -79,8 +79,7 @@ class EVsGenerator:
         elif mode == TripsGenMode.POLY:
             assert _fn.poly and _fn.net and _fn.fcs, Lang.ERROR_NO_TAZ_OR_POLY
             self._mode = "poly"
-            from .graph import RoadNetConnectivityChecker
-            net = RoadNetConnectivityChecker(_fn.net, _fn.fcs)
+            net = RoadNet.load(_fn.net)
             polys = PolygonMan(_fn.poly)
             self.dic_taztype = {k:[] for k in TAZ_TYPE_LIST}
             for poly in polys:
@@ -88,12 +87,11 @@ class EVsGenerator:
                 taz_type = poly.getConvertedType()
                 poi_pos = poly.center()
                 if taz_type:
-                    try:
-                        eid = net.find_nearest_edge_id(poi_pos)
-                    except RuntimeError:
-                        continue
-                    self.dic_taztype[taz_type].append(taz_id)
-                    self.dic_taz[taz_id] = [eid]
+                    dist, eid = net.find_nearest_edge_id(*poi_pos)
+                    # Ensure the edge is in the largest strongly connected component
+                    if dist < 200 and net.is_edge_in_largest_scc(eid): 
+                        self.dic_taztype[taz_type].append(taz_id)
+                        self.dic_taz[taz_id] = [eid]
         else:
             raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
         
@@ -145,6 +143,8 @@ class EVsGenerator:
         pdf = None
         while pdf is None:
             init_time = self.pdf_start_weekday.sample() if weekday else self.pdf_start_weekend.sample()
+            if init_time >= 86400:
+                continue
             # Time index (0~95, each unit = 15min)
             init_time_i = int(init_time / 15)
             pdf = self.__getPs(weekday, pfr, init_time_i)
@@ -231,8 +231,15 @@ class EVsGenerator:
             start_time: Departure time of the first trip, in seconds since midnight
             weekday: Whether it is weekday or weekend
         """
-        stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
-        depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
+        depart_time_min = 1440
+        cnt = 0
+        while depart_time_min >= 1440:  # If the departure time is after midnight, regenerate
+            stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
+            depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
+            cnt += 1
+            if cnt > 10:
+                depart_time_min = start_time // 60 + 1
+                break
         next_place2 = self.__getDestA(from_type, stop_time_idx, weekday)
         taz_choose2, edge_choose2, route = self.__getNextTAZandPlace(from_TAZ, from_EDGE, next_place2)
         return _TripInner(trip_id, depart_time_min * 60, from_TAZ, from_EDGE, from_type,
@@ -255,8 +262,14 @@ class EVsGenerator:
         """
         if first_EDGE == from_EDGE:
             return None
-        stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
-        depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
+        depart_time_min = 1440
+        cnt = 0
+        while depart_time_min >= 1440:  # If the departure time is after midnight, regenerate
+            stop_time_idx = self.__genStopTimeIdx(from_type, weekday)
+            depart_time_min = start_time // 60 + stop_time_idx * 15 + 20
+            cnt += 1
+            if cnt > 10:
+                return None
         return _TripInner(
             trip_id, depart_time_min * 60, from_TAZ, from_EDGE, from_type, 
             first_TAZ, first_EDGE, "Home", [from_EDGE, first_EDGE], 

@@ -11,7 +11,7 @@ from .plugins import *
 from .statistics import *
 from .traffic import *
 from .locale import Lang
-from .trafficgen import TrafficGenerator, RoadNetConnectivityChecker
+from .trafficgen import TrafficGenerator
 from .traffic.inst import traci
 
 
@@ -269,8 +269,9 @@ class V2SimInstance:
                 rnet_file = str(rnet_file)
             else:
                 raise FileNotFoundError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
-        elg = RoadNetConnectivityChecker(rnet_file)
-        elg.checkBadCS()
+        elg = RoadNet.load(rnet_file)
+        if len(elg.scc[0].edges) < 0.8 * elg.edge_count:
+            print(Lang.WARN_SCC_TOO_SMALL.format(len(elg.scc[0].edges), elg.edge_count))
         self.__print(Lang.INFO_NET.format(rnet_file))
         
         # Check vehicles and trips
@@ -279,7 +280,7 @@ class V2SimInstance:
         veh_file = proj_cfg.veh
         if vehicles is None:
             vehicles = EVDict(veh_file)
-        self.__print(Lang.INFO_TRIPS.format(veh_file,len(vehicles)))
+        self.__print(Lang.INFO_TRIPS.format(veh_file, len(vehicles)))
 
         # Check FCS file
         if not proj_cfg.fcs:

@@ -4,13 +4,11 @@ from itertools import repeat
 from pathlib import Path
 from feasytools import ArgChecker, KDTree, Point
 from fpowerkit import Grid
-from sumolib.net import readNet, Net
-from typing import IO, Any, Literal, TypeVar, Union, Dict, List
+from typing import IO, Any, Literal, Tuple, TypeVar, Union, Dict, List
 import time
 import random
 from ..locale import Lang
-from ..traffic import DetectFiles, GetTimeAndNetwork
-from .graph import RoadNetConnectivityChecker as ELGraph
+from ..traffic import DetectFiles, GetTimeAndNetwork, RoadNet
 from .poly import PolygonMan
 from .tripgen import EVsGenerator, RoutingCacheMode, TripsGenMode
 from .misc import *
@@ -93,8 +91,8 @@ class TrafficGenerator:
             self.__cfg.net = str(Path(self.__cfg.cfg).parent / self.__rnet_file)
         if not self.__cfg.net:
             raise FileNotFoundError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
-        self.__rnet: Net = readNet(self.__cfg.net)
-        self.__edges: List[str] = [e.getID() for e in self.__rnet.getEdges()]
+        self.__rnet = RoadNet.load(self.__cfg.net)
+        self.__edges: List[str] = self.__rnet.edge_ids
         self.__ava_fcs: List[str] = [
             e for e in self.__edges
             if e.upper().startswith("CS") and not e.lower().endswith("rev")
@@ -219,16 +217,15 @@ class TrafficGenerator:
                     fp.write(
                         f'    <item btime="{d*86400+tx*3600}" price="{px:.3}" />\n'
                     )
-
+        warns = []; far_cnt = 0; scc_cnt = 0
         random.seed(seed)
         if mode in self.__cfg:
             self.__existing.do(self.__cfg[mode])
         fname = f"{self.__root}/{self.__name}.{mode}.xml"
         fp = open(fname, "w")
         fp.write("<root>\n")
-        cs_pos:Dict[str,Point] = {}
+        cs_pos:Dict[str, Tuple[float, float]] = {}
         if cs_file != "":
-            el = ELGraph(f"{self.__root}/{self.__rnet_file}")
             with open(cs_file, "r") as f:
                 con = f.readlines()
                 _,_,i0,i1 = con[0].strip().split(",")
@@ -241,30 +238,37 @@ class TrafficGenerator:
                 for i in range(1, len(con) - 1):
                     _,_,lat,lng = con[i].strip().split(",")
                     if swap: lat,lng = lng,lat
-                    x,y = self.__rnet.convertLonLat2XY(float(lng), float(lat))
-                    try:
-                        p = Point(x, y)
-                        ename = el.find_nearest_edge_id(p)
-                        cs_pos[ename]=p
-                    except RuntimeError as e:
-                        print(f"Warning: Point {lat},{lng} (XY: {x:.1f},{y:.1f}) is far away ({float(e.args[0]):.1f}m) from the road network.")
+                    x, y = self.__rnet.sumo.convertLonLat2XY(float(lng), float(lat))
+                    dist, ename = self.__rnet.find_nearest_edge_id(x, y)
+                    if dist > 200:
+                        warns.append(("far_down", lat, lng, x, y, dist))
+                        far_cnt += 1
                         continue
+                    if not self.__rnet.is_edge_in_largest_scc(ename):
+                        warns.append(("scc_down", lat, lng, x, y))
+                        scc_cnt += 1
+                        continue
+                    cs_pos[ename] = (x, y)
             cs_names = cs.select(sorted(cs_pos.keys()), csCount, givenCS)
             cs_slots = repeat(slots, len(con) - 1)
         elif poly_file != "":
             cs_type:Dict[str,Any] = defaultdict(int)
-            el = ELGraph(f"{self.__root}/{self.__rnet_file}")
             PolyMan = PolygonMan(poly_file)
             for poly in PolyMan:
                 t = poly.getConvertedType()
                 if t is None or t == "Other": continue
                 p = poly.center()
-                try:
-                    ename = el.find_nearest_edge_id(p)
-                    cs_type[ename] = t
-                except RuntimeError as e:
-                    print(f"Warning: Polygon (Center: {p.x:.1f},{p.y:.1f}) is far away ({float(e.args[0]):.1f}m) from the road network.")
+                dist, ename = self.__rnet.find_nearest_edge_id(*p)
+                cs_type[ename] = t
+                if dist > 200:
+                    warns.append(("far_poly", p[0], p[1], dist))
+                    far_cnt += 1
                     continue
+                if not self.__rnet.is_edge_in_largest_scc(ename):
+                    warns.append(("scc_poly", p[0], p[1]))
+                    scc_cnt += 1
+                    continue
+                cs_pos[ename] = p
             cs_names = cs.select(sorted(cs_type.keys()), csCount, givenCS)
             def trans(x:str):
                 if x == "Home" or x == "Work":
@@ -275,8 +279,16 @@ class TrafficGenerator:
                     raise RuntimeError(f"Invalid type: {x}")
             cs_slots = [trans(cs_type[x]) for x in cs_names]
         else:
-            cs_names = cs.select(self.__ava_fcs if mode == "fcs" else self.__ava_scs, csCount, givenCS)
+            used_cs = self.__ava_fcs if mode == "fcs" else self.__ava_scs
+            cs_candidates = []
+            for csn in used_cs:
+                if self.__rnet.is_edge_in_largest_scc(csn):
+                    cs_candidates.append(csn)
+                else:
+                    warns.append(("scc_name", csn))
+            cs_names = cs.select(cs_candidates, csCount, givenCS)
             cs_slots = repeat(slots, len(cs_names))
+            cs_pos = {csname: self.__rnet.get_edge_pos(csname) for csname in cs_names}
         use_grid = False
         bp:List[Point] = []
         if grid_file != "":
@@ -286,7 +298,7 @@ class TrafficGenerator:
                 lon, lat = b.LonLat
                 try:
                     assert lon is not None or lat is not None
-                    x, y = el.Net.convertLonLat2XY(lon, lat)
+                    x, y = self.__rnet.sumo.convertLonLat2XY(lon, lat)
                 except:
                     use_grid = False
                     break
@@ -294,7 +306,7 @@ class TrafficGenerator:
             bus_names = gr.BusNames
         if use_grid:
             bkdt:KDTree[Point, str] = KDTree(bp, bus_names)
-            selector = lambda cname: bkdt.nearest_mapped(Point(*el.get_edge_pos(cname)))  
+            selector = lambda cname: bkdt.nearest_mapped(Point(*self.__rnet.get_edge_pos(cname)))  
         else:
             bus_names = bus.select(self.__bus_names, busCount, givenBus)
             selector = lambda cname: random.choice(bus_names)
@@ -324,6 +336,7 @@ class TrafficGenerator:
             fp.write(f"</{mode}>\n")
         fp.write("</root>")
         fp.close()
+        return warns, far_cnt, scc_cnt
     
     def FCS(
         self,
@@ -354,7 +367,7 @@ class TrafficGenerator:
             priceBuyMethod: Pricing method
             priceBuy: Specified price (list)
         """
-        self._CS(
+        return self._CS(
             seed,
             slots = slots,
             mode = "fcs",
@@ -404,7 +417,7 @@ class TrafficGenerator:
             priceSellMethod: User selling price pricing method
             priceSell: Specified price (list)
         """
-        self._CS(
+        return self._CS(
             seed,
             slots = slots,
             mode = "scs",
