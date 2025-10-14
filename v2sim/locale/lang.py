@@ -45,6 +45,7 @@ class Lang:
     ERROR_ROUTE_NOT_FOUND = "Error: Unable to find a path from {0} to {1}"
     ERROR_INVALID_CACHE_ROUTE = "Error: Invalid cache route: {0}"
     ERROR_INVALID_TRIP_GEN_MODE = "Error: Invalid trip generation mode: {0}"
+    ERROR_CS_NODE_NOT_EXIST = "Error: CS node {0} does not exist in the road network."
 
     WARN_EXT_LOAD_FAILED = "Warning: {0} is a Python file, but cannot be loaded as a package: {1}"
     WARN_EXT_INVALID_PLUGIN = "Warning: {0}'s plugin_exports is invalid, cannot be imported as a plugin: {1}"

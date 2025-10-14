@@ -1,7 +1,7 @@
 {
     "start_time": 0,
     "end_time": 172800,
-    "traffic_step": 30,
+    "traffic_step": 10,
     "seed": 0,
     "routing_method": "astar",
     "load_state": false,

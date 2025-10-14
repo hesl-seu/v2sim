@@ -90,6 +90,14 @@ class TrafficInst:
         self.__names_fcs: List[str] = [cs.name for cs in self._fcs]
         self.__names_scs: List[str] = [cs.name for cs in self._scs]
 
+        for cs in self._fcs:
+            if cs.name not in self.__rnet.nodes:
+                raise RuntimeError(Lang.ERROR_CS_NODE_NOT_EXIST.format(cs.name))
+            
+        for cs in self._scs:
+            if cs.name not in self.__rnet.nodes:
+                raise RuntimeError(Lang.ERROR_CS_NODE_NOT_EXIST.format(cs.name))
+
         # Check if all CS are in the largest SCC
         bad_cs = set(cs.name for cs in chain(self._fcs, self._scs) if not self.__rnet.is_node_in_largest_scc(cs.name))
         if len(bad_cs) > 0:

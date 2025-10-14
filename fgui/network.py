@@ -528,8 +528,9 @@ class NetworkPanel(Frame):
                 x, y = float(ret['X']), float(ret['Y'])
                 plotX, plotY = self.convRealXY2PlotXY(x, y)
             self.__move_node(i, e, plotX, plotY)
-            e.id = ret['Name']
-            self._items.set_desc(i, ret['Name'])
+            if e.id != ret['Name']:
+                self._r.update_node(e.id, ret['Name'])
+                self._items.set_desc(i, ret['Name'])
         elif isinstance(e, Bus):
             assert self._g is not None and self._r is not None
             if ret['Name'] != e.ID and ret['Name'] in self._g.BusNames:

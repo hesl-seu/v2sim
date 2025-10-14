@@ -187,6 +187,11 @@ class V2SimInstance:
             self.__silent = True
             self.__vb = None
 
+        # Check if the folder exists
+        proj_dir = Path(cfgdir)
+        if not proj_dir.exists() or not proj_dir.is_dir():
+            raise FileNotFoundError(f"Invalid project directory :{cfgdir}")
+        
         # Check if there is a previous results        
         if outdir_direct != "":
             pres = Path(outdir_direct)
@@ -223,8 +228,6 @@ class V2SimInstance:
             if arg in ('self', 'vb', 'mpQ') or 'pool' in arg:
                 continue
             self.__out.write(f"  {arg}: {values[arg]}\n")
-            
-        proj_dir = Path(cfgdir)
 
         if gen_veh_command != "" or gen_scs_command != "" or gen_fcs_command != "":
             traff_gen = TrafficGenerator(str(proj_dir),silent)

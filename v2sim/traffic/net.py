@@ -233,6 +233,15 @@ class RoadNet:
             if edge.from_node == node or edge.to_node == node:
                 self.remove_edge(e)
     
+    def update_node(self, old_node_id:str, new_node_id:str):
+        if not old_node_id in self.nodes:
+            raise ValueError(f"Node {old_node_id} does not exist.")
+        if new_node_id in self.nodes:
+            raise ValueError(f"Node {new_node_id} already exists.")
+        node = self.nodes.pop(old_node_id)
+        node.id = new_node_id
+        self.nodes[new_node_id] = node
+        
     @property
     def node_ids(self):
         return list(self.nodes.keys())

@@ -33,11 +33,12 @@ class _locale:
     ERROR_FILE_EXISTS = "错误: 文件已存在: {}"
     ERROR_NUMBER_NOT_SPECIFIED = "错误: 当选择随机时必须指定n"
     ERROR_FILE_TYPE_NOT_SUPPORTED = "错误: 不支持的XML文件{}类型"
-    ERROR_NO_TAZ_OR_POLY = "错误: 未找到TAZ或POLY文件。如果要使用POLY模式, 还必须指定FCS文件."
+    ERROR_NO_TAZ_OR_POLY = "错误: 未找到TAZ或POLY文件. 如果要使用POLY模式, 还必须指定FCS文件."
     ERROR_RANDOM_CANNOT_EXCLUDE = "错误: 序列抽样中的所有元素都被排除"
     ERROR_ROUTE_NOT_FOUND = "错误: 无法找到从{0}到{1}的路径"
     ERROR_INVALID_CACHE_ROUTE = "错误: 无效的寻路缓存模式: {0}"
     ERROR_INVALID_TRIP_GEN_MODE = "错误: 无效的行程生成模式: {0}"
+    ERROR_CS_NODE_NOT_EXIST = "错误: 充电站所在节点{0}不存在"
 
     WARN_EXT_LOAD_FAILED = "警告: {0}是Python文件, 但无法作为包加载: {1}"
     WARN_EXT_INVALID_PLUGIN = "警告: {0}的plugin_exports无效, 无法作为插件导入: {1}"

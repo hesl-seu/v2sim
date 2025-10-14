@@ -753,10 +753,10 @@ class MainBox(Tk):
         self.entry_seed = Entry(self.sim_time)
         self.entry_seed.insert(0, "0")
         self.entry_seed.grid(row=3, column=1, padx=3, pady=3, sticky="w")
-        self.ralgo = StringVar(self, "CH")
+        self.ralgo = StringVar(self, "astar")
         self.lb_route_algo = Label(self.sim_time, text=_L["SIM_ROUTE_ALGO"])
         self.lb_route_algo.grid(row=4, column=0, padx=3, pady=3, sticky="w")
-        self.combo_ralgo = Combobox(self.sim_time, textvariable=self.ralgo, values=["dijkstra", "astar", "CH", "CHWrapper"])
+        self.combo_ralgo = Combobox(self.sim_time, textvariable=self.ralgo, values=["dijkstra", "astar"])
         self.combo_ralgo.grid(row=4, column=1, padx=3, pady=3, sticky="w")
 
         self.sim_load_last_state = BooleanVar(self, False)

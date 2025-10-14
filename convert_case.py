@@ -1,3 +1,4 @@
+import os
 import shutil
 from pathlib import Path
 from feasytools import ArgChecker
@@ -7,6 +8,8 @@ if __name__ == "__main__":
     args = ArgChecker()
     input_dir = args.get_str("i", "")
     output_dir = args.get_str("o", "")
+    part_cnt = args.get_int("p", 1)
+    auto_partition = args.get_bool("auto-partition")
     if input_dir == "" or output_dir == "":
         print("Please provide input and output directory paths by -i and -o")
         exit(1)
@@ -16,7 +19,14 @@ if __name__ == "__main__":
     out_dir.mkdir(parents=True, exist_ok=True)
     if files.net:
         print("Found SUMO network file:", files.net)
-        RoadNet.load_sumo(files.net).save(str(out_dir / Path(files.net).name))
+        r = RoadNet.load_sumo(files.net)
+        if auto_partition:
+            part_cnt = min(32, os.cpu_count() or 1, r.node_count // 40)
+            print(f"Auto partition count determined: {part_cnt}")
+        if part_cnt > 1:
+            print(f"Partitioning network into {part_cnt} parts...")
+            r.partition_roadnet(part_cnt)
+        r.save(str(out_dir / Path(files.net).name))
         converted = True
     if files.poly:
         print("Found POLY file:", files.poly)
