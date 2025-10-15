@@ -239,7 +239,7 @@ class TrafficGenerator:
                     else:
                         print(f"Warning: Point {lat},{lng} (XY: {x:.1f},{y:.1f}) is far away ({dist:.1f}m) from the road network.")
                         continue
-            cs_names = cs.select(sorted(set(cs_pos.keys())), csCount, givenCS)
+            cs_names = cs.select(sorted(cs_pos.keys()), csCount, givenCS)
             cs_slots = repeat(slots, len(con) - 1)
         elif poly_file != "":
             cs_type:Dict[str,Any] = defaultdict(int)
