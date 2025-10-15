@@ -624,6 +624,8 @@ class MainBox(Tk):
             ctl.btn_regen.config(state=NORMAL)
             proc_exception(e)
 
+            if len(warns) == 0: return
+            
             with open("CS_generation_warnings.log", "w") as fh:
                 for ln in warns:
                     if ln[0] == "far_poly":
@@ -637,14 +639,13 @@ class MainBox(Tk):
                     elif ln[0] == "scc_name":
                         fh.write(f"Edge {ln[1]} disallows passenger vehicles.")
 
-            if len(warns) > 0:
-                text = "Some warnings have been written in CS_generation_warnings.log:"
-                if far_cnt: 
-                    text += f"{far_cnt} CS(s) are abondoned since their distance to the nearest edge is greater than 200m."
-                if scc_cnt: 
-                    if text != "": text += "\n"
-                    text += f"{far_cnt} CS(s) are abondoned since they are not in the largest strongly connected component or disallow passenger vehicles."
-                showwarn(text)
+            text = "Some warnings have been written in CS_generation_warnings.log:"
+            if far_cnt: 
+                text += f"{far_cnt} CS(s) are abondoned since their distance to the nearest edge is greater than 200m."
+            if scc_cnt: 
+                if text != "": text += "\n"
+                text += f"{far_cnt} CS(s) are abondoned since they are not in the largest strongly connected component or disallow passenger vehicles."
+            showwarn(text)
         
         self._Q.register("CSGenDone", on_CSGendone)
 
