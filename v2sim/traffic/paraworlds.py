@@ -176,7 +176,7 @@ class ParaWorlds(WorldSpec):
 
         self.__uvi: Dict[str, Vehicle] = {}
 
-        self.__lt: float = 0.0
+        self.__lt: float = 1.0
         self.__cnt_para = 0
         self.__cnt_ser = 0
         self.__create_pool()
@@ -211,7 +211,6 @@ class ParaWorlds(WorldSpec):
                 W.exec_simulation(until_s)
             self.__cnt_ser += 1
         else:
-            
             futures = []
             for W in self.worlds.values():
                 if len(futures) + 1 == len(self.worlds):

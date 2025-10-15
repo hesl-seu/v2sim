@@ -6,10 +6,25 @@ from v2sim import RoadNet, DetectFiles
 
 if __name__ == "__main__":
     args = ArgChecker()
+
+    # Input path
     input_dir = args.get_str("i", "")
+
+    # Output path
     output_dir = args.get_str("o", "")
+
+    # Partition count
     part_cnt = args.get_int("p", 1)
+
+    # Whether to auto determine partition count
     auto_partition = args.get_bool("auto-partition")
+
+    # Whether to include non-passenger links
+    non_passenger_links = args.get_bool("non-passenger-links")
+
+    # Whether to include links and edges not in the largest SCC
+    non_scc_links = args.get_bool("non-scc-items")
+
     if input_dir == "" or output_dir == "":
         print("Please provide input and output directory paths by -i and -o")
         exit(1)
@@ -19,7 +34,10 @@ if __name__ == "__main__":
     out_dir.mkdir(parents=True, exist_ok=True)
     if files.net:
         print("Found SUMO network file:", files.net)
-        r = RoadNet.load_sumo(files.net)
+        r = RoadNet.load_sumo(files.net, only_passenger=not non_passenger_links)
+        if not non_scc_links:
+            print("Extracting largest strongly connected component...")
+            r.remove_items_outside_max_scc()
         if auto_partition:
             part_cnt = min(32, os.cpu_count() or 1, r.node_count // 40)
             print(f"Auto partition count determined: {part_cnt}")

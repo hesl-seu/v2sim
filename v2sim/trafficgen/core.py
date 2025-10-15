@@ -211,7 +211,7 @@ class TrafficGenerator:
                     fp.write(
                         f'    <item btime="{d*86400+tx*3600}" price="{px:.3}" />\n'
                     )
-
+        warns = []; far_cnt = 0; scc_cnt = 0
         random.seed(seed)
         if mode in self.__cfg:
             self.__existing.do(self.__cfg[mode])
@@ -234,11 +234,15 @@ class TrafficGenerator:
                     if swap: lat, lng = lng, lat
                     x, y = self.__rnet.convertLonLat2XY(float(lng), float(lat))
                     dist, node = self.__rnet.find_nearest_node_with_distance(x, y)
-                    if dist < 200:
-                        cs_pos[node.id] = (x, y)
-                    else:
-                        print(f"Warning: Point {lat},{lng} (XY: {x:.1f},{y:.1f}) is far away ({dist:.1f}m) from the road network.")
+                    if dist > 200:
+                        warns.append(("far_down", lat, lng, x, y, dist))
+                        far_cnt += 1
                         continue
+                    if not self.__rnet.is_node_in_largest_scc(node.id):
+                        warns.append(("scc_down", lat, lng, x, y))
+                        scc_cnt += 1
+                        continue
+                    cs_pos[node.id] = (x, y)
             cs_names = cs.select(sorted(cs_pos.keys()), csCount, givenCS)
             cs_slots = repeat(slots, len(con) - 1)
         elif poly_file != "":
@@ -249,12 +253,16 @@ class TrafficGenerator:
                 if t is None or t == "Other": continue
                 p = poly.center()
                 dist, node = self.__rnet.find_nearest_node_with_distance(*p)
-                if dist < 200:
-                    cs_pos[node.id] = p
-                    cs_type[node.id] = t
-                else:
-                    print(f"Warning: Polygon (Center: {p[0]:.1f},{p[1]:.1f}) is far away ({dist:.1f}m) from the road network.")
+                if dist > 200:
+                    warns.append(("far_poly", p[0], p[1], dist))
+                    far_cnt += 1
                     continue
+                if not self.__rnet.is_node_in_largest_scc(node.id):
+                    warns.append(("scc_poly", p[0], p[1]))
+                    scc_cnt += 1
+                    continue
+                cs_pos[node.id] = p
+                cs_type[node.id] = t
             cs_names = cs.select(sorted(cs_type.keys()), csCount, givenCS)
             def trans(x: str):
                 if x == "Home" or x == "Work":
@@ -265,10 +273,16 @@ class TrafficGenerator:
                     raise RuntimeError(f"Invalid type: {x}")
             cs_slots = [trans(cs_type[x]) for x in cs_names]
         else:
-            cs_names = cs.select(self.__ava_fcs if mode == "fcs" else self.__ava_scs, csCount, givenCS)
+            used_cs = self.__ava_fcs if mode == "fcs" else self.__ava_scs
+            cs_candidates = []
+            for name in used_cs:
+                if self.__rnet.is_node_in_largest_scc(name):
+                    cs_candidates.append(name)
+                else:
+                    warns.append(("scc_name", name))
+            cs_names = cs.select(cs_candidates, csCount, givenCS)
             cs_slots = repeat(slots, len(cs_names))
-            for name in cs_names:
-                cs_pos[name] = self.__rnet.get_node(name).get_coord()
+            cs_pos = {name: self.__rnet.get_node(name).get_coord() for name in cs_names}
         use_grid = False
         bus_pos:List[Tuple[float, float]] = []
         if grid_file != "":
@@ -316,6 +330,7 @@ class TrafficGenerator:
             fp.write(f"</{mode}>\n")
         fp.write("</root>")
         fp.close()
+        return warns, far_cnt, scc_cnt
     
     def FCS(
         self,
@@ -346,7 +361,7 @@ class TrafficGenerator:
             priceBuyMethod: Pricing method
             priceBuy: Specified price (list)
         """
-        self._CS(
+        return self._CS(
             seed,
             slots = slots,
             mode = "fcs",
@@ -396,7 +411,7 @@ class TrafficGenerator:
             priceSellMethod: User selling price pricing method
             priceSell: Specified price (list)
         """
-        self._CS(
+        return self._CS(
             seed,
             slots = slots,
             mode = "scs",

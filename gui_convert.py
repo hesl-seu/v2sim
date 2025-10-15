@@ -19,7 +19,7 @@ class MainApplication:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(_("TITLE"))
-        self.root.geometry("600x285")
+        self.root.geometry("600x350")
         
         self.input_folder = tk.StringVar()
         self.output_folder = tk.StringVar()
@@ -69,6 +69,17 @@ class MainApplication:
         self.check_auto_part_widget.grid(row=0, column=2, sticky="e")
         self.auto_partition.trace_add("write", on_auto_partition_changed)
 
+        self.options_frame = ttk.Frame(self.root)
+        self.options_frame.pack(pady=10, padx=20, fill="x")
+
+        self.non_passenger_links = tk.BooleanVar(value=False)
+        self.check_non_passenger_links = ttk.Checkbutton(self.options_frame, text=_("NON_PASSENGER_LINKS"), variable=self.non_passenger_links)
+        self.check_non_passenger_links.pack(anchor="w")
+
+        self.non_scc_links = tk.BooleanVar(value=False)
+        self.check_non_scc_links = ttk.Checkbutton(self.options_frame, text=_("NON_SCC_LINKS"), variable=self.non_scc_links)
+        self.check_non_scc_links.pack(anchor="w")
+
         self.execute_button = ttk.Button(self.root, text=_("EXECUTE"), command=self.execute_program)
         self.execute_button.pack(pady=10)
         
@@ -113,6 +124,11 @@ class MainApplication:
             ]
         if self.auto_partition.get(): 
             cmd.append("--auto-partition")
+        if self.non_passenger_links.get():
+            cmd.append("--non-passenger-links")
+        if self.non_scc_links.get():
+            cmd.append("--non-scc-items")
+        
         p = subprocess.run(
             cmd, text=True,
             stderr=subprocess.PIPE,

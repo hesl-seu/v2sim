@@ -73,11 +73,10 @@ class EVsGenerator:
             for poly in polys:
                 poly_type = poly.getConvertedType()
                 if poly_type:
-                    try:
-                        node_id = self.net.find_nearest_node(*poly.center()).id
-                    except RuntimeError:
-                        continue
-                    self.dic_nodetype[poly_type].append(node_id)
+                    dist, node = self.net.find_nearest_node_with_distance(*poly.center())
+                    # Ensure the edge is in the largest strongly connected component
+                    if dist < 200 and self.net.is_node_in_largest_scc(node.id):
+                        self.dic_nodetype[poly_type].append(node.id)
         else:
             raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
         

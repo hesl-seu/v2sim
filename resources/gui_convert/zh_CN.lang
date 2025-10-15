@@ -16,3 +16,5 @@ CONTINUE_MSG=转换完成。是否要打开算例？
 PARTITION_COUNT=路网分区数量
 PARTITION_TIP=自动确定分区数量
 INPUT_NOT_EXIST=输入文件夹不存在
+NON_PASSENGER_LINKS=保留非乘用车道路（不推荐）
+NON_SCC_LINKS=保留不在最大强连通分量中的道路和节点（不推荐）

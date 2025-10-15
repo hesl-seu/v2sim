@@ -16,3 +16,5 @@ CONTINUE_MSG=Convertion done. Would you like to open the case?
 PARTITION_COUNT=Number of road network partitions
 PARTITION_TIP=Auto partition
 INPUT_NOT_EXIST=Input folder does not exist
+NON_PASSENGER_LINKS=Preserve non-passenger links (Not recommended)
+NON_SCC_LINKS=Preserve links and nodes not in the maximal strongly connected component (Not recommended)

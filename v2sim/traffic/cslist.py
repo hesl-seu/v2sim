@@ -311,17 +311,13 @@ class CSList(Generic[T_CS]):
             Vehicle list that has completed charging (power is calculated in kWh/s)
         """
         if len(self.__v2g_demand) > 0:  # Has V2G demand
-            v2g_cap = self.get_V2G_cap(sec)
-            # The ratio of the actual V2G return power of each CS to its maximum V2G return power
-            v2g_k = [
-                min(1, d / c) if c > 0.0 else 0.0
-                for d, c in zip(self.__v2g_demand, v2g_cap)
-            ]
+            assert len(self.__v2g_demand) == len(self._cs)
+            v2g_demand = self.__v2g_demand
         else:
-            v2g_k = repeat(0)
+            v2g_demand = repeat(0)
         ret: List[str] = []
-        for cs, k in zip(self._cs, v2g_k):
-            lst = cs.update(self._evdict, sec, cur_time, k)
+        for cs, pd in zip(self._cs, v2g_demand):
+            lst = cs.update(self._evdict, sec, cur_time, pd)
             for veh_id in lst:
                 del self._veh[veh_id]
             ret.extend(lst)

@@ -3,12 +3,12 @@ import sys
 import numpy as np
 import threading
 from typing import Dict, List, Optional, Tuple, Union, Set
-from xml.etree.ElementTree import ElementTree
 from collections import defaultdict
 from dataclasses import dataclass, field
 from sklearn.cluster import KMeans
 from sklearn.neighbors import KDTree
 from collections import defaultdict
+from .utils import ReadXML
 from ..locale.lang import Lang
 
 
@@ -338,7 +338,7 @@ class RoadNet:
     @staticmethod
     def load_raw(fname:str):
         ret = RoadNet()
-        root = ElementTree(file = fname).getroot()
+        root = ReadXML(fname)
         
         if root is None:
             raise RuntimeError(f"Invalid xml file: {fname}")
@@ -367,7 +367,7 @@ class RoadNet:
         return ret
     
     @staticmethod
-    def load_sumo(fname:str):
+    def load_sumo(fname:str, only_passenger:bool=True):
         ret = RoadNet()
         from sumolib.net import readNet, Net
         r: Net = readNet(fname)
@@ -379,6 +379,7 @@ class RoadNet:
                 y = int(node.getCoord()[1])
             )
         for edge in r.getEdges():
+            if only_passenger and not edge.allows("passenger"): continue
             ret.add_edge(
                 edge_id = edge.getID(),
                 from_node = edge.getFromNode().getID(),
@@ -789,5 +790,21 @@ class RoadNet:
         
         # 打印统计
         self._print_partition_stats()
+    
+    def remove_items_outside_max_scc(self):
+        max_scc = self.scc[0]
+        to_remove = []
+        for n in self.nodes:
+            if n not in max_scc.nodes:
+                to_remove.append(n)
+        for n in to_remove:
+            self.remove_node(n)
+
+        to_remove = []
+        for e in self.edges:
+            if e not in max_scc.edges:
+                to_remove.append(e)
+        for e in to_remove:
+            self.remove_edge(e)
 
 __all__ = ["Node", "Edge", "SubNet", "RoadNet"]
