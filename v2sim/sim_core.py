@@ -272,7 +272,7 @@ class V2SimInstance:
         if not proj_cfg.fcs:
             raise FileNotFoundError(Lang.ERROR_FCS_FILE_NOT_FOUND)
         fcs_file = proj_cfg.fcs
-        fcs_obj:CSList[FCS] = CSList(vehicles, filePath = fcs_file, csType = FCS)
+        fcs_obj:CSList[FCS] = CSList(filePath = fcs_file, csType = FCS)
         self.__print(Lang.INFO_FCS.format(fcs_file,len(fcs_obj)))
         #if fcs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
 
@@ -280,7 +280,7 @@ class V2SimInstance:
         if not proj_cfg.scs:
             raise FileNotFoundError(Lang.ERROR_SCS_FILE_NOT_FOUND)
         scs_file = proj_cfg.scs
-        scs_obj:CSList[SCS] = CSList(vehicles, filePath = scs_file, csType = SCS)
+        scs_obj:CSList[SCS] = CSList(filePath = scs_file, csType = SCS)
         self.__print(Lang.INFO_SCS.format(scs_file,len(scs_obj)))
         #if scs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
 

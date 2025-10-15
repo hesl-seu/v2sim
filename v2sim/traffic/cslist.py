@@ -3,9 +3,9 @@ from typing import Dict, Iterable, Tuple, Type, Union, Optional, TypeVar, Generi
 from feasytools import RangeList
 from sklearn.neighbors import KDTree
 from ..locale import Lang
+from .ev import EV
 from .utils import ReadXML
 from .params import *
-from .evdict import EVDict
 from .cs import SCS, FCS
 
 T_CS = TypeVar("T_CS", FCS, SCS)
@@ -64,7 +64,6 @@ class CSList(Generic[T_CS]):
 
     def __init__(
         self,
-        ev_dict_to_bind: EVDict,
         *,
         csList: Optional[List[T_CS]] = None,
         filePath: Optional[str] = None,
@@ -72,13 +71,11 @@ class CSList(Generic[T_CS]):
     ):
         """
         Initialize
-            ev_dict_to_bind: EVDict to bind
             csList: CS list
             filePath: file name of CS
             csType: CS type, must be FCS or SCS
         Provide csList, or provide filePath and csType together
         """
-        self._evdict: EVDict = ev_dict_to_bind
         if csList is not None:
             flagF = False
             flagS = False
@@ -102,7 +99,7 @@ class CSList(Generic[T_CS]):
         self._cs_names = [cs.name for cs in self._cs]
         self._cs_slots = [cs.slots for cs in self._cs]
         self.__v2g_cap_res: List[float] = [0.0] * self._n
-        self.__v2g_cap_res_time = -1
+        self.__v2g_cap_res_time:int = -1
         self.__v2g_demand: List[float] = []
         for i, cs in enumerate(self._cs):
             self._remap[cs.name] = i
@@ -217,7 +214,7 @@ class CSList(Generic[T_CS]):
         """
         return [cs.Pc * k for cs in self._cs if cs.is_online(t)]
 
-    def add_veh(self, veh_id: str, cs: Union[int, str]) -> bool:
+    def add_veh(self, veh:EV, cs: Union[int, str]) -> bool:
         """
         Add vehicles to the specified charging station
             veh_id: Vehicle ID
@@ -227,24 +224,24 @@ class CSList(Generic[T_CS]):
         """
         if not isinstance(cs, int):
             cs = self.index(cs)
-        ret = self._cs[cs].add_veh(veh_id)
+        ret = self._cs[cs].add_veh(veh)
         if ret:
-            self._veh[veh_id] = cs
+            self._veh[veh.ID] = cs
         return ret
 
-    def pop_veh(self, veh_id: str) -> bool:
+    def pop_veh(self, veh: EV) -> bool:
         """
         Remove vehicles from the charging station
-            veh_id: Vehicle ID
+            veh: Vehicle object
         Return:
             True if removed successfully, False if the vehicle does not exist.
         """
         try:
-            cs = self._veh[veh_id]
+            cs = self._veh[veh.ID]
         except KeyError:
             return False
-        del self._veh[veh_id]
-        self._cs[cs].pop_veh(veh_id)
+        del self._veh[veh.ID]
+        self._cs[cs].pop_veh(veh)
         return True
 
     def has_veh(self, veh_id: str) -> bool:
@@ -268,15 +265,15 @@ class CSList(Generic[T_CS]):
         except ValueError:
             return -1
 
-    def is_charging(self, veh_id: str) -> bool:
+    def is_charging(self, veh: EV) -> bool:
         """
         Get the charging status of the vehicle. If the vehicle does not exist, a ValueError will be raised.
-            veh_id: Vehicle ID
+            veh: Vehicle object
         Return
             True if charging, False if waiting.
         """
-        cs = self._veh[veh_id]
-        return self._cs[cs].is_charging(veh_id)
+        cs = self._veh[veh.ID]
+        return self._cs[cs].is_charging(veh)
 
     def __getitem__(self, indices: Union[str, int]) -> T_CS:
         """
@@ -293,7 +290,7 @@ class CSList(Generic[T_CS]):
         """
         if t == self.__v2g_cap_res_time:
             return self.__v2g_cap_res
-        self.__v2g_cap_res = [cs.get_V2G_cap(self._evdict,t) for cs in self._cs]
+        self.__v2g_cap_res = [cs.get_V2G_cap(t) for cs in self._cs]
         self.__v2g_cap_res_time = t
         return self.__v2g_cap_res
 
@@ -302,7 +299,7 @@ class CSList(Generic[T_CS]):
         assert len(v2g_demand) == len(self._cs) or len(v2g_demand) == 0
         self.__v2g_demand = v2g_demand
 
-    def update(self, sec: int, cur_time: int) -> List[str]:
+    def update(self, sec: int, cur_time: int) -> List[EV]:
         """
         Charge and V2G discharge the EV with the current parameters.
             sec: Charging duration is sec seconds
@@ -315,11 +312,11 @@ class CSList(Generic[T_CS]):
             v2g_demand = self.__v2g_demand
         else:
             v2g_demand = repeat(0)
-        ret: List[str] = []
+        ret: List[EV] = []
         for cs, pd in zip(self._cs, v2g_demand):
-            lst = cs.update(self._evdict, sec, cur_time, pd)
-            for veh_id in lst:
-                del self._veh[veh_id]
+            lst = cs.update(sec, cur_time, pd)
+            for ev in lst:
+                del self._veh[ev.ID]
             ret.extend(lst)
         return ret
 

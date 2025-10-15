@@ -85,8 +85,8 @@ class TrafficInst:
         self._VEHs = veh_obj if veh_obj else EVDict(vehfile)
 
         # Load charging stations
-        self._fcs:CSList[FCS] = fcs_obj if fcs_obj else CSList(self._VEHs, filePath=fcsfile, csType=FCS)
-        self._scs:CSList[SCS] = scs_obj if scs_obj else CSList(self._VEHs, filePath=scsfile, csType=SCS)
+        self._fcs:CSList[FCS] = fcs_obj if fcs_obj else CSList(filePath=fcsfile, csType=FCS)
+        self._scs:CSList[SCS] = scs_obj if scs_obj else CSList(filePath=scsfile, csType=SCS)
         self.__names_fcs: List[str] = [cs.name for cs in self._fcs]
         self.__names_scs: List[str] = [cs.name for cs in self._scs]
 
@@ -127,7 +127,7 @@ class TrafficInst:
                 continue  # Only vehicles with slow charging stations can be added to the slow charging station
             # There is a 20% chance of adding to a rechargeable parking point
             if veh.SOC < veh.ksc or random.random() <= 0.2:
-                self._scs.add_veh(veh.ID, veh.trip.from_node)
+                self._scs.add_veh(veh, veh.trip.from_node)
 
     def find_route(self, from_node: str, to_node: str, fastest:bool = True) -> Stage:
         """
@@ -317,7 +317,7 @@ class TrafficInst:
                 veh.target_CS = route.nodes[-1]
                 self.__add_veh2(veh_id, trip.from_node, trip.to_node)
         # Stop slow charging of the vehicle and add it to the waiting to depart set
-        if self._scs.pop_veh(veh_id):
+        if self._scs.pop_veh(veh):
             self.__logger.leave_SCS(self.__ctime, veh, trip.from_node)
         veh.stop_charging()
         veh.status = VehStatus.Pending
@@ -353,7 +353,7 @@ class TrafficInst:
         """
         ret = False
         try:
-            self._scs.add_veh(veh.ID, veh.trip.to_node)
+            self._scs.add_veh(veh, veh.trip.to_node)
             ret = True
         except:
             pass
@@ -381,7 +381,7 @@ class TrafficInst:
             )
         else:
             veh.charge_target = veh.full_battery
-        self._fcs.add_veh(veh.ID, veh.target_CS)
+        self._fcs.add_veh(veh, veh.target_CS)
         self.__logger.arrive_CS(self.__ctime, veh, veh.target_CS)
 
     def __end_charging_FCS(self, veh: EV):
@@ -455,9 +455,9 @@ class TrafficInst:
         Charging station update: Charge all vehicles in the charging station, and send out the vehicles that have completed charging
             sec: Simulation seconds
         """
-        veh_ids = self._fcs.update(sec, self.__ctime)
-        for i in veh_ids:
-            self.__end_charging_FCS(self._VEHs[i])
+        evs = self._fcs.update(sec, self.__ctime)
+        for ev in evs:
+            self.__end_charging_FCS(ev)
 
     def __SCS_update(self, sec: int):
         """

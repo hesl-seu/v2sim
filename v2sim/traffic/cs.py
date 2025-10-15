@@ -2,10 +2,9 @@ from abc import abstractmethod, ABC
 from collections import deque
 from dataclasses import dataclass
 from itertools import chain
-from typing import Callable, Deque, Iterable, Optional, List, Dict, Set, Union
-import warnings
+from typing import Callable, Deque, Iterable, Optional, List, Dict, Set, Tuple, Union
 from feasytools import RangeList, makeFunc, OverrideFunc, TimeFunc, ConstFunc, SegFunc
-from .evdict import EVDict
+from .ev import EV
 from .utils import IntPairList, PriceList
 
 
@@ -22,8 +21,7 @@ def _get_price_xml(t: TimeFunc, elem:str) -> str:
 @dataclass
 class AllocEnv:
     cs: 'CS'
-    EVs: Iterable[str]
-    EVdict: EVDict
+    EVs: Iterable[EV]
     CTime: int
 
 V2GAllocator = Callable[[AllocEnv, int, float, float], None]
@@ -31,8 +29,7 @@ V2GAllocator = Callable[[AllocEnv, int, float, float], None]
 def _AverageV2GAllocator(env:AllocEnv, veh_cnt: int, v2g_demand: float, v2g_cap: float):
     if veh_cnt == 0 or v2g_demand == 0: return
     pd = v2g_demand / veh_cnt
-    for ev_id in env.EVs:
-        ev = env.EVdict[ev_id]
+    for ev in env.EVs:
         ev.set_temp_pd(pd)
 
 class V2GAllocPool:
@@ -63,33 +60,31 @@ def _AverageMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot: 
     """
     if vcnt == 0: return
     pc0 = min(max_pc_tot / vcnt, max_pc0)
-    for veh_id in env.EVs:
-        ev = env.EVdict[veh_id]
+    for ev in env.EVs:
         ev.set_temp_max_pc(pc0)
 
 def _PrioritizedMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot: float):
-    for veh_id in env.EVs:
+    for ev in env.EVs:
         if max_pc_tot > max_pc0:
-            env.EVdict[veh_id].set_temp_max_pc(max_pc0)
+            ev.set_temp_max_pc(max_pc0)
             max_pc_tot -= max_pc0
         else:
-            env.EVdict[veh_id].set_temp_max_pc(max_pc_tot)
+            ev.set_temp_max_pc(max_pc_tot)
             max_pc_tot = 0
 
 def _TimeBasedMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot: float):
-    loban = []
-    for veh_id in env.EVs:
-        ev = env.EVdict[veh_id]
-        loban.append((max(0, ev.trip.depart_time - env.CTime), veh_id))
+    loban:List[Tuple[int, EV]] = []
+    for ev in env.EVs:
+        loban.append((max(0, ev.trip.depart_time - env.CTime), ev))
         # For EVs in FCS, departure time of this trip is smaller than current time. Therefore, the sequence of EVs is held the same as the original.
         # For EVs in SCS, departure time of this trip is larger than current time. Therefore, EVs departed earlier are charged first.
     loban.sort()
-    for _, veh_id in loban:
+    for _, ev in loban:
         if max_pc_tot > max_pc0:
-            env.EVdict[veh_id].set_temp_max_pc(max_pc0)
+            ev.set_temp_max_pc(max_pc0)
             max_pc_tot -= max_pc0
         else:
-            env.EVdict[veh_id].set_temp_max_pc(max_pc_tot)
+            ev.set_temp_max_pc(max_pc_tot)
             max_pc_tot = 0
 
 class MaxPCAllocPool:
@@ -301,11 +296,10 @@ class CS(ABC):
 
     @abstractmethod
     def update(
-        self, ev_dict: EVDict, sec: int, cur_time: int, v2g_demand: float
+        self, sec: int, cur_time: int, v2g_demand: float
     ) -> List[str]:
         """
-        Charge and discharge the EV in the given EVDict with the current parameters for sec seconds.
-            ev_dict: EVDict corresponding to the vehicle ID stored in this CS
+        Charge and discharge the EV with the current parameters for sec seconds.
             sec: Seconds
             cur_time: Current time
             v2g_demand: V2G power demanded by the PDN, kWh/s
@@ -333,11 +327,10 @@ class CS(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_V2G_cap(self, ev_dict: EVDict) -> float:
+    def get_V2G_cap(self) -> float:
         """
         Charge and discharge the EV according to the given EV in EVDict, 
         and get the maximum power of V2G under the current situation, unit kWh/s
-            ev_dict: EVDict corresponding to the vehicle ID stored in this CS
         """
         raise NotImplementedError
     
@@ -397,7 +390,7 @@ class CS(ABC):
         """Get an iterator of all vehicles in the charging station"""
         raise NotImplementedError
     
-    def averageSOC(self, ev_dict:EVDict) -> float:
+    def averageSOC(self, only_charing:bool = False) -> float:
         """Average SOC of all vehicles in the charging station"""
         raise NotImplementedError
 
@@ -407,10 +400,13 @@ class SCS(CS):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._chi: Set[str] = set()  # Vehicles being charged
-        self._free: Set[str] = set()  # Vehicles that have been fully charged
+        self._chi: Set[EV] = set()  # Vehicles being charged
+        self._free: Set[EV] = set()  # Vehicles that have been fully charged
 
     def to_xml(self) -> str:
+        """
+        Get the XML string of the charging station
+        """
         ret = f'<scs name="{self._name}" node="{self._name}" slots="{self._slots}" bus="{self._bus}" ' \
             f'x="{self._x}" y="{self._y}" max_pc="{self._pc_lim1 * 3600:.2f}" max_pd="{self._pd_lim1 * 3600:.2f}" ' \
             f'pc_alloc="{self._pc_alloc_str}" pd_alloc="{self._pd_alloc_str}">\n'
@@ -420,48 +416,48 @@ class SCS(CS):
         ret += "</scs>"
         return ret
     
-    def add_veh(self, veh_id: str) -> bool:
-        if veh_id in self._chi or veh_id in self._free:
+    toXML = to_xml
+    
+    def add_veh(self, veh: EV) -> bool:
+        if veh in self._chi or veh in self._free:
             return False
         if len(self._chi) + len(self._free) < self._slots:
-            self._chi.add(veh_id)
+            self._chi.add(veh)
             return True
         else:
             return False
 
-    def pop_veh(self, veh_id: str) -> bool:
+    def pop_veh(self, veh: EV) -> bool:
         try:
-            self._chi.remove(veh_id)
+            self._chi.remove(veh)
         except KeyError:
             try:
-                self._free.remove(veh_id)
+                self._free.remove(veh)
             except:
                 return False
         return True
 
-    def __contains__(self, veh_id: str) -> bool:
-        return self._chi.__contains__(veh_id) or veh_id in self._free
+    def __contains__(self, veh: EV) -> bool:
+        return veh in self._chi or veh in self._free
 
     def __len__(self) -> int:
-        return self._chi.__len__() + len(self._free)
+        return len(self._chi) + len(self._free)
 
-    def is_charging(self, veh_id: str) -> bool:
-        return self._chi.__contains__(veh_id)
+    def is_charging(self, veh: EV) -> bool:
+        return veh in self._chi
 
     def veh_count(self, only_charging:bool = False) -> int:
-        # __len__ and len(): Performance consideration
         if only_charging:
-            return self._chi.__len__()
+            return len(self._chi)
         else:
-            return self._chi.__len__() + len(self._free)
+            return len(self._chi) + len(self._free)
 
-    def get_V2G_cap(self, ev_dict: EVDict, _t:int) -> float:
+    def get_V2G_cap(self, _t:int) -> float:
         if self.is_offline(_t): return 0.0
         tot_rate_ava = 0.0
         # Do not check if psell is None due to performance considerations
         v2gp = self._psell(_t) # type: ignore
-        for veh_id in chain(self._chi, self._free):
-            ev = ev_dict[veh_id]
+        for ev in chain(self._chi, self._free):
             if ev.willing_to_v2g(_t, v2gp):
                 tot_rate_ava += ev.max_v2g_rate * ev.eta_discharge
         self._cur_v2g_cap = tot_rate_ava
@@ -470,22 +466,21 @@ class SCS(CS):
     def vehicles(self):
         return chain(self._chi, self._free)
     
-    def averageSOC(self, ev_dict:EVDict, only_charging:bool = True) -> float:
+    def averageSOC(self, only_charging:bool = True) -> float:
         if only_charging:
             n = len(self._chi)
             if n == 0: return 0.0
-            return sum(ev_dict[veh_id].SOC for veh_id in self._chi) / n
+            return sum(ev.SOC for ev in self._chi) / n
         else:
             n = len(self._chi) + len(self._free)
             if n == 0: return 0.0
-            return sum(ev_dict[veh_id].SOC for veh_id in chain(self._chi, self._free)) / n
+            return sum(ev.SOC for ev in chain(self._chi, self._free)) / n
 
     def update(
-        self, ev_dict: EVDict, sec: int, cur_time: int, v2g_demand: float
-    ) -> List[str]:
+        self, sec: int, cur_time: int, v2g_demand: float
+    ) -> List[EV]:
         """
-        Charge and discharge the EV in the given EVDict with the current parameters for sec seconds.
-            ev_dict: EVDict corresponding to the vehicle ID stored in this CS
+        Charge and discharge the EV with the current parameters for sec seconds.
             sec: Seconds
             cur_time: Current time
             v2g_demand: V2G power demanded by the PDN, kWh/s
@@ -506,20 +501,19 @@ class SCS(CS):
         # If _pc_alloc do not allocate power to a vehicle, the vehicle's maximum charging power is not limited.
         if len(self._chi) > 0:
             self._pc_alloc(
-                AllocEnv(self, self._chi, ev_dict, cur_time),
+                AllocEnv(self, self._chi, cur_time),
                 len(self._chi), self._pc_lim1, self._pc_limtot
             )
 
-        ret: Set[str] = set()
-        for veh_id in self._chi:
-            ev = ev_dict[veh_id]
+        ret: Set[EV] = set()
+        for ev in self._chi:
             if ev.willing_to_slow_charge(cur_time, pb):
                 # If V2G discharge is in progress, don't charge to full
                 Wcharge += ev.charge(sec, pb, ev._esc_rate)
                 if v2g_demand > 0:
-                    if ev._elec >= ev._bcap * ev._kv2g or ev._elec >= ev._chtar: ret.add(veh_id)
+                    if ev._elec >= ev._bcap * ev._kv2g or ev._elec >= ev._chtar: ret.add(ev)
                 else:
-                    if ev._elec >= ev._chtar: ret.add(veh_id)
+                    if ev._elec >= ev._chtar: ret.add(ev)
 
         self._chi -= ret
         self._free |= ret
@@ -529,19 +523,19 @@ class SCS(CS):
             ps = self._psell(cur_time)
 
             # Get vehicles willing to V2G
-            v2g_cars = [veh_id for veh_id in self._free if ev_dict[veh_id].willing_to_v2g(cur_time, ps)]
+            v2g_cars = [ev for ev in self._free if ev.willing_to_v2g(cur_time, ps)]
             
             # Allocate V2G power to vehicles, where set_temp_pd is called.
             # If _pd_alloc do not allocate power to a vehicle, the vehicle's discharging power is set to maximum discharging power.
             n = len(v2g_cars)
             if n > 0:
                 self._pd_alloc(
-                    AllocEnv(self, v2g_cars, ev_dict, cur_time), 
+                    AllocEnv(self, v2g_cars, cur_time), 
                     len(v2g_cars), v2g_demand, self._cur_v2g_cap
                 )
             
-            for veh_id in v2g_cars:
-                Wdischarge += ev_dict[veh_id].discharge(sec, ps)
+            for ev in v2g_cars:
+                Wdischarge += ev.discharge(sec, ps)
         
         self._cload = Wcharge / sec
         self._dload = Wdischarge / sec
@@ -552,9 +546,8 @@ class FCS(CS):
     """Fast Charging Station"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._chi: Set[str] = set()  # Vehicles being charged
-        self._buf: Deque[str] = deque()  # Vehicles in line
-        self._veh: Set[str] = set()  # All vehicles in the station
+        self._chi: Set[EV] = set()  # Vehicles being charged
+        self._buf: Deque[EV] = deque()  # Vehicles in queue
 
     def to_xml(self) -> str:
         ret = f'<fcs name="{self._name}" edge="{self._name}" slots="{self._slots}" bus="{self._bus}" ' \
@@ -564,44 +557,41 @@ class FCS(CS):
         ret += "</fcs>"
         return ret
     
-    def add_veh(self, veh_id: str) -> bool:
-        if veh_id in self._veh:
+    def add_veh(self, veh: EV) -> bool:
+        if veh in self._chi or veh in self._buf:
             return False
         if len(self._chi) < self._slots:
-            self._chi.add(veh_id)
+            self._chi.add(veh)
         else:
-            self._buf.append(veh_id)
-        self._veh.add(veh_id)
+            self._buf.append(veh)
         return True
 
-    def pop_veh(self, veh_id: str) -> bool:
-        try:
-            self._veh.remove(veh_id)
-        except KeyError:
-            return False
-        try:
-            self._chi.remove(veh_id)
-        except:
-            self._buf.remove(veh_id)
+    def pop_veh(self, ev: EV) -> bool:
+        if ev in self._chi:
+            self._chi.remove(ev)
+        else:
+            try:
+                self._buf.remove(ev)
+            except:
+                return False
         return True
 
-    def __contains__(self, veh_id: str) -> bool:
-        return veh_id in self._veh
+    def __contains__(self, veh: EV) -> bool:
+        return veh.ID in self._chi or veh.ID in self._buf
 
-    def is_charging(self, veh_id: str) -> bool:
-        return veh_id in self._chi
+    def is_charging(self, veh: EV) -> bool:
+        return veh in self._chi
 
     def veh_count(self, only_charging:bool = False) -> int:
-        # __len__ and len(): Performance consideration
         if only_charging:
-            return self._chi.__len__()
+            return len(self._chi)
         else:
-            return self._chi.__len__() + len(self._buf)
-    
+            return len(self._chi) + len(self._buf)
+
     def vehicles(self):
         return chain(self._chi, self._buf)
     
-    def averageSOC(self, ev_dict:EVDict, include_waiting:bool = True) -> float:
+    def averageSOC(self, include_waiting:bool = True) -> float:
         """
         Average SOC of all vehicles in the charging station.
         When include_waiting is True, the average SOC of all vehicles (including those waiting) is returned.
@@ -610,11 +600,11 @@ class FCS(CS):
         if include_waiting:
             n = len(self._chi) + len(self._buf)
             if n == 0: return 0.0
-            return sum(ev_dict[veh_id].SOC for veh_id in chain(self._chi, self._buf)) / n
+            return sum(ev.SOC for ev in chain(self._chi, self._buf)) / n
         else:
             n = len(self._chi)
             if n == 0: return 0.0
-            return sum(ev_dict[veh_id].SOC for veh_id in self._chi) / n
+            return sum(ev.SOC for ev in self._chi) / n
 
     def wait_count(self) -> int:
         '''Number of vehicles waiting for charging'''
@@ -624,11 +614,10 @@ class FCS(CS):
         return self._chi.__len__() + len(self._buf)
 
     def update(
-        self, ev_dict: EVDict, sec: int, cur_time: int, v2g_demand: float
-    ) -> List[str]:
+        self, sec: int, cur_time: int, v2g_demand: float
+    ) -> List[EV]:
         """
-        Charge the EV in the given EVDict with the current parameters for sec seconds.
-            ev_dict: EVDict corresponding to the vehicle ID stored in this CS
+        Charge the EV with the current parameters for sec seconds.
             sec: Seconds
             cur_time: Current time
             v2g_demand: Useless parameter, ignored. Present for interface consistency only.
@@ -638,13 +627,12 @@ class FCS(CS):
             Fast charging station does not support V2G.
         """
         Wcharge = 0
-        ret = []
+        ret:List[EV] = []
         if self.is_offline(cur_time):
             # If the charging station fails, remove all vehicles
             ret = list(chain(self._chi,self._buf))
             self._chi.clear()
             self._buf.clear()
-            self._veh.clear()
             self._cload = 0
             return ret
         
@@ -652,23 +640,22 @@ class FCS(CS):
         # If _pc_alloc do not allocate power to a vehicle, the vehicle's maximum charging power is not limited.
         if len(self._chi) > 0:
             self._pc_alloc(
-                AllocEnv(self, self._chi, ev_dict, cur_time), 
+                AllocEnv(self, self._chi, cur_time), 
                 len(self._chi), self._pc_lim1, self._pc_limtot
             )
 
-        for veh_id in self._chi:
-            ev = ev_dict[veh_id]
+        for ev in self._chi:
             Wcharge += ev.charge(sec, self.pbuy(cur_time), ev._efc_rate)
             if ev.battery >= ev.charge_target:
-                ret.append(veh_id)
-        for veh_id in ret:
-            self.pop_veh(veh_id)
+                ret.append(ev)
+        for ev in ret:
+            self.pop_veh(ev)
             if len(self._buf) > 0:
                 self._chi.add(self._buf.popleft())
         self._cload = Wcharge / sec
         return ret
 
-    def get_V2G_cap(self, ev_dict: EVDict, _t:int) -> float:
+    def get_V2G_cap(self, _t:int) -> float:
         """
         Fast charging station does not support V2G, always return 0.
         """
