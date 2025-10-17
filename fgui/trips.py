@@ -1,6 +1,7 @@
+from collections import defaultdict
 import os
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Tuple
 import matplotlib
 matplotlib.use("agg")
 from matplotlib import pyplot as plt
@@ -28,13 +29,13 @@ _loc.SetLanguageLib("zh_CN",
     GUI_EVANA_SOC = "SoC",
     GUI_EVANA_SOC_THRE = "SoC阈值",
     GUI_EVANA_MSGBOX_STA_INVALID_THRE = "无效的阈值",
-    GUI_EVANA_PARAMS = "参数",
     GUI_EVANA_INFO = "信息",
     GUI_EVANA_MSGBOX_STA_TITLE = "统计参数",
     GUI_EVANA_MSGBOX_STA_MSG = "SoC阈值: {0}，大于阈值的比例: {1}，总数: {2}",
     GUI_EVANA_SAVEAS = "另存为",
     GUI_EVANA_CSV_FILE = "CSV文件",
     GUI_EVANA_SEL_CLOG = "选择cproc.clog",
+    GUI_EVANA_BATT = "电池电量",
 )
 
 _loc.SetLanguageLib("en",
@@ -53,13 +54,13 @@ _loc.SetLanguageLib("en",
     GUI_EVANA_SOC = "SoC",
     GUI_EVANA_SOC_THRE = "SoC Threshold",
     GUI_EVANA_MSGBOX_STA_INVALID_THRE = "Invalid threshold",
-    GUI_EVANA_PARAMS = "Parameters",
     GUI_EVANA_INFO = "Information",
     GUI_EVANA_MSGBOX_STA_TITLE = "Statistics",
     GUI_EVANA_MSGBOX_STA_MSG = "SoC threshold: {0}. Proportion greater than threshold: {1}. Total: {2}",
     GUI_EVANA_SAVEAS = "Save as",
     GUI_EVANA_CSV_FILE = "CSV file",
     GUI_EVANA_SEL_CLOG = "Select cproc.clog",
+    GUI_EVANA_BATT = "Battery"
 )
 
 
@@ -69,21 +70,21 @@ class TripsFrame(Frame):
         self._file = None
         self.tree = ScrollableTreeView(self) 
         self.tree['show'] = 'headings'
-        self.tree["columns"] = ("time", "type", "veh", "soc", "trip", "params", "info")
+        self.tree["columns"] = ("time", "type", "veh", "soc", "batt", "trip", "info")
         self.tree.column("time", width=80, stretch=NO)
         self.tree.column("type", width=100, stretch=NO)
         self.tree.column("veh", width=80, stretch=NO)
         self.tree.column("soc", width=80, stretch=NO)
+        self.tree.column("batt", width=80, stretch=NO)
         self.tree.column("trip", width=60, stretch=NO)
-        self.tree.column("params", width=200, stretch=NO)
         self.tree.column("info", width=200, stretch=YES)
         
         self.tree.heading("time", text=_loc["GUI_EVANA_TIME"])
         self.tree.heading("type", text=_loc["GUI_EVANA_TYPE"])
         self.tree.heading("veh", text=_loc["GUI_EVANA_VEH"])
         self.tree.heading("soc", text=_loc["GUI_EVANA_SOC"])
+        self.tree.heading("batt", text=_loc["GUI_EVANA_BATT"])
         self.tree.heading("trip", text=_loc["GUI_EVANA_TRIP"])
-        self.tree.heading("params", text=_loc["GUI_EVANA_PARAMS"])
         self.tree.heading("info", text=_loc["GUI_EVANA_INFO"])
         self.tree.pack(fill=BOTH,expand=True)
 
@@ -142,6 +143,9 @@ class TripsFrame(Frame):
         self._btnStatPlot=Button(self._fr2,text=_loc["GUI_EVANA_PARAMSPLOT"],command=self.params_plot)
         self._btnStatPlot.pack(side=LEFT)
 
+        self._btnEVStat=Button(self._fr2,text="EV Stats",command=self.veh_stat)
+        self._btnEVStat.pack(side=LEFT)
+
         self._disp:List[TripLogItem] = []
         self._Q = Queue()
         
@@ -193,6 +197,69 @@ class TripsFrame(Frame):
                 self._Q.put(('S', None))
         self.after(100,self._upd)
     
+    def __stat_trip_length(self):
+        # Calculate average trip length
+        max_trip:Dict[str, int] = defaultdict(int)
+        veh_dist:Dict[str, float] = defaultdict(float)
+        tot_dist = 0.0
+        for item in self._disp:
+            if item.op_raw in ("A", "AC"):
+                dist = float(item.additional.get('dist', '0'))
+                veh_dist[item.veh] += dist
+                tot_dist += dist
+            if item.op_raw == "A":
+                max_trip[item.veh] = max(max_trip[item.veh], item.trip_id + 1)
+        avg_dist = {k: (veh_dist[k] / v) for k,v in max_trip.items()}
+        tot_trip_cnt = sum(max_trip.values())
+        tot_avg_dist = tot_dist / tot_trip_cnt if tot_trip_cnt > 0 else 0
+        return max_trip, avg_dist, tot_avg_dist
+    
+    def __stat_ev_batt(self):
+        evs:Dict[str, List[float]] = defaultdict(list)
+        for item in self._disp:
+            try:
+                elec = float(item.veh_batt.removesuffix("kWh"))
+            except ValueError:
+                elec = 0.0
+            evs[item.veh].append(elec)
+        
+        ret:Dict[str, Tuple[float, float]] = {}
+        tot_charge = 0; tot_discharge = 0
+        for vname, battlst in evs.items():
+            n = len(battlst)
+            charge = 0; discharge = 0
+            for i in range(1, n):
+                delta = battlst[i] - battlst[i - 1]
+                if delta > 0:
+                    charge += delta
+                else:
+                    discharge -= delta
+            ret[vname] = (charge, discharge)
+            tot_charge += charge; tot_discharge += discharge
+        
+        return ret, tot_charge, tot_discharge
+        
+    def veh_stat(self):
+        max_trip, avg_dist, tot_avg_dist = self.__stat_trip_length()
+        ev_batt, tot_charge, tot_discharge = self.__stat_ev_batt()
+        avg_charge = tot_charge / len(ev_batt)
+        avg_discharge = tot_discharge / len(ev_batt)
+
+        with open(self.get_save_path() / "vehicle_stat.csv", "w", encoding="utf-8") as fp:
+            fp.write("Vehicle,# Trips,Average distance (m),Total charging energy (kWh),Total discharging energy (kWh)\n")
+            for vname, dist in avg_dist.items():
+                fp.write(f"{vname},{max_trip[vname]+1},{dist:.1f},{ev_batt[vname][0]:.1f},{ev_batt[vname][1]:.1f}\n")
+            fp.write(f"Total average distance: {tot_avg_dist:.1f}m\n")
+            fp.write(f"Total average charging: {avg_charge:.1f}kWh\n")
+            fp.write(f"Total average discharging: {avg_discharge:.1f}kWh\n")
+        
+        messagebox.showinfo(f"Vehicle statistics", 
+            f"Average distance per trip: {tot_avg_dist:.1f}m\n" + 
+            f"Average charging: {avg_charge:.1f}kWh\n" + 
+            f"Average discharging: {avg_discharge:.1f}kWh\n" + 
+            "File saved to figrues/vehicle_stat.csv"
+        )
+
     def __params_calc(self, tau:float):
         okcnt = 0
         cnt = 0
@@ -218,6 +285,14 @@ class TripsFrame(Frame):
             messagebox.showinfo(_loc["GUI_EVANA_MSGBOX_STA_TITLE"],
                 _loc["GUI_EVANA_MSGBOX_STA_MSG"].format(tau, f"{okcnt/cnt*100:.2f}%",cnt))
     
+    def get_save_path(self):
+        if self._file is not None:
+            p = Path(self._file).parent / "figures"
+        else:
+            p = Path("figures")
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
     def params_plot(self):
         y = []
         for i in range(1, 100 + 1):
@@ -227,17 +302,12 @@ class TripsFrame(Frame):
                 y.append(0)
             else:
                 y.append(okcnt / cnt)
-        print(y)
+
         plt.title("SoC Threshold vs. Proportion")
         plt.xlabel("SoC Threshold")
         plt.ylabel("Proportion")
         plt.plot(range(1, 100 + 1), y)
-        if self._file is not None:
-            p = Path(self._file).parent / "figures"
-        else:
-            p = Path("figures")
-        p.mkdir(parents=True, exist_ok=True)
-        plt.savefig(str(p / "thre_curve.png"))
+        plt.savefig(str(self.get_save_path() / "thre_curve.png"))
         messagebox.showinfo("Threshold Curve", "Threshold curve saved to figures/thre_curve.png")
 
     def save(self):

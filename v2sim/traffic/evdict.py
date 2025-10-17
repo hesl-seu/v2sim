@@ -19,7 +19,7 @@ class EVDict(Dict[str, EV]):
             return
         rt = ReadXML(file_path).getroot()
         if rt is None:
-            raise RuntimeError(f"Failed to load EV file {file_path}")
+            raise RuntimeError(Lang.EV_LOAD_ERROR.format(file_path))
         for veh in rt:
             trips: list[Trip] = []            
             for trip in veh:

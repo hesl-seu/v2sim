@@ -426,7 +426,7 @@ class EV:
 
     def brief(self):
         """Get a brief description of this vehicle"""
-        return f"{self._id},{self.SOC*100:.1f}%,{self._trip_index}"
+        return f"{self._id},{self.SOC*100:.1f}%,{self._elec:.1f}kWh,{self._trip_index}"
 
     def __repr__(self):
         return f"EV[ID='{self._id}', Status={self._sta}, Dist={self._dis}m, SOC={self.SOC*100:.1f}%, Bcap={self._bcap}kWh, ChTar={self._chtar}kWh, TarCS={self._cs}, Consump={self._consumption}KWh/m]"

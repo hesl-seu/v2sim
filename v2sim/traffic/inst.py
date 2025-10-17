@@ -1,11 +1,11 @@
+import random
+import pickle
+import gzip
 from collections import deque
 from itertools import chain
 from warnings import warn
 from pathlib import Path
-import random
-import pickle
-import gzip
-from typing import List, Tuple, Dict, Optional
+from typing import List, Optional
 from feasytools import PQueue, Point
 from uxsim import Link
 from .routing import *
@@ -15,7 +15,6 @@ from .cs import *
 from .cslist import *
 from .evdict import *
 from .ev import *
-from .utils import TWeights
 from .paraworlds import ParaWorlds, load_world
 from .net import RoadNet
 from .params import *
@@ -56,7 +55,7 @@ class TrafficInst:
         """
         random.seed(seed)
         self.__logger = TripsLogger(clogfile)
-        assert routing_algo in ("dijkstra", "astar"), "Unsupported routing algorithm"
+        assert routing_algo in ("dijkstra", "astar"), Lang.ROUTE_ALGO_NOT_SUPPORTED
         self.__use_astar = routing_algo == "astar"
         
         self.__vehfile = vehfile
@@ -116,9 +115,9 @@ class TrafficInst:
             print_mode=1 if show_uxsim_info else 0
         )
         if isinstance(self.W, ParaWorlds):
-            print(f"Paraworlds created. Number of sub-worlds: {len(self.W.worlds)}")
+            print(Lang.PARA_WORLDS.format(len(self.W.worlds)))
         else:
-            print("Single world created.")
+            print(Lang.SINGLE_WORLD)
 
         # Load vehicles to charging stations and prepare to depart
         for veh in self._VEHs.values():
@@ -245,7 +244,7 @@ class TrafficInst:
     def __sel_best_CS(
         self, veh: EV, cur_node: Optional[str] = None, 
         cur_edge: Optional[str] = None, cur_pos: Optional[Point] = None
-    ) -> Tuple[Stage, TWeights]:
+    ) -> Stage:
         """
         Select the nearest available charging station based on the edge where the car is currently located, and return the path and average weight
             veh: Vehicle instance
@@ -253,43 +252,41 @@ class TrafficInst:
             cur_edge: Current road, if None, it will be automatically obtained
             cur_pos: Current position, if None, it will be automatically obtained
         Return:
-            Stage, Weight(Tuple[float,float,float])
-            If no charging station is found, return [],(-1,-1,-1)
+            Stage
         """
         to_charge = veh.charge_target - veh.battery
         
         if cur_node is None:
             if not self.W.has_vehicle(veh.ID):
-                raise RuntimeError(f"Vehicle {veh.ID} not found in simulator")
+                raise RuntimeError(Lang.VEH_NOT_FOUND.format(veh.ID))
             if cur_edge is None:
                 link:Optional[Link] = self.W.get_vehicle(veh.ID).link
             else:
                 link = self.W.get_link(cur_edge)
             if link is None:
-                raise RuntimeError(f"Vehicle {veh.ID} has no current link")
+                raise RuntimeError(Lang.VEH_HAS_NO_LINK.format(veh.ID))
             cur_node = link.end_node.name
         assert isinstance(cur_node, str)
         
         if cur_pos is None:
             if not self.W.has_vehicle(veh.ID):
-                raise RuntimeError(f"Vehicle {veh.ID} not found in simulator")
+                raise RuntimeError(Lang.VEH_NOT_FOUND.format(veh.ID))
             x, y = self.W.get_vehicle(veh.ID).get_xy_coords()
             cur_pos = Point(x, y)
         
         best = self.find_best_fcs(cur_node, self._fcs.get_online_CS_names(self.__ctime),
             veh._w, to_charge, veh.max_mileage/veh._krel)
 
-        return best, (-1, -1, -1)
+        return best
     
-    def __start_trip(self, veh_id: str) -> Tuple[bool, Optional[TWeights]]:
+    def __start_trip(self, veh_id: str) -> bool:
         """
         Start the current trip of a vehicle
             veh_id: Vehicle ID
         Return:
-            Departure succeeded: True, Fast charging station selection weight (if fast charging is required)
-            Departure failed: False, None
+            Departure succeeded: True
+            Departure failed: False
         """
-        weights = None
         veh = self._VEHs[veh_id]
         trip = veh.trip
         direct_depart = True
@@ -308,11 +305,11 @@ class TrafficInst:
             self.__add_veh2(veh_id, trip.from_node, trip.to_node)
         else:  # Charge once on the way
             x, y = self.__rnet.get_node(trip.from_node).get_coord()
-            route, weights = self.__sel_best_CS(veh, trip.from_node, cur_pos = Point(x, y))
+            route = self.__sel_best_CS(veh, trip.from_node, cur_pos = Point(x, y))
             if len(route.nodes) == 0:
                 # The power is not enough to drive to any charging station, you need to charge for a while
                 veh.target_CS = None
-                return False, None
+                return False
             else: # Found a charging station
                 veh.target_CS = route.nodes[-1]
                 self.__add_veh2(veh_id, trip.from_node, trip.to_node)
@@ -321,9 +318,9 @@ class TrafficInst:
             self.__logger.leave_SCS(self.__ctime, veh, trip.from_node)
         veh.stop_charging()
         veh.status = VehStatus.Pending
-        return True, weights
+        return True
 
-    def __end_trip(self, veh_id: str):
+    def __end_trip(self, veh_id: str, dist: float):
         """
         End the current trip of a vehicle and add its next trip to the departure queue.
         If the destination of the trip meets the charging conditions, try to charge.
@@ -340,7 +337,7 @@ class TrafficInst:
                 arr_sta = TripsLogger.ARRIVAL_CHARGE_FAILED
         else:
             arr_sta = TripsLogger.ARRIVAL_NO_CHARGE
-        self.__logger.arrive(self.__ctime, veh, arr_sta)
+        self.__logger.arrive(self.__ctime, veh, arr_sta, dist)
         tid = veh.next_trip()
         if tid != -1:
             ntrip = veh.trip
@@ -361,7 +358,7 @@ class TrafficInst:
             self.__logger.join_SCS(self.__ctime, veh, veh.trip.to_node)
         return ret
 
-    def __start_charging_FCS(self, veh: EV):
+    def __start_charging_FCS(self, veh: EV, dist: float = -1):
         """
         Make a vehicle enter the charging state (fast charging station)
             veh: Vehicle instance
@@ -382,7 +379,7 @@ class TrafficInst:
         else:
             veh.charge_target = veh.full_battery
         self._fcs.add_veh(veh, veh.target_CS)
-        self.__logger.arrive_CS(self.__ctime, veh, veh.target_CS)
+        self.__logger.arrive_FCS(self.__ctime, veh, veh.target_CS, dist)
 
     def __end_charging_FCS(self, veh: EV):
         """
@@ -402,27 +399,22 @@ class TrafficInst:
         veh.status = VehStatus.Pending
         veh.stop_charging()
 
-    def __batch_depart(self) -> Dict[str, Optional[TWeights]]:
+    def __batch_depart(self):
         """
         All vehicles that arrive at the departure queue are sent out
             self.__ctime: Current time, in seconds
-        Return:
-            Departure dictionary, the key is the vehicle ID, and the value is the fast charging station selection parameter (if there is no need to go to the fast charging station, it is None)
         """
-        ret = {}
         while not self._que.empty() and self._que.top[0] <= self.__ctime:
             depart_time, veh_id = self._que.pop()
             veh = self._VEHs[veh_id]
             trip = veh.trip
-            success, weights = self.__start_trip(veh_id)
-            if success:
+            if self.__start_trip(veh_id):
                 depart_delay = max(0, self.__ctime - depart_time)
-                self.__logger.depart(self.__ctime, veh, depart_delay, veh.target_CS, weights)
-                ret[veh_id] = weights
+                self.__logger.depart(self.__ctime, veh, depart_delay, veh.target_CS)
             else:
                 available_cs = self._fcs.get_online_CS_names(self.__ctime)
                 if len(available_cs) == 0:
-                    raise RuntimeError("No FCS is available at this time, please check the configuration")
+                    raise RuntimeError(Lang.NO_AVAILABLE_FCS)
                 
                 # Find the nearest FCS
                 best_cs = self.find_best_route(trip.from_node, set(available_cs), False)
@@ -447,24 +439,7 @@ class TrafficInst:
                     veh.target_CS = cs_name
                     trT = int(self.__ctime + 2 * best_cs.travelTime)
                     self._fQ.push(trT, veh.ID)
-                    self.__logger.depart_failed(self.__ctime, veh, batt_req, cs_name, trT)
-        return ret
-
-    def __FCS_update(self, sec: int):
-        """
-        Charging station update: Charge all vehicles in the charging station, and send out the vehicles that have completed charging
-            sec: Simulation seconds
-        """
-        evs = self._fcs.update(sec, self.__ctime)
-        for ev in evs:
-            self.__end_charging_FCS(ev)
-
-    def __SCS_update(self, sec: int):
-        """
-        Parking vehicle update: Charge and V2G all parked vehicles in the charging station
-            sec: Simulation seconds
-        """
-        self._scs.update(sec, self.__ctime)
+                    self.__logger.depart_failed(self.__ctime, veh, batt_req, cs_name, trT)        
 
     def get_sta_head(self) -> List[str]:
         """
@@ -524,13 +499,15 @@ class TrafficInst:
             dist = sum(link.length for link in route.links)
             veh.drive(dist)
             if veh.target_CS is None:
-                self.__end_trip(v)
+                self.__end_trip(v, dist)
             else:
-                self.__start_charging_FCS(self._VEHs[v])
+                self.__start_charging_FCS(self._VEHs[v], dist)
 
         # Process vehicles in charging stations and parked vehicles
-        self.__FCS_update(deltaT)
-        self.__SCS_update(deltaT)
+        evs = self._fcs.update(deltaT, self.__ctime)
+        for ev in evs:
+            self.__end_charging_FCS(ev)
+        self._scs.update(deltaT, self.__ctime)
 
         # Process faulty vehicles
         while not self._fQ.empty() and self._fQ.top[0] <= self.__ctime:

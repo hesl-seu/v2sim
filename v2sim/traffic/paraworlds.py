@@ -1,9 +1,4 @@
 import enum
-try:
-    # For Python 3.14+
-    import compression.gzip as gzip # type: ignore
-except ImportError:
-    import gzip
 import os
 import time
 from collections import deque
@@ -11,6 +6,7 @@ from typing import DefaultDict, Deque, Dict, Generator, List, Optional, Set, Tup
 from uxsim import World, Vehicle
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from ..locale.lang import Lang
 from .routing import *
 
 
@@ -30,7 +26,7 @@ class RoutingAlgorithm(enum.Enum):
         elif self == RoutingAlgorithm.DijkstraShortest:
             return dijS(gl, start_time, from_node, to_node)
         else:
-            raise ValueError("Unknown routing algorithm.")
+            raise ValueError(Lang.ROUTE_ALGO_NOT_SUPPORTED.format(""))
 
 class WorldSpec(ABC):
     @abstractmethod

@@ -7,11 +7,7 @@ from ..locale import Lang
 from typing import List, Tuple
 
 IntPairList = List[Tuple[int, int]]
-#IntPairList.__doc__ = "List of int pairs, like [(1, 2), (3, 4)]"
 PriceList = Tuple[List[int], List[float]]
-#PriceList.__doc__ = "Price list, like ([1, 2], [3.0, 4.0]), where the first list is the time and the second list is the price"
-TWeights = Tuple[float, float, float]
-#TWeights.__doc__ = "Tuple of three weights, like (1.0, 2.0, 3.0)"
 _letters = string.ascii_letters + string.digits
 
 
@@ -220,6 +216,6 @@ class V2SimConfig:
             json.dump(self.__dict__, f, indent=4)
 
 __all__ = [
-    "IntPairList", "PriceList", "TWeights", "FileDetectResult", "V2SimConfig",
+    "IntPairList", "PriceList", "FileDetectResult", "V2SimConfig",
     "DetectFiles", "CheckFile", "ClearBakFiles", "ReadXML", "LoadFCS", "LoadSCS",
 ]

@@ -1,7 +1,9 @@
-from itertools import repeat
+import os
+import sys
 from typing import Dict, Iterable, Tuple, Type, Union, Optional, TypeVar, Generic, List
 from feasytools import RangeList
 from sklearn.neighbors import KDTree
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from ..locale import Lang
 from .ev import EV
 from .utils import ReadXML
@@ -104,7 +106,13 @@ class CSList(Generic[T_CS]):
         for i, cs in enumerate(self._cs):
             self._remap[cs.name] = i
         self.create_kdtree()
-    
+
+        cpu_count = os.cpu_count() or 1
+        if hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled() and cpu_count > 1:
+            self.__pool = ThreadPoolExecutor(cpu_count)
+        else:
+            self.__pool = None
+
     def create_kdtree(self):
         pts = []
         for cs in self._cs:
@@ -299,7 +307,13 @@ class CSList(Generic[T_CS]):
         assert len(v2g_demand) == len(self._cs) or len(v2g_demand) == 0
         self.__v2g_demand = v2g_demand
 
-    def update(self, sec: int, cur_time: int) -> List[EV]:
+    def __update_cs(self, l:int, r:int, sec:int, cur_time:int, v2g_demand:List[float]) -> List[EV]:
+        lst = []
+        for i in range(l, r):
+            lst.extend(self._cs[i].update(sec, cur_time, v2g_demand[i]))
+        return lst
+    
+    def update(self, sec: int, cur_time: int):
         """
         Charge and V2G discharge the EV with the current parameters.
             sec: Charging duration is sec seconds
@@ -311,13 +325,38 @@ class CSList(Generic[T_CS]):
             assert len(self.__v2g_demand) == len(self._cs)
             v2g_demand = self.__v2g_demand
         else:
-            v2g_demand = repeat(0)
-        ret: List[EV] = []
-        for cs, pd in zip(self._cs, v2g_demand):
-            lst = cs.update(sec, cur_time, pd)
-            for ev in lst:
-                del self._veh[ev.ID]
-            ret.extend(lst)
+            v2g_demand = [0.0] * len(self._cs)
+        
+        ret:List[EV] = []
+
+        if self.__pool:
+            # Use multithreading to speed up
+            vcnt = 0; l = 0; r = 0
+            futures = []
+            for i, cs in enumerate(self._cs):
+                vcnt += len(cs)
+                if vcnt >= 50:  # Each thread processes at least 50 vehicles
+                    r = i + 1
+                    futures.append(self.__pool.submit(self.__update_cs, l, r, sec, cur_time, v2g_demand))
+                    l = r
+                    vcnt = 0
+            if l < len(self._cs):
+                futures.append(self.__pool.submit(self.__update_cs, l, len(self._cs), sec, cur_time, v2g_demand))
+
+            # Collect results
+            for f in as_completed(futures):
+                lst = f.result()
+                for ev in lst:
+                    del self._veh[ev.ID]
+                ret.extend(lst)
+            
+        else:
+            # Single thread
+            for cs, pd in zip(self._cs, v2g_demand):
+                lst = cs.update(sec, cur_time, pd)
+                for ev in lst:
+                    del self._veh[ev.ID]
+                ret.extend(lst)
         return ret
 
     def __len__(self):

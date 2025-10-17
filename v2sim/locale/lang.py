@@ -247,6 +247,21 @@ You can load the commands from a file as an argument in the command prompt/termi
 
     BAD_TRIP_OD = "Trip start node must be the same as the previous trip's end node, but got {0} after {1} for vehicle {2}'s trip {3}"
     BAD_TRIP_DEPART_TIME = "Trip departure time must be in ascending order, but got {0} after {1} for vehicle {2}'s trip {3}"
+    PARA_WORLDS = "Paraworlds created. Number of sub-worlds: {0}."
+    SINGLE_WORLD = "Single world created."
+    ROUTE_ALGO_NOT_SUPPORTED = "Route calculation algorithm '{0}' is not supported. Candidates are: dijkstra, astar"
+    VEH_NOT_FOUND = "Vehicle {0} not found in the simulator."
+    VEH_HAS_NO_LINK = "Vehicle {0} has no link assigned."
+    NO_AVAILABLE_FCS = "No FCS is available at this time, please check the configuration."
+    EV_LOAD_ERROR = "Failed to load EV file {0}"
+    NODE_EXISTS = "Node {0} already exists."
+    NODE_NOT_FOUND = "Node {0} does not exist."
+    EDGE_EXISTS = "Edge {0} already exists."
+    EDGE_NOT_FOUND = "Edge {0} does not exist."
+    INVALID_SUMO_NETWORK = "Invalid SUMO network: {0}"
+    UNKNOWN_NET_FORMAT = "Unknown network format: {0}. Candidates: raw, sumo, auto."
+    GIL_NOT_DISABLED = "Warning: ParaWorlds requires Python to be built with GIL disabled. Falling back to SingleWorld."
+    NO_GEO_PROJ = "Network does not provide geo-projection"
 
     @staticmethod
     def format(item:str, **kwargs):

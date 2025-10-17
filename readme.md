@@ -85,14 +85,14 @@ python gui_main.py
 * **Notice:** Double click to open this file is **NOT** recommended since many users have reported it doesn't work as expected.
 
 Click the `Add existing project` link and click `Open` to load the folder you have created. You will see something like this:
-![alt text](docs/3.png)
+![alt text](imgs/3.png)
 
 2. Download charging station positions: If the area you downloaded is in **China Mainland**, you can download charging station positions in this program. Otherwise, please skip this step.
 + Switch to `CS Downloader` page and type an AMap(Chinese: 高德地图) developer key in the given input box. **ATTENTION: You must apply for a key for web service (Chinese: Web服务) on the [AMap official site](https://lbs.amap.com/). This function will never work without a key.** 
 + Click `Download` to get CS positions from AMap. Please wait patiently while downloading the CS positions. If there are too many CSs in the given area, they may not be all downloaded due to the restriction of AMap.
 + A successful result is shown below (The address are all Chinese since they are located in China):
 
-![alt text](docs/4.png)
+![alt text](imgs/4.png)
 
 + After download the CS positions, please close the project editor and reopen it to avoid any potential error in the editor.
 
@@ -104,11 +104,11 @@ Click the `Add existing project` link and click `Open` to load the folder you ha
 
 + A successful result is like this:
 
-![alt text](docs/5.png)
+![alt text](imgs/5.png)
 
 4. **Edit network**: Switch to `Network` page to view the road netowrk (in non-black color) and distribution network (in black). Hold the mouse's right button to pan. Network can be dragged and edited by left click.
 
-![alt text](docs/11.png)
+![alt text](imgs/11.png)
 
 (Slim rectangle = Bus, Triangle = PV / Wind turbine, Square = Energy Stoarge, Circle = Generator)
 
@@ -123,12 +123,12 @@ Click the `Add existing project` link and click `Open` to load the folder you ha
 The window will shut down once you clicked `Start Simulation!`. Please wait patiently during simulation. It may cost several hours when simulate a large real-world network. You can watch the progress and estimated time required displayed in the command prompt.
 
 If you want to run several simulation parallelly (which can fully utilize your CPU), you can use `gui_para.py`. This function is quite useful when you want to change a specific parameter to measure its implication. Like the following image:
-![alt text](docs/10.png)
+![alt text](imgs/10.png)
 
 ### D. View the results
 After the simulation is done, run `gui_viewer.py` and open the case. The results is in the case folder, with a subfolder named `results`. It will be something like this:
 
-![alt text](docs/6.png)
+![alt text](imgs/6.png)
 
 #### Plotting
 Tick the items you want to draw the corresponding figures. Click the button `Plot` to draw figures. Figures of results will be stored in `results\<case_name>\figures`.
@@ -137,21 +137,21 @@ Tick the items you want to draw the corresponding figures. Click the button `Plo
 
 **Compare two results:** Use `gui_cmp.py` to show two results in the same page, which makes it easier for you to identify the difference. Just like the following image:
 
-![gui_cmp](docs/9.png)
+![gui_cmp](imgs/9.png)
 
 **Better Plotting:** The GUI version of plotting is quite limited. You can visit [Wiki](https://github.com/fmy-xfk/v2sim/wiki) for better plotting tools: `cmd_advplot.py` and `cmd_plot.py`. The former one provides highly-customizable plotting experience, while the latter one enables plotting for batch of result folders.
 
 #### Grid Information
 You can also collect the data of the power grid at a specific time in page `Grid`. Enter the time point and then click `Collect`.
 
-![alt text](docs/7.png)
+![alt text](imgs/7.png)
 
 #### Trips viewer
 Trips are also counted in `Trips` page. You can filter them by giving the conditions in the bar attached to the bottom of the window. You can also save the filtered results to a specific file.
 
-![alt text](docs/8.png)
+![alt text](imgs/8.png)
 
 #### State viewer
 If you have ticked "Save state ..." before simulation, the state will be saved in the result folder. You can go through the status of FCS, SCS, and EV in the page. 
 
-![alt text](docs/12.png)
+![alt text](imgs/12.png)

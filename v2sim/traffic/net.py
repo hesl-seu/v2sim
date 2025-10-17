@@ -212,7 +212,7 @@ class RoadNet:
     
     def rename_node(self, old_id:str, new_id:str):
         if new_id in self.nodes:
-            raise ValueError(f"Node {new_id} already exists.")
+            raise ValueError(Lang.NODE_EXISTS.format(new_id))
         node = self.nodes.pop(old_id)
         for edge in node.incoming_edges:
             edge.to_node = node
@@ -225,7 +225,7 @@ class RoadNet:
         self.__scc = []
         self.__kdt = None
         if not node_id in self.nodes:
-            raise ValueError(f"Node {node_id} does not exist.")
+            raise ValueError(Lang.NODE_NOT_FOUND.format(node_id))
         node = self.nodes.pop(node_id)
         enames = list(self.edges.keys())
         for e in enames:
@@ -235,9 +235,9 @@ class RoadNet:
     
     def update_node(self, old_node_id:str, new_node_id:str):
         if not old_node_id in self.nodes:
-            raise ValueError(f"Node {old_node_id} does not exist.")
+            raise ValueError(Lang.NODE_NOT_FOUND.format(old_node_id))
         if new_node_id in self.nodes:
-            raise ValueError(f"Node {new_node_id} already exists.")
+            raise ValueError(Lang.NODE_EXISTS.format(new_node_id))
         node = self.nodes.pop(old_node_id)
         node.id = new_node_id
         self.nodes[new_node_id] = node
@@ -254,7 +254,7 @@ class RoadNet:
             length_m:float, lanes:int, speed_limit:float, world_id:int = -1) -> Edge:
         self.__scc = []
         if edge_id in self.edges:
-            raise ValueError(f"Edge {edge_id} already exists.")
+            raise ValueError(Lang.EDGE_EXISTS.format(edge_id))
         if isinstance(from_node, str): from_node = self.get_node(from_node)
         if isinstance(to_node, str): to_node = self.get_node(to_node)
         edge = Edge(edge_id, from_node, to_node, length_m, lanes, speed_limit, world_id)
@@ -268,7 +268,7 @@ class RoadNet:
     
     def rename_edge(self, old_id:str, new_id:str):
         if new_id in self.edges:
-            raise ValueError(f"Edge {new_id} already exists.")
+            raise ValueError(Lang.EDGE_EXISTS.format(new_id))
         edge = self.edges.pop(old_id)
         edge.id = new_id
         self.edges[new_id] = edge
@@ -276,16 +276,16 @@ class RoadNet:
     def remove_edge(self, edge_id:str):
         self.__scc = []
         if not edge_id in self.edges:
-            raise ValueError(f"Edge {edge_id} does not exist.")
+            raise ValueError(Lang.EDGE_NOT_FOUND.format(edge_id))
         self.edges.pop(edge_id)
     
     def update_edge(self, edge_id:str, new_from_node_id:str, new_to_node_id:str):
         if not edge_id in self.edges:
-            raise ValueError(f"Edge {edge_id} does not exist.")
+            raise ValueError(Lang.EDGE_NOT_FOUND.format(edge_id))
         if new_from_node_id not in self.nodes:
-            raise ValueError(f"New from node {new_from_node_id} does not exist.")
+            raise ValueError(Lang.NODE_NOT_FOUND.format(new_from_node_id))
         if new_to_node_id not in self.nodes:
-            raise ValueError(f"New to node {new_to_node_id} does not exist.")
+            raise ValueError(Lang.NODE_NOT_FOUND.format(new_to_node_id))
         e = self.edges[edge_id]
         new_from_node = self.nodes[new_from_node_id]
         if e.from_node != new_from_node:
@@ -303,7 +303,7 @@ class RoadNet:
         start_x, start_y = e.from_node.get_coord()
         end_x, end_y = e.to_node.get_coord()
 
-        # 计算方向向量
+        # Direction vector
         dx = end_x - start_x
         dy = end_y - start_y
         length = math.hypot(dx, dy)
@@ -313,11 +313,11 @@ class RoadNet:
             dir_dx = dx / length
             dir_dy = dy / length
 
-        # 计算垂直向量（右侧方向）
+        # Perpendicular vector (right side)
         right_dx = dir_dy
         right_dy = -dir_dx
 
-        # 沿右侧偏移
+        # Offset along the right side
         minx, miny, maxx, maxy = self.getBoundary()
         offset_px = math.hypot(maxx - minx, maxy - miny) * 1e-3
         start_x += right_dx * offset_px
@@ -371,7 +371,7 @@ class RoadNet:
         ret = RoadNet()
         from sumolib.net import readNet, Net
         r: Net = readNet(fname)
-        assert isinstance(r, Net), f"Invalid sumo network: {fname}"
+        assert isinstance(r, Net), Lang.INVALID_SUMO_NETWORK.format(fname)
         for node in r.getNodes():
             ret.add_node(
                 node_id = node.getID(),
@@ -408,7 +408,7 @@ class RoadNet:
             except:
                 return RoadNet.load_raw(fname)
         else:
-            raise ValueError(f"Unknown format: {fmt}. Candidates: raw, sumo, auto")
+            raise ValueError(Lang.UNKNOWN_NET_FORMAT.format(fmt))
     
     def save(self, fname:str):
         if fname.lower().endswith(".gz"):
@@ -435,7 +435,7 @@ class RoadNet:
             return self.create_singleworld(**kwargs)
         else:
             if not hasattr(sys, "_is_gil_enabled") or sys._is_gil_enabled(): # type: ignore
-                print("Warning: ParaWorlds requires Python to be built with GIL disabled. Falling back to SingleWorld.")
+                print(Lang.GIL_NOT_DISABLED)
                 return self.create_singleworld(**kwargs)
             return self.create_paraworlds(**kwargs)
 
@@ -503,7 +503,7 @@ class RoadNet:
 
     def getGeoProj(self):
         if not self.hasGeoProj():
-            raise RuntimeError("Network does not provide geo-projection")
+            raise RuntimeError(Lang.NO_GEO_PROJ)
         if self._proj is None:
             import pyproj
             try:
@@ -545,30 +545,19 @@ class RoadNet:
         return self.getGeoProj()(x, y, inverse=True)
 
     def partition_roadnet(self, num_partitions: int) -> None:
-        # 步骤1: 识别并分组反向边
         edge_groups = self._group_reverse_edges()
 
-        # 步骤2: 基于地理坐标聚类
         partition_assignment = self._geographic_clustering(edge_groups, num_partitions)
         
-        # 步骤3: 分配world_id
         for edge_id, partition_id in partition_assignment.items():
             self.edges[edge_id].world_id = partition_id
-        
-        # 步骤4: 打印统计信息
-        self._print_partition_stats()
 
     def _group_reverse_edges(self) -> List[Set[str]]:
-        """
-        识别并分组反向边，确保每对反向边在同一组
-        """
-        # 构建边查找字典: (from_id, to_id) -> edge_id
         edge_lookup = {}
         for edge_id, edge in self.edges.items():
             key = (edge.from_node.id, edge.to_node.id)
             edge_lookup[key] = edge_id
         
-        # 分组反向边
         visited = set()
         edge_groups = []
         
@@ -579,7 +568,6 @@ class RoadNet:
             current_group = {edge_id}
             visited.add(edge_id)
             
-            # 查找反向边
             reverse_key = (edge.to_node.id, edge.from_node.id)
             if reverse_key in edge_lookup:
                 reverse_edge_id = edge_lookup[reverse_key]
@@ -591,10 +579,6 @@ class RoadNet:
         return edge_groups
 
     def _geographic_clustering(self, edge_groups: List[Set[str]], num_partitions: int) -> Dict[str, int]:
-        """
-        基于地理坐标进行聚类分区
-        """
-        # 为每个边组计算代表性坐标（中点坐标）
         group_features = []
         group_edges = []  # 记录每个组包含的边ID
         
@@ -631,43 +615,6 @@ class RoadNet:
                     assignment[edge_id] = label
         
         return assignment
-
-    def _print_partition_stats(self):
-        """打印分区统计信息"""
-        stats_edges = defaultdict(int)
-        stats_nodes = defaultdict(set)
-        reverse_edge_pairs = defaultdict(float)
-        
-        # 构建反向边查找
-        reverse_lookup = {}
-        for edge in self.edges.values():
-            key = (edge.from_node.id, edge.to_node.id)
-            reverse_lookup[key] = edge
-        
-        # 统计
-        for edge in self.edges.values():
-            wid = edge.world_id
-            stats_edges[wid] += 1
-            stats_nodes[wid].add(edge.from_node.id)
-            stats_nodes[wid].add(edge.to_node.id)
-            
-            # 检查反向边是否在同一分区
-            reverse_key = (edge.to_node.id, edge.from_node.id)
-            if reverse_key in reverse_lookup:
-                reverse_edge = reverse_lookup[reverse_key]
-                if edge.world_id == reverse_edge.world_id:
-                    reverse_edge_pairs[wid] += 0.5  # 每对计数一次
-        
-        print("\n改进分区算法统计:")
-        print("World ID | 边数 | 节点数 | 反向边对数")
-        print("-" * 40)
-        total_edges = 0
-        for wid in sorted(stats_edges.keys()):
-            reverse_pairs = int(reverse_edge_pairs[wid])
-            print(f"{wid:8} | {stats_edges[wid]:4} | {len(stats_nodes[wid]):6} | {reverse_pairs:10}")
-            total_edges += stats_edges[wid]
-        
-        print(f"\n总共 {total_edges} 条边，{len(self.nodes)} 个节点")
 
     @property
     def world_count(self):
@@ -787,9 +734,6 @@ class RoadNet:
         
         plt.tight_layout()
         plt.savefig("roadnet_partitioned.png", dpi=300)
-        
-        # 打印统计
-        self._print_partition_stats()
     
     def remove_items_outside_max_scc(self):
         max_scc = self.scc[0]
