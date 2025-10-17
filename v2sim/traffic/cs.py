@@ -390,6 +390,7 @@ class CS(ABC):
         """Get an iterator of all vehicles in the charging station"""
         raise NotImplementedError
     
+    @abstractmethod
     def averageSOC(self, only_charing:bool = False) -> float:
         """Average SOC of all vehicles in the charging station"""
         raise NotImplementedError
@@ -452,7 +453,7 @@ class SCS(CS):
         else:
             return len(self._chi) + len(self._free)
 
-    def get_V2G_cap(self, _t:int) -> float:
+    def get_V2G_cap(self, _t:int, /) -> float:
         if self.is_offline(_t): return 0.0
         tot_rate_ava = 0.0
         # Do not check if psell is None due to performance considerations
@@ -611,7 +612,7 @@ class FCS(CS):
         return len(self._buf)
 
     def __len__(self) -> int:
-        return self._chi.__len__() + len(self._buf)
+        return len(self._chi) + len(self._buf)
 
     def update(
         self, sec: int, cur_time: int, v2g_demand: float
@@ -655,7 +656,7 @@ class FCS(CS):
         self._cload = Wcharge / sec
         return ret
 
-    def get_V2G_cap(self, _t:int) -> float:
+    def get_V2G_cap(self, _t:int, /) -> float:
         """
         Fast charging station does not support V2G, always return 0.
         """
