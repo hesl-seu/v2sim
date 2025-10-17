@@ -4,8 +4,8 @@ from .utils import TWeights
 from .ev import EV
 
 
-_ArriveListener = Callable[[int, EV, Literal[0, 1, 2]], None]
-_ArriveFCSListener = Callable[[int, EV, str], None]
+_ArriveListener = Callable[[int, EV, Literal[0, 1, 2], float], None]
+_ArriveFCSListener = Callable[[int, EV, str, float], None]
 _ArriveCSListener = _ArriveFCSListener  # Alias for compatibility
 _DepartListener = Callable[[int, EV, int, Optional[str], Optional[TWeights]], None]
 _DepartDelayListener = Callable[[int, EV, float, int], None]
@@ -82,21 +82,21 @@ class TripsLogger:
     def __pr(self, *args):
         print(*args, file=self.__ostream, sep="|")
 
-    def arrive(self, simT: int, veh: EV, status: Literal[0, 1, 2]): 
+    def arrive(self, simT: int, veh: EV, status: Literal[0, 1, 2], dist: float = -1): 
         tid = veh.trip_id
         if tid < veh.trips_count - 1:
             nt = veh.trips[tid + 1]
         else:
             nt = None
-        self.__pr(simT, 'A', veh.brief(), status, veh.trip.arrive_edge, nt)
+        self.__pr(simT, 'A', veh.brief(), status, dist, veh.trip.arrive_edge, nt)
         for l in self.__arrive_listeners:
-            l(simT, veh, status)
+            l(simT, veh, status, dist)
 
-    def arrive_FCS(self, simT: int, veh: EV, cs: str):
-        self.__pr(simT, 'AC', veh.brief(), cs)
+    def arrive_FCS(self, simT: int, veh: EV, cs: str, dist:float = -1):
+        self.__pr(simT, 'AC', veh.brief(), cs, dist)
         for l in self.__arrive_cs_listeners:
-            l(simT, veh, cs)
-    
+            l(simT, veh, cs, dist)
+
     arrive_CS = arrive_FCS  # Alias for compatibility
     
     def join_SCS(self, simT: int, veh:EV, cs: str):
@@ -109,14 +109,10 @@ class TripsLogger:
         for l in self.__leave_scs_listeners:
             l(simT, veh, cs)
 
-    def depart(self, simT: int, veh: EV, delay:int = 0, cs: Optional[str] = None, cs_param:Optional[TWeights] = None):
-        if cs_param:
-            cs_param_str = f'{cs_param[0]:.3f},{cs_param[1]:.3f},{cs_param[2]:.3f}'
-        else:
-            cs_param_str = ''
-        self.__pr(simT, 'D', veh.brief(), veh.trip, delay, cs, cs_param_str)
+    def depart(self, simT: int, veh: EV, delay:int = 0, cs: Optional[str] = None):
+        self.__pr(simT, 'D', veh.brief(), veh.trip, delay, cs, '')
         for l in self.__depart_listeners:
-            l(simT, veh, delay, cs, cs_param)
+            l(simT, veh, delay, cs, None)
 
     def depart_delay(self, simT: int, veh: EV, batt_req: float, delay:int):
         self.__pr(simT, 'DD', veh.brief(), veh.battery, batt_req, delay)
@@ -173,17 +169,18 @@ class TripLogItem:
         'JS': Lang.CPROC_JOIN_SCS,
         'LS': Lang.CPROC_LEAVE_SCS,
     }
-    def __init__(self, simT:int, op:str, veh_id:str, veh_soc:str, trip_id:int, additional:Dict[str,str]):
+    def __init__(self, simT:int, op:str, veh_id:str, veh_soc:str, veh_batt:str, trip_id:int, additional:Dict[str,str]):
         self.simT = simT
         self.__op = op
         self.veh = veh_id
         self.veh_soc = veh_soc
+        self.veh_batt = veh_batt
         self.trip_id = trip_id
         self.additional = additional
 
     def to_tuple(self,conv:bool=False):
         op = self.__op if not conv else TripLogItem.OP_NAMEs[self.__op]
-        return (self.simT, op, self.veh, self.veh_soc, self.trip_id, self.additional.get('cs_param',''), self.additional)
+        return (self.simT, op, self.veh, self.veh_soc, self.veh_batt, self.trip_id, self.additional)
     
     @property
     def time(self):
@@ -226,7 +223,7 @@ class TripLogItem:
         return self.additional.get('cs', None)
     
     def __repr__(self):
-        return f"{self.simT}|{self.__op}|{self.veh},{self.veh_soc},{self.trip_id}|{self.additional}"
+        return f"{self.simT}|{self.__op}|{self.veh},{self.veh_soc},{self.veh_batt:.1f},{self.trip_id}|{self.additional}"
     
     def __str__(self):
         ret = f"[{self.simT},{TripLogItem.OP_NAMEs[self.__op]}]"
@@ -330,61 +327,78 @@ class TripsReader:
         for d in map(lambda x: x.strip().split('|'), self.raw_texts):
             simT = int(d[0])
             op = d[1]
-            veh, soc, tripid = d[2].split(',')
+            splits = d[2].split(',')
+            if len(splits) == 4:
+                veh, soc, batt, tripid = splits
+            else:
+                veh, soc, tripid = splits
+                batt = "None"
             additional:Dict[str,str] = {}
             if op == 'A':
-                assert len(d) == 6
-                additional['status'] = d[3]
-                additional['arrive_edge'] = d[4]
-                additional['next_trip'] = d[5]
+                if len(d) == 6:
+                    additional['status'] = d[3]
+                    additional['arrive_edge'] = d[4]
+                    additional['next_trip'] = d[5]
+                elif len(d) == 7:
+                    additional['status'] = d[3]
+                    additional['dist'] = d[4]
+                    additional['arrive_edge'] = d[5]
+                    additional['next_trip'] = d[6]
+                else:
+                    raise ValueError(f"Invalid A entry, expected 6 or 7 fields, got {len(d)}")
             elif op == 'AC':
-                assert len(d) == 4
-                additional['cs'] = d[3]
+                if len(d) == 4:
+                    additional['cs'] = d[3]
+                elif len(d) == 5:
+                    additional['cs'] = d[3]
+                    additional['dist'] = d[4]
+                else:
+                    raise ValueError(f"Invalid AC entry, expected 4 or 5 fields, got {len(d)}")
             elif op == 'D':
-                assert len(d) == 7
+                assert len(d) == 7, f"Invalid D entry, expected 7 fields, got {len(d)}"
                 additional['trip'] = d[3]
                 additional['delay'] = d[4]
                 additional['cs'] = d[5]
                 additional['cs_param'] = d[6]
             elif op == 'DD':
-                assert len(d) == 6
+                assert len(d) == 6, f"Invalid DD entry, expected 6 fields, got {len(d)}"
                 additional['veh_batt'] = d[3]
                 additional['batt_req'] = d[4]
                 additional['delay'] = d[5]
             elif op == 'DC':
-                assert len(d) == 5
+                assert len(d) == 5, f"Invalid DC entry, expected 5 fields, got {len(d)}"
                 additional['cs'] = d[3]
                 additional['arrive_edge'] = d[4]
             elif op == 'DF':
-                assert len(d) == 7
+                assert len(d) == 7, f"Invalid DF entry, expected 7 fields, got {len(d)}"
                 additional['veh_batt'] = d[3]
                 additional['batt_req'] = d[4]
                 additional['cs'] = d[5]
                 additional['trT'] = d[6]
             elif op == 'FD':
-                assert len(d) == 5
+                assert len(d) == 5, f"Invalid FD entry, expected 5 fields, got {len(d)}"
                 additional['cs'] = d[3]
                 additional['trT'] = d[4]
             elif op == 'FN':
-                assert len(d) == 4
+                assert len(d) == 4, f"Invalid FN entry, expected 4 fields, got {len(d)}"
                 additional['cs'] = d[3]
             elif op == 'FR':
-                assert len(d) == 5
+                assert len(d) == 5, f"Invalid FR entry, expected 5 fields, got {len(d)}"
                 additional['old_cs'] = d[3]
                 additional['new_cs'] = d[4]
             elif op == 'WC':
-                assert len(d) == 5
+                assert len(d) == 5, f"Invalid WC entry, expected 5 fields, got {len(d)}"
                 additional['veh_batt'] = d[3]
                 additional['batt_req'] = d[4]
             elif op == 'JS':
-                assert len(d) == 4
+                assert len(d) == 4, f"Invalid JS entry, expected 4 fields, got {len(d)}"
                 additional['cs'] = d[3]
             elif op == 'LS':
-                assert len(d) == 4
+                assert len(d) == 4, f"Invalid LS entry, expected 4 fields, got {len(d)}"
                 additional['cs'] = d[3]
             else:
                 raise ValueError(f"Unknown operation {op}")
-            met = TripLogItem(simT, op, veh, soc, int(tripid), additional)
+            met = TripLogItem(simT, op, veh, soc, batt, int(tripid), additional)
             self.meta_data.append(met)
             self.translated_texts.append(str(met))
             
@@ -417,3 +431,5 @@ class TripsReader:
                 if m.trip_id != trip_id:
                     continue
             yield r, m, t
+
+__all__ = ["TripsLogger", "TripLogItem", "TripsReader"]

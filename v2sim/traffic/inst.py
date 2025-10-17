@@ -5,8 +5,8 @@ import pickle, gzip
 from typing import Sequence, List, Tuple, Dict
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
-from feasytools import PQueue, Point#, FEasyTimer
-
+from feasytools import PQueue, Point
+from .evdict import EVDict
 from .trip import TripsLogger
 from .cslist import *
 from .ev import *
@@ -155,8 +155,8 @@ class TrafficInst:
         self._VEHs = veh_obj if veh_obj else EVDict(vehfile)
 
         # Load charging stations
-        self._fcs:CSList[FCS] = fcs_obj if fcs_obj else CSList(self._VEHs, filePath=fcsfile, csType=FCS)
-        self._scs:CSList[SCS] = scs_obj if scs_obj else CSList(self._VEHs, filePath=scsfile, csType=SCS)
+        self._fcs:CSList[FCS] = fcs_obj if fcs_obj else CSList(filePath=fcsfile, csType=FCS)
+        self._scs:CSList[SCS] = scs_obj if scs_obj else CSList(filePath=scsfile, csType=SCS)
         self.__names_fcs: List[str] = [cs.name for cs in self._fcs]
         self.__names_scs: List[str] = [cs.name for cs in self._scs]
 
@@ -167,7 +167,7 @@ class TrafficInst:
                 continue  # Only vehicles with slow charging stations can be added to the slow charging station
             # There is a 20% chance of adding to a rechargeable parking point
             if veh.SOC < veh.ksc or random.random() <= 0.2:
-                self._scs.add_veh(veh.ID, veh.trip.depart_edge)
+                self._scs.add_veh(veh, veh.trip.depart_edge)
 
     @property
     def trips_logger(self) -> TripsLogger:
@@ -281,7 +281,7 @@ class TrafficInst:
         stages: List[Stage] = []
         for cs_i in self._fcs.select_near(cur_pos,10):
             cs = self._fcs[cs_i]
-            if not cs.is_online(self.__ctime): continue
+            if cs.is_offline(self.__ctime): continue
             stage = self.__find_route(c_edge, cs.name)
             if veh.is_batt_enough(stage.length):
                 cs_names.append(cs.name)
@@ -349,17 +349,17 @@ class TrafficInst:
                 veh.target_CS = route[-1]
                 self.__add_veh(veh_id, route)
         # Stop slow charging of the vehicle and add it to the waiting to depart set
-        if self._scs.pop_veh(veh_id):
+        if self._scs.pop_veh(veh):
             self.__logger.leave_SCS(self.__ctime, veh, trip.depart_edge)
         veh.stop_charging()
         veh.status = VehStatus.Pending
         return True, weights
 
-    def __end_trip(self, veh_id: str):
+    def __end_trip(self, veh_id: str, dist:float = -1):
         """
         End the current trip of a vehicle and add its next trip to the departure queue.
         If the destination of the trip meets the charging conditions, try to charge.
-            veh_id: Vehicle ID
+            veh: Vehicle object
         """
         veh = self._VEHs[veh_id]
         veh.status = VehStatus.Parking
@@ -372,7 +372,7 @@ class TrafficInst:
                 arr_sta = TripsLogger.ARRIVAL_CHARGE_FAILED
         else:
             arr_sta = TripsLogger.ARRIVAL_NO_CHARGE
-        self.__logger.arrive(self.__ctime, veh, arr_sta)
+        self.__logger.arrive(self.__ctime, veh, arr_sta, dist)
         tid = veh.next_trip()
         if tid != -1:
             ntrip = veh.trip
@@ -385,7 +385,7 @@ class TrafficInst:
         """
         ret = False
         try:
-            self._scs.add_veh(veh.ID, veh.trip.arrive_edge)
+            self._scs.add_veh(veh, veh.trip.arrive_edge)
             ret = True
         except:
             pass
@@ -393,7 +393,7 @@ class TrafficInst:
             self.__logger.join_SCS(self.__ctime, veh, veh.trip.arrive_edge)
         return ret
 
-    def __start_charging_FCS(self, veh: EV):
+    def __start_charging_FCS(self, veh: EV, dist:float = -1):
         """
         Make a vehicle enter the charging state (fast charging station)
             veh: Vehicle instance
@@ -413,8 +413,8 @@ class TrafficInst:
             )
         else:
             veh.charge_target = veh.full_battery
-        self._fcs.add_veh(veh.ID, veh.target_CS)
-        self.__logger.arrive_CS(self.__ctime, veh, veh.target_CS)
+        self._fcs.add_veh(veh, veh.target_CS)
+        self.__logger.arrive_CS(self.__ctime, veh, veh.target_CS, dist)
 
     def __end_charging_FCS(self, veh: EV):
         """
@@ -452,7 +452,6 @@ class TrafficInst:
                 min_cs_stage = route
         return min_cs_name, min_cs_dist, min_cs_stage
 
-    #@FEasyTimer
     def __batch_depart(self) -> Dict[str, Optional[TWeights]]:
         """
         All vehicles that arrive at the departure queue are sent out
@@ -468,7 +467,7 @@ class TrafficInst:
             success, weights = self.__start_trip(veh_id)
             if success:
                 depart_delay = max(0, self.__ctime - depart_time)
-                self.__logger.depart(self.__ctime, veh, depart_delay, veh.target_CS, weights)
+                self.__logger.depart(self.__ctime, veh, depart_delay, veh.target_CS)
                 ret[veh_id] = weights
             else:
                 cs_name, cs_dist, cs_stage = self.__get_nearest_CS(trip.depart_edge)
@@ -487,25 +486,6 @@ class TrafficInst:
                     self._fQ.push(trT, veh.ID)
                     self.__logger.depart_failed(self.__ctime, veh, batt_req, cs_name, trT)
         return ret
-
-    #@FEasyTimer
-    def __FCS_update(self, sec: int):
-        """
-        Charging station update: Charge all vehicles in the charging station, and send out the vehicles that have completed charging
-            sec: Simulation seconds
-        """
-        veh_ids = self._fcs.update(sec, self.__ctime)
-        #veh_ids.sort()
-        for i in veh_ids:
-            self.__end_charging_FCS(self._VEHs[i])
-
-    #@FEasyTimer
-    def __SCS_update(self, sec: int):
-        """
-        Parking vehicle update: Charge and V2G all parked vehicles in the charging station
-            sec: Simulation seconds
-        """
-        self._scs.update(sec, self.__ctime)
 
     def get_sta_head(self) -> List[str]:
         """
@@ -589,11 +569,12 @@ class TrafficInst:
         arr_vehs: List[str] = traci.simulation.getArrivedIDList()
         for v in arr_vehs:
             veh = self._VEHs[v]
-            veh.drive(traci.vehicle.getDistance(v))
+            dist = traci.vehicle.getDistance(v)
+            veh.drive(dist)
             if veh.target_CS is None:
-                self.__end_trip(v)
+                self.__end_trip(v, dist)
             else:
-                self.__start_charging_FCS(self._VEHs[v])
+                self.__start_charging_FCS(self._VEHs[v], dist)
 
         if self.__ignore_driving:
             # Process departed vehicles
@@ -622,7 +603,7 @@ class TrafficInst:
                 if veh._sta == VehStatus.Pending:
                     veh._sta = VehStatus.Driving
                 if veh._sta == VehStatus.Driving:
-                    if veh.target_CS is not None and not self._fcs[veh.target_CS].is_online(self.__ctime):
+                    if veh.target_CS is not None and self._fcs[veh.target_CS].is_offline(self.__ctime):
                         # Target FCS is offline, redirected to the nearest FCS
                         route, weights = self.__sel_best_CS(veh, veh.omega)
                         if len(route) == 0:  
@@ -641,8 +622,10 @@ class TrafficInst:
                     print(f"Error: {veh.brief()}, {veh._sta}")
 
         # Process vehicles in charging stations and parked vehicles
-        self.__FCS_update(deltaT)
-        self.__SCS_update(deltaT)
+        evs = self._fcs.update(deltaT, self.__ctime)
+        for ev in evs:
+            self.__end_charging_FCS(ev)
+        self._scs.update(deltaT, self.__ctime)
 
         # Process faulty vehicles
         while not self._fQ.empty() and self._fQ.top[0] <= self.__ctime:

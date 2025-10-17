@@ -5,43 +5,9 @@ import sumolib
 from typing import Dict, List, Optional, Tuple, Union, Set
 from collections import defaultdict
 from dataclasses import dataclass, field
-from sklearn.neighbors import KDTree
 from collections import defaultdict
 from ..locale.lang import Lang
 from .seg import KDTreeSegmentSearch
-
-def point_to_line_distance(
-        point:Tuple[float, float],
-        line_start:Tuple[float, float],
-        line_end:Tuple[float, float]
-    ):
-    p = point
-    a = line_start
-    b = line_end
-    
-    ab = (b[0] - a[0], b[1] - a[1])
-    ap = (p[0] - a[0], p[1] - a[1])
-    
-    ab_length_sq = ab[0]**2 + ab[1]**2
-    
-    if ab_length_sq == 0:
-        distance = math.sqrt(ap[0]**2 + ap[1]**2)
-        return distance, a
-    
-    t = (ap[0] * ab[0] + ap[1] * ab[1]) / ab_length_sq
-    
-    t = max(0, min(1, t))
-    
-    closest_point = (
-        a[0] + t * ab[0],
-        a[1] + t * ab[1]
-    )
-    
-    distance = math.sqrt(
-        (p[0] - closest_point[0])**2 + 
-        (p[1] - closest_point[1])**2
-    )
-    return distance, closest_point
 
 
 def _largeStackExec(func, *args):

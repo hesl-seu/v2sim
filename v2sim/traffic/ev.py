@@ -3,6 +3,7 @@ from typing import Callable, Dict, Iterable, List, Tuple, Union, Optional
 from feasytools import RangeList
 from .utils import IntPairList
 
+_INF = float('inf')
 
 class Trip:
     def __init__(
@@ -151,12 +152,24 @@ class EV:
 
         self._cache_route = cache_route # Whether to cache the route
 
+        self.__tmp_pc_max = _INF # Temporary variable, maximum charging power kWh/s
+        self.__tmp_pd = self._v2g_rate # Temporary variable, maximum discharging power kWh/s
+    
+    def set_temp_max_pc(self, pc: float):
+        """Set temporary maximum charging power kWh/s. 
+        This function must be called in MaxPCAllocator."""
+        self.__tmp_pc_max = pc
+
+    def set_temp_pd(self, pd: float):
+        """Set temporary discharging power kWh/s.
+        This function must be called in V2GAllocator."""
+        self.__tmp_pd = pd
+
     @property
     def estimated_charge_time(self) -> float:
         """
         Time required to complete charging at the current charge level, target charge level and charging rate
         """
-        assert self._rate is not None
         if self._rate > 0:
             return max((self._chtar - self._elec) / self._rate, 0)
         else:
@@ -244,14 +257,18 @@ class EV:
         return self._eta_discharge
 
     @property
-    def rate(self) -> float:
-        """Vehicle's desired charging rate, kWh/s"""
+    def pc_actual(self) -> float:
+        """Vehicle's actual charging rate, kWh/s"""
         return self._rate
+
+    rate = pc_actual
 
     @property
     def max_v2g_rate(self) -> float:
         """Vehicle's maximum V2G reverse power rate, kWh/s"""
         return self._v2g_rate
+    
+    max_pd = max_v2g_rate
 
     def stop_charging(self):
         """Stop charging: set charging rate to 0"""
@@ -337,13 +354,15 @@ class EV:
         self._elec -= (new_dis - self._dis) * self._consumption
         self._dis = new_dis
 
-    def charge(self, sec: int, unit_cost: float, rate:float) -> float:
+    def charge(self, sec: int, unit_cost: float, pc:float) -> float:
         """
-        Charge the battery for sec seconds at the current charging rate, 
+        Charge the battery for sec seconds at given charging power pc kWh/s, 
         and return the actual charging amount (kWh) (considering losses)
+        After charging, temporary maximum charging power is reset to infinity
         """
         _elec = self._elec
-        self._rate = self._chrate_mod(rate, self)
+        self._rate = min(self._chrate_mod(pc, self), self.__tmp_pc_max)
+        self.__tmp_pc_max = _INF
         self._elec += self._rate * sec * self._eta_charge
         if self._elec > self._bcap:
             self._elec = self._bcap
@@ -353,15 +372,15 @@ class EV:
         self._cost += (delta_elec / self._eta_charge) * unit_cost
         return delta_elec
 
-    def discharge(self, k: float, sec: int, unit_earn: float) -> float:
+    def discharge(self, sec: int, unit_earn: float) -> float:
         """
-        Discharge the battery for sec seconds at k times the current discharge rate,
+        Discharge the battery for sec seconds, whose discharging power is set by set_temp_pd(),
         and return the actual discharge amount kWh (considering losses)
+        After discharging, temporary discharging power is reset to the maximum discharging power
         """
-        # assert 0<=k<=1
-        # if self.SOC <= self._kv2g: return 0
         _elec = self._elec
-        self._elec -= self._v2g_rate * sec * k
+        self._elec -= self.__tmp_pd * sec
+        self.__tmp_pd = 0
         if self.SOC <= self._kv2g:
             self._elec = self._bcap * self._kv2g
         delta_elec = (_elec - self._elec) * self._eta_discharge
@@ -375,7 +394,7 @@ class EV:
             t: current time
             e: current V2G earn, $/kWh
         """
-        return self.SOC > self._kv2g and e >= self._min_v2g_earn and (t in self._v2g_time if self._v2g_time else True)
+        return self.SOC > self._kv2g and e >= self._min_v2g_earn and (self._v2g_time.__contains__(t) if self._v2g_time else True)
     
     def willing_to_slow_charge(self, t:int, c:float) -> bool:
         """
@@ -383,7 +402,7 @@ class EV:
             t: current time
             c: current slow charge cost, $/kWh
         """
-        return c <= self._max_sc_cost and t in self._sc_time
+        return c <= self._max_sc_cost and self._sc_time.__contains__(t)
     
     @property
     def trips(self) -> Tuple[Trip, ...]:
@@ -429,7 +448,7 @@ class EV:
 
     def brief(self):
         """Get a brief description of this vehicle"""
-        return f"{self._id},{self.SOC*100:.1f}%,{self._trip_index}"
+        return f"{self._id},{self.SOC*100:.1f}%,{self._elec:.1f}kWh,{self._trip_index}"
 
     def __repr__(self):
         return f"EV[ID='{self._id}', Status={self._sta}, Dist={self._dis}m, SOC={self.SOC*100:.1f}%, Bcap={self._bcap}kWh, ChTar={self._chtar}kWh, TarCS={self._cs}, Consump={self._consumption}KWh/m]"
