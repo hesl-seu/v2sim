@@ -1,4 +1,3 @@
-import math
 import numpy as np
 import threading
 import sumolib
@@ -343,7 +342,10 @@ class RoadNet:
     def load(fname:str):
         ret = RoadNet()
         from sumolib.net import readNet, Net
-        r: Net = readNet(fname)
+        try:
+            r: Net = readNet(fname)
+        except Exception as e:
+            raise RuntimeError(f"Failed to read SUMO network from {fname}: {e}") from e
         assert isinstance(r, Net), f"Invalid sumo network: {fname}"
         for node in r.getNodes():
             ret.add_node(

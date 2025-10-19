@@ -1,9 +1,7 @@
 import numpy as np
 from sklearn.neighbors import KDTree
-from typing import Tuple, List, Optional
-import numba
-from numba import jit, njit
-import time
+from typing import Tuple
+from numba import jit
 
 class KDTreeSegmentSearch:
     """基于KDTree的线段快速搜索"""

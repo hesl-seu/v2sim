@@ -1,10 +1,11 @@
+import random
+import string
+import gzip
 from dataclasses import dataclass
 from pathlib import Path
-import random, string, gzip
-from typing import Optional, Set, Dict
+from typing import Optional, Set, Dict, List, Tuple
 from xml.etree import ElementTree as ET
 from ..locale import Lang
-from typing import List, Tuple
 
 IntPairList = List[Tuple[int, int]]
 #IntPairList.__doc__ = "List of int pairs, like [(1, 2), (3, 4)]"
