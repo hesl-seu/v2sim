@@ -1,4 +1,4 @@
-from v2sim import AdvancedPlot
+from v2simux import AdvancedPlot
 import sys
 
 if __name__ == "__main__":

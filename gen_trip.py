@@ -1,5 +1,5 @@
 import sys
-from v2sim import Lang, TrafficGenerator, DEFAULT_CNAME
+from v2simux import Lang, TrafficGenerator, DEFAULT_CNAME
 from feasytools import ArgChecker, KeyNotSpecifiedError
 
 def print_help():

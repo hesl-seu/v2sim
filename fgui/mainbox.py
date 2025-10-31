@@ -10,7 +10,7 @@ from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, SegFunc, OverrideFunc, ConstFunc, PDUniform
 import xml.etree.ElementTree as ET
 from fgui.evtq import EventQueue
-from v2sim import *
+from v2simux import *
 from .langhelper import add_lang_menu
 from .view import *
 from .controls import ScrollableTreeView, empty_postfunc, EditMode, LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, SelectItemDialog

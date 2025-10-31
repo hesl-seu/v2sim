@@ -9,7 +9,7 @@ from tkinter import filedialog as fd
 from tkinter import messagebox as mb
 from fgui import ScrollableTreeView, LogItemPad, EditMode, add_lang_menu
 from feasytools import time2str
-from v2sim import *
+from v2simux import *
 
 _L = CustomLocaleLib.LoadFromFolder("./resources/gui_para")
 ITEM_NONE = "none"

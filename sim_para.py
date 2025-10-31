@@ -10,7 +10,7 @@ from concurrent.futures import CancelledError, Future, ProcessPoolExecutor
 from pathlib import Path
 from typing import Optional, List, Tuple
 from feasytools import time2str, ArgChecker
-from v2sim import (
+from v2simux import (
     Lang, PluginPool, StaPool,
     get_sim_params,
     simulate_multi,

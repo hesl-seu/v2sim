@@ -1,6 +1,6 @@
 from pathlib import Path
 from feasytools import ArgChecker
-from v2sim import csQuery
+from v2simux import csQuery
 
 
 if __name__ == '__main__':

@@ -6,7 +6,7 @@ from pathlib import Path
 from fgui import add_lang_menu
 from fgui.view import *
 from PIL import Image, ImageTk
-from v2sim import CustomLocaleLib
+from v2simux import CustomLocaleLib
 
 _ = CustomLocaleLib.LoadFromFolder("resources/gui_cmp")
 

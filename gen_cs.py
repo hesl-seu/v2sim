@@ -1,6 +1,6 @@
 import sys
 from feasytools import ArgChecker
-from v2sim import Lang, TrafficGenerator
+from v2simux import Lang, TrafficGenerator
 
 
 def print_help(err:str = ""):

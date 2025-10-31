@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 from queue import Queue
 import threading
 from tkinter import filedialog, messagebox
-from v2sim import CustomLocaleLib, TripsReader, TripLogItem
+from v2simux import CustomLocaleLib, TripsReader, TripLogItem
 from .view import *
 from .controls import ScrollableTreeView
 

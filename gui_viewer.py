@@ -6,11 +6,11 @@ from typing import Literal, Optional, Dict, List, Tuple
 from fgui import add_lang_menu, EventQueue
 from fgui.view import *
 from fgui import ScrollableTreeView, TripsFrame, SelectResultsDialog
-from v2sim import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
+from v2simux import CustomLocaleLib, AdvancedPlot, ReadOnlyStatistics
 from tkinter import filedialog
 from tkinter import messagebox as MB
 from PIL import Image, ImageTk
-from v2sim import CS, CSList, EV, EVDict
+from v2simux import CS, CSList, EV, EVDict
 
 _L = CustomLocaleLib.LoadFromFolder("resources/gui_viewer")
 

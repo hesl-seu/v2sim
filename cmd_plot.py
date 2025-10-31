@@ -1,7 +1,7 @@
 from pathlib import Path
 import shutil
 from feasytools import ArgChecker
-from v2sim import *
+from v2simux import *
 
 def clear_all(p:str):
     if not (Path(p)/"cproc.clog").exists(): return False

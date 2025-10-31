@@ -1,7 +1,7 @@
 from tkinter import Menu
 from tkinter import messagebox as MB
-from v2sim import Lang
-from v2sim.locale.lang import CustomLocaleLib
+from v2simux import Lang
+from v2simux.locale.lang import CustomLocaleLib
 
 _L = CustomLocaleLib(["zh_CN","en"])
 _L.SetLanguageLib("zh_CN",

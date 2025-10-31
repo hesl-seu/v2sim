@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Dict, Optional
-from v2sim import (
+from v2simux import (
     Lang, PluginPool, StaPool,
     load_external_components,
     simulate_single,

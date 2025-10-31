@@ -3,7 +3,7 @@ import sys
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog, messagebox
-from v2sim import CustomLocaleLib
+from v2simux import CustomLocaleLib
 
 import platform
 if platform.system() == "Windows":

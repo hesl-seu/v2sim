@@ -6,9 +6,9 @@ External Plugin Example:
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Iterable, Any, Tuple, List, Dict
-from v2sim import CustomLocaleLib, TrafficInst
-from v2sim.plugins import *
-from v2sim.statistics import *
+from v2simux import CustomLocaleLib, TrafficInst
+from v2simux.plugins import *
+from v2simux.statistics import *
 
 _L = CustomLocaleLib(["zh_CN","en"])
 _L.SetLanguageLib("zh_CN",

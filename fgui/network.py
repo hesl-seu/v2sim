@@ -5,11 +5,11 @@ from tkinter import messagebox as MB
 from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
 from typing import Any, Callable, Iterable, Optional, Union, Dict, List, Tuple, Set
 from fgui.evtq import EventQueue
-from v2sim import RoadNet
+from v2simux import RoadNet
 from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy
 from fpowerkit import Grid as fGrid
-from v2sim import ConfigItemDict, ConfigItem
-from v2sim.traffic.net import Edge, Node
+from v2simux import ConfigItemDict, ConfigItem
+from v2simux.traffic.net import Edge, Node
 from .controls import EditMode, PropertyPanel
 from .view import *
 

@@ -2,7 +2,7 @@ import os
 import shutil
 from pathlib import Path
 from feasytools import ArgChecker
-from v2sim import RoadNet, DetectFiles
+from v2simux import RoadNet, DetectFiles
 
 if __name__ == "__main__":
     args = ArgChecker()
