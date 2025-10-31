@@ -106,13 +106,22 @@ class CSList(Generic[T_CS]):
         for i, cs in enumerate(self._cs):
             self._remap[cs.name] = i
         self.create_kdtree()
+        self.create_pool()
 
+    def shutdown_pool(self):
+        """Shut down the thread pool"""
+        if self.__pool:
+            self.__pool.shutdown(wait=True)
+            self.__pool = None
+    
+    def create_pool(self):
+        """Create the thread pool"""
         cpu_count = os.cpu_count() or 1
         if hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled() and cpu_count > 1:
             self.__pool = ThreadPoolExecutor(cpu_count)
         else:
             self.__pool = None
-
+    
     def create_kdtree(self):
         pts = []
         for cs in self._cs:

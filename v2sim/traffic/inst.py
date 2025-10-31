@@ -54,6 +54,7 @@ class TrafficInst:
             no_parallel: Whether to disable parallel worlds
         """
         random.seed(seed)
+        self.__stall_count = 0
         self.__logger = TripsLogger(clogfile)
         assert routing_algo in ("dijkstra", "astar"), Lang.ROUTE_ALGO_NOT_SUPPORTED
         self.__use_astar = routing_algo == "astar"
@@ -486,7 +487,16 @@ class TrafficInst:
         self.W.exec_simulation(new_time)
         deltaT = new_time - self.__ctime
         self.__ctime = new_time
-        
+
+        if self.W.get_vehicle_count() > 0 and self.W.get_average_speed() < 1e-3:
+            # If the average speed is too low, we can consider the simulation to be stalled
+            self.__stall_count += 1
+            if self.__stall_count >= 10:
+                warn("Simulation may stall: average speed < 0.001 m/s")
+        else:
+            self.__stall_count = 0
+            
+
         # Depart vehicles before processing arrivals
         # If a vehicle arrives and departs in the same step, performing departure after arrival immediately will cause the vehicle to be unable to depart
         # Therefore, all departures are processed first can delay the departure to the next step and cause no problem
@@ -527,6 +537,8 @@ class TrafficInst:
         f = Path(folder)
         f.mkdir(parents=True, exist_ok=True)
         self.W.save(str(f / "world.pkl"))
+        self._fcs.shutdown_pool()
+        self._scs.shutdown_pool()
         with gzip.open(str(f / "inst.gz"), "wb") as f:
             pickle.dump({
                 "ctime":self.__ctime,
@@ -539,6 +551,8 @@ class TrafficInst:
                 "names_fcs":self.__names_fcs,
                 "names_scs":self.__names_scs,
             }, f)
+        self._fcs.create_pool()
+        self._scs.create_pool()
         
     def load_state(self, folder: str):
         """
@@ -560,5 +574,7 @@ class TrafficInst:
         self.__names_fcs = d["names_fcs"]
         self.__names_scs = d["names_scs"]
         self.W = load_world(str(Path(folder) / "world.pkl"))
+        self._fcs.create_pool()
+        self._scs.create_pool()
 
 __all__ = ["TrafficInst"]

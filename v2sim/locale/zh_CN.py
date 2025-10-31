@@ -49,6 +49,7 @@ class _locale:
     WARN_SIM_COMM_FAILED = "警告: 与主进程通信失败."
     WARN_CS_NOT_IN_SCC = "警告: 快充站{}不在最大的强连通分量中."
     WARN_SCC_TOO_SMALL = "警告: 最大的强连通分量太小, 只有{0}/{1}条边在内."
+    WARN_SIMULATION_STALLED = "警告: 仿真可能出现问题: 连续10步的平均速度<0.001 m/s. 结果中的行程和充电负荷可能表现为截断."
 
     INFO_DONE_WITH_DURATION = "已完成. 用时: {}."
     INFO_DONE_WITH_SECOND = "已完成. 用时{:.1f}秒."

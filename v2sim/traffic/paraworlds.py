@@ -1,5 +1,7 @@
 import enum
 import os
+import sys
+import threading
 import time
 from collections import deque
 from typing import DefaultDict, Deque, Dict, Generator, List, Optional, Set, Tuple
@@ -49,6 +51,9 @@ class WorldSpec(ABC):
 
     @abstractmethod
     def get_vehicle(self, veh_id:str) -> Vehicle: ...
+
+    @abstractmethod
+    def get_vehicle_count(self) -> int: ...
 
     @abstractmethod
     def get_coords(self) -> CoordsDict: ...
@@ -102,6 +107,9 @@ class SingleWorld(WorldSpec):
     def get_vehicle(self, veh_id:str) -> Vehicle:
         return self.__uvi[veh_id]
     
+    def get_vehicle_count(self) -> int:
+        return len(self.__uvi)
+    
     def get_link(self, link_id:str) -> Optional[Link]:
         return self.world.get_link(link_id)
 
@@ -127,10 +135,21 @@ class SingleWorld(WorldSpec):
     def shutdown(self):
         return f"Total steps: {self.__cnt}"
     
-    def save(self, filepath:str):
+    def __lstack_save(self, filepath:str):
         import cloudpickle as pickle
+        sys.setrecursionlimit(10**7)
         with open(filepath, 'wb') as f:
-            pickle.dump(self, f)
+            try:
+                pickle.dump(self, f)
+            except RecursionError as e:
+                raise RecursionError("Failed to save SingleWorld due to recursion limit. "
+                    "Consider increasing the recursion limit or simplifying the world structure.")
+
+    def save(self, filepath:str):
+        threading.stack_size(1024 * 1024 * 128)  # 128MB
+        t = threading.Thread(target=self.__lstack_save, args=(filepath,))
+        t.start()
+        t.join()
 
     @staticmethod
     def load(filepath:str):
@@ -276,6 +295,9 @@ class ParaWorlds(WorldSpec):
     
     def get_vehicle(self, veh_id: str) -> Vehicle:
         return self.__uvi[veh_id]
+
+    def get_vehicle_count(self) -> int:
+        return len(self.__uvi)
     
     def get_average_speed(self) -> float:
         return sum(W.analyzer.average_speed for W in self.worlds.values()) / len(self.worlds)
@@ -284,12 +306,23 @@ class ParaWorlds(WorldSpec):
         self.__pool.shutdown(wait=True)
         return f"Total steps: {self.__cnt_ser} serial + {self.__cnt_para} parallel"
 
+    def __lstack_save(self, filepath:str):
+        import cloudpickle as pickle
+        sys.setrecursionlimit(10**7)
+        with open(filepath, 'wb') as f:
+            try:
+                pickle.dump(self, f)
+            except RecursionError as e:
+                raise RecursionError("Failed to save ParaWorlds due to recursion limit. "
+                    "Consider increasing the recursion limit or simplifying the world structure.")
+
     def save(self, filepath:str):
         self.__pool.shutdown(wait=True)
         del self.__pool
-        import cloudpickle as pickle
-        with open(filepath, 'wb') as f:
-            pickle.dump(self, f)
+        threading.stack_size(1024 * 1024 * 128)  # 128MB
+        t = threading.Thread(target=self.__lstack_save, args=(filepath,))
+        t.start()
+        t.join()
         self.__create_pool()
 
     @staticmethod

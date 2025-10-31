@@ -36,6 +36,7 @@ class StaBase:
             self._writer.write(','.join(items)+"\n")        
         self._writer.write("Time,Item,Value\n")
         self._lastT = -1
+        self.__cnt = 0
     
     @staticmethod
     @abstractmethod
@@ -68,11 +69,14 @@ class StaBase:
                     col = self._cols[i]
                 if self._lastT != self._inst.current_time:
                     self._lastT = self._inst.current_time
-                    self._writer.write(f"{self._lastT},{col},{v}\n")
+                    self.__cnt += self._writer.write(f"{self._lastT},{col},{v}\n")
                 else:
-                    self._writer.write(f",{col},{v}\n")
+                    self.__cnt += self._writer.write(f",{col},{v}\n")
                 self._vals[i] = v
         if n > 0 and i != n - 1: f"{self._name}: Data length ({i+1}) != Column count ({n})."
+        if self.__cnt >= 1024*1024:
+            self._writer.flush()
+            self.__cnt = 0
 
     def close(self):
         self._writer.close()

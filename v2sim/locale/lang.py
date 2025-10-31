@@ -56,6 +56,7 @@ class Lang:
     WARN_SIM_COMM_FAILED = "Warning: Failed to communicate with simulation process."
     WARN_CS_NOT_IN_SCC = "Warning: some CS {} are not in the largest SCC"
     WARN_SCC_TOO_SMALL = "Warning: the largest SCC is too small, only {0} of {1} edges are included"
+    WARN_SIMULATION_STALLED = "Warning: Simulation may stall: average speed < 0.001 m/s for 10 consecutive steps. Trips and charging processes may be eliminated in the results."
 
     INFO_DONE_WITH_DURATION = "Done. Duration: {}."
     INFO_DONE_WITH_SECOND = "Done. Duration: {:.1f} second(s)."
