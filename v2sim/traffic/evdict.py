@@ -81,3 +81,5 @@ class EVDict(Dict[str, EV]):
         Remove a vehicle by ID, return the removed value
         """
         return super().pop(veh_id)
+
+__all__ = ["EVDict"]

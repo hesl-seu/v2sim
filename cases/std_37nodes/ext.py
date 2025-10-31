@@ -1,29 +1,49 @@
 import v2sim
-from typing import List
 from v2sim import EV, AllocEnv
 
-'''
-Define V2G allocation scheme
-    If you want to set the V2G allocation scheme of a charging station to the following function, 
-    set the v2galloc attribute of the charging station to "MyAverage" in the *. scs.xml file.
-    The name of the V2G allocation function must end with ActualRatio, 
-    and its input is as shown in the function signature. 
-    The output is the discharge power multiplier for each vehicle in the ev_ids list, 
-    which needs to be kept in the same order as ev_ids.
-'''
-def MyAverageActualRatio(env: 'AllocEnv', v2g_k: 'float') -> 'List[float]':
-    return len(env.EVs) * [v2g_k]
+def MyAverageAllocFunc(env:AllocEnv, veh_cnt: int, v2g_demand: float, v2g_cap: float):
+    """
+    Customized V2G Strategy
+        env: Environment includes SCS, EVs and current time
+        veh_cnt: Number of involved EVs
+        v2g_demand: V2G power demanded by grid dispatcher
+        v2g_cap: Maximum V2G power output of the SCS
+    Returns nothing
+    """
+    if veh_cnt == 0 or v2g_demand == 0: return
+    pd = v2g_demand / veh_cnt
 
-v2sim.cs.V2GAllocPool.add("MyAverage",MyAverageActualRatio)
+    # Important: Must set the actual V2G power of each involved EV by set_temp_pd(...)
+    for ev in env.EVs:
+        ev.set_temp_pd(pd)
 
-'''
-Define the battery correction function (BCF)
-    If you want to set the BCF of a certain electric vehicle to the following function,
-    set the rmod attribute of the electric vehicle to "MyEqual" in the *. veh. xml file.
-    An BCF example is shown as follows:
-    Its input is as shown in the function signature, and its output is the actual charging power.
-'''
-def MyEqualChargeRate(rate: float, ev: 'EV') -> float:
+v2sim.V2GAllocPool.add("MyAverage", MyAverageAllocFunc)
+
+def MyAverageMaxPCAllocator(env: AllocEnv, vcnt:int, max_pc0: float, max_pc_tot: float):
+    """
+    Average maximum charging power allocator
+        env: Allocation environment
+        vcnt: Number of vehicles being charged
+        max_pc0: Maximum charging power of a single pile, kWh/s
+        max_pc_tot: Maximum charging power of the entire CS given by the PDN, kWh/s
+    Returns nothing
+    """
+    if vcnt == 0: return
+    pc0 = min(max_pc_tot / vcnt, max_pc0)
+
+    # Important: Must set the actual charging power of each involved EV by set_temp_pc(...)
+    for ev in env.EVs:
+        ev.set_temp_max_pc(pc0)
+
+v2sim.MaxPCAllocPool.add("MyAverage", MyAverageMaxPCAllocator)
+
+def MyEqualChargeRate(rate: float, ev: EV) -> float:
+    """
+    Charging power modifier
+        rate: Nominal charging power
+        ev: EV object
+    Returns the actual charging power
+    """
     return rate
 
-v2sim.ev.ChargeRatePool.add("MyEqual",MyEqualChargeRate)
+v2sim.ChargeRatePool.add("MyEqual",MyEqualChargeRate)

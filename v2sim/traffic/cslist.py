@@ -11,7 +11,7 @@ T_CS = TypeVar("T_CS", FCS, SCS)
 CS_Type = Type[T_CS]
 
 
-def _LoadCSList(filePath:str, csType:CS_Type) -> List[T_CS]:
+def LoadCSList(filePath:str, csType:CS_Type) -> List[T_CS]:
     assert csType == FCS or csType == SCS
     _cs = []
     root = ReadXML(filePath).getroot()
@@ -52,7 +52,7 @@ def _LoadCSList(filePath:str, csType:CS_Type) -> List[T_CS]:
         )
     return _cs
 
-LoadCSList = _LoadCSList
+_LoadCSList = LoadCSList
 
 class CSList(Generic[T_CS]):
     """CS List. Index starts from 0."""
@@ -323,3 +323,5 @@ class CSList(Generic[T_CS]):
     
     def __str__(self):
         return repr(self)
+
+__all__ = ["LoadCSList", "CSList"]
