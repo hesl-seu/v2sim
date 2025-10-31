@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
-include = ["v2sim/*"]
+include = ["v2simux/*"]
 
 [project]
 name = "v2sim-ux"
