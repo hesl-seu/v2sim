@@ -549,14 +549,29 @@ class CSCSVEditor(Frame):
                 f.write(self.entry_amapkey.get().strip())
             self.down_wk()
     
-    def __load(self, file:str):
+    def __readfile(self, file:str, encoding:str):
         try:
-            with open(file, "r") as f:
+            with open(file, "r", encoding=encoding) as f:
                 f.readline()
                 lines = f.readlines()
-        except Exception as e:
-            showerr(f"Error loading {file}: {e}")
+            return lines
+        except UnicodeDecodeError:
+            return None
+
+    def __load(self, file:str):
+        encodings = ['utf-8', 'gbk']
+        lines = None
+        for enc in encodings:
+            try:
+                lines = self.__readfile(file, enc)
+            except Exception as e:
+                showerr(f"Error loading {file}: {e}")
+                return
+            if lines is not None: break
+        else:
+            showerr(f"Error loading {file}: unknown encoding")
             return
+            
         self.file = file
         self.lb_cnt.config(text=_L["LB_COUNT"].format(len(lines) - 1))
         self.tree.clear()

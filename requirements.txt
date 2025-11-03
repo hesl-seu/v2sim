@@ -1,11 +1,11 @@
 numpy
 matplotlib
 scikit-learn
-feasytools>=0.1.3
-fpowerkit>=0.3.4
 pyproj
 requests
 ordered-set
 uxsim
 cloudpickle
 sumolib
+feasytools>=0.1.3
+fpowerkit>=0.3.5.post1

@@ -485,6 +485,11 @@ class V2SimInstance:
         '''Trip logger'''
         return self.__inst.trips_logger
     
+    @property
+    def traffic_simulator(self):
+        '''Traffic simulator object'''
+        return self.__inst.W
+    
     def send_to_host(self, command:str, obj:Any = None):
         '''Send message to host process'''
         assert self.__mpQ is not None, "Not working in multiprocessing mode. No host exists."
