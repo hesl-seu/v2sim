@@ -1,4 +1,6 @@
+import os
 from pathlib import Path
+from feasytools import ArgChecker
 import time
 import tkinter as tk
 import tkinter.messagebox as MB
@@ -13,7 +15,7 @@ import multiprocessing as mp
 RECENT_PROJECTS_FILE = Path(__file__).parent / "recent_projects.txt"
 
 class WelcomeBox(Tk):
-    def __init__(self, Q:mp.Queue):
+    def __init__(self, Q:mp.Queue, to_open:str=""):
         super().__init__()
         self.wm_attributes('-topmost',1)
         self.title("Welcome to V2Sim")
@@ -70,6 +72,11 @@ class WelcomeBox(Tk):
         middle_frame.columnconfigure(1, weight=1)
 
         self.load_recent_projects()
+        if os.path.isdir(to_open):
+            self.project_list.insert(0, str(Path(to_open).absolute()))
+            self.project_list.selection_set(0)
+            on_project_select(None)
+            self.save_recent_project()
         
         def clear_list(e):
             if MB.askyesno("Confirm", "Are you sure to clear the recent project list? This action cannot be undone."):
@@ -152,26 +159,33 @@ class WelcomeBox(Tk):
         if not RECENT_PROJECTS_FILE.exists():
             return
         with open(RECENT_PROJECTS_FILE, 'r') as f:
-           for line in f:
+            path_list = []
+            for line in f:
                 project_path = line.strip()
-                if project_path:
-                    self.project_list.insert(tk.END, project_path)
+                if project_path and os.path.isdir(project_path):
+                    abs_path = str(Path(project_path).absolute().resolve().as_posix())
+                    if abs_path not in path_list:
+                        path_list.append(abs_path)
+                        self.project_list.insert(tk.END, abs_path)
 
     def save_recent_project(self):
         with open(RECENT_PROJECTS_FILE, 'w') as f:
             for project in self.project_list.get(0, tk.END):
                 f.write(f"{project}\n")
 
-def welcome(chd_pipe):
-    wb = WelcomeBox(chd_pipe)
+def welcome(chd_pipe, to_open):
+    wb = WelcomeBox(chd_pipe, to_open)
     wb.show()
 
 if __name__ == "__main__":
     from version_checker import check_requirements_gui
     check_requirements_gui()
 
+    args = ArgChecker()
+    to_open = args.pop_str("d", "")
+    
     Q = mp.Queue()
-    mp.Process(target=welcome, args=(Q,)).start()
+    mp.Process(target=welcome, args=(Q, to_open)).start()
 
     try:
         from fgui.mainbox import MainBox
