@@ -2,7 +2,7 @@
 
 > Open-Source V2G Simulation Platform in Urban Power and Transportation Network
 
-**Documents:** https://hesl-seu.github.io/v2sim-wiki
+**Documents:** http://v2sim.heslab.wiki (Backup links: [HTTPS Link](https://hesl-seu.github.io/v2sim-wiki) | [CN Mirror 中文镜像](https://v2sim.myfrank.cn/#/zh_hans/))
 
 V2Sim family includes several open-source software for coupled urban power and transportation network. They are different in the transportation simulation part.
 
