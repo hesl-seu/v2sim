@@ -1042,17 +1042,6 @@ class MainBox(Tk):
             if not MB.askyesno(_L["MB_INFO"],_L["MB_SAVE_AND_SIM"]): return
             self.save()
         
-        # If PDN is enabled, check if cvxpy and ecos are installed
-        if self.sim_plglist.is_enabled("pdn"):
-            try:
-                import cvxpy # type: ignore
-                import ecos # type: ignore
-            except ImportError as e:
-                if MB.askyesno(_L["MB_INFO"], _L["MB_PDN_REQUIRED"]):
-                    os.system(f"{sys.executable} -m pip install cvxpy ecos")
-                else:
-                    return
-        
         # Save preference
         vcfg = V2SimConfig()
         vcfg.start_time = start

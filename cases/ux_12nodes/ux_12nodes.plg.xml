@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
-<pdn interval="300" enabled="NO" estimator="DistFlow" calculator="None" MLRP="0.5" source_bus="b1" DecBuses="b1,b2" SmartCharge="NO" />
-<v2g interval="300" enabled="NO">
+<pdn interval="300" enabled="YES" estimator="LinDistFlow2" calculator="None" MLRP="0.5" source_bus="b1" DecBuses="b1,b2" SmartCharge="NO" />
+<v2g interval="300" enabled="YES">
 <online>
 <item btime="28800" etime="36000" />
 <item btime="46800" etime="57600" />

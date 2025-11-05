@@ -9,7 +9,7 @@
     "save_state_on_finish": false,
     "copy_state": false,
     "visualize": false,
-    "force_nogil": true,
+    "force_nogil": false,
     "stats": [
         "fcs",
         "scs"

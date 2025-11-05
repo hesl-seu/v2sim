@@ -1,7 +1,9 @@
 from collections import defaultdict
 from itertools import chain
+import os
+from warnings import warn
 from feasytools import TimeImplictFunc
-from fpowerkit import Grid, FloatVar, GridSolveResult, CombinedSolver, Estimator, Calculator
+from fpowerkit import Grid, FloatVar, GridSolveResult, CombinedSolver, Estimator, Calculator, DistFlowSolver
 
 from ..locale import CustomLocaleLib
 from ..traffic import DetectFiles, CS
@@ -61,7 +63,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
     @staticmethod
     def ElemShouldHave() -> ConfigDict:
         '''Get the plugin configuration item list'''
-        EST = [Estimator.DistFlow.value]
+        EST = [Estimator.DistFlow.value, Estimator.LinDistFlow.value, Estimator.LinDistFlow2.value]
         CAL = [Calculator.OpenDSS.value, Calculator.Newton.value, Calculator.NoneSolver.value]
         return ConfigDict([
             ConfigItem("estimator", EditMode.COMBO, f"Estimator of the solver, must be {EST}", Estimator.DistFlow.value, combo_values=EST),
@@ -86,16 +88,22 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         decs = list(map(lambda x:x.strip(), elem.get("DecBuses","").split(",")))
         if elem.get("SmartCharge", "NO") == "NO":
             decs.clear()
+        est = elem.get("estimator","DistFlow")
+        if est != Estimator.DistFlow.value and len(decs)>0:
+            warn("Load reduction only supported in DistFlowSolver. Ignoring DecBuses.", UserWarning)
+            decs.clear()
+        self.__save_to = str(res_dir / "pdn_logs")
         self.__sol = CombinedSolver(self.__gr,
-            estimator=Estimator(elem.get("estimator","DistFlow")),
+            estimator=Estimator(est),
             calculator=Calculator(elem.get("calculator", "None")),
             mlrp=float(elem.get("MLRP","0.5")),
             source_bus=elem.get("source_bus", ""),
+            default_saveto=self.__save_to
         )
-        self.__sol.SetErrorSaveTo(str(res_dir / "pdn_logs"))
+        self.__sol.SetErrorSaveTo(self.__save_to)
         self.__badcnt = 0
         self.__pds:dict[str, List[CS]] = defaultdict(list)
-        for c in chain(inst.FCSList,inst.SCSList):
+        for c in chain(inst.FCSList, inst.SCSList):
             if not c.bus in self.__gr.BusNames:
                 raise ValueError(_locale["ERROR_CS_NODE_NOT_EXIST"].format(c.name,c.bus))
             self.__pds[c.bus].append(c)
@@ -103,13 +111,17 @@ class PluginPDN(PluginBase[float], IGridPlugin):
             v = TimeImplictFunc(self.__create_closure(css, self.__gr.Sb_MVA))
             self.__gr.Bus(b).Pd += v
             if b in decs:
+                assert isinstance(self.__sol.est, DistFlowSolver), "Load reduction only supported in DistFlowSolver"
                 self.__sol.est.AddReduce(b, v)
         self.last_ok = GridSolveResult.Failed
         return 1e100
 
     def isSmartChargeEnabled(self)->bool:
         '''Check if smart charging is enabled'''
-        return len(self.__sol.est.DecBuses) > 0
+        if isinstance(self.__sol.est, DistFlowSolver):
+            return len(self.__sol.est.DecBuses) > 0
+        else:
+            return False
     
     @property
     def Solver(self):
@@ -126,23 +138,26 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         if sta == PluginStatus.EXECUTE:
             ok, val = self.__sol.solve(_t)
             if ok == GridSolveResult.Failed:
+                print(f"[{_t}] Fail.", file = self.__fh)
+                self.__gr.savePQofBus(os.path.join(self.__save_to, f"{_t}_load.csv"), _t)
                 self.__badcnt += 1
-                if self.__badcnt>0 and self.__badcnt % 20 == 0:
+                if self.__badcnt > 0 and self.__badcnt % 20 == 0:
                     print(_locale["PDN_SOLVE_FAILED_CNT"].format(self.__badcnt))
                 if self.last_ok:
                     print(_locale["PDN_SOLVE_FAILED"].format(_t,self.__badcnt))
             else:
-                self.__gr.ApplyAllESS(_t-self.LastTime)
+                self.__gr.ApplyAllESS(_t - self.LastTime)
                 if ok == GridSolveResult.OKwithoutVICons or ok == GridSolveResult.SubOKwithoutVICons:
-                    print(f"t={_t}, Relax!", file = self.__fh)
+                    print(f"[{_t}] Relax.", file = self.__fh)
                 if self.isSmartChargeEnabled():
-                    for c in chain(self.__inst.FCSList,self.__inst.SCSList):
+                    assert isinstance(self.__sol.est, DistFlowSolver)
+                    for c in chain(self.__inst.FCSList, self.__inst.SCSList):
                         c.set_Pc_lim(float("inf"))
                     for b,x in self.__sol.est.DecBuses.items():
                         if x.Reduction:
                             tot = x.Limit(_t)
                             k = (tot - x.Reduction) / tot
-                            print(f"t={_t}, Load reduction at bus {b}:",
+                            print(f"[{_t}] Load reduction at bus {b}:",
                                   f"{x.Reduction*self.__gr.Sb_kVA:.2f} kW", file = self.__fh)
                             for c in self.__pds[b]:
                                 l = k * c.Pc

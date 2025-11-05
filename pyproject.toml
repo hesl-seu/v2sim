@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "v2sim-ux"
 version = "1.3.0"
-dependencies = [ "numpy", "matplotlib", "scikit-learn", "feasytools>=0.1.3", "fpowerkit>=0.3.4", "pyproj", "requests", "ordered-set", "uxsim", "cloudpickle", "sumolib",]
+dependencies = [ "numpy", "matplotlib", "scikit-learn", "feasytools>=0.1.3", "fpowerkit>=0.3.6rc1", "pyproj", "requests", "uxsim", "cloudpickle", "sumolib",]
 requires-python = ">= 3.9"
 license = "BSD-3-Clause"
 description = "V2Sim: An Open-Source Microscopic V2G Simulation Platform in Urban Power and Transportation Network"
@@ -13,11 +13,6 @@ description = "V2Sim: An Open-Source Microscopic V2G Simulation Platform in Urba
 [project.readme]
 file = "README.md"
 content-type = "text/markdown"
-
-[project.optional-dependencies]
-sumo = [ "sumolib",]
-pdn = [ "ecos", "cvxpy",]
-v2g = [ "ecos", "cvxpy",]
 
 [project.urls]
 Homepage = "https://github.com/fmy-xfk/v2sim"

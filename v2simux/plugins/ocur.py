@@ -3,7 +3,7 @@ from itertools import chain
 
 from ..traffic.cs import CS
 from ..locale import CustomLocaleLib
-from fpowerkit import IslandResult
+from fpowerkit import IslandResult, DistFlowSolver, Estimator
 from .pdn import PluginPDN
 from .base import *
 
@@ -44,6 +44,8 @@ class PluginOvercurrent(PluginBase[None]):
         self.__pdn = plg_deps[0]
         if self.__pdn.isSmartChargeEnabled():
             raise RuntimeError(_locale["ERROR_SMART_CHARGE"])
+        if self.__pdn.Solver.est != Estimator.DistFlow:
+            raise RuntimeError("Over-current protection only works with DistFlowSolver")
         self.__csatb:Dict[str, List[CS]] = defaultdict(list)
         for cs in chain(inst.SCSList, inst.FCSList):
             self.__csatb[cs._bus].append(cs)
@@ -64,11 +66,11 @@ class PluginOvercurrent(PluginBase[None]):
         '''
         Get the V2G demand power of all bus with slow charging stations at time _t, unit kWh/s, 3.6MW=3600kW=1kWh/s
         '''
-        
         if sta == PluginStatus.EXECUTE:
             p = self.__pdn
             if p.LastPreStepSucceed:
                 svr = p.Solver
+                assert isinstance(svr.est, DistFlowSolver), "Over-current protection only works with DistFlowSolver"
                 if len(svr.est.OverflowLines) > 0:
                     print(f"[{_t}] Overcurrent protection triggered: ", svr.est.OverflowLines, file=self.__file)
                     for l in svr.est.OverflowLines:

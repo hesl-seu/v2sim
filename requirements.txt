@@ -3,9 +3,8 @@ matplotlib
 scikit-learn
 pyproj
 requests
-ordered-set
 uxsim
 cloudpickle
 sumolib
 feasytools>=0.1.3
-fpowerkit>=0.3.5.post1
+fpowerkit>=0.3.6rc1

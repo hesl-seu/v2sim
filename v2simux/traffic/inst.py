@@ -54,6 +54,7 @@ class TrafficInst:
             no_parallel: Whether to disable parallel worlds
         """
         random.seed(seed)
+        self.__stall_warned = False
         self.__stall_count = 0
         self.__logger = TripsLogger(clogfile)
         assert routing_algo in ("dijkstra", "astar"), Lang.ROUTE_ALGO_NOT_SUPPORTED
@@ -491,8 +492,9 @@ class TrafficInst:
         if self.W.get_vehicle_count() > 0 and self.W.get_average_speed() < 1e-3:
             # If the average speed is too low, we can consider the simulation to be stalled
             self.__stall_count += 1
-            if self.__stall_count >= 10:
-                warn("Simulation may stall: average speed < 0.001 m/s")
+            if self.__stall_count >= 50 and not self.__stall_warned:
+                warn(Warning("\nSimulation may stall: average speed < 0.001 m/s"))
+                self.__stall_warned = True
         else:
             self.__stall_count = 0
             
