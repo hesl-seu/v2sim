@@ -440,7 +440,7 @@ class RoadNet:
             return self.create_paraworlds(**kwargs)
 
     def create_singleworld(self, **kwargs):
-        from uxsim import World
+        from .uxsim import World
         from .paraworlds import SingleWorld
         from .routing import Graph
 
@@ -463,7 +463,7 @@ class RoadNet:
         return SingleWorld(world, gl)
 
     def create_paraworlds(self, **kwargs):
-        from uxsim import World
+        from .uxsim import World
         from .paraworlds import ParaWorlds
         from .routing import Graph
 

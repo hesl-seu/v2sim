@@ -5,7 +5,16 @@ build-backend = "hatchling.build"
 [project]
 name = "v2sim-ux"
 version = "1.3.0"
-dependencies = [ "numpy", "matplotlib", "scikit-learn", "feasytools>=0.1.3", "fpowerkit>=0.3.6rc1", "pyproj", "requests", "uxsim", "cloudpickle", "sumolib",]
+dependencies = [
+    "pandas>=3.0.0.dev0",
+    "scikit-learn>=1.8.dev0",
+    "feasytools>=0.1.3",
+    "fpowerkit>=0.3.6.post1",
+    "networkx>=3.2.1",
+    "numpy", "matplotlib", 
+    "pyproj", "requests",
+    "cloudpickle", "sumolib",
+]
 requires-python = ">= 3.9"
 license = "BSD-3-Clause"
 description = "V2Sim: An Open-Source Microscopic V2G Simulation Platform in Urban Power and Transportation Network"
@@ -15,10 +24,18 @@ file = "README.md"
 content-type = "text/markdown"
 
 [project.urls]
-Homepage = "https://github.com/fmy-xfk/v2sim"
-Documentation = "https://github.com/fmy-xfk/v2sim/wiki"
-Repository = "https://github.com/fmy-xfk/v2sim.git"
-Issues = "https://github.com/fmy-xfk/v2sim/issues"
+Homepage = "https://github.com/hesl-seu/v2sim"
+Documentation = "https://hesl-seu.github.io/v2sim-wiki/"
+Repository = "https://github.com/hesl-seu/v2sim"
+Issues = "https://github.com/hesl-seu/v2sim/issues"
 
 [tool.hatch.build]
 include = [ "v2simux/*",]
+
+[tool.uv.sources]
+pandas = { index = "devel" }
+scikit-learn = { index = "devel" }
+
+[[tool.uv.index]]
+name = "devel"
+url = "https://pypi.anaconda.org/scientific-python-nightly-wheels/simple"

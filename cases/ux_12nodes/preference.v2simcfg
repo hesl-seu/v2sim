@@ -3,7 +3,7 @@
     "end_time": 172800,
     "traffic_step": 10,
     "seed": 0,
-    "routing_method": "dijkstra",
+    "routing_method": "astar",
     "load_state": false,
     "save_state_on_abort": false,
     "save_state_on_finish": false,
@@ -12,6 +12,9 @@
     "force_nogil": false,
     "stats": [
         "fcs",
-        "scs"
+        "scs",
+        "gen",
+        "bus",
+        "line"
     ]
 }

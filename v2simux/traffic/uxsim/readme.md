@@ -1,0 +1,1 @@
+This folder (uxsim) is copied and adapted from https://github.com/toruseo/UXsim, following MIT License.

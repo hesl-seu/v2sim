@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Callable, List, Dict, Tuple, Set
 from sklearn.neighbors import KDTree
-from uxsim import Link
+from .uxsim import Link
 import heapq
 import math
 

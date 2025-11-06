@@ -7,7 +7,7 @@ from warnings import warn
 from pathlib import Path
 from typing import List, Optional
 from feasytools import PQueue, Point
-from uxsim import Link
+from .uxsim import Link
 from .routing import *
 from ..locale import Lang
 from .trip import TripsLogger

@@ -2,6 +2,7 @@ import gzip
 import os
 import pickle
 from pathlib import Path
+import traceback
 from typing import Literal, Optional, Dict, List, Tuple
 from fgui import add_lang_menu, EventQueue
 from fgui.view import *
@@ -649,7 +650,7 @@ class PlotBox(Tk):
             self.set_status(_L["STA_READY"])
             self.enable_all()
         else:
-            self.on_error(str(ex))
+            self.on_error((str(ex),))
     
     def askdir(self):
         p = Path(os.getcwd()) / "cases"
@@ -760,6 +761,7 @@ class PlotBox(Tk):
                         if "_" in a: continue
                         self._Q.delegate(todo, self._pp, a)
             except Exception as e:
+                traceback.print_exc()
                 return e
             return None
 

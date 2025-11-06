@@ -5,7 +5,7 @@ import threading
 import time
 from collections import deque
 from typing import DefaultDict, Deque, Dict, Generator, List, Optional, Set, Tuple
-from uxsim import World, Vehicle
+from .uxsim import World, Vehicle
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from ..locale.lang import Lang

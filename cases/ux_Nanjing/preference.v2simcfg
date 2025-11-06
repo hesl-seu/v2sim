@@ -12,6 +12,9 @@
     "force_nogil": false,
     "stats": [
         "fcs",
-        "scs"
+        "scs",
+        "gen",
+        "bus",
+        "line"
     ]
 }
