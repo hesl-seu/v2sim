@@ -565,10 +565,13 @@ class TrafficInst:
         self._scs.create_pool()
     
     @staticmethod
-    def load(folder: Union[str, Path]) -> 'TrafficInst':
+    def load(folder: Union[str, Path], triplogger_save_path:Union[None, str, Path] = None) -> 'TrafficInst':
         """
         Load a TrafficInst from a saved_state folder
             folder: Folder path
+            triplogger_save_path: If not None, change the trip logger save path to this path
+        Return:
+            TrafficInst instance
         """
         folder = Path(folder) if isinstance(folder, str) else folder
         inst = folder / TRAFFIC_INST_FILE_NAME
@@ -579,6 +582,8 @@ class TrafficInst:
             ti = pickle.load(f)
         assert isinstance(ti, TrafficInst)
         ti.W = load_world(str(Path(folder) / WORLD_FILE_NAME))
+        if triplogger_save_path is not None:
+            ti.__triplogger_path = str(triplogger_save_path)
         ti.__logger = TripsLogger(ti.__triplogger_path, append=True)
         ti._fcs.create_pool()
         ti._scs.create_pool()

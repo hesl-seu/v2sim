@@ -267,7 +267,7 @@ class V2SimInstance:
         
         # Create a simulation instance        
         if initial_state != "":
-            self.__inst = TrafficInst.load(initial_state)
+            self.__inst = TrafficInst.load(initial_state, Path(self.__outdir_direct) / TRIP_EVENT_LOG)
             proj_cfg.net = self.__inst.net_file
             self.__print(Lang.INFO_NET.format(proj_cfg.net))
             self.__fcs_file = proj_cfg.fcs = self.__inst.fcs_file

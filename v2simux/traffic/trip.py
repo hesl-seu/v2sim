@@ -154,7 +154,7 @@ class TripsLogger:
         self.__ostream.close()
 
     def __del__(self):
-        if not self.__ostream.closed:
+        if hasattr(self, "__ostream") and self.__ostream is not None and not self.__ostream.closed:
             self.__ostream.close()
 
 class TripLogItem:
