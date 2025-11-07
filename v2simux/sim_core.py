@@ -13,6 +13,11 @@ from .locale import Lang
 from .trafficgen import TrafficGenerator
 import inspect
 
+PLUGINS_FILE = "plugins.gz"
+RESULTS_FOLDER = "results"
+TRIP_EVENT_LOG = "cproc.clog"
+SIM_INFO_LOG = "cproc.log"
+SAVED_STATE_FOLDER = "saved_state"
 
 @dataclass
 class MsgPack:
@@ -92,12 +97,22 @@ def get_sim_params(
             "route_algo":           args.pop_str("route-algo", "astar"),
             "show_uxsim_info":      args.pop_bool("show-uxsim-info"),
             "no_parallel":          args.pop_bool("no-parallel"),
+            "break_at":             args.pop_int("break-at", -1),
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
             raise ValueError(Lang.ERROR_ILLEGAL_CMD.format(key))
     return kwargs
 
+def _calc_output_folder(cfgdir: str, outdir: str, outdir_direct: str) -> Path:
+    if outdir_direct != "":
+        pres = Path(outdir_direct)
+    else:
+        if outdir == "":
+            pres = Path(cfgdir) / RESULTS_FOLDER
+        else:
+            pres = Path(outdir) / Path(cfgdir).name
+    return pres
 class V2SimInstance:
     def __mpsend(self, con:str, obj:Any = None):
         if self.__mpQ:
@@ -126,6 +141,7 @@ class V2SimInstance:
         traffic_step: int = 10,      
         start_time: int = 0,        
         end_time: int = 172800,
+        break_at: int = -1,
         no_plg: str = "",            
         log: str = "fcs, scs",               
         seed: int = 0,              
@@ -166,7 +182,7 @@ class V2SimInstance:
             mpQ: Queue for communication with the main process when running this function in multiple processes, set to None if not using multi-process function
             clntID: Identifier of this process when running this function in multiple processes, set to -1 if not using multi-process function
             initial_state: Folder of the initial state of the simulation
-            load_last_state: Load the state in result dir if there is a state folder
+            load_last_state: Load the state in result dir if there is a state folder. This will override initial_state if there is a state folder.
             save_on_abort: Whether to save the state when Ctrl+C is pressed
             save_on_finish: Whether to save the state when the simulation ends
             copy_state: Whether to copy the state folder after the simulation ends or when Ctrl+C is pressed
@@ -192,17 +208,13 @@ class V2SimInstance:
         if not proj_dir.exists() or not proj_dir.is_dir():
             raise FileNotFoundError(f"Invalid project directory :{cfgdir}")
         
-        # Check if there is a previous results        
-        if outdir_direct != "":
-            pres = Path(outdir_direct)
-        else:
-            if outdir == "":
-                pres = Path(cfgdir) / "results"
-            else:
-                pres = Path(outdir) / Path(cfgdir).name
+        # Determine result folder       
+        pres = _calc_output_folder(cfgdir, outdir, outdir_direct)
         self.__outdir_direct = str(pres)
         self.__outdir = str(pres.parent)
-        if pres.is_dir() and (pres / "cproc.clog").exists():
+
+        # Check if there is a previous results   
+        if pres.is_dir() and (pres / TRIP_EVENT_LOG).exists():
             tm = time.strftime("%Y%m%d_%H%M%S", time.localtime(pres.stat().st_mtime))
             tm2 = 0
             while True:
@@ -210,14 +222,14 @@ class V2SimInstance:
                 new_path = f"{str(pres)}_{tm}_{tm2}"
                 if not os.path.exists(new_path):
                     break
-            if (pres / "saved_state").exists() and load_last_state:
-                initial_state = new_path + "/saved_state"
+            if (pres / SAVED_STATE_FOLDER).exists() and load_last_state:
+                initial_state = str(Path(new_path) / SAVED_STATE_FOLDER)
             pres.rename(new_path)
         pres.mkdir(parents=True, exist_ok=True)
         self.__pres = pres
 
-        # Create cproc.log
-        self.__out = open(str(pres / "cproc.log"), "w", encoding="utf-8")
+        # Create simulation info log file
+        self.__out = open(str(pres / SIM_INFO_LOG), "w", encoding="utf-8")
 
         # Record all __init__ parameters to file
         frame = inspect.currentframe()
@@ -253,105 +265,119 @@ class V2SimInstance:
                 code = f.read()
                 exec(code)
         
-        # Detect road network file
-        if not proj_cfg.net:
-            raise RuntimeError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
+        # Create a simulation instance        
+        if initial_state != "":
+            self.__inst = TrafficInst.load(initial_state)
+            proj_cfg.net = self.__inst.net_file
+            self.__print(Lang.INFO_NET.format(proj_cfg.net))
+            self.__fcs_file = proj_cfg.fcs = self.__inst.fcs_file
+            self.__print(Lang.INFO_FCS.format(proj_cfg.fcs, len(self.__inst.FCSList)))
+            self.__scs_file = proj_cfg.scs = self.__inst.scs_file
+            self.__print(Lang.INFO_SCS.format(proj_cfg.scs, len(self.__inst.SCSList)))
+            self.__veh_file = proj_cfg.veh = self.__inst.veh_file
+            self.__print(Lang.INFO_TRIPS.format(proj_cfg.veh, len(self.__inst.vehicles)))
+            self.__start_time = self.__inst.start_time
+            self.__actual_start_time = self.__inst.current_time
+            self.__end_time = self.__inst.end_time
+            self.__break_at = break_at if break_at >= 0 else self.__end_time
+            self.__sim_dur = self.__break_at - self.__actual_start_time
+            self.__steplen = self.__inst.step_len
+            self.__print(Lang.INFO_TIME.format(self.__start_time, self.__end_time, self.__break_at, self.__steplen))
+            self.routing_algo = self.__inst.routing_algo
+            self.show_uxsim_info = self.__inst.show_uxsim_info
         else:
-            rnet_file = proj_cfg.net
-        self.__print(Lang.INFO_NET.format(rnet_file))
-        
-        # Check vehicles and trips
-        if not proj_cfg.veh:
-            raise FileNotFoundError(Lang.ERROR_TRIPS_FILE_NOT_FOUND)
-        veh_file = proj_cfg.veh
-        if vehicles is None:
-            vehicles = EVDict(veh_file)
-        self.__print(Lang.INFO_TRIPS.format(veh_file,len(vehicles)))
+            # Detect road network file
+            if not proj_cfg.net:
+                raise RuntimeError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
+            else:
+                rnet_file = proj_cfg.net
+            self.__print(Lang.INFO_NET.format(rnet_file))
+            
+            # Check vehicles and trips
+            if not proj_cfg.veh:
+                raise FileNotFoundError(Lang.ERROR_TRIPS_FILE_NOT_FOUND)
+            self.__veh_file = proj_cfg.veh
+            if vehicles is None:
+                vehicles = EVDict(self.__veh_file)
+            self.__print(Lang.INFO_TRIPS.format(self.__veh_file, len(vehicles)))
 
-        # Check FCS file
-        if not proj_cfg.fcs:
-            raise FileNotFoundError(Lang.ERROR_FCS_FILE_NOT_FOUND)
-        fcs_file = proj_cfg.fcs
-        fcs_obj:CSList[FCS] = CSList(filePath = fcs_file, csType = FCS)
-        self.__print(Lang.INFO_FCS.format(fcs_file,len(fcs_obj)))
-        #if fcs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
+            # Check FCS file
+            if not proj_cfg.fcs:
+                raise FileNotFoundError(Lang.ERROR_FCS_FILE_NOT_FOUND)
+            self.__fcs_file = proj_cfg.fcs
+            fcs_obj:CSList[FCS] = CSList(filePath = self.__fcs_file, csType = FCS)
+            self.__print(Lang.INFO_FCS.format(self.__fcs_file, len(fcs_obj)))
 
-        # Check SCS file
-        if not proj_cfg.scs:
-            raise FileNotFoundError(Lang.ERROR_SCS_FILE_NOT_FOUND)
-        scs_file = proj_cfg.scs
-        scs_obj:CSList[SCS] = CSList(filePath = scs_file, csType = SCS)
-        self.__print(Lang.INFO_SCS.format(scs_file,len(scs_obj)))
-        #if scs_obj._kdtree is None: self.__print(Lang.CSLIST_KDTREE_DISABLED)
+            # Check SCS file
+            if not proj_cfg.scs:
+                raise FileNotFoundError(Lang.ERROR_SCS_FILE_NOT_FOUND)
+            self.__scs_file = proj_cfg.scs
+            scs_obj:CSList[SCS] = CSList(filePath = self.__scs_file, csType = SCS)
+            self.__print(Lang.INFO_SCS.format(self.__scs_file, len(scs_obj)))
 
-        # Check start and end time
-        if start_time == -1 or end_time == -1:
-            raise ValueError(Lang.ERROR_ST_ED_TIME_NOT_SPECIFIED)
-        self.__start_time = start_time
-        self.__end_time = end_time
-        self.__sim_dur = end_time - start_time
-        self.__print(Lang.INFO_TIME.format(start_time,end_time,traffic_step))
+            # Check start and end time
+            if start_time == -1 or end_time == -1:
+                raise ValueError(Lang.ERROR_ST_ED_TIME_NOT_SPECIFIED)
+            self.__start_time = start_time
+            self.__actual_start_time = self.__start_time
+            self.__end_time = end_time
+            self.__break_at = break_at if break_at >= 0 else self.__end_time
+            self.__sim_dur = self.__break_at - self.__actual_start_time
+            self.__steplen = traffic_step
+            self.__print(Lang.INFO_TIME.format(start_time, end_time, self.__break_at, traffic_step))
 
-        # Create a simulation instance
-        self.__inst = TrafficInst(
-            rnet_file, start_time, traffic_step, 
-            end_time, str(pres / "cproc.clog"), seed,
-            vehfile = veh_file, veh_obj = vehicles,
-            fcsfile = fcs_file, fcs_obj = fcs_obj,
-            scsfile = scs_file, scs_obj = scs_obj,
-            initial_state_folder = initial_state,
-            routing_algo = route_algo,
-            show_uxsim_info = show_uxsim_info,
-            no_parallel = no_parallel
-        )
+            self.routing_algo = route_algo
+            self.show_uxsim_info = show_uxsim_info
+
+            self.__inst = TrafficInst(
+                rnet_file, start_time, traffic_step, 
+                end_time, str(pres / TRIP_EVENT_LOG), seed,
+                vehfile = self.__veh_file, veh_obj = vehicles,
+                fcsfile = self.__fcs_file, fcs_obj = fcs_obj,
+                scsfile = self.__scs_file, scs_obj = scs_obj,
+                routing_algo = route_algo,
+                show_uxsim_info = show_uxsim_info,
+                no_parallel = no_parallel,
+                silent = silent
+            )
 
         # Enable plugins
-        self.__gridplg = None
-        if proj_cfg.plg:
-            plg_file = proj_cfg.plg
-            plg_man = PluginMan(
-                str(plg_file), 
-                pres,
-                self.__inst,
-                list(map(lambda x: x.strip().lower(), no_plg.split(","))),
-                plg_pool
-            )
-            for plugname, plugin in plg_man.GetPlugins().items():
-                if isinstance(plugin, PluginPDN):
-                    self.__gridplg = plugin
-                self.__print(Lang.INFO_PLG.format(plugname, plugin.Description))
+        if initial_state != "":
+            initial_plugin_state_file = Path(initial_state) / PLUGINS_FILE
         else:
-            plg_man = PluginMan(None, pres, self.__inst, [], plg_pool)
+            initial_plugin_state_file = ""
+
+        if proj_cfg.plg:
+            self.__plg_file = proj_cfg.plg
+            disabled_plugins = list(map(lambda x: x.strip().lower(), no_plg.split(",")))
+            self.__plgman = PluginMan(self.__plg_file, pres, self.__inst, disabled_plugins, plg_pool, initial_plugin_state_file)
+        else:
+            self.__plgman = PluginMan(None, pres, self.__inst, [], plg_pool, initial_plugin_state_file)
+        
+        # Find the power grid plugin
+        self.__gridplg = None
+        for plugname, plugin in self.__plgman.GetPlugins().items():
+            if isinstance(plugin, PluginPDN):
+                self.__gridplg = plugin
+            self.__print(Lang.INFO_PLG.format(plugname, plugin.Description))
 
         # Create a data logger
         log_item = log.strip().lower().split(",")
         if len(log_item) == 1 and log_item[0] == "": log_item = []
-        mySta = StaWriter(str(pres), self.__inst, plg_man.GetPlugins(), sta_pool)
-        for itm in log_item:
-            mySta.Add(itm)
-        
-        self.__sta = mySta
-        self.__plgman = plg_man
-        if initial_state:
-            self.__load_plugin_states(Path(initial_state) / "plugins.gz")
-        self.__steplen = traffic_step
+        self.__sta = StaWriter(pres, self.__inst, self.__plgman.GetPlugins(), sta_pool, log_item)
+
         self.__copy = copy
         self.__plot_cmd = plot_command
-        self.__veh_file = veh_file
-        self.__fcs_file = fcs_file
-        self.__scs_file = scs_file
-        self.__plg_file = plg_file
         self.__proj_cfg = proj_cfg
         self.__proj_dir = proj_dir
         self.__working_flag = False
         self.save_on_abort = save_on_abort
         self.save_on_finish = save_on_finish
         self.copy_state = copy_state
-        self.routing_algo = route_algo
-        self.show_uxsim_info = show_uxsim_info
 
         if alt_command is not None:
-            for k,v in alt_command.items():
+            assert initial_state == "", "Cannot use alt_command when initial_state is specified."
+            for k, v in alt_command.items():
                 if k == "start_time":
                     self.__start_time = int(v)
                 elif k == "end_time":
@@ -495,19 +521,16 @@ class V2SimInstance:
         assert self.__mpQ is not None, "Not working in multiprocessing mode. No host exists."
         self.__mpsend(command, obj)
     
-    def start(self, load_from:str = ""):
+    def start(self):
         '''
         Start simulation.
             If you use this function, do not use function 'simulation'.
             Follow the start - step - stop paradigm.
         '''
         self.__working_flag = True
-        self.__inst.simulation_start(self.__start_time)
+        self.__inst.simulation_start()
         self.__plgman.PreSimulationAll()
-        if load_from != "":
-            self.load_state(load_from)
     
-    #@FEasyTimer
     def step(self) -> int:
         '''
         Simulation steps. 
@@ -533,32 +556,24 @@ class V2SimInstance:
             self.step()
         return self.__inst.current_time
     
-    def __load_plugin_states(self, p:Path):
-        if not p.exists(): raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(p))
-        with gzip.open(str(p), "rb") as f:
-            self.__plgman.LoadStates(pickle.load(f))
-
-    def load_state(self, load_from:str):
-        '''Load the previous state of the simulation'''
-        self.__inst.load_state(load_from)
-        self.__load_plugin_states(Path(load_from) / "plugins.gz")
-    
-    def save_state(self, save_to:str):
+    def save(self, folder:Union[str, Path]):
         '''Save the current state of the simulation'''
-        self.__inst.save_state(save_to)
-        with gzip.open(str(Path(save_to) / "plugins.gz"), "wb") as f:
+        # Save the traffic instance
+        p = Path(folder) if isinstance(folder, str) else folder
+        self.__inst.save(p)
+        with gzip.open(p / PLUGINS_FILE, "wb") as f:
             pickle.dump(self.__plgman.SaveStates(), f)
     
-    def stop(self, save_state_to:str = ""):
+    def stop(self, save_state_to:Union[str, Path] = ""):
         '''
         Stop simulation.
             If you use this function, do not use function 'simulation'.
             Follow the start - step - stop paradigm.
         '''
         if save_state_to != "":
-            self.save_state(save_state_to)
+            self.save(save_state_to)
             if self.copy_state:
-                shutil.copytree(save_state_to, self.__proj_dir / "saved_state", dirs_exist_ok=True)
+                shutil.copytree(save_state_to, self.__proj_dir / SAVED_STATE_FOLDER, dirs_exist_ok=True)
         self.__plgman.PostSimulationAll()
         self.__inst.simulation_stop()
         self.__sta.close()
@@ -570,7 +585,6 @@ class V2SimInstance:
             shutil.copy(self.__plg_file, self.__pres / Path(self.__plg_file).name)
         self.__working_flag = False
     
-    #@FEasyTimer
     def simulate(self):
         '''
         Main simulation function
@@ -595,21 +609,21 @@ class V2SimInstance:
         self.__mpsend("sim:start")
         self.start()
 
-        while self.__inst.current_time < self.__end_time:
+        while self.__inst.current_time < self.__break_at:
             self.step()
             if self.__stopsig:
                 if self.save_on_abort:
-                    p = self.__pres / "saved_state"
+                    p = self.__pres / SAVED_STATE_FOLDER
                     p.mkdir(parents=True, exist_ok=True)
-                    self.save_state(str(p))
+                    self.save(p)
                 break
             if not self.show_uxsim_info:
                 self._istep()
         
         dur = time.time() - self.__st_time
-        print(Lang.MAIN_SIM_DONE.format(time2str(dur)),file=self.__out)
+        print(Lang.MAIN_SIM_DONE.format(time2str(dur)), file=self.__out)
         self.__out.close()
-        self.stop(str(self.__pres / "saved_state") if self.save_on_finish else "")
+        self.stop(str(self.__pres / SAVED_STATE_FOLDER) if self.save_on_finish else "")
         self.__print()
         self.__print(Lang.MAIN_SIM_DONE.format(time2str(dur)))
         self.__mpsend("sim:done")
@@ -620,9 +634,9 @@ class V2SimInstance:
 
     def _istep(self):
         ctime = time.time()
-        if ctime - self.__last_print_time > 1 or self.__inst.current_time >= self.__end_time:
+        if ctime - self.__last_print_time > 1 or self.__inst.current_time >= self.__break_at:
             # Progress in command line updates once per second
-            progress = 100 * (self.__inst.current_time - self.__start_time) / self.__sim_dur
+            progress = 100 * (self.__inst.current_time - self.__actual_start_time) / self.__sim_dur
             eta = (
                 time2str((ctime - self.__st_time) * (100 - progress) / progress)
                 if ctime - self.__st_time > 3
@@ -633,7 +647,7 @@ class V2SimInstance:
                 Lang.MAIN_SIM_PROG.format(
                     round(progress,2), 
                     self.__inst.current_time, 
-                    self.__end_time, 
+                    self.__break_at, 
                     time2str(ctime-self.__st_time), 
                     eta
                 ),
@@ -644,8 +658,11 @@ class V2SimInstance:
                 self.__mpsend(f"sim:{progress:.2f}")
                 self.__last_mp_time = ctime
             self.__last_print_time = ctime
+    
+    def __del__(self):
+        if hasattr(self, "_V2SimInstance__out") and not self.__out.closed:
+            self.__out.close()
 
-#@FEasyTimer
 def simulate_single(vb=None, **kwargs)->bool:
     '''
     Single process simulation

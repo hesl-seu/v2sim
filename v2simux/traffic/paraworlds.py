@@ -4,7 +4,8 @@ import sys
 import threading
 import time
 from collections import deque
-from typing import DefaultDict, Deque, Dict, Generator, List, Optional, Set, Tuple
+from typing import DefaultDict, Deque, Dict, Generator, List, Optional, Set, Tuple, Iterable
+from v2simux.traffic.routing import Link
 from .uxsim import World, Vehicle
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -65,6 +66,9 @@ class WorldSpec(ABC):
     def get_link(self, link_id:str) -> Optional[Link]: ...
 
     @abstractmethod
+    def links(self) -> Iterable[Link]: ...
+
+    @abstractmethod
     def shutdown(self): ...
 
     @abstractmethod
@@ -112,6 +116,9 @@ class SingleWorld(WorldSpec):
     
     def get_link(self, link_id:str) -> Optional[Link]:
         return self.world.get_link(link_id)
+    
+    def links(self) -> List[Link]:
+        return self.world.LINKS
 
     def get_arrived_vehicles(self):
         while len(self.__aQ) > 0:
@@ -258,6 +265,9 @@ class ParaWorlds(WorldSpec):
     def get_link(self, link_id:str) -> Optional[Link]:
         return self.worlds[self.wid_of_edges[link_id]].get_link(link_id)
     
+    def links(self) -> Iterable[Link]:
+        return (link for W in self.worlds.values() for link in W.LINKS)
+
     def __add_veh(self, world_id:int, veh_id:str, from_node:str, to_node:str, trip_segment:int):
         assert world_id in self.wid_of_nodes[from_node], \
             f"Node {from_node} is not in world {world_id}, cannot add vehicle {veh_id}."

@@ -36,7 +36,7 @@ class PluginOvercurrent(PluginBase[None]):
         '''Get the plugin configuration item list'''
         return ConfigDict()
     
-    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plg_deps:'List[PluginBase]')->None:
+    def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path, res_dir:Path, plg_deps:'List[PluginBase]')->None:
         self.__file = open(str(res_dir / "current_protect.log"), "w")
         self.SetPreStep(self._work)
         self.SetPostSimulation(self.__file.close)

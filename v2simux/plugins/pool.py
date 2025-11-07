@@ -1,4 +1,6 @@
 #from feasytools import FEasyTimer
+import gzip
+from typing import Union
 from .base import *
 from .pdn import PluginPDN
 from .v2g import PluginV2G
@@ -74,7 +76,7 @@ class PluginPool:
         self._Register(name,plugin,deps)
 
 class PluginMan:
-    def __init__(self, plg_xml:Optional[str], res_dir:Path, inst:TrafficInst, no_plg:List[str], plugin_pool:PluginPool):
+    def __init__(self, plg_xml:Optional[str], res_dir:Path, inst:TrafficInst, no_plg:List[str], plugin_pool:PluginPool, initial_state_file:Union[str, Path] = ""):
         '''
         Load plugins from file
             plg_xml: Plugin configuration file path, None means not load
@@ -82,8 +84,9 @@ class PluginMan:
             inst: Traffic simulation instance
             no_plg: Plugins not to load
             plugin_pool: Available plugin pool
+            initial_state_file: Initial plugin states, if specified, load plugin states from it
         '''
-        self.__curPlugins:Dict[str,PluginBase] = {}
+        self.__curPlugins:Dict[str, PluginBase] = {}
         if plg_xml is None:
             return
         if Path(plg_xml).exists() == False:
@@ -93,15 +96,34 @@ class PluginMan:
         work_dir = Path(plg_xml).parent
         if root is None:
             raise PluginError(Lang.PLG_NOT_EXIST_OR_BAD.format(plg_xml))
+
+        # Load initial states if specified
+        initial_state: Dict[str, bytes] = {}
+        if initial_state_file != "":
+            import cloudpickle as pickle
+            if isinstance(initial_state_file, Path):
+                initial_state_file = str(initial_state_file)
+            with gzip.open(initial_state_file, "rb") as f:
+                initial_state = pickle.load(f)
+                assert isinstance(initial_state, dict), "Invalid plugin state file."
+        
+        # Load plugins
         for itm in root:
-            if itm.tag in no_plg or itm.attrib.get("enabled") == "NO": continue
-            if itm.tag not in plugin_pool: raise PluginError(Lang.PLG_INVALID_PLUGIN.format(itm.tag))
+            if itm.tag in no_plg or itm.attrib.get("enabled") == "NO":
+                continue
+            if itm.tag not in plugin_pool:
+                raise PluginError(Lang.PLG_INVALID_PLUGIN.format(itm.tag))
             plugin_type, dependencies = plugin_pool[itm.tag]
             deps:List[PluginBase] = []
             for d in dependencies:
-                if d not in self.__curPlugins: raise PluginError(Lang.PLG_DEPS_NOT_LOADED.format(itm.tag,d))
+                if d not in self.__curPlugins:
+                    raise PluginError(Lang.PLG_DEPS_NOT_LOADED.format(itm.tag,d))
                 deps.append(self.__curPlugins[d])
-            self.Add(plugin_type(inst,itm,work_dir,res_dir,plg_deps=deps))
+            self.Add(plugin_type(inst, itm, work_dir, res_dir, plg_deps=deps,
+                initial_state=(initial_state.pop(itm.tag) if initial_state else None)))
+        
+        if len(initial_state or {}) > 0:
+            raise PluginError("Some plugins in the initial state file are not loaded: " + ",".join(initial_state.keys()))
     
     def PreSimulationAll(self):
         '''Execute all plugins PreSimulation, return all plugins return value'''
@@ -113,33 +135,31 @@ class PluginMan:
         for p in self.__curPlugins.values():
             p._postsim()
 
-    #@FEasyTimer
-    def PreStepAll(self,_t:int)->Dict[str,object]:
+    def PreStepAll(self, _t:int) -> Dict[str,object]:
         '''Execute all plugins PreStep, return all plugins return value'''
         ret:Dict[str,object] = {}
         for k,p in self.__curPlugins.items():
             ret[k] = p._precall(_t)
         return ret
     
-    #@FEasyTimer
-    def PostStepAll(self,_t:int)->Dict[str,object]:
+    def PostStepAll(self, _t:int) -> Dict[str,object]:
         '''Execute all plugins PreStep, return all plugins return value'''
         ret:Dict[str,object] = {}
         for k,p in self.__curPlugins.items():
             ret[k] = p._postcall(_t)
         return ret
     
-    def Add(self,plugin:PluginBase):
+    def Add(self, plugin:PluginBase):
         '''Add new plugin to current plugin list'''
         if plugin.Name in self.__curPlugins:
             raise PluginError(Lang.PLG_ALREADY_EXISTS.format(plugin.Name))
         self.__curPlugins[plugin.Name] = plugin
 
-    def GetPluginByName(self,name:str)->PluginBase:
+    def GetPluginByName(self, name:str) -> PluginBase:
         '''Get plugin by name'''
         return self.__curPlugins[name]
     
-    def GetPlugins(self)->Dict[str,PluginBase]:
+    def GetPlugins(self) -> Dict[str,PluginBase]:
         '''Get all plugins'''
         return self.__curPlugins
 
@@ -149,9 +169,12 @@ class PluginMan:
         for name, p in self.__curPlugins.items():
             ret[name] = p._save_state()
         return ret
-    
-    def LoadStates(self, states: Dict[str, object]):
-        '''Load all plugin states'''
-        for name, p in self.__curPlugins.items():
-            if name in states:
-                p._load_state(states[name])
+
+    def Save(self, fname:Union[str, Path]):
+        '''Save all plugin states to file'''
+        states = self.SaveStates()
+        import cloudpickle as pickle
+        if isinstance(fname, Path):
+            fname = str(fname)
+        with gzip.open(fname, "wb") as f:
+            pickle.dump(states, f)

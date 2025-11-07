@@ -1,5 +1,4 @@
 import random
-import pickle
 import gzip
 from collections import deque
 from itertools import chain
@@ -19,6 +18,8 @@ from .paraworlds import ParaWorlds, load_world
 from .net import RoadNet
 from .params import *
 
+WORLD_FILE_NAME = "world.pkl"
+TRAFFIC_INST_FILE_NAME = "inst.gz"
 
 class TrafficInst:
     def __init__(
@@ -32,10 +33,10 @@ class TrafficInst:
         vehfile: str, veh_obj:Optional[EVDict] = None,
         fcsfile: str, fcs_obj:Optional[CSList] = None,
         scsfile: str, scs_obj:Optional[CSList] = None,
-        initial_state_folder: str = "",
         routing_algo: str = "dijkstra",  # or "astar"
         show_uxsim_info: bool = False,
-        no_parallel: bool = False
+        no_parallel: bool = False,
+        silent: bool = False,
     ):
         """
         TrafficInst initialization
@@ -48,7 +49,6 @@ class TrafficInst:
             vehfile: Vehicle information and itinerary file
             fcsfile: Fast charging station list file
             scsfile: Slow charging station list file
-            initial_state_folder: Initial state folder path
             routing_algo: Routing algorithm, can be "dijkstra" or "astar"
             show_uxsim_info: Whether to display uxsim information
             no_parallel: Whether to disable parallel worlds
@@ -56,10 +56,11 @@ class TrafficInst:
         random.seed(seed)
         self.__stall_warned = False
         self.__stall_count = 0
-        self.__logger = TripsLogger(clogfile)
+        self.__triplogger_path = clogfile
+        self.__logger = TripsLogger(self.__triplogger_path)
         assert routing_algo in ("dijkstra", "astar"), Lang.ROUTE_ALGO_NOT_SUPPORTED
         self.__use_astar = routing_algo == "astar"
-        
+        self.__silent = silent
         self.__vehfile = vehfile
         self.__fcsfile = fcsfile
         self.__scsfile = scsfile
@@ -69,15 +70,10 @@ class TrafficInst:
         self.__etime: int = end_time
         
         # Read road network
+        self.__net_file = road_net_file
         self.__rnet: RoadNet = RoadNet.load(road_net_file)
         # Get all road names
         self.__names: List[str] = list(self.__rnet.edges.keys())
-
-        self.__istate_folder = initial_state_folder
-
-        if self.__istate_folder != "":
-            self.load_state(self.__istate_folder)
-            return
         
         # Load vehicles
         self._fQ = PQueue()  # Fault queue
@@ -101,11 +97,12 @@ class TrafficInst:
 
         # Check if all CS are in the largest SCC
         bad_cs = set(cs.name for cs in chain(self._fcs, self._scs) if not self.__rnet.is_node_in_largest_scc(cs.name))
-        if len(bad_cs) > 0:
+        if len(bad_cs) > 0 and not self.__silent:
             warn(Lang.WARN_CS_NOT_IN_SCC.format(','.join(bad_cs)))
         
         # Create uxsim world
         create_func = self.__rnet.create_singleworld if no_parallel else self.__rnet.create_world
+        self.__show_uxsim_info = show_uxsim_info
         self.W = create_func(
             tmax=end_time,
             deltan=1,
@@ -114,12 +111,13 @@ class TrafficInst:
             hard_deterministic_mode=True,
             reduce_memory_delete_vehicle_route_pref=True,
             vehicle_logging_timestep_interval=-1,
-            print_mode=1 if show_uxsim_info else 0
+            print_mode=1 if self.__show_uxsim_info else 0
         )
-        if isinstance(self.W, ParaWorlds):
-            print(Lang.PARA_WORLDS.format(len(self.W.worlds)))
-        else:
-            print(Lang.SINGLE_WORLD)
+        if not self.__silent:
+            if isinstance(self.W, ParaWorlds):
+                print(Lang.PARA_WORLDS.format(len(self.W.worlds)))
+            else:
+                print(Lang.SINGLE_WORLD)
 
         # Load vehicles to charging stations and prepare to depart
         for veh in self._VEHs.values():
@@ -174,10 +172,15 @@ class TrafficInst:
         return self.__logger
     
     @property
+    def net_file(self):
+        """Road network file"""
+        return self.__net_file
+
+    @property
     def veh_file(self):
         """Vehicle information and itinerary file"""
         return self.__vehfile
-
+    
     @property
     def fcs_file(self):
         """Fast charging station list file"""
@@ -187,6 +190,11 @@ class TrafficInst:
     def scs_file(self):
         """Slow charging station list file"""
         return self.__scsfile
+    
+    @property
+    def triplogger_path(self):
+        """Trip logger file path"""
+        return self.__triplogger_path
     
     @property
     def start_time(self):
@@ -223,11 +231,19 @@ class TrafficInst:
         """Vehicle dictionary, key is vehicle ID, value is EV instance"""
         return self._VEHs
     
+    @property
+    def routing_algo(self) -> str:
+        """Routing algorithm, can be "dijkstra" or "astar" """
+        return "astar" if self.__use_astar else "dijkstra"
+    
+    @property
+    def show_uxsim_info(self) -> bool:
+        """Whether to display uxsim information"""
+        return self.__show_uxsim_info
 
     def __add_veh2(self, veh_id:str, from_node:str, to_node:str):
         self._VEHs[veh_id].clear_odometer()
         self.W.add_vehicle(veh_id, from_node, to_node)
-
 
     @property
     def edges(self):
@@ -455,17 +471,11 @@ class TrafficInst:
         """
         return self._fcs.get_veh_count() + self._scs.get_veh_count()
 
-    def simulation_start(self, start_time: Optional[int] = None):
+    def simulation_start(self):
         """
         Start simulation
-            sumocfg_file: SUMO configuration file path
-            start_time: Start time (seconds), if not specified, provided by the SUMO configuration file
-            gui: Whether to display the graphical interface
         """
-        
-        self.__ctime = self.__stime if start_time is None else start_time
-        self.W.exec_simulation(self.__ctime)
-        
+        # Do not set __ctime here, it may be loaded from the state
         self.__batch_depart()
 
         for cs in chain(self.FCSList, self.SCSList):
@@ -493,7 +503,7 @@ class TrafficInst:
             # If the average speed is too low, we can consider the simulation to be stalled
             self.__stall_count += 1
             if self.__stall_count >= 50 and not self.__stall_warned:
-                warn(Warning("\nSimulation may stall: average speed < 0.001 m/s"))
+                if not self.__silent: warn(Warning("Simulation may stall: average speed < 0.001 m/s"))
                 self.__stall_warned = True
         else:
             self.__stall_count = 0
@@ -527,56 +537,51 @@ class TrafficInst:
             self.__start_charging_FCS(self._VEHs[v])
 
     def simulation_stop(self):
-        print()
-        print(self.W.shutdown())
+        if not self.__silent:
+            print()
+            print(self.W.shutdown())
         self.__logger.close()
     
-    def save_state(self, folder: str):
+    def save(self, folder: Union[str, Path]):
         """
         Save the current state of the simulation
             folder: Folder path
         """
-        f = Path(folder)
+        f = Path(folder) if isinstance(folder, str) else folder
         f.mkdir(parents=True, exist_ok=True)
-        self.W.save(str(f / "world.pkl"))
+        self.W.save(str(f / WORLD_FILE_NAME))
         self._fcs.shutdown_pool()
         self._scs.shutdown_pool()
-        with gzip.open(str(f / "inst.gz"), "wb") as f:
-            pickle.dump({
-                "ctime":self.__ctime,
-                "fQ":self._fQ,
-                "aQ":self._aQ,
-                "que":self._que,
-                "VEHs":self._VEHs,
-                "fcs":self._fcs,
-                "scs":self._scs,
-                "names_fcs":self.__names_fcs,
-                "names_scs":self.__names_scs,
-            }, f)
+        tmpW = self.W
+        tmpTL = self.__logger
+        delattr(self, "_TrafficInst__logger")
+        delattr(self, "W")
+        import cloudpickle as pickle
+        with gzip.open(str(f / TRAFFIC_INST_FILE_NAME), "wb") as f:
+            pickle.dump(self, f)
+        self.W = tmpW
+        self.__logger = tmpTL
         self._fcs.create_pool()
         self._scs.create_pool()
-        
-    def load_state(self, folder: str):
+    
+    @staticmethod
+    def load(folder: Union[str, Path]) -> 'TrafficInst':
         """
-        Load the state of the simulation
+        Load a TrafficInst from a saved_state folder
             folder: Folder path
         """
-        inst = Path(folder) / "inst.gz"
+        folder = Path(folder) if isinstance(folder, str) else folder
+        inst = folder / TRAFFIC_INST_FILE_NAME
         if not inst.exists():
             raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(inst))
+        import cloudpickle as pickle
         with gzip.open(str(inst), "rb") as f:
-            d = pickle.load(f)
-        self.__ctime = d["ctime"]
-        self._fQ = d["fQ"]
-        self._aQ = d["aQ"]
-        self._que = d["que"]
-        self._VEHs = d["VEHs"]
-        self._fcs = d["fcs"]
-        self._scs = d["scs"]
-        self.__names_fcs = d["names_fcs"]
-        self.__names_scs = d["names_scs"]
-        self.W = load_world(str(Path(folder) / "world.pkl"))
-        self._fcs.create_pool()
-        self._scs.create_pool()
+            ti = pickle.load(f)
+        assert isinstance(ti, TrafficInst)
+        ti.W = load_world(str(Path(folder) / WORLD_FILE_NAME))
+        ti.__logger = TripsLogger(ti.__triplogger_path, append=True)
+        ti._fcs.create_pool()
+        ti._scs.create_pool()
+        return ti
 
 __all__ = ["TrafficInst"]

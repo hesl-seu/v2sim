@@ -35,13 +35,6 @@ def _sv(x)->float:
     assert x is not None, _locale["ERROR_SOLVE_FAILED"]
     return x
 
-def _isfloat(x):
-    try:
-        float(x)
-        return True
-    except:
-        return False
-
 class PluginPDN(PluginBase[float], IGridPlugin):
     @property
     def Description(self)->str:

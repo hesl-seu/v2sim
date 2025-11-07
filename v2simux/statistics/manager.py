@@ -2,7 +2,7 @@ from collections import defaultdict
 import os
 from pathlib import Path
 from feasytools import SegFunc
-from typing import Type, Optional
+from typing import Type, Optional, Union
 from ..plugins import *
 from .logcs import *
 from .logev import *
@@ -54,27 +54,37 @@ class StaWriter:
 
     def __init__(
         self,
-        path: str,
+        path: Union[str, Path],
         tinst: TrafficInst,
         plugins: Dict[str, PluginBase],
         staPool: StaPool,
+        items: Optional[List[str]] = None,
     ):
-        self.__path = path
+        """
+        Initialize
+            path: Path to the output file
+            tinst: Traffic instance
+            plugins: Loaded plugins
+            staPool: Statistics items' pool
+            items: List of statistic items to record. Can be added later by 'Add' function. If None, no item is added now.
+        """
+        self.__path = path if isinstance(path, str) else str(path)
         self.__items = {}
         self.__inst = tinst
         self.__plug = plugins
         self.__pool = staPool
+
+        if items is not None:
+            for itm in items:
+                self.Add(itm)
 
     def Add(self, sta_name: str) -> None:
         """Add a statistic item, select from the registered items of StaMan"""
         sta_type = self.__pool.Get(sta_name)
         if sta_name in self.__items:
             raise ValueError(Lang.ERROR_STA_ADDED.format(sta_name))
-        self.__items[sta_name] = sta_type(
-            self.__path, self.__inst, self.__plug
-        )
+        self.__items[sta_name] = sta_type(self.__path, self.__inst, self.__plug)
 
-    #@FEasyTimer
     def Log(self, time: int):
         for item in self.__items.values():
             try:

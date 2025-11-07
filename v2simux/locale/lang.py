@@ -65,7 +65,7 @@ class Lang:
     INFO_TRIPS = "  EV & Trips: {0}, Number = {1}"
     INFO_FCS = "  Fast Charging Station: {0}, Number = {1}"
     INFO_SCS = "  Slow Charging Station: {0}, Number = {1}"
-    INFO_TIME = "  Start & End Time: {0} ~ {1}, Step Length = {2}"
+    INFO_TIME = "  Start & End Time: {0} ~ {1} (Break at {2}), Step Length = {3}"
     INFO_PLG = "  Plugin: {0} - {1}"
     INFO_REGEN_SCS = "Slow charging stations regenerated."
     INFO_REGEN_FCS = "Fast charging stations regenerated."

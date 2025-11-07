@@ -541,7 +541,7 @@ class Link:
         s.merge_priority = merge_priority
 
         #リンク内車両一覧
-        s.vehicles = deque()
+        s.vehicles:deque[Vehicle] = deque()
 
         #流入した車両一覧．t: Vehicle
         s.vehicles_enter_log = {}
@@ -2240,7 +2240,7 @@ class World:
             W.simulation_terminated()
             return 1 #end of simulation
         if end_ts < start_ts:
-            raise Exception("exec_simulation error: Simulation duration is not positive. Check until_t or duration_t or duration_t2")
+            raise Exception("exec_simulation error: Simulation duration is not positive ({} < {}). Check until_t or duration_t or duration_t2".format(end_ts, start_ts))
 
         #the main loop
         #print("preping:", W.T, start_ts, end_ts, W.check_simulation_ongoing())

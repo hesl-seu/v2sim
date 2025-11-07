@@ -13,7 +13,7 @@ dependencies = [
     "networkx>=3.2.1",
     "numpy", "matplotlib", 
     "pyproj", "requests",
-    "cloudpickle", "sumolib",
+    "cloudpickle", "sumolib", "dill",
 ]
 requires-python = ">= 3.9"
 license = "BSD-3-Clause"

@@ -10,3 +10,4 @@ pyproj
 requests
 cloudpickle
 sumolib
+dill

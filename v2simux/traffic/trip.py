@@ -23,8 +23,8 @@ class TripsLogger:
     ARRIVAL_NO_CHARGE = 0
     ARRIVAL_CHARGE_SUCCESSFULLY = 1
     ARRIVAL_CHARGE_FAILED = 2
-    def __init__(self, file_name:str):
-        self.__ostream = open(file_name, 'w', encoding='utf-8')
+    def __init__(self, file_name:str, append:bool=False):
+        self.__ostream = open(file_name, 'a' if append else 'w', encoding='utf-8')
         self.__arrive_listeners:List[_ArriveListener] = []
         self.__arrive_cs_listeners:List[_ArriveFCSListener] = []
         self.__join_scs_listeners:List[_JoinSCSListener] = []
@@ -152,6 +152,10 @@ class TripsLogger:
     
     def close(self):
         self.__ostream.close()
+
+    def __del__(self):
+        if not self.__ostream.closed:
+            self.__ostream.close()
 
 class TripLogItem:
     OP_NAMEs = {
