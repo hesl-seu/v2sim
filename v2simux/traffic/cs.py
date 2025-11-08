@@ -117,7 +117,7 @@ class CS(ABC):
     ):
         """
         Initialize the CS
-            name: CS name, also the name of the corresponding edge in the network.
+            name: CS name, also the name of the corresponding node in the network.
             slots: Number of charging piles in the CS.
             bus: The PDN bus to which the CS connects.
             x: The x-coordinate of the CS.
@@ -551,7 +551,7 @@ class FCS(CS):
         self._buf: Deque[EV] = deque()  # Vehicles in queue
 
     def to_xml(self) -> str:
-        ret = f'<fcs name="{self._name}" edge="{self._name}" slots="{self._slots}" bus="{self._bus}" ' \
+        ret = f'<fcs name="{self._name}" node="{self._name}" slots="{self._slots}" bus="{self._bus}" ' \
             f'x="{self._x}" y="{self._y}" max_pc="{self._pc_lim1 * 3600:.2f}" pc_alloc="{self._pc_alloc_str}">\n'
         ret += _get_price_xml(self._pbuy, "pbuy") + "\n"
         if len(self._offline) > 0: ret += self._offline.toXML("offline") + "\n"
