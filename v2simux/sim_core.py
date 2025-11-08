@@ -1,5 +1,5 @@
 import gzip
-import pickle
+import dill as pickle
 import importlib, os, queue, shutil, signal, time, sys
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
@@ -17,7 +17,7 @@ PLUGINS_FILE = "plugins.gz"
 RESULTS_FOLDER = "results"
 TRIP_EVENT_LOG = "cproc.clog"
 SIM_INFO_LOG = "cproc.log"
-SAVED_STATE_FOLDER = "saved_state"
+
 
 @dataclass
 class MsgPack:
@@ -78,6 +78,7 @@ def get_sim_params(
             "outdir_direct":        args.pop_str("od", ""),
             "traffic_step":         args.pop_int("l", 10),
             "start_time":           args.pop_int("b", 0),
+            "break_at":             args.pop_int("break-at", -1),
             "end_time":             args.pop_int("e", 172800),
             "no_plg":               args.pop_str("no-plg", ""),
             "log":                  args.pop_str("log", "fcs,scs"),
@@ -87,8 +88,6 @@ def get_sim_params(
             "gen_fcs_command":      args.pop_str("gen-fcs", ""),
             "gen_scs_command":      args.pop_str("gen-scs", ""),
             "plot_command":         args.pop_str("plot", ""),
-            "plg_pool":             plg_pool,
-            "sta_pool":             sta_pool,
             "initial_state":        args.pop_str("initial-state", ""),
             "load_last_state":      args.pop_bool("load-last-state"),
             "save_on_abort":        args.pop_bool("save-on-abort"),
@@ -97,7 +96,8 @@ def get_sim_params(
             "route_algo":           args.pop_str("route-algo", "astar"),
             "show_uxsim_info":      args.pop_bool("show-uxsim-info"),
             "no_parallel":          args.pop_bool("no-parallel"),
-            "break_at":             args.pop_int("break-at", -1),
+            "plg_pool":             plg_pool,
+            "sta_pool":             sta_pool,
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
@@ -242,7 +242,7 @@ class V2SimInstance:
             self.__out.write(f"  {arg}: {values[arg]}\n")
 
         if gen_veh_command != "" or gen_scs_command != "" or gen_fcs_command != "":
-            traff_gen = TrafficGenerator(str(proj_dir),silent)
+            traff_gen = TrafficGenerator(str(proj_dir), silent)
             if gen_fcs_command != "":
                 traff_gen.FCSFromArgs(gen_fcs_command)
                 self.__print(Lang.INFO_REGEN_FCS)
@@ -268,6 +268,7 @@ class V2SimInstance:
         # Create a simulation instance        
         if initial_state != "":
             self.__inst = TrafficInst.load(initial_state, Path(self.__outdir_direct) / TRIP_EVENT_LOG)
+            self.__inst.silent = silent
             proj_cfg.net = self.__inst.net_file
             self.__print(Lang.INFO_NET.format(proj_cfg.net))
             self.__fcs_file = proj_cfg.fcs = self.__inst.fcs_file
@@ -343,16 +344,23 @@ class V2SimInstance:
 
         # Enable plugins
         if initial_state != "":
-            initial_plugin_state_file = Path(initial_state) / PLUGINS_FILE
+            plugin_state_file = Path(initial_state) / PLUGINS_FILE
+            with gzip.open(plugin_state_file, "rb") as f:
+                d = pickle.load(f)
+                assert isinstance(d, dict) and "obj" in d and "version" in d and "pickler" in d, "Invalid plugin state file."
+                plugin_state = d["obj"]
+                assert isinstance(plugin_state, dict), "Invalid plugin states."
+                assert CheckPyVersion(d["version"]), "Incompatible Python version for plugin states: saved {}, current {}".format(d["version"], PyVersion())
+                assert d["pickler"] == pickle.__name__, "Incompatible pickler for plugin states: saved {}, current {}".format(d["pickler"], pickle.__name__)
         else:
-            initial_plugin_state_file = ""
+            plugin_state = None
 
         if proj_cfg.plg:
             self.__plg_file = proj_cfg.plg
             disabled_plugins = list(map(lambda x: x.strip().lower(), no_plg.split(",")))
-            self.__plgman = PluginMan(self.__plg_file, pres, self.__inst, disabled_plugins, plg_pool, initial_plugin_state_file)
+            self.__plgman = PluginMan(self.__plg_file, pres, self.__inst, disabled_plugins, plg_pool, plugin_state)
         else:
-            self.__plgman = PluginMan(None, pres, self.__inst, [], plg_pool, initial_plugin_state_file)
+            self.__plgman = PluginMan(None, pres, self.__inst, [], plg_pool, plugin_state)
         
         # Find the power grid plugin
         self.__gridplg = None
@@ -562,7 +570,11 @@ class V2SimInstance:
         p = Path(folder) if isinstance(folder, str) else folder
         self.__inst.save(p)
         with gzip.open(p / PLUGINS_FILE, "wb") as f:
-            pickle.dump(self.__plgman.SaveStates(), f)
+            pickle.dump({
+                "obj": self.__plgman.SaveStates(),
+                "version": PyVersion(),
+                "pickler": pickle.__name__
+            }, f)
     
     def stop(self, save_state_to:Union[str, Path] = ""):
         '''
@@ -624,7 +636,6 @@ class V2SimInstance:
         print(Lang.MAIN_SIM_DONE.format(time2str(dur)), file=self.__out)
         self.__out.close()
         self.stop(str(self.__pres / SAVED_STATE_FOLDER) if self.save_on_finish else "")
-        self.__print()
         self.__print(Lang.MAIN_SIM_DONE.format(time2str(dur)))
         self.__mpsend("sim:done")
         if self.__plot_cmd != "" and not self.__stopsig:

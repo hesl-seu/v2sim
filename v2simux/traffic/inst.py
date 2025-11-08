@@ -1,4 +1,5 @@
 import random
+import cloudpickle as pickle
 import gzip
 from collections import deque
 from itertools import chain
@@ -17,8 +18,9 @@ from .ev import *
 from .paraworlds import ParaWorlds, load_world
 from .net import RoadNet
 from .params import *
+from .utils import PyVersion, CheckPyVersion
 
-WORLD_FILE_NAME = "world.pkl"
+WORLD_FILE_NAME = "world.gz"
 TRAFFIC_INST_FILE_NAME = "inst.gz"
 
 class TrafficInst:
@@ -60,7 +62,7 @@ class TrafficInst:
         self.__logger = TripsLogger(self.__triplogger_path)
         assert routing_algo in ("dijkstra", "astar"), Lang.ROUTE_ALGO_NOT_SUPPORTED
         self.__use_astar = routing_algo == "astar"
-        self.__silent = silent
+        self.silent = silent
         self.__vehfile = vehfile
         self.__fcsfile = fcsfile
         self.__scsfile = scsfile
@@ -97,7 +99,7 @@ class TrafficInst:
 
         # Check if all CS are in the largest SCC
         bad_cs = set(cs.name for cs in chain(self._fcs, self._scs) if not self.__rnet.is_node_in_largest_scc(cs.name))
-        if len(bad_cs) > 0 and not self.__silent:
+        if len(bad_cs) > 0 and not self.silent:
             warn(Lang.WARN_CS_NOT_IN_SCC.format(','.join(bad_cs)))
         
         # Create uxsim world
@@ -113,7 +115,7 @@ class TrafficInst:
             vehicle_logging_timestep_interval=-1,
             print_mode=1 if self.__show_uxsim_info else 0
         )
-        if not self.__silent:
+        if not self.silent:
             if isinstance(self.W, ParaWorlds):
                 print(Lang.PARA_WORLDS.format(len(self.W.worlds)))
             else:
@@ -503,7 +505,7 @@ class TrafficInst:
             # If the average speed is too low, we can consider the simulation to be stalled
             self.__stall_count += 1
             if self.__stall_count >= 50 and not self.__stall_warned:
-                if not self.__silent: warn(Warning("Simulation may stall: average speed < 0.001 m/s"))
+                if not self.silent: warn(Warning("Simulation may stall: average speed < 0.001 m/s"))
                 self.__stall_warned = True
         else:
             self.__stall_count = 0
@@ -537,7 +539,7 @@ class TrafficInst:
             self.__start_charging_FCS(self._VEHs[v])
 
     def simulation_stop(self):
-        if not self.__silent:
+        if not self.silent:
             print()
             print(self.W.shutdown())
         self.__logger.close()
@@ -556,9 +558,12 @@ class TrafficInst:
         tmpTL = self.__logger
         delattr(self, "_TrafficInst__logger")
         delattr(self, "W")
-        import cloudpickle as pickle
         with gzip.open(str(f / TRAFFIC_INST_FILE_NAME), "wb") as f:
-            pickle.dump(self, f)
+            pickle.dump({
+                "obj": self,
+                "version": PyVersion(),
+                "pickler": pickle.__name__,
+            }, f)
         self.W = tmpW
         self.__logger = tmpTL
         self._fcs.create_pool()
@@ -577,9 +582,16 @@ class TrafficInst:
         inst = folder / TRAFFIC_INST_FILE_NAME
         if not inst.exists():
             raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(inst))
-        import cloudpickle as pickle
+        
         with gzip.open(str(inst), "rb") as f:
-            ti = pickle.load(f)
+            d = pickle.load(f)
+            assert isinstance(d, dict) and "obj" in d and "pickler" in d and "version" in d, "Invalid TrafficInst state file."
+        if not CheckPyVersion(d["version"]):
+            raise RuntimeError(f"Python version mismatch for TrafficInst: Expect {PyVersion()}, got {d["version"]}")
+        if d["pickler"] != pickle.__name__:
+            raise RuntimeError(f"Pickler mismatch for TrafficInst: Expect {pickle.__name__}, got {d["pickler"]}")
+
+        ti = d["obj"]
         assert isinstance(ti, TrafficInst)
         ti.W = load_world(str(Path(folder) / WORLD_FILE_NAME))
         if triplogger_save_path is not None:

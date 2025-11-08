@@ -1,3 +1,4 @@
+import functools
 import os
 import sys
 import time
@@ -24,6 +25,23 @@ def showerr(msg:str):
 
 def showwarn(msg:str):
     MB.showwarning(_L["MB_INFO"], msg)
+
+def _try_int(s:str, name:str) -> int:
+    try: return int(s)
+    except: raise ValueError(f"Invalid {name}. Must be an integer.")
+
+def _try_float(s:str, name:str) -> float:
+    try: return float(s)
+    except: raise ValueError(f"Invalid {name}. Must be a float.")
+
+def errwrapper(func):
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            showerr(str(e))
+    return wrapped
 
 _L = CustomLocaleLib.LoadFromFolder("resources/gui_main")
 
@@ -379,18 +397,12 @@ class CSEditorGUI(Frame):
             self.entry_bussel.config(state="disabled")
             self.entry_busrandN.config(state="normal")
 
+    @errwrapper
     def generate(self):
-        try:
-            seed = int(self.entry_seed.get())
-        except:
-            showerr("Invalid seed")
-            return
-        try:
-            slots = int(self.entry_slots.get())
-        except:
-            showerr("Invalid slots")
-            return
+        seed = _try_int(self.entry_seed.get(), "seed")
+        slots = _try_int(self.entry_slots.get(), "slots")
         mode = "fcs" if self.csType == FCS else "scs"
+
         if self.useMode.get() == 0:
             cs = ListSelection.ALL
             csCount = -1
@@ -403,16 +415,10 @@ class CSEditorGUI(Frame):
             except:
                 showerr("Invalid given CS")
                 return
-            if len(givenCS) == 0 or len(givenCS) == 1 and givenCS[0] == "":
-                showerr("No given CS")
-                return
+            assert not (len(givenCS) == 0 or len(givenCS) == 1 and givenCS[0] == ""), "No given CS"
         else:
             cs = ListSelection.RANDOM
-            try:
-                csCount = int(self.entry_randN.get())
-            except:
-                showerr("Invalid random N of CS")
-                return
+            csCount = _try_int(self.entry_randN.get(), "random N of CS")
             givenCS = []
         use_grid = False
         busCount = -1
@@ -429,38 +435,24 @@ class CSEditorGUI(Frame):
             except:
                 showerr("Invalid given bus")
                 return
-            if len(givenbus) == 0 or len(givenbus) == 1 and givenbus[0] == "":
-                showerr("No given bus")
-                return
+            assert not (len(givenbus) == 0 or len(givenbus) == 1 and givenbus[0] == ""), "No given bus"
         else:
             bus = ListSelection.RANDOM
-            try:
-                busCount = int(self.entry_randN.get())
-            except:
-                showerr("Invalid random N of bus")
-                return
+            busCount = _try_int(self.entry_randN.get(), "random N of bus")
         
         if self.pbuy.get() == 0:
             pbuyM = PricingMethod.RANDOM
             pbuy = 1.0
         else:
             pbuyM = PricingMethod.FIXED
-            try:
-                pbuy = float(self.entry_pbuy.get())
-            except:
-                showerr("Invalid price buy")
-                return
+            pbuy = _try_float(self.entry_pbuy.get(), "price buy")
         if self.csType == FCS:
             if self.psell.get() == 0:
                 psellM = PricingMethod.RANDOM
                 psell = 0
             else:
                 psellM = PricingMethod.FIXED
-                try:
-                    psell = float(self.entry_psell.get())
-                except:
-                    showerr("Invalid price sell")
-                    return
+                psell = _try_float(self.entry_psell.get(), "price sell")
         else:
             psellM = PricingMethod.FIXED
             psell = 0
@@ -779,42 +771,85 @@ class MainBox(Tk):
         self.entry_start = Entry(self.sim_time)
         self.entry_start.insert(0, "0")
         self.entry_start.grid(row=0, column=1, padx=3, pady=3, sticky="w")
+
+        self.lb_break = Label(self.sim_time, text=_L["SIM_BREAKT"])
+        self.lb_break.grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.entry_break = Entry(self.sim_time)
+        self.entry_break.insert(0, "172800")
+        self.entry_break.grid(row=1, column=1, padx=3, pady=3, sticky="w")
+
         self.lb_end = Label(self.sim_time, text=_L["SIM_ENDT"])
-        self.lb_end.grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.lb_end.grid(row=2, column=0, padx=3, pady=3, sticky="w")
         self.entry_end = Entry(self.sim_time)
         self.entry_end.insert(0, "172800")
-        self.entry_end.grid(row=1, column=1, padx=3, pady=3, sticky="w")
+        self.entry_end.grid(row=2, column=1, padx=3, pady=3, sticky="w")
+
         self.lb_step = Label(self.sim_time, text=_L["SIM_STEP"])
-        self.lb_step.grid(row=2, column=0, padx=3, pady=3, sticky="w")
+        self.lb_step.grid(row=3, column=0, padx=3, pady=3, sticky="w")
         self.entry_step = Entry(self.sim_time)
         self.entry_step.insert(0, "10")
-        self.entry_step.grid(row=2, column=1, padx=3, pady=3, sticky="w")
+        self.entry_step.grid(row=3, column=1, padx=3, pady=3, sticky="w")
+
         self.lb_seed = Label(self.sim_time, text=_L["SIM_SEED"])
-        self.lb_seed.grid(row=3, column=0, padx=3, pady=3, sticky="w")
+        self.lb_seed.grid(row=4, column=0, padx=3, pady=3, sticky="w")
         self.entry_seed = Entry(self.sim_time)
         self.entry_seed.insert(0, "0")
-        self.entry_seed.grid(row=3, column=1, padx=3, pady=3, sticky="w")
-        self.ralgo = StringVar(self, "astar")
-        self.lb_route_algo = Label(self.sim_time, text=_L["SIM_ROUTE_ALGO"])
-        self.lb_route_algo.grid(row=4, column=0, padx=3, pady=3, sticky="w")
-        self.combo_ralgo = Combobox(self.sim_time, textvariable=self.ralgo, values=["dijkstra", "astar"])
-        self.combo_ralgo.grid(row=4, column=1, padx=3, pady=3, sticky="w")
+        self.entry_seed.grid(row=4, column=1, padx=3, pady=3, sticky="w")
 
-        self.sim_load_last_state = BooleanVar(self, False)
-        self.sim_cb_load_last_state = Checkbutton(self.sim_time, text=_L["SIM_LOAD_LAST_STATE"], variable=self.sim_load_last_state)
+        self.sim_state_load_panel = Frame(self.sim_time)
+        self.sim_state_load_panel.grid(row=0, column=2, padx=0, pady=0, sticky="w")
+
+        self.sim_lb_state_load = Label(self.sim_state_load_panel, text=_L["SIM_STATE_LOAD_OPTIONS"])
+        self.sim_lb_state_load.grid(row=0, column=0, padx=3, pady=3, sticky="w")
+
+        self.sim_load_state = IntVar(self, 0)
+
+        self.sim_cb_no_load_state = Radiobutton(self.sim_state_load_panel, text=_L["SIM_NO_LOAD_STATE"], 
+            value=0, variable=self.sim_load_state, command=self.on_load_state_changed)
+        self.sim_cb_no_load_state.grid(row=0, column=1, padx=3, pady=3, sticky="w")
+        
+        self.sim_cb_load_last_state = Radiobutton(self.sim_state_load_panel, text=_L["SIM_LOAD_LAST_STATE"],
+            value=1, variable=self.sim_load_state, command=self.on_load_state_changed)
         self.sim_cb_load_last_state.grid(row=0, column=2, padx=3, pady=3, sticky="w")
+
+        self.sim_cb_load_saved_state = Radiobutton(self.sim_state_load_panel, text=_L["SIM_LOAD_SAVED_STATE"],
+            value=2, variable=self.sim_load_state, command=self.on_load_state_changed)
+        self.sim_cb_load_saved_state.grid(row=0, column=3, padx=3, pady=3, sticky="w")
+
+        self.sim_state_save_panel = Frame(self.sim_time)
+        self.sim_state_save_panel.grid(row=1, column=2, padx=0, pady=0, sticky="w")
+        
+        self.sim_lb_state_save = Label(self.sim_state_save_panel, text=_L["SIM_STATE_SAVE_OPTIONS"])
+        self.sim_lb_state_save.grid(row=0, column=0, padx=3, pady=3, sticky="w")
+
         self.sim_save_on_abort = BooleanVar(self, False)
-        self.sim_cb_save_on_abort = Checkbutton(self.sim_time, text=_L["SIM_SAVE_ON_ABORT"], variable=self.sim_save_on_abort)
-        self.sim_cb_save_on_abort.grid(row=1, column=2, padx=3, pady=3, sticky="w")
+        self.sim_cb_save_on_abort = Checkbutton(self.sim_state_save_panel, text=_L["SIM_SAVE_ON_ABORT"], variable=self.sim_save_on_abort)
+        self.sim_cb_save_on_abort.grid(row=0, column=1, padx=3, pady=3, sticky="w")
+
         self.sim_save_on_finish = BooleanVar(self, False)
-        self.sim_cb_save_on_finish = Checkbutton(self.sim_time, text=_L["SIM_SAVE_ON_FINISH"], variable=self.sim_save_on_finish)
-        self.sim_cb_save_on_finish.grid(row=2, column=2, padx=3, pady=3, sticky="w")
+        self.sim_cb_save_on_finish = Checkbutton(self.sim_state_save_panel, text=_L["SIM_SAVE_ON_FINISH"], variable=self.sim_save_on_finish)
+        self.sim_cb_save_on_finish.grid(row=0, column=2, padx=3, pady=3, sticky="w")
+
         self.sim_copy_state = BooleanVar(self, False)
-        self.sim_cb_copy_state = Checkbutton(self.sim_time, text=_L["SIM_COPY_STATE"], variable=self.sim_copy_state)
-        self.sim_cb_copy_state.grid(row=3, column=2, padx=3, pady=3, sticky="w")
-        self.sim_no_gil = BooleanVar(self, False)
-        self.sim_cb_no_gil = Checkbutton(self.sim_time, text=_L["SIM_NO_GIL"], variable=self.sim_no_gil)
-        self.sim_cb_no_gil.grid(row=4, column=2, padx=3, pady=3, sticky="w")
+        self.sim_cb_copy_state = Checkbutton(self.sim_state_save_panel, text=_L["SIM_COPY_STATE"], variable=self.sim_copy_state)
+        self.sim_cb_copy_state.grid(row=0, column=3, padx=3, pady=3, sticky="w")
+
+        self.sim_no_parallel = BooleanVar(self, False)
+        self.sim_cb_no_parallel = Checkbutton(self.sim_time, text=_L["SIM_NO_PARALLEL"], variable=self.sim_no_parallel)
+        self.sim_cb_no_parallel.grid(row=2, column=2, padx=3, pady=3, sticky="w")
+
+        self.sim_show_uxsim_info = BooleanVar(self, False)
+        self.sim_cb_show_uxsim_info = Checkbutton(self.sim_time, text=_L["SIM_SHOW_UXSIM_INFO"], variable=self.sim_show_uxsim_info)
+        self.sim_cb_show_uxsim_info.grid(row=3, column=2, padx=3, pady=3, sticky="w")
+
+        self.sim_algo_panel = Frame(self.sim_time)
+        self.sim_algo_panel.grid(row=4, column=2, padx=0, pady=0, sticky="w")
+
+        self.ralgo = StringVar(self, "astar")
+        self.lb_route_algo = Label(self.sim_algo_panel, text=_L["SIM_ROUTE_ALGO"])
+        self.lb_route_algo.grid(row=0, column=0, padx=3, pady=3, sticky="w")
+        self.combo_ralgo = Combobox(self.sim_algo_panel, textvariable=self.ralgo, values=["dijkstra", "astar"])
+        self.combo_ralgo.grid(row=0, column=1, padx=3, pady=3, sticky="w")
 
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
         self.sim_plglist = PluginEditor(self.sim_plugins, self.__OnPluginEnabledSet)
@@ -947,6 +982,18 @@ class MainBox(Tk):
         if self.folder != "":
             self.after(200, self._load)
     
+    def on_load_state_changed(self):
+        val = self.sim_load_state.get()
+        s = NORMAL if val == 0 else DISABLED
+        self.entry_start.config(state=s)
+        # self.entry_break.config(state=s) # break time is always editable
+        self.entry_end.config(state=s)
+        self.entry_step.config(state=s)
+        self.entry_seed.config(state=s)
+        self.combo_ralgo.config(state=s)
+        self.sim_cb_no_parallel.config(state=s)
+        self.sim_cb_show_uxsim_info.config(state=s)
+    
     def netsave(self):
         ret = filedialog.asksaveasfilename(
             defaultextension=".eps",
@@ -1008,36 +1055,29 @@ class MainBox(Tk):
             if ret: self.save()
         self.destroy()
 
+    @errwrapper
     def simulate(self):
-        if not self.__checkFolderOpened():
-            return
-        try:
-            start = int(self.entry_start.get())
-            end = int(self.entry_end.get())
-            step = int(self.entry_step.get())
-            seed = int(self.entry_seed.get())
-        except:
-            showerr("Invalid time")
-            return
-        if not self.state:
-            showerr("No project loaded")
-            return
-        if "scs" not in self.state:
-            showerr("No SCS loaded")
-            return
-        if "fcs" not in self.state:
-            showerr("No FCS loaded")
-            return
-        if "veh" not in self.state:
-            showerr("No vehicles loaded")
-            return
+        if not self.__checkFolderOpened(): return
+        start = _try_int(self.entry_start.get(), "start time")
+        assert start >= 0, "Start time must be non-negative integer"
+        break_at = _try_int(self.entry_break.get(), "break time")
+        assert break_at > start, "Break time must be greater than start time"
+        end = _try_int(self.entry_end.get(), "end time")
+        assert end >= break_at, "End time must be greater than or equal to break time"
+        step = _try_int(self.entry_step.get(), "time step")
+        assert step > 0, "Time step must be positive integer"
+        seed = _try_int(self.entry_seed.get(), "random seed")
+        assert self.state, "No project loaded"
+        assert "scs" in self.state, "No SCS loaded"
+        assert "fcs" in self.state, "No FCS loaded"
+        assert "veh" in self.state, "No vehicles loaded"
+
         logs = []
         for x in ("fcs","scs","ev","gen","bus","line","pvw","ess"):
             if self.sim_statistic[x]:
                 logs.append(x)
-        if not logs:
-            showerr(_L["NO_STA"])
-            return
+        assert logs, _L["NO_STA"]
+
         if not self.saved:
             if not MB.askyesno(_L["MB_INFO"],_L["MB_SAVE_AND_SIM"]): return
             self.save()
@@ -1045,32 +1085,42 @@ class MainBox(Tk):
         # Save preference
         vcfg = V2SimConfig()
         vcfg.start_time = start
+        vcfg.break_time = break_at
         vcfg.end_time = end
         vcfg.traffic_step = step
         vcfg.seed = seed
-        vcfg.load_state = self.sim_load_last_state.get()
+        vcfg.load_state = self.sim_load_state.get()
         vcfg.save_state_on_abort = self.sim_save_on_abort.get()
         vcfg.save_state_on_finish = self.sim_save_on_finish.get()
         vcfg.copy_state = self.sim_copy_state.get()
-        vcfg.force_nogil = self.sim_no_gil.get()
         vcfg.routing_method = self.ralgo.get()
+        vcfg.disable_parallel = self.sim_no_parallel.get()
+        vcfg.show_uxsim_info = self.sim_show_uxsim_info.get()
         vcfg.stats = logs
         vcfg.save(self.folder + "/preference.v2simcfg")
-            
-        commands = [sys.executable, 
-                    "-Xgil=0" if self.sim_no_gil.get() else "",
+        
+        if self.sim_load_state.get() == 0:
+            cmd_load_state = ""
+        elif self.sim_load_state.get() == 1:
+            cmd_load_state = "--load-last-state"
+        else:
+            cmd_load_state = f'--initial-state="{self.folder}/saved_state"'
+        commands = [sys.executable,
                     "sim_single.py",
-                    "-d", '"'+self.folder+'"', 
-                    "-b", str(start), 
-                    "-e", str(end), 
-                    "-l", str(step), 
+                    f'-d="{self.folder}"', 
+                    f"-b={start}", 
+                    f"--break-at={self.entry_break.get()}",
+                    f"-e={end}", 
+                    f"-l={step}", 
                     "-log", ','.join(logs),
-                    "-seed", str(seed),
-                    "--load-last-state" if self.sim_load_last_state.get() else "",
+                    "--seed", str(seed),
+                    cmd_load_state,
                     "--save-on-abort" if self.sim_save_on_abort.get() else "",
                     "--save-on-finish" if self.sim_save_on_finish.get() else "",
-                    "--route-algo", self.ralgo.get(),
                     "--copy-state" if self.sim_copy_state.get() else "",
+                    "--route-algo", self.ralgo.get(),
+                    "--no-parallel" if self.sim_no_parallel.get() else "",
+                    "--show-uxsim-info" if self.sim_show_uxsim_info.get() else "",
                 ]
         
         self.destroy()
@@ -1223,11 +1273,13 @@ class MainBox(Tk):
         setText(self.lb_cscsv, "cscsv")
 
         self.update()
-
+        
         if self.state.pref:
             vcfg = V2SimConfig.load(self.state.pref)
             self.entry_start.delete(0, END)
             self.entry_start.insert(0, str(vcfg.start_time))
+            self.entry_break.delete(0, END)
+            self.entry_break.insert(0, str(vcfg.break_time))
             self.entry_end.delete(0, END)
             self.entry_end.insert(0, str(vcfg.end_time))
             self.entry_step.delete(0, END)
@@ -1235,17 +1287,23 @@ class MainBox(Tk):
             self.entry_seed.delete(0, END)
             self.entry_seed.insert(0, str(vcfg.seed))
             self.ralgo.set(vcfg.routing_method)
+            self.sim_load_state.set(vcfg.load_state)
+            self.on_load_state_changed()
             self.sim_save_on_finish.set(vcfg.save_state_on_finish)
             self.sim_save_on_abort.set(vcfg.save_state_on_abort)
-            self.sim_load_last_state.set(vcfg.load_state)
             self.sim_copy_state.set(vcfg.copy_state)
-            self.sim_no_gil.set(vcfg.force_nogil)
+            self.sim_no_parallel.set(vcfg.disable_parallel)
+            self.sim_show_uxsim_info.set(vcfg.show_uxsim_info)
             if vcfg.stats:
                 for x in vcfg.stats:
                     if x in self.sim_statistic:
                         self.sim_statistic[x] = True
                     else:
                         showerr(_L["UKN_STA_TYPE"].format(x, ', '.join(self.sim_statistic.keys())))
+        
+        self.sim_cb_load_last_state.configure(state="normal" if self.state.last_result_state else "disabled")
+        self.sim_cb_load_saved_state.configure(state="normal" if self.state.saved_state else "disabled")
+
         self.update()
 
         self.setStatus(_L["STA_READY"])
@@ -1425,27 +1483,15 @@ class MainBox(Tk):
             
         self._Q.submit("CSGenDone", work, ctl, **kwargs)   
     
+    @errwrapper
     def generateVeh(self):
-        if not self.tg:
-            showerr(_L["MSG_NO_TRAFFIC_GEN"])
-            return
+        assert self.tg, _L["MSG_NO_TRAFFIC_GEN"]
         if not self.__checkFolderOpened(): return
         self.setStatus(_L["STA_GEN_VEH"])
-        try:
-            carcnt = int(self.entry_carcnt.get())
-        except:
-            showerr(_L["MSG_INVALID_VEH_CNT"])
-            return
-        try:
-            carseed = int(self.entry_carseed.get())
-        except:
-            showerr(_L["MSG_INVALID_VEH_SEED"])
-            return
-        try:
-            day_count = int(self.entry_daycnt.get())
-        except:
-            showerr(_L["MSG_INVALID_VEH_DAY_CNT"])
-            return
+        carcnt = _try_int(self.entry_carcnt.get(), "Vehicle count")
+        carseed = _try_int(self.entry_carseed.get(), "Vehicle seed")
+        day_count = _try_int(self.entry_daycnt.get(), "Vehicle day count")
+        
         try:
             pars = self.veh_pars.getAllData()
             new_pars = {
@@ -1456,9 +1502,9 @@ class MainBox(Tk):
                 "kfc":eval(pars["KFC"]),
                 "kv2g":eval(pars["KV2G"]),
             }
-        except:
-            showerr("Invalid Vehicle parameters")
-            return
+        except Exception as e:
+            raise ValueError("Invalid Vehicle parameters") from e
+        
         if self.veh_gen_src.get() == 0:
             mode = TripsGenMode.AUTO
         elif self.veh_gen_src.get() == 1:

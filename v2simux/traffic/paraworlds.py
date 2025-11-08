@@ -3,12 +3,15 @@ import os
 import sys
 import threading
 import time
+import gzip
+import dill as pickle
 from collections import deque
 from typing import DefaultDict, Deque, Dict, Generator, List, Optional, Set, Tuple, Iterable
-from v2simux.traffic.routing import Link
-from .uxsim import World, Vehicle
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from v2simux.traffic.routing import Link
+from .uxsim import World, Vehicle
+from .utils import PyVersion, CheckPyVersion
 from ..locale.lang import Lang
 from .routing import *
 
@@ -78,6 +81,18 @@ class WorldSpec(ABC):
     @abstractmethod
     def load(filepath:str): ...
 
+def _load_world(filepath:str) -> WorldSpec:
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"File {filepath} does not exist.")
+    with gzip.open(filepath, 'rb') as f:
+        data = pickle.load(f)
+    assert isinstance(data, dict) and "obj" in data and "version" in data and "pickler" in data, "Invalid world file."
+    world_obj = data["obj"]
+    assert isinstance(world_obj, WorldSpec), "Invalid world object."
+    assert CheckPyVersion(data["version"]), "Incompatible Python version for world: saved {}, current {}".format(data["version"], PyVersion())
+    assert data["pickler"] == pickle.__name__, "Incompatible pickler for world: saved {}, current {}".format(data["pickler"], pickle.__name__)
+    return world_obj
+
 class SingleWorld(WorldSpec):
     def __init__(self, world:World, gl:Graph):
         self.world = world
@@ -143,14 +158,13 @@ class SingleWorld(WorldSpec):
         return f"Total steps: {self.__cnt}"
     
     def __lstack_save(self, filepath:str):
-        import cloudpickle as pickle
-        sys.setrecursionlimit(10**7)
-        with open(filepath, 'wb') as f:
-            try:
-                pickle.dump(self, f)
-            except RecursionError as e:
-                raise RecursionError("Failed to save SingleWorld due to recursion limit. "
-                    "Consider increasing the recursion limit or simplifying the world structure.")
+        sys.setrecursionlimit(10**9)
+        with gzip.open(filepath, 'wb') as f:
+            pickle.dump({
+                "obj": self,
+                "version": PyVersion(),
+                "pickler": pickle.__name__
+            }, f)
 
     def save(self, filepath:str):
         threading.stack_size(1024 * 1024 * 128)  # 128MB
@@ -160,9 +174,7 @@ class SingleWorld(WorldSpec):
 
     @staticmethod
     def load(filepath:str):
-        import cloudpickle as pickle
-        with open(filepath, 'rb') as f:
-            data = pickle.load(f)
+        data = _load_world(filepath)
         assert isinstance(data, SingleWorld)
         return data
 
@@ -317,14 +329,13 @@ class ParaWorlds(WorldSpec):
         return f"Total steps: {self.__cnt_ser} serial + {self.__cnt_para} parallel"
 
     def __lstack_save(self, filepath:str):
-        import cloudpickle as pickle
-        sys.setrecursionlimit(10**7)
-        with open(filepath, 'wb') as f:
-            try:
-                pickle.dump(self, f)
-            except RecursionError as e:
-                raise RecursionError("Failed to save ParaWorlds due to recursion limit. "
-                    "Consider increasing the recursion limit or simplifying the world structure.")
+        sys.setrecursionlimit(10**9)
+        with gzip.open(filepath, 'wb') as f:
+            pickle.dump({
+                "obj": self,
+                "version": PyVersion(),
+                "pickler": pickle.__name__
+            }, f)
 
     def save(self, filepath:str):
         self.__pool.shutdown(wait=True)
@@ -337,19 +348,13 @@ class ParaWorlds(WorldSpec):
 
     @staticmethod
     def load(filepath:str):
-        import cloudpickle as pickle
-        with open(filepath, 'rb') as f:
-            data = pickle.load(f)
-        assert isinstance(data, ParaWorlds)
+        data = _load_world(filepath)
+        assert isinstance(data, ParaWorlds), "Invalid world object."
         return data
 
 def load_world(filepath:str) -> WorldSpec:
-    if not os.path.isfile(filepath):
-        raise FileNotFoundError(f"File {filepath} does not exist.")
-    with open(filepath, 'rb') as f:
-        import cloudpickle as pickle
-        data = pickle.load(f)
-    assert isinstance(data, (SingleWorld, ParaWorlds))
+    data = _load_world(filepath)
+    assert isinstance(data, (SingleWorld, ParaWorlds)), "Invalid world object."
     return data
 
 __all__ = ["WorldSpec", "SingleWorld", "ParaWorlds", "RoutingAlgorithm", "load_world"]

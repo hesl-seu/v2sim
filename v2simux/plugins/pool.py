@@ -1,6 +1,3 @@
-#from feasytools import FEasyTimer
-import gzip
-from typing import Union
 from .base import *
 from .pdn import PluginPDN
 from .v2g import PluginV2G
@@ -76,7 +73,7 @@ class PluginPool:
         self._Register(name,plugin,deps)
 
 class PluginMan:
-    def __init__(self, plg_xml:Optional[str], res_dir:Path, inst:TrafficInst, no_plg:List[str], plugin_pool:PluginPool, initial_state_file:Union[str, Path] = ""):
+    def __init__(self, plg_xml:Optional[str], res_dir:Path, inst:TrafficInst, no_plg:List[str], plugin_pool:PluginPool, initial_state:Optional[Dict[str, object]] = None):
         '''
         Load plugins from file
             plg_xml: Plugin configuration file path, None means not load
@@ -96,16 +93,6 @@ class PluginMan:
         work_dir = Path(plg_xml).parent
         if root is None:
             raise PluginError(Lang.PLG_NOT_EXIST_OR_BAD.format(plg_xml))
-
-        # Load initial states if specified
-        initial_state: Dict[str, bytes] = {}
-        if initial_state_file != "":
-            import cloudpickle as pickle
-            if isinstance(initial_state_file, Path):
-                initial_state_file = str(initial_state_file)
-            with gzip.open(initial_state_file, "rb") as f:
-                initial_state = pickle.load(f)
-                assert isinstance(initial_state, dict), "Invalid plugin state file."
         
         # Load plugins
         for itm in root:
@@ -121,8 +108,8 @@ class PluginMan:
                 deps.append(self.__curPlugins[d])
             self.Add(plugin_type(inst, itm, work_dir, res_dir, plg_deps=deps,
                 initial_state=(initial_state.pop(itm.tag) if initial_state else None)))
-        
-        if len(initial_state or {}) > 0:
+
+        if initial_state and len(initial_state) > 0:
             raise PluginError("Some plugins in the initial state file are not loaded: " + ",".join(initial_state.keys()))
     
     def PreSimulationAll(self):
@@ -169,12 +156,3 @@ class PluginMan:
         for name, p in self.__curPlugins.items():
             ret[name] = p._save_state()
         return ret
-
-    def Save(self, fname:Union[str, Path]):
-        '''Save all plugin states to file'''
-        states = self.SaveStates()
-        import cloudpickle as pickle
-        if isinstance(fname, Path):
-            fname = str(fname)
-        with gzip.open(fname, "wb") as f:
-            pickle.dump(states, f)

@@ -4,7 +4,7 @@
     "traffic_step": 10,
     "seed": 0,
     "routing_method": "astar",
-    "load_state": true,
+    "load_state": false,
     "save_state_on_abort": false,
     "save_state_on_finish": true,
     "copy_state": false,

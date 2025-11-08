@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
-import random, string, gzip
-from typing import Optional, Set, Dict
+from typing import Optional, Set, Dict, List, Tuple
 from xml.etree import ElementTree as ET
+import random, string, gzip
+import sys
 from ..locale import Lang
-from typing import List, Tuple
+
+SAVED_STATE_FOLDER = "saved_state"
 
 IntPairList = List[Tuple[int, int]]
 PriceList = Tuple[List[int], List[float]]
@@ -88,6 +90,8 @@ class FileDetectResult:
     cscsv: Optional[str] = None
     pref: Optional[str] = None
     poi: Optional[str] = None
+    saved_state: Optional[str] = None
+    last_result_state: Optional[str] = None
     
     def __getitem__(self, key: str):
         return getattr(self, key)
@@ -170,6 +174,12 @@ def DetectFiles(dir: str) -> FileDetectResult:
             add("poi", a)
         if aret.Taz:
             add("taz", a)
+    
+    if (p / SAVED_STATE_FOLDER).exists():
+        add("saved_state", (p / SAVED_STATE_FOLDER).as_posix())
+    
+    if (p / "results" / SAVED_STATE_FOLDER).exists():
+        add("last_result_state", (p / "results" / SAVED_STATE_FOLDER).as_posix())
 
     return FileDetectResult(**ret)
 
@@ -177,15 +187,18 @@ def DetectFiles(dir: str) -> FileDetectResult:
 class V2SimConfig:
     start_time: int = 0
     end_time: int = 172800
+    break_time: int = 172800
     traffic_step: int = 10
     seed: int = 0
     routing_method:str = "astar"
-    load_state: bool = False
+    load_state: int = 0
+    inital_state_dir: str = ""
     save_state_on_abort: bool = False
     save_state_on_finish: bool = False
     copy_state: bool = False
     visualize: bool = False
-    force_nogil: bool = False
+    disable_parallel: bool = False
+    show_uxsim_info: bool = False
     stats: Optional[List[str]] = None
 
     @staticmethod
@@ -203,6 +216,8 @@ class V2SimConfig:
         # Remove deprecated fields if present
         if "force_caching" in data:
             del data["force_caching"]
+        if "force_nogil" in data:
+            del data["force_nogil"]
         return V2SimConfig(**data)
     
     def save(self, file:str):
@@ -215,7 +230,17 @@ class V2SimConfig:
         with open(file, "w") as f:
             json.dump(self.__dict__, f, indent=4)
 
+def PyVersion() -> Tuple[int, int, int, bool]:
+    ver_info = sys.version_info
+    has_gil = sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True
+    return (ver_info.major, ver_info.minor, ver_info.micro, has_gil)
+
+def CheckPyVersion(ver:Tuple[int, int, int, bool]) -> bool:
+    cur_ver = PyVersion()
+    # Allow micro version difference
+    return ver[0] == cur_ver[0] and ver[1] == cur_ver[1] and ver[3] == cur_ver[3]
+
 __all__ = [
-    "IntPairList", "PriceList", "FileDetectResult", "V2SimConfig",
-    "DetectFiles", "CheckFile", "ClearBakFiles", "ReadXML", "LoadFCS", "LoadSCS",
+    "IntPairList", "PriceList", "FileDetectResult", "V2SimConfig", "PyVersion", "CheckPyVersion",
+    "DetectFiles", "CheckFile", "ClearBakFiles", "ReadXML", "LoadFCS", "LoadSCS", "SAVED_STATE_FOLDER"
 ]

@@ -130,7 +130,7 @@ class CSList(Generic[T_CS]):
                 break
             pts.append((cs._x, cs._y))
         else:
-            self._kdtree = KDTree(pts)
+            self._kdtree = KDTree(pts) if pts else None
     
     def select_near(self, pos: Tuple[float, float], n: int = 1) -> Iterable[int]:
         """

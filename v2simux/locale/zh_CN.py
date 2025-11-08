@@ -58,7 +58,7 @@ class _locale:
     INFO_TRIPS = "  行程: {0}, {1}辆EV"
     INFO_FCS = "  快充: {0}, {1}个站点"
     INFO_SCS = "  慢充: {0}, {1}个站点"
-    INFO_TIME = "  起止时间: {0} ~ {1}, 步长：{2}"
+    INFO_TIME = "  起止时间: {0} ~ {1} (中断于{2}), 步长：{3}"
     INFO_PLG = "  插件: {0} - {1}"
     INFO_REGEN_SCS = "慢充站已重新生成."
     INFO_REGEN_FCS = "快充站已重新生成."
