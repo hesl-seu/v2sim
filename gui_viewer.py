@@ -3,7 +3,7 @@ import os
 import pickle
 from pathlib import Path
 import traceback
-from typing import Literal, Optional, Dict, List, Tuple, Union
+from typing import Literal, Optional, Dict, List, Tuple
 from fgui import add_lang_menu, EventQueue
 from fgui.view import *
 from fgui import ScrollableTreeView, TripsFrame, SelectResultsDialog
@@ -13,7 +13,7 @@ from tkinter import messagebox as MB
 from PIL import Image, ImageTk
 from v2simux import CS, CSList, EV, EVDict
 
-_L = CustomLocaleLib.LoadFromFolder("resources/gui_viewer")
+_L = CustomLocaleLib.LoadFromFolder(Path(__file__).parent / "resources" / "gui_viewer")
 
 AVAILABLE_ITEMS = ["fcs","scs","ev","gen","bus","line","pvw","ess"]
 AVAILABLE_ITEMS2 = AVAILABLE_ITEMS + ["fcs_accum","scs_accum","bus_total","gen_total"]

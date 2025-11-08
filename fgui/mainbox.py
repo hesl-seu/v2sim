@@ -43,7 +43,8 @@ def errwrapper(func):
             showerr(str(e))
     return wrapped
 
-_L = CustomLocaleLib.LoadFromFolder("resources/gui_main")
+V2SIM_UX_DIR = Path(__file__).parent.parent
+_L = CustomLocaleLib.LoadFromFolder(V2SIM_UX_DIR / "resources" / "gui_main")
 
 SIM_YES = "YES"
 SIM_NO = "NO"
@@ -53,7 +54,7 @@ LOAD_NET = "Network"
 LOAD_CSCSV = "CS CSV"
 LOAD_PLG = "Plugins"
 LOAD_GEN = "Instance"
-EXT_COMP = "external_components"
+EXT_COMP = str(V2SIM_UX_DIR / "external_components")
 
     
 class PluginEditor(ScrollableTreeView):
@@ -1106,7 +1107,7 @@ class MainBox(Tk):
         else:
             cmd_load_state = f'--initial-state="{self.folder}/saved_state"'
         commands = [sys.executable,
-                    "sim_single.py",
+                    str(V2SIM_UX_DIR / "sim_single.py"),
                     f'-d="{self.folder}"', 
                     f"-b={start}", 
                     f"--break-at={self.entry_break.get()}",

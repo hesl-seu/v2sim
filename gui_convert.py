@@ -13,7 +13,7 @@ import os
 import subprocess
 import threading
 
-_ = CustomLocaleLib.LoadFromFolder("resources/gui_convert")
+_ = CustomLocaleLib.LoadFromFolder(Path(__file__).parent / "resources" / "gui_convert")
 
 class MainApplication:
     def __init__(self, root: tk.Tk):

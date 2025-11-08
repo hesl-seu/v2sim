@@ -29,9 +29,11 @@ class MsgPack:
 def load_external_components(
     external_plugin_dir: str, plugin_pool: PluginPool, sta_pool: StaPool
 ):
-    exp = Path(os.getcwd()) / Path(external_plugin_dir)
+    cwd = os.getcwd()
+    exp = Path(external_plugin_dir)
     if not (exp.exists() and exp.is_dir()):
         return
+    os.chdir(external_plugin_dir)
     for module_file in exp.iterdir():
         if not (
             module_file.is_file()
@@ -41,7 +43,7 @@ def load_external_components(
             continue
         module_name = module_file.stem
         try:
-            module = importlib.import_module(f"{external_plugin_dir}.{module_name}")
+            module = importlib.import_module(module_name)
         except Exception as e:
             print(Lang.WARN_EXT_LOAD_FAILED.format(module_name, e))
             module = None
@@ -55,6 +57,7 @@ def load_external_components(
                 sta_pool.Register(*module.sta_exports) # type: ignore
             except Exception as e:
                 print(Lang.WARN_EXT_INVALID_STA.format(module_name, e))
+    os.chdir(cwd)
                 
 def get_sim_params(
         args:Union[str, ArgChecker],
@@ -206,7 +209,7 @@ class V2SimInstance:
         # Check if the folder exists
         proj_dir = Path(cfgdir)
         if not proj_dir.exists() or not proj_dir.is_dir():
-            raise FileNotFoundError(f"Invalid project directory :{cfgdir}")
+            raise FileNotFoundError(f"Invalid project directory: {cfgdir}")
         
         # Determine result folder       
         pres = _calc_output_folder(cfgdir, outdir, outdir_direct)

@@ -8,7 +8,7 @@ from fgui.view import *
 from PIL import Image, ImageTk
 from v2simux import CustomLocaleLib
 
-_ = CustomLocaleLib.LoadFromFolder("resources/gui_cmp")
+_ = CustomLocaleLib.LoadFromFolder(Path(__file__).parent / "resources" / "gui_cmp")
 
 class ImageComparerApp(Tk):
     def __init__(self):
