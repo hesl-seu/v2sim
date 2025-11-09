@@ -1,18 +1,15 @@
-import random
-import string
-import gzip
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Set, Dict, List, Tuple
 from xml.etree import ElementTree as ET
+import random, string, gzip, sys
 from ..locale import Lang
 
+SAVED_STATE_FOLDER = "saved_state"
+
 IntPairList = List[Tuple[int, int]]
-#IntPairList.__doc__ = "List of int pairs, like [(1, 2), (3, 4)]"
 PriceList = Tuple[List[int], List[float]]
-#PriceList.__doc__ = "Price list, like ([1, 2], [3.0, 4.0]), where the first list is the time and the second list is the price"
 TWeights = Tuple[float, float, float]
-#TWeights.__doc__ = "Tuple of three weights, like (1.0, 2.0, 3.0)"
 _letters = string.ascii_letters + string.digits
 
 
@@ -329,9 +326,19 @@ class V2SimConfig:
         with open(file, "w") as f:
             json.dump(self.__dict__, f, indent=4)
 
+def PyVersion() -> Tuple[int, int, int, bool]:
+    ver_info = sys.version_info
+    has_gil = sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True
+    return (ver_info.major, ver_info.minor, ver_info.micro, has_gil)
+
+def CheckPyVersion(ver:Tuple[int, int, int, bool]) -> bool:
+    cur_ver = PyVersion()
+    # Allow micro version difference
+    return ver[0] == cur_ver[0] and ver[1] == cur_ver[1] and ver[3] == cur_ver[3]
+
 __all__ = [
     "IntPairList", "PriceList", "TWeights", "FixSUMOConfig",
     "FileDetectResult", "DetectFiles", "CheckFile", "ClearBakFiles",
-    "ReadXML", "LoadFCS", "LoadSCS", "GetTimeAndNetwork",
-    "ReadSUMONet", "V2SimConfig",
+    "ReadXML", "LoadFCS", "LoadSCS", "GetTimeAndNetwork", "SAVED_STATE_FOLDER",
+    "ReadSUMONet", "V2SimConfig", "PyVersion", "CheckPyVersion",
 ]

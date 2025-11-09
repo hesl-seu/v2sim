@@ -1,11 +1,12 @@
-import os
+import sys
+from tkinter import filedialog, Tk, PhotoImage, StringVar
+from tkinter import ttk
 from pathlib import Path
 from feasytools import ArgChecker
+import os
 import time
 import tkinter as tk
 import tkinter.messagebox as MB
-from tkinter import filedialog, Tk, PhotoImage, StringVar
-from tkinter import ttk
 import platform
 if platform.system() == "Windows":
     import ctypes
@@ -19,7 +20,6 @@ class WelcomeBox(Tk):
         super().__init__()
         self.wm_attributes('-topmost',1)
         self.title("Welcome to V2Sim")
-        #self.overrideredirect(True)
         self.update_idletasks()
         width = 600
         height = 350
@@ -27,14 +27,13 @@ class WelcomeBox(Tk):
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f'{width}x{height}+{x}+{y}')
         
-        #self.resizable(False, False)
         self.__q = Q
 
         # Header
         header_frame = ttk.Frame(self)
         header_frame.pack(side="top", fill="x", pady=(20, 10))
 
-        # Image (replace 'logo.png' with your actual image path)
+        # Image
         try:
             self.logo_img = PhotoImage(file=str(Path(__file__).parent / "fgui/v2sim.png"))
             logo_label = ttk.Label(header_frame, image=self.logo_img)
@@ -49,7 +48,7 @@ class WelcomeBox(Tk):
         # Middle section
         middle_frame = ttk.Frame(self)
         middle_frame.pack(expand=True, fill="both", pady=10, padx=20)
-
+        
         recent_label = ttk.Label(middle_frame, text="Recent Projects:")
         recent_label.grid(row=0, column=0, sticky="w", pady=(0, 5))
 
@@ -98,27 +97,38 @@ class WelcomeBox(Tk):
                 self.recent_var.set(folder)
 
                 self.save_recent_project()
-        
-        self.open_btn = ttk.Button(middle_frame, text="Open", command=self._close, state="disabled")
-        self.open_btn.grid(row=2, column=2, sticky="e", pady=(5, 0))
+
+        # Links
+        self.links_panel = ttk.Frame(middle_frame)
+        self.links_panel.grid(row=2, column=0, columnspan=2, sticky="w")
+
         self.select_linklbl = ttk.Label(
-            middle_frame,
+            self.links_panel,
             text="Add project...",
             foreground="blue",
             cursor="hand2",
             font=("Arial", 10, "underline")
         )
+        self.select_linklbl.grid(row=0, column=0, sticky="w", pady=(5, 0))
         self.select_linklbl.bind("<Button-1>", select_project)
-        self.select_linklbl.grid(row=2, column=0, sticky="w", pady=(5, 0))
+        
         self.clear_linklbl = ttk.Label(
-            middle_frame,
+            self.links_panel,
             text="Clear list",
             foreground="blue",
             cursor="hand2",
             font=("Arial", 10, "underline")
         )
-        self.clear_linklbl.grid(row=2, column=1, sticky="w", pady=(5, 0), padx=(10, 0))
+        self.clear_linklbl.grid(row=0, column=2, sticky="w", pady=(5, 0), padx=(10, 0))
         self.clear_linklbl.bind("<Button-1>", clear_list)
+
+        # Buttons
+        self.btn_panel = ttk.Frame(middle_frame)
+        self.btn_panel.grid(row=2, column=2, sticky="ew")
+        self.view_res_btn = ttk.Button(self.btn_panel, text="View Results", command=self._view_results)
+        self.view_res_btn.grid(row=0, column=0, sticky="e", pady=(5, 0), padx=(5, 0))
+        self.open_btn = ttk.Button(self.btn_panel, text="Open", command=self._close, state="disabled")
+        self.open_btn.grid(row=0, column=1, sticky="e", pady=(5, 0))
 
         # Footer (status bar)
         self.lb_sta = ttk.Label(self, text="Loading V2Sim core...", anchor="w", relief="sunken")
@@ -141,18 +151,33 @@ class WelcomeBox(Tk):
         else:
             self.after(100, self._checkdone)
     
-    def _close(self):
-        self.__q.put_nowait(self.recent_var.get())
+    def _destory(self):
         self.withdraw()
         self.quit()
         self.destroy()
+    
+    def _check_selected(self):
+        if self.recent_var.get() == "":
+            MB.showwarning("Warning", "Please select a project!")
+            return False
+        return True
+
+    def _close(self):
+        if not self._check_selected(): return
+        self.__q.put_nowait(("main", self.recent_var.get()))
+        self._destory()
+    
+    def _view_results(self):
+        if not self._check_selected(): return
+        self.__q.put_nowait(("res", self.recent_var.get()))
+        self._destory()
     
     def show(self):
         self.update()
         self.deiconify()
         self.after(100, self._checkdone)
         self.mainloop()
-        self.__q.put_nowait("__close__")
+        self.__q.put_nowait(("close", None))
     
     def load_recent_projects(self):
         self.project_list.delete(0, tk.END)
@@ -200,15 +225,17 @@ if __name__ == "__main__":
     
     if success:
         Q.put_nowait("done")
-        time.sleep(0.2)  # Give some time for the welcome box to show up
+        time.sleep(0.1)  # Give some time for the welcome box to show up
         msg = Q.get()
-        if msg == "__close__":
+        if msg[0] == "close":
             win.quit()
             win.destroy()
             exit(0)
-        elif msg is not None and msg != "":
-            win.folder = msg
+        elif msg[0] == "main" and msg[1] != "":
+            win.folder = msg[1]
             win._load()
-        win.wm_attributes('-topmost', 1)
-        win.after(100, lambda: win.wm_attributes('-topmost', 0))
-        win.mainloop()
+            win.wm_attributes('-topmost', 1)
+            win.after(100, lambda: win.wm_attributes('-topmost', 0))
+            win.mainloop()
+        elif msg[0] == "res" and msg[1] != "":
+            os.system(f'{sys.executable} {Path(__file__).parent}/gui_viewer.py -d="{msg[1]}"')

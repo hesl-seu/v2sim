@@ -11,7 +11,7 @@ from fgui import ScrollableTreeView, LogItemPad, EditMode, add_lang_menu
 from feasytools import time2str
 from v2sim import *
 
-_L = CustomLocaleLib.LoadFromFolder("./resources/gui_para")
+_L = CustomLocaleLib.LoadFromFolder(Path(__file__).parent / "resources" / "gui_para")
 ITEM_NONE = "none"
 
 class RedirectStdout:

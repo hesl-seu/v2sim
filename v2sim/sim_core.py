@@ -14,6 +14,10 @@ from .locale import Lang
 from .trafficgen import TrafficGenerator
 from .traffic.inst import traci
 
+PLUGINS_FILE = "plugins.gz"
+RESULTS_FOLDER = "results"
+TRIP_EVENT_LOG = "cproc.clog"
+SIM_INFO_LOG = "cproc.log"
 
 @dataclass
 class MsgPack:
@@ -25,9 +29,10 @@ class MsgPack:
 def load_external_components(
     external_plugin_dir: str, plugin_pool: PluginPool, sta_pool: StaPool
 ):
-    exp = Path(os.getcwd()) / Path(external_plugin_dir)
+    exp = Path(external_plugin_dir).absolute()
     if not (exp.exists() and exp.is_dir()):
         return
+    sys.path.append(str(exp))
     for module_file in exp.iterdir():
         if not (
             module_file.is_file()
@@ -37,7 +42,7 @@ def load_external_components(
             continue
         module_name = module_file.stem
         try:
-            module = importlib.import_module(f"{external_plugin_dir}.{module_name}")
+            module = importlib.import_module(module_name)
         except Exception as e:
             print(Lang.WARN_EXT_LOAD_FAILED.format(module_name, e))
             module = None
@@ -83,8 +88,6 @@ def get_sim_params(
             "gen_fcs_command":      args.pop_str("gen-fcs", ""),
             "gen_scs_command":      args.pop_str("gen-scs", ""),
             "plot_command":         args.pop_str("plot", ""),
-            "plg_pool":             plg_pool,
-            "sta_pool":             sta_pool,
             "initial_state":        args.pop_str("initial-state", ""),
             "load_last_state":      args.pop_bool("load-last-state"),
             "save_on_abort":        args.pop_bool("save-on-abort"),
@@ -93,11 +96,23 @@ def get_sim_params(
             "route_algo":           args.pop_str("route-algo", "CH"),
             "static_routing":       args.pop_bool("static-routing"),
             "ignore_driving":       args.pop_bool("ignore-driving"),
+            "plg_pool":             plg_pool,
+            "sta_pool":             sta_pool,
         }
     if check_illegal and len(args) > 0:
         for key in args.keys():
             raise ValueError(Lang.ERROR_ILLEGAL_CMD.format(key))
     return kwargs
+
+def _calc_output_folder(cfgdir: str, outdir: str, outdir_direct: str) -> Path:
+    if outdir_direct != "":
+        pres = Path(outdir_direct)
+    else:
+        if outdir == "":
+            pres = Path(cfgdir) / RESULTS_FOLDER
+        else:
+            pres = Path(outdir) / Path(cfgdir).name
+    return pres
 
 class V2SimInstance:
     def __mpsend(self, con:str, obj:Any = None):
@@ -187,17 +202,18 @@ class V2SimInstance:
             self.__silent = True
             self.__vb = None
 
-        # Check if there is a previous results        
-        if outdir_direct != "":
-            pres = Path(outdir_direct)
-        else:
-            if outdir == "":
-                pres = Path(cfgdir) / "results"
-            else:
-                pres = Path(outdir) / Path(cfgdir).name
+        # Check if the folder exists
+        proj_dir = Path(cfgdir)
+        if not proj_dir.exists() or not proj_dir.is_dir():
+            raise FileNotFoundError(f"Invalid project directory: {cfgdir}")
+        
+        # Determine result folder       
+        pres = _calc_output_folder(cfgdir, outdir, outdir_direct)
         self.__outdir_direct = str(pres)
         self.__outdir = str(pres.parent)
-        if pres.is_dir() and (pres / "cproc.clog").exists():
+
+        # Check if there is a previous results   
+        if pres.is_dir() and (pres / TRIP_EVENT_LOG).exists():
             tm = time.strftime("%Y%m%d_%H%M%S", time.localtime(pres.stat().st_mtime))
             tm2 = 0
             while True:
@@ -205,14 +221,14 @@ class V2SimInstance:
                 new_path = f"{str(pres)}_{tm}_{tm2}"
                 if not os.path.exists(new_path):
                     break
-            if (pres / "saved_state").exists() and load_last_state:
-                initial_state = new_path + "/saved_state"
+            if (pres / SAVED_STATE_FOLDER).exists() and load_last_state:
+                initial_state = os.path.join(new_path, SAVED_STATE_FOLDER)
             pres.rename(new_path)
         pres.mkdir(parents=True, exist_ok=True)
         self.__pres = pres
 
         # Create cproc.log
-        self.__out = open(str(pres / "cproc.log"), "w", encoding="utf-8")
+        self.__out = open(pres / "cproc.log", "w", encoding="utf-8")
 
         # Record all __init__ parameters to file
         frame = inspect.currentframe()

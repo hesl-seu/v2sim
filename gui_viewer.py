@@ -12,7 +12,7 @@ from tkinter import messagebox as MB
 from PIL import Image, ImageTk
 from v2sim import CS, CSList, EV, EVDict
 
-_L = CustomLocaleLib.LoadFromFolder("resources/gui_viewer")
+_L = CustomLocaleLib.LoadFromFolder(Path(__file__).parent / "resources" / "gui_viewer")
 
 AVAILABLE_ITEMS = ["fcs","scs","ev","gen","bus","line","pvw","ess"]
 AVAILABLE_ITEMS2 = AVAILABLE_ITEMS + ["fcs_accum","scs_accum","bus_total","gen_total"]
@@ -326,7 +326,7 @@ class PlotBox(Tk):
     _sta:ReadOnlyStatistics
     _npl:AdvancedPlot
 
-    def __init__(self):
+    def __init__(self, project_folder:Optional[str] = None):
         super().__init__()
         self.title(_L["TITLE"])
         self.geometry("1024x840")
@@ -336,7 +336,7 @@ class PlotBox(Tk):
         self.config(menu=self.menu)
         self.filemenu = Menu(self.menu, tearoff=False)
         self.menu.add_cascade(label=_L["MENU_FILE"], menu=self.filemenu)
-        self.filemenu.add_command(label=_L["MENU_OPEN"], command=self.force_reload)
+        self.filemenu.add_command(label=_L["MENU_OPEN"], command=self.open)
         self.filemenu.add_separator()
         self.filemenu.add_command(label=_L["MENU_EXIT"], command=self.destroy)
         add_lang_menu(self.menu)
@@ -455,6 +455,14 @@ class PlotBox(Tk):
         self.disable_all()
         self.bind("<Configure>", self.on_resize)
         self.resize_timer = None
+    
+        if project_folder is not None and project_folder != "":
+                self.__proj_folder = project_folder
+                self.bind("<Visibility>", self.__on_win_loaded)
+
+    def __on_win_loaded(self, event):
+        self.unbind("<Visibility>")
+        self.load_results(self.__proj_folder)
     
     def display_images(self, file_name:str):
         if self.folder is None: return
@@ -660,12 +668,15 @@ class PlotBox(Tk):
             mustexist=True,
         )
     
-    def force_reload(self):
+    def open(self):
         res_path = self.askdir()
         if res_path == "": return
-
+        self.load_results(res_path)
+    
+    def load_results(self, folder: str):
         # Check folder existence
         first = True
+        res_path = folder
         while True:
             res_path = Path(res_path)
             if res_path.exists():
@@ -891,5 +902,10 @@ class PlotBox(Tk):
 if __name__ == "__main__":
     from version_checker import check_requirements_gui
     check_requirements_gui()
-    win = PlotBox()
+    from feasytools import ArgChecker
+    args = ArgChecker()
+    dir = args.pop_str("d", "")
+    if dir != "" and not Path(dir).is_dir():
+        raise FileNotFoundError(f"{dir} is not a directory.")
+    win = PlotBox(dir)
     win.mainloop()
