@@ -29,11 +29,10 @@ class MsgPack:
 def load_external_components(
     external_plugin_dir: str, plugin_pool: PluginPool, sta_pool: StaPool
 ):
-    cwd = os.getcwd()
-    exp = Path(external_plugin_dir)
+    exp = Path(external_plugin_dir).absolute()
     if not (exp.exists() and exp.is_dir()):
         return
-    os.chdir(external_plugin_dir)
+    sys.path.append(str(exp))
     for module_file in exp.iterdir():
         if not (
             module_file.is_file()
@@ -57,7 +56,6 @@ def load_external_components(
                 sta_pool.Register(*module.sta_exports) # type: ignore
             except Exception as e:
                 print(Lang.WARN_EXT_INVALID_STA.format(module_name, e))
-    os.chdir(cwd)
                 
 def get_sim_params(
         args:Union[str, ArgChecker],
@@ -226,13 +224,13 @@ class V2SimInstance:
                 if not os.path.exists(new_path):
                     break
             if (pres / SAVED_STATE_FOLDER).exists() and load_last_state:
-                initial_state = str(Path(new_path) / SAVED_STATE_FOLDER)
+                initial_state = os.path.join(new_path, SAVED_STATE_FOLDER)
             pres.rename(new_path)
         pres.mkdir(parents=True, exist_ok=True)
         self.__pres = pres
 
         # Create simulation info log file
-        self.__out = open(str(pres / SIM_INFO_LOG), "w", encoding="utf-8")
+        self.__out = open(pres / SIM_INFO_LOG, "w", encoding="utf-8")
 
         # Record all __init__ parameters to file
         frame = inspect.currentframe()

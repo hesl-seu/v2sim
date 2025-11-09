@@ -2,8 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Set, Dict, List, Tuple
 from xml.etree import ElementTree as ET
-import random, string, gzip
-import sys
+import random, string, gzip, sys
 from ..locale import Lang
 
 SAVED_STATE_FOLDER = "saved_state"
