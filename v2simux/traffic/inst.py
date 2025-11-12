@@ -501,11 +501,12 @@ class TrafficInst:
         deltaT = new_time - self.__ctime
         self.__ctime = new_time
 
-        if self.W.get_vehicle_count() > 0 and self.W.get_average_speed() < 1e-3:
+        if self.W.get_running_vehicle_count() > 0 and self.W.get_average_speed() < 1e-3:
             # If the average speed is too low, we can consider the simulation to be stalled
             self.__stall_count += 1
             if self.__stall_count >= 50 and not self.__stall_warned:
-                if not self.silent: warn(Warning("Simulation may stall: average speed < 0.001 m/s"))
+                if not self.silent:
+                    warn(Warning(Lang.SIMULATION_MAY_STALL.format(self.__ctime)))
                 self.__stall_warned = True
         else:
             self.__stall_count = 0
@@ -540,7 +541,6 @@ class TrafficInst:
 
     def simulation_stop(self):
         if not self.silent:
-            print()
             print(self.W.shutdown())
         self.__logger.close()
     
@@ -587,9 +587,9 @@ class TrafficInst:
             d = pickle.load(f)
             assert isinstance(d, dict) and "obj" in d and "pickler" in d and "version" in d, "Invalid TrafficInst state file."
         if not CheckPyVersion(d["version"]):
-            raise RuntimeError(f"Python version mismatch for TrafficInst: Expect {PyVersion()}, got {d["version"]}")
+            raise RuntimeError(Lang.PY_VERSION_MISMATCH_TI.format(PyVersion(), d["version"]))
         if d["pickler"] != pickle.__name__:
-            raise RuntimeError(f"Pickler mismatch for TrafficInst: Expect {pickle.__name__}, got {d["pickler"]}")
+            raise RuntimeError(Lang.PICKLER_MISMATCH_TI.format(pickle.__name__, d["pickler"]))
 
         ti = d["obj"]
         assert isinstance(ti, TrafficInst)

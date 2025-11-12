@@ -112,13 +112,10 @@ class SingleWorld(WorldSpec):
         self.__cnt += 1
     
     def add_vehicle(self, veh_id:str, from_node:str, to_node:str):
-        tn = self.world.get_node(to_node)
-        v = self.world.addVehicle(orig=from_node, dest=to_node, departure_time=self.__ct, name=veh_id, auto_rename=True)
-        def __add_to_arrQ():
-            self.__aQ.append(veh_id)
-            v.node_event.clear()
-        v.node_event[tn] = __add_to_arrQ
-        self.__uvi[veh_id] = v
+        def __add_to_arrQ(veh:Vehicle):
+            self.__aQ.append(veh.name)
+        self.__uvi[veh_id] = self.world.addVehicle(orig=from_node, dest=to_node, 
+            departure_time=self.__ct, name=veh_id, end_trip_callback=__add_to_arrQ)
     
     def has_vehicle(self, veh_id:str) -> bool:
         return veh_id in self.__uvi
@@ -128,6 +125,9 @@ class SingleWorld(WorldSpec):
     
     def get_vehicle_count(self) -> int:
         return len(self.__uvi)
+
+    def get_running_vehicle_count(self) -> int:
+        return len(self.world.VEHICLES_RUNNING)
     
     def get_link(self, link_id:str) -> Optional[Link]:
         return self.world.get_link(link_id)
@@ -286,13 +286,12 @@ class ParaWorlds(WorldSpec):
         assert world_id in self.wid_of_nodes[to_node], \
             f"Node {to_node} is not in world {world_id}, cannot add vehicle {veh_id}."
         W = self.worlds[world_id]
-        tn = W.get_node(to_node)
-        v = W.addVehicle(orig=from_node, dest=to_node, departure_time=self.__ctime, name=veh_id, auto_rename=True)
-        def add_to_aQ():
-            self.__aQs[world_id].append((veh_id, trip_segment))
-            v.node_event.clear()
-        v.node_event[tn] = add_to_aQ
-        self.__uvi[veh_id] = v
+
+        def add_to_aQ(veh:Vehicle):
+            self.__aQs[world_id].append((veh.name, trip_segment))
+
+        self.__uvi[veh_id] = W.addVehicle(orig=from_node, dest=to_node, 
+            departure_time=self.__ctime, name=veh_id, end_trip_callback=add_to_aQ)
 
     def add_vehicle(self, veh_id:str, from_node:str, to_node:str, algo:RoutingAlgorithm = RoutingAlgorithm.AstarFastest):
         if from_node == to_node:
@@ -320,6 +319,9 @@ class ParaWorlds(WorldSpec):
 
     def get_vehicle_count(self) -> int:
         return len(self.__uvi)
+    
+    def get_running_vehicle_count(self) -> int:
+        return sum(len(W.VEHICLES_RUNNING) for W in self.worlds.values())
     
     def get_average_speed(self) -> float:
         return sum(W.analyzer.average_speed for W in self.worlds.values()) / len(self.worlds)

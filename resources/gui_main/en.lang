@@ -70,7 +70,6 @@ SIM_PLGOL=Online Time Range
 SIM_PLGPROP=Extra Properties
 SIM_YES=Yes
 SIM_NO=No
-SIM_VISUALIZE=Visualize road Network
 TAB_SIM=Simulation
 TAB_CSCSV=CS Downloader
 TAB_FCS=Fast CS

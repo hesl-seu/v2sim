@@ -1,8 +1,8 @@
+import random, string, gzip, sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Set, Dict, List, Tuple
+from typing import Optional, Set, Dict, List, Tuple, Union
 from xml.etree import ElementTree as ET
-import random, string, gzip, sys
 from ..locale import Lang
 
 SAVED_STATE_FOLDER = "saved_state"
@@ -119,7 +119,7 @@ def CheckAddtionalType(file: str) -> AddtionalTypes:
     taz = root.find("taz") is not None
     return AddtionalTypes(Poly=poly, Poi=poi, Taz=taz)
 
-def DetectFiles(dir: str) -> FileDetectResult:
+def DetectFiles(dir: Union[str, Path]) -> FileDetectResult:
     """
     Detect simulation-realted files (SUMO config, SCS, FCS, power grid, etc.) in the given directory.
     Args:
@@ -127,7 +127,7 @@ def DetectFiles(dir: str) -> FileDetectResult:
     Returns:
         FileDetectResult: A dictionary containing the detected files
     """
-    p = Path(dir)
+    p = Path(dir) if isinstance(dir, str) else dir
     ret: Dict[str, str] = {"name": p.name}
     def add(name: str, filename: str):
         if name in ret: raise FileExistsError(Lang.ERROR_CONFIG_DIR_FILE_DUPLICATE.format(name,ret[name],filename))
@@ -191,7 +191,6 @@ class V2SimConfig:
     seed: int = 0
     routing_method:str = "astar"
     load_state: int = 0
-    inital_state_dir: str = ""
     save_state_on_abort: bool = False
     save_state_on_finish: bool = False
     copy_state: bool = False
@@ -217,6 +216,8 @@ class V2SimConfig:
             del data["force_caching"]
         if "force_nogil" in data:
             del data["force_nogil"]
+        if "inital_state_dir" in data: # remove typoed field
+            del data["inital_state_dir"]
         return V2SimConfig(**data)
     
     def save(self, file:str):
@@ -231,7 +232,7 @@ class V2SimConfig:
 
 def PyVersion() -> Tuple[int, int, int, bool]:
     ver_info = sys.version_info
-    has_gil = sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True
+    has_gil = sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True # type: ignore
     return (ver_info.major, ver_info.minor, ver_info.micro, has_gil)
 
 def CheckPyVersion(ver:Tuple[int, int, int, bool]) -> bool:

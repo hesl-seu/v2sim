@@ -864,7 +864,12 @@ class Vehicle:
     """
     Vehicle or platoon in a network.
     """
-    def __init__(s, W, orig, dest, departure_time, name=None, route_pref=None, route_choice_principle=None, mode="single_trip", links_prefer=[], links_avoid=[], trip_abort=1, departure_time_is_time_step=0, attribute=None, user_attribute=None, user_function=None, auto_rename=False):
+    def __init__(s, W, orig, dest, departure_time, name=None, 
+                 route_pref=None, route_choice_principle=None,
+                 mode="single_trip", links_prefer=[], links_avoid=[], 
+                 trip_abort=1, departure_time_is_time_step=0, 
+                 attribute=None, user_attribute=None, user_function=None, 
+                 auto_rename=False, end_trip_callback=None):
         """
         Create a vehicle (more precisely, platoon).
 
@@ -910,6 +915,9 @@ class Vehicle:
 
         auto_rename : bool, optional
             Whether to automatically rename the vehicle if the name is already used. Default is False.
+        
+        end_trip_callback : func, optional
+            User-defined custom function that is automatically called when the vehicle ends its trip. It takes only one argument: the Vehicle object itself. Example: The following code prints a message when the vehicle ends its trip. If end_trip_callback=None (default), no functions will be executed.
         """
 
         s.W = W
@@ -999,6 +1007,7 @@ class Vehicle:
         s.attribute = attribute
         s.user_attribute = user_attribute
         s.user_function = user_function
+        s.end_trip_callback = end_trip_callback
 
         s.id = len(s.W.VEHICLES)
         if name != None:
@@ -1118,6 +1127,9 @@ class Vehicle:
             s.travel_time = -1
 
         s.record_log(enforce_log=1)
+
+        if s.end_trip_callback is not None:
+            s.end_trip_callback(s)
 
         if s.W.reduce_memory_delete_vehicle_route_pref:
             s.route_pref = None

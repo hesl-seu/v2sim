@@ -34,6 +34,14 @@ def _try_float(s:str, name:str) -> float:
     try: return float(s)
     except: raise ValueError(f"Invalid {name}. Must be a float.")
 
+def _try_split(s:str, name:str, sep:str=',') -> List[str]:
+    try:
+        parts = s.split(sep)
+        parts = [p.strip() for p in parts if p.strip()]
+        return parts
+    except:
+        raise ValueError(f"Invalid {name}. Must be a list of strings separated by '{sep}'.")
+
 def errwrapper(func):
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
@@ -411,11 +419,7 @@ class CSEditorGUI(Frame):
         elif self.useMode.get() == 1:
             cs = ListSelection.GIVEN
             csCount = -1
-            try:
-                givenCS = self.entry_sel.get().split(',')
-            except:
-                showerr("Invalid given CS")
-                return
+            givenCS = _try_split(self.entry_sel.get(), "given CS")
             assert not (len(givenCS) == 0 or len(givenCS) == 1 and givenCS[0] == ""), "No given CS"
         else:
             cs = ListSelection.RANDOM
@@ -431,11 +435,7 @@ class CSEditorGUI(Frame):
             bus = ListSelection.ALL
         elif self.busMode.get() == 2:
             bus = ListSelection.GIVEN
-            try:
-                givenbus = self.entry_bussel.get().split(',')
-            except:
-                showerr("Invalid given bus")
-                return
+            givenbus = _try_split(self.entry_bussel.get(), "given bus")
             assert not (len(givenbus) == 0 or len(givenbus) == 1 and givenbus[0] == ""), "No given bus"
         else:
             bus = ListSelection.RANDOM

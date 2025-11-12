@@ -263,6 +263,16 @@ You can load the commands from a file as an argument in the command prompt/termi
     UNKNOWN_NET_FORMAT = "Unknown network format: {0}. Candidates: raw, sumo, auto."
     GIL_NOT_DISABLED = "Warning: ParaWorlds requires Python to be built with GIL disabled. Falling back to SingleWorld."
     NO_GEO_PROJ = "Network does not provide geo-projection"
+    SIMULATION_MAY_STALL = "Simulation may stall: average speed < 0.001 m/s at time {0}."
+    PY_VERSION_MISMATCH_TI = "Python version mismatch for TrafficInst: Expect {0}, got {1}."
+    PY_VERSION_MISMATCH_PLG = "Incompatible Python version for plugin states: saved {0}, current {1}."
+    PICKLER_MISMATCH_TI = "Pickler mismatch for TrafficInst: Expect {0}, got {1}."
+    PICKLER_MISMATCH_PLG = "Incompatible pickler for plugin states: saved {0}, current {1}."
+    SAVED_STATE_COPIED = "Saved state files have copied to the project folder."
+    CASE_FILE_COPIED = "Case files have been copied to the result folder."
+    NO_HOST_EXISTS = "Not working in multiprocessing mode. No host exists."
+    ALT_COMMAND_NOT_SUPPORTED = "Cannot use alt_command when initial_state is specified."
+    INVALID_PLUGIN_STATES = "Invalid plugin states in saved state: {0}."
 
     @staticmethod
     def format(item:str, **kwargs):

@@ -81,16 +81,21 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         decs = list(map(lambda x:x.strip(), elem.get("DecBuses","").split(",")))
         if elem.get("SmartCharge", "NO") == "NO":
             decs.clear()
-        est = elem.get("estimator","DistFlow")
+        est = elem.get("estimator", "DistFlow")
         if est != Estimator.DistFlow.value and len(decs)>0:
             warn("Load reduction only supported in DistFlowSolver. Ignoring DecBuses.", UserWarning)
             decs.clear()
+        cal = Calculator(elem.get("calculator", "None"))
+        if cal == Calculator.OpenDSS:
+            source_bus = elem.get("source_bus", "")
+        else:
+            source_bus = ""
         self.__save_to = str(res_dir / "pdn_logs")
         self.__sol = CombinedSolver(self.__gr,
             estimator=Estimator(est),
-            calculator=Calculator(elem.get("calculator", "None")),
+            calculator=Calculator(cal),
             mlrp=float(elem.get("MLRP","0.5")),
-            source_bus=elem.get("source_bus", ""),
+            source_bus=source_bus,
             default_saveto=self.__save_to
         )
         self.__sol.SetErrorSaveTo(self.__save_to)

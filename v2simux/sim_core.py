@@ -348,11 +348,11 @@ class V2SimInstance:
             plugin_state_file = Path(initial_state) / PLUGINS_FILE
             with gzip.open(plugin_state_file, "rb") as f:
                 d = pickle.load(f)
-                assert isinstance(d, dict) and "obj" in d and "version" in d and "pickler" in d, "Invalid plugin state file."
+                assert isinstance(d, dict) and "obj" in d and "version" in d and "pickler" in d, Lang.INVALID_PLUGIN_STATES.format(plugin_state_file)
                 plugin_state = d["obj"]
-                assert isinstance(plugin_state, dict), "Invalid plugin states."
-                assert CheckPyVersion(d["version"]), "Incompatible Python version for plugin states: saved {}, current {}".format(d["version"], PyVersion())
-                assert d["pickler"] == pickle.__name__, "Incompatible pickler for plugin states: saved {}, current {}".format(d["pickler"], pickle.__name__)
+                assert isinstance(plugin_state, dict), Lang.INVALID_PLUGIN_STATES.format(plugin_state_file)
+                assert CheckPyVersion(d["version"]), Lang.PY_VERSION_MISMATCH_PLG.format(d["version"], PyVersion())
+                assert d["pickler"] == pickle.__name__, Lang.PICKLER_MISMATCH_PLG.format(d["pickler"], pickle.__name__)
         else:
             plugin_state = None
 
@@ -385,7 +385,7 @@ class V2SimInstance:
         self.copy_state = copy_state
 
         if alt_command is not None:
-            assert initial_state == "", "Cannot use alt_command when initial_state is specified."
+            assert initial_state == "", Lang.ALT_COMMAND_NOT_SUPPORTED
             for k, v in alt_command.items():
                 if k == "start_time":
                     self.__start_time = int(v)
@@ -527,7 +527,7 @@ class V2SimInstance:
     
     def send_to_host(self, command:str, obj:Any = None):
         '''Send message to host process'''
-        assert self.__mpQ is not None, "Not working in multiprocessing mode. No host exists."
+        assert self.__mpQ is not None, Lang.NO_HOST_EXISTS
         self.__mpsend(command, obj)
     
     def start(self):
@@ -567,7 +567,6 @@ class V2SimInstance:
     
     def save(self, folder:Union[str, Path]):
         '''Save the current state of the simulation'''
-        # Save the traffic instance
         p = Path(folder) if isinstance(folder, str) else folder
         self.__inst.save(p)
         with gzip.open(p / PLUGINS_FILE, "wb") as f:
@@ -587,6 +586,7 @@ class V2SimInstance:
             self.save(save_state_to)
             if self.copy_state:
                 shutil.copytree(save_state_to, self.__proj_dir / SAVED_STATE_FOLDER, dirs_exist_ok=True)
+                self.__print(Lang.SAVED_STATE_COPIED)
         self.__plgman.PostSimulationAll()
         self.__inst.simulation_stop()
         self.__sta.close()
@@ -596,6 +596,7 @@ class V2SimInstance:
             shutil.copy(self.__fcs_file, self.__pres / Path(self.__fcs_file).name)
             shutil.copy(self.__scs_file, self.__pres / Path(self.__scs_file).name)
             shutil.copy(self.__plg_file, self.__pres / Path(self.__plg_file).name)
+            self.__print(Lang.CASE_FILE_COPIED)
         self.__working_flag = False
     
     def simulate(self):
@@ -633,11 +634,12 @@ class V2SimInstance:
             if not self.show_uxsim_info:
                 self._istep()
         
+        self.__print()
         dur = time.time() - self.__st_time
         print(Lang.MAIN_SIM_DONE.format(time2str(dur)), file=self.__out)
         self.__out.close()
-        self.stop(str(self.__pres / SAVED_STATE_FOLDER) if self.save_on_finish else "")
         self.__print(Lang.MAIN_SIM_DONE.format(time2str(dur)))
+        self.stop(str(self.__pres / SAVED_STATE_FOLDER) if self.save_on_finish else "")
         self.__mpsend("sim:done")
         if self.__plot_cmd != "" and not self.__stopsig:
             AdvancedPlot().configure(self.__plot_cmd)
