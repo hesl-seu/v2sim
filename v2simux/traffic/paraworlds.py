@@ -75,23 +75,32 @@ class WorldSpec(ABC):
     def shutdown(self): ...
 
     @abstractmethod
+    def _save_obj(self) -> dict: ...
+    
+    @abstractmethod
     def save(self, filepath:str): ...
 
     @staticmethod
     @abstractmethod
     def load(filepath:str): ...
 
-def _load_world(filepath:str) -> WorldSpec:
-    if not os.path.isfile(filepath):
-        raise FileNotFoundError(f"File {filepath} does not exist.")
-    with gzip.open(filepath, 'rb') as f:
-        data = pickle.load(f)
+
+def _load_world_unsafe(data: dict) -> WorldSpec:
     assert isinstance(data, dict) and "obj" in data and "version" in data and "pickler" in data, "Invalid world file."
     world_obj = data["obj"]
     assert isinstance(world_obj, WorldSpec), "Invalid world object."
     assert CheckPyVersion(data["version"]), "Incompatible Python version for world: saved {}, current {}".format(data["version"], PyVersion())
     assert data["pickler"] == pickle.__name__, "Incompatible pickler for world: saved {}, current {}".format(data["pickler"], pickle.__name__)
     return world_obj
+
+
+def _load_world(filepath:str) -> WorldSpec:
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"File {filepath} does not exist.")
+    with gzip.open(filepath, 'rb') as f:
+        data = pickle.load(f)
+    return _load_world_unsafe(data)
+
 
 class SingleWorld(WorldSpec):
     def __init__(self, world:World, gl:Graph):
@@ -171,6 +180,14 @@ class SingleWorld(WorldSpec):
         t = threading.Thread(target=self.__lstack_save, args=(filepath,))
         t.start()
         t.join()
+    
+    def _save_obj(self):
+        sys.setrecursionlimit(10**9)
+        return pickle.dumps({
+            "obj": self,
+            "version": PyVersion(),
+            "pickler": pickle.__name__
+        })
 
     @staticmethod
     def load(filepath:str):
@@ -347,6 +364,18 @@ class ParaWorlds(WorldSpec):
         t.start()
         t.join()
         self.__create_pool()
+    
+    def _save_obj(self):
+        self.__pool.shutdown(wait=True)
+        del self.__pool
+        sys.setrecursionlimit(10**9)
+        ret = pickle.dumps({
+            "obj": self,
+            "version": PyVersion(),
+            "pickler": pickle.__name__
+        })
+        self.__create_pool()
+        return ret
 
     @staticmethod
     def load(filepath:str):
@@ -359,4 +388,4 @@ def load_world(filepath:str) -> WorldSpec:
     assert isinstance(data, (SingleWorld, ParaWorlds)), "Invalid world object."
     return data
 
-__all__ = ["WorldSpec", "SingleWorld", "ParaWorlds", "RoutingAlgorithm", "load_world"]
+__all__ = ["WorldSpec", "SingleWorld", "ParaWorlds", "RoutingAlgorithm", "load_world", "_load_world_unsafe"]

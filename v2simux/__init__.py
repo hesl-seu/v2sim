@@ -10,5 +10,9 @@ from .sim_core import (
     simulate_multi,
     simulate_single,
     V2SimInstance,
-    MsgPack
+    MsgPack,
+    PLUGINS_FILE,
+    RESULTS_FOLDER,
+    TRIP_EVENT_LOG,
+    SIM_INFO_LOG
 )

@@ -1,7 +1,7 @@
 from .view import *
 from typing import Any, Callable, Iterable, Optional, Union, Dict, List, Tuple
 from feasytools import RangeList, SegFunc, CreatePDFunc
-from v2simux.trafficgen.misc import * # import PDFuncs
+from v2simux.trafficgen.misc import *
 from tkinter import messagebox as MB
 from v2simux import CustomLocaleLib, EditMode, ConfigItem, ConfigItemDict, StaPool, StaBase
 from pathlib import Path

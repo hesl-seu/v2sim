@@ -37,6 +37,7 @@ class TrafficInst:
         scsfile: str, scs_obj:Optional[CSList] = None,
         routing_algo: str = "dijkstra",  # or "astar"
         show_uxsim_info: bool = False,
+        randomize_uxsim: bool = True,
         no_parallel: bool = False,
         silent: bool = False,
     ):
@@ -110,7 +111,7 @@ class TrafficInst:
             deltan=1,
             reaction_time=step_len,
             random_seed=seed,
-            hard_deterministic_mode=True,
+            hard_deterministic_mode=not randomize_uxsim,
             reduce_memory_delete_vehicle_route_pref=True,
             vehicle_logging_timestep_interval=-1,
             print_mode=1 if self.__show_uxsim_info else 0
@@ -568,6 +569,48 @@ class TrafficInst:
         self.__logger = tmpTL
         self._fcs.create_pool()
         self._scs.create_pool()
+
+    def _save_obj(self):
+        self._fcs.shutdown_pool()
+        self._scs.shutdown_pool()
+        tmpW = self.W
+        tmpTL = self.__logger
+        delattr(self, "_TrafficInst__logger")
+        delattr(self, "W")
+        ret = pickle.dumps({
+            "obj": self,
+            "version": PyVersion(),
+            "pickler": pickle.__name__,
+        })
+        self.W = tmpW
+        self.__logger = tmpTL
+        self._fcs.create_pool()
+        self._scs.create_pool()
+        return ret
+    
+    @staticmethod
+    def _partial_load_unsafe(d:dict, triplogger_save_path:Union[None, str, Path] = None) -> 'TrafficInst':
+        """
+        Load a TrafficInst from a saved_state object (unsafe, for advanced users only, at your own risk!)
+            object: Saved_state object
+            triplogger_save_path: If not None, change the trip logger save path to this path
+        Return:
+            TrafficInst instance, without world loaded!
+        """
+        assert isinstance(d, dict) and "obj" in d and "pickler" in d and "version" in d, "Invalid TrafficInst state file."
+        if not CheckPyVersion(d["version"]):
+            raise RuntimeError(Lang.PY_VERSION_MISMATCH_TI.format(PyVersion(), d["version"]))
+        if d["pickler"] != pickle.__name__:
+            raise RuntimeError(Lang.PICKLER_MISMATCH_TI.format(pickle.__name__, d["pickler"]))
+
+        ti = d["obj"]
+        assert isinstance(ti, TrafficInst)
+        if triplogger_save_path is not None:
+            ti.__triplogger_path = str(triplogger_save_path)
+        ti.__logger = TripsLogger(ti.__triplogger_path, append=True)
+        ti._fcs.create_pool()
+        ti._scs.create_pool()
+        return ti
     
     @staticmethod
     def load(folder: Union[str, Path], triplogger_save_path:Union[None, str, Path] = None) -> 'TrafficInst':
@@ -585,20 +628,10 @@ class TrafficInst:
         
         with gzip.open(str(inst), "rb") as f:
             d = pickle.load(f)
-            assert isinstance(d, dict) and "obj" in d and "pickler" in d and "version" in d, "Invalid TrafficInst state file."
-        if not CheckPyVersion(d["version"]):
-            raise RuntimeError(Lang.PY_VERSION_MISMATCH_TI.format(PyVersion(), d["version"]))
-        if d["pickler"] != pickle.__name__:
-            raise RuntimeError(Lang.PICKLER_MISMATCH_TI.format(pickle.__name__, d["pickler"]))
-
-        ti = d["obj"]
-        assert isinstance(ti, TrafficInst)
+        
+        ti = TrafficInst._partial_load_unsafe(d, triplogger_save_path)
         ti.W = load_world(str(Path(folder) / WORLD_FILE_NAME))
-        if triplogger_save_path is not None:
-            ti.__triplogger_path = str(triplogger_save_path)
-        ti.__logger = TripsLogger(ti.__triplogger_path, append=True)
-        ti._fcs.create_pool()
-        ti._scs.create_pool()
         return ti
+        
 
-__all__ = ["TrafficInst"]
+__all__ = ["TrafficInst", "WORLD_FILE_NAME", "TRAFFIC_INST_FILE_NAME"]

@@ -96,6 +96,7 @@ def get_sim_params(
             "copy_state":           args.pop_bool("copy-state"),
             "route_algo":           args.pop_str("route-algo", "astar"),
             "show_uxsim_info":      args.pop_bool("show-uxsim-info"),
+            "randomize_uxsim":      args.pop_bool("randomize-uxsim"),
             "no_parallel":          args.pop_bool("no-parallel"),
             "plg_pool":             plg_pool,
             "sta_pool":             sta_pool,
@@ -114,6 +115,7 @@ def _calc_output_folder(cfgdir: str, outdir: str, outdir_direct: str) -> Path:
         else:
             pres = Path(outdir) / Path(cfgdir).name
     return pres
+
 class V2SimInstance:
     def __mpsend(self, con:str, obj:Any = None):
         if self.__mpQ:
@@ -158,7 +160,11 @@ class V2SimInstance:
         copy_state: bool = False,
         route_algo: str = "astar",
         show_uxsim_info: bool = False,
+        randomize_uxsim: bool = False,
         no_parallel: bool = False,
+        _unsafe_traffic_state_to_load:Optional[Dict[str,Any]] = None,
+        _unsafe_inst_state_to_load:Optional[Dict[str,Any]] = None,
+        _unsafe_plugin_state_to_load:Optional[Dict[str,Any]] = None,
     ):
         '''
         Initialization
@@ -190,6 +196,10 @@ class V2SimInstance:
             route_algo: Routing algorithm, can be dijkstra or astar
             show_uxsim_info: Whether to show the information of uxsim
             no_parallel: Disable parallel simulation even if possible
+            randomize_uxsim: Whether to run uxsim in random mode
+            _unsafe_traffic_state_to_load: Alternative way to load UXSim states (unsafe, for advanced users only, at your own risk!)
+            _unsafe_inst_state_to_load: Alternative way to load TrafficInst states (unsafe, for advanced users only, at your own risk!)
+            _unsafe_plugin_state_to_load: Alternative way to load plugin states (unsafe, for advanced users only, at your own risk!)
         '''
 
         if plg_pool is None: plg_pool = PluginPool()
@@ -269,6 +279,14 @@ class V2SimInstance:
         # Create a simulation instance        
         if initial_state != "":
             self.__inst = TrafficInst.load(initial_state, Path(self.__outdir_direct) / TRIP_EVENT_LOG)
+        elif _unsafe_inst_state_to_load is not None and _unsafe_traffic_state_to_load is not None:
+            self.__inst = TrafficInst._partial_load_unsafe(_unsafe_inst_state_to_load, Path(self.__outdir_direct) / TRIP_EVENT_LOG)
+            from .traffic.paraworlds import _load_world_unsafe
+            w = _load_world_unsafe(_unsafe_traffic_state_to_load)
+            assert isinstance(w, (SingleWorld, ParaWorlds))
+            self.__inst.W = w
+        
+        if hasattr(self, "_V2SimInstance__inst"):
             self.__inst.silent = silent
             proj_cfg.net = self.__inst.net_file
             self.__print(Lang.INFO_NET.format(proj_cfg.net))
@@ -339,6 +357,7 @@ class V2SimInstance:
                 scsfile = self.__scs_file, scs_obj = scs_obj,
                 routing_algo = route_algo,
                 show_uxsim_info = show_uxsim_info,
+                randomize_uxsim = randomize_uxsim,
                 no_parallel = no_parallel,
                 silent = silent
             )
@@ -348,11 +367,15 @@ class V2SimInstance:
             plugin_state_file = Path(initial_state) / PLUGINS_FILE
             with gzip.open(plugin_state_file, "rb") as f:
                 d = pickle.load(f)
-                assert isinstance(d, dict) and "obj" in d and "version" in d and "pickler" in d, Lang.INVALID_PLUGIN_STATES.format(plugin_state_file)
-                plugin_state = d["obj"]
-                assert isinstance(plugin_state, dict), Lang.INVALID_PLUGIN_STATES.format(plugin_state_file)
-                assert CheckPyVersion(d["version"]), Lang.PY_VERSION_MISMATCH_PLG.format(d["version"], PyVersion())
-                assert d["pickler"] == pickle.__name__, Lang.PICKLER_MISMATCH_PLG.format(d["pickler"], pickle.__name__)
+            _unsafe_plugin_state_to_load = d
+                
+        if _unsafe_plugin_state_to_load is not None:
+            d = _unsafe_plugin_state_to_load
+            assert isinstance(d, dict) and "obj" in d and "version" in d and "pickler" in d, Lang.INVALID_PLUGIN_STATES.format(plugin_state_file)
+            plugin_state = d["obj"]
+            assert isinstance(plugin_state, dict), Lang.INVALID_PLUGIN_STATES.format(plugin_state_file)
+            assert CheckPyVersion(d["version"]), Lang.PY_VERSION_MISMATCH_PLG.format(d["version"], PyVersion())
+            assert d["pickler"] == pickle.__name__, Lang.PICKLER_MISMATCH_PLG.format(d["pickler"], pickle.__name__)
         else:
             plugin_state = None
 
@@ -565,6 +588,14 @@ class V2SimInstance:
             self.step()
         return self.__inst.current_time
     
+    def _save_obj(self):
+        """Save plugin states. Advanced users only, at your own risk!"""
+        return pickle.dumps({
+            "obj": self.__plgman.SaveStates(),
+            "version": PyVersion(),
+            "pickler": pickle.__name__
+        })
+    
     def save(self, folder:Union[str, Path]):
         '''Save the current state of the simulation'''
         p = Path(folder) if isinstance(folder, str) else folder
@@ -674,7 +705,7 @@ class V2SimInstance:
             self.__last_print_time = ctime
     
     def __del__(self):
-        if hasattr(self, "_V2SimInstance__out") and not self.__out.closed:
+        if hasattr(self, "_V2SimInstance__out") and hasattr(self.__out, "closed") and not self.__out.closed:
             self.__out.close()
 
 def simulate_single(vb=None, **kwargs)->bool:

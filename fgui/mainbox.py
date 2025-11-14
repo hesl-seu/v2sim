@@ -835,13 +835,20 @@ class MainBox(Tk):
         self.sim_cb_copy_state = Checkbutton(self.sim_state_save_panel, text=_L["SIM_COPY_STATE"], variable=self.sim_copy_state)
         self.sim_cb_copy_state.grid(row=0, column=3, padx=3, pady=3, sticky="w")
 
+        self.sim_ux_options_panel = Frame(self.sim_time)
+        self.sim_ux_options_panel.grid(row=2, column=2, padx=0, pady=0, sticky="w")
+        
         self.sim_no_parallel = BooleanVar(self, False)
-        self.sim_cb_no_parallel = Checkbutton(self.sim_time, text=_L["SIM_NO_PARALLEL"], variable=self.sim_no_parallel)
-        self.sim_cb_no_parallel.grid(row=2, column=2, padx=3, pady=3, sticky="w")
+        self.sim_cb_no_parallel = Checkbutton(self.sim_ux_options_panel, text=_L["SIM_NO_PARALLEL"], variable=self.sim_no_parallel)
+        self.sim_cb_no_parallel.grid(row=0, column=0, padx=3, pady=3, sticky="w")
 
         self.sim_show_uxsim_info = BooleanVar(self, False)
-        self.sim_cb_show_uxsim_info = Checkbutton(self.sim_time, text=_L["SIM_SHOW_UXSIM_INFO"], variable=self.sim_show_uxsim_info)
-        self.sim_cb_show_uxsim_info.grid(row=3, column=2, padx=3, pady=3, sticky="w")
+        self.sim_cb_show_uxsim_info = Checkbutton(self.sim_ux_options_panel, text=_L["SIM_SHOW_UXSIM_INFO"], variable=self.sim_show_uxsim_info)
+        self.sim_cb_show_uxsim_info.grid(row=0, column=1, padx=3, pady=3, sticky="w")
+
+        self.sim_randomize_traffic = BooleanVar(self, False)
+        self.sim_cb_randomize_traffic = Checkbutton(self.sim_ux_options_panel, text=_L["SIM_RANDOMIZE_TRAFFIC"], variable=self.sim_randomize_traffic)
+        self.sim_cb_randomize_traffic.grid(row=0, column=2, padx=3, pady=3, sticky="w")
 
         self.sim_algo_panel = Frame(self.sim_time)
         self.sim_algo_panel.grid(row=4, column=2, padx=0, pady=0, sticky="w")
@@ -1122,6 +1129,7 @@ class MainBox(Tk):
                     "--route-algo", self.ralgo.get(),
                     "--no-parallel" if self.sim_no_parallel.get() else "",
                     "--show-uxsim-info" if self.sim_show_uxsim_info.get() else "",
+                    "--randomize-uxsim" if self.sim_randomize_traffic.get() else ""
                 ]
         
         self.destroy()
