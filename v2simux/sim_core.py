@@ -27,9 +27,9 @@ class MsgPack:
 
 
 def load_external_components(
-    external_plugin_dir: str, plugin_pool: PluginPool, sta_pool: StaPool
+    external_plugin_dir: Union[str, Path], plugin_pool: PluginPool, sta_pool: StaPool
 ):
-    exp = Path(external_plugin_dir).absolute()
+    exp = Path(external_plugin_dir).absolute() if isinstance(external_plugin_dir, str) else external_plugin_dir.absolute()
     if not (exp.exists() and exp.is_dir()):
         return
     sys.path.append(str(exp))
@@ -359,7 +359,7 @@ class V2SimInstance:
                 show_uxsim_info = show_uxsim_info,
                 randomize_uxsim = randomize_uxsim,
                 no_parallel = no_parallel,
-                silent = silent
+                silent = silent or (self.__mpQ is not None),
             )
 
         # Enable plugins
@@ -667,7 +667,7 @@ class V2SimInstance:
         
         self.__print()
         dur = time.time() - self.__st_time
-        print(Lang.MAIN_SIM_DONE.format(time2str(dur)), file=self.__out)
+        self.__out.write(Lang.MAIN_SIM_DONE.format(time2str(dur)))
         self.__out.close()
         self.__print(Lang.MAIN_SIM_DONE.format(time2str(dur)))
         self.stop(str(self.__pres / SAVED_STATE_FOLDER) if self.save_on_finish else "")

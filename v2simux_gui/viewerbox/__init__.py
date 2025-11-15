@@ -4,7 +4,7 @@ from v2simux_gui.langhelper import add_lang_menu
 import os
 import gzip
 import traceback
-from v2simux import ReadOnlyStatistics, AdvancedPlot
+from v2simux import ReadOnlyStatistics, AdvancedPlot, SAVED_STATE_FOLDER, TRAFFIC_INST_FILE_NAME, TrafficInst
 from PIL import Image, ImageTk
 from .srd import SelectResultsDialog
 from .plotpage import PlotPage, AVAILABLE_ITEMS, AVAILABLE_ITEMS2
@@ -286,12 +286,17 @@ class ViewerBox(Tk):
         
         self._Q.submit("loaded", load_async, res_path)
 
-        state_path = res_path / "saved_state" / "inst.gz"
+        state_path = res_path / SAVED_STATE_FOLDER / TRAFFIC_INST_FILE_NAME
 
-        def load_state_async(state_path):
+        def load_state_async(state_path:Path):
             try:
-                with gzip.open(state_path, 'rb') as f:
-                    inst = pickle.load(f) # type: ignore
+                import cloudpickle as pickle
+                with gzip.open(state_path, 'rb') as fp:
+                    d  = pickle.load(fp)
+                assert isinstance(d, dict)
+                assert "obj" in d
+                inst = d["obj"]
+                assert isinstance(inst, TrafficInst)
             except:
                 MB.showerror(_L["ERROR"], _L["SAVED_STATE_LOAD_FAILED"])
                 inst = None

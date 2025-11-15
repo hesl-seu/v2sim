@@ -30,7 +30,7 @@ class Analyzer:
         """
         s.W = W
 
-        os.makedirs(f"out{s.W.name}", exist_ok=True)
+        # os.makedirs(f"out{s.W.name}", exist_ok=True)
 
         #基礎統計量
         s.average_speed = 0

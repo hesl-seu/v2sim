@@ -1,15 +1,18 @@
 import math
+import os
+import shutil
 import sys
 import numpy as np
 import threading
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Set
 from collections import defaultdict
 from dataclasses import dataclass, field
 from sklearn.cluster import KMeans
 from sklearn.neighbors import KDTree
 from collections import defaultdict
-from .utils import ReadXML
-from ..locale.lang import Lang
+from .utils import DetectFiles, ReadXML
+from ..locale import Lang
 
 
 def _largeStackExec(func, *args):
@@ -373,7 +376,6 @@ class RoadNet:
         r: Net = readNet(fname)
         assert isinstance(r, Net), Lang.INVALID_SUMO_NETWORK.format(fname)
         for node in r.getNodes():
-            print(node.getID(), node._coord, node._shape)
             ret.add_node(
                 node_id = node.getID(),
                 x = int(node.getCoord()[0]),
@@ -752,4 +754,68 @@ class RoadNet:
         for e in to_remove:
             self.remove_edge(e)
 
-__all__ = ["Node", "Edge", "SubNet", "RoadNet"]
+
+def ConvertCase(input_dir:str, output_dir:str, part_cnt:int, auto_partition:bool,
+            non_passenger_links:bool, non_scc_links:bool):
+    """Convert case files in input directory and save to output directory.
+    
+    Args:
+        input_dir: Input directory path.
+        output_dir: Output directory path.
+        pcnt: Partition count.
+        auto_part: Whether to auto determine partition count.
+        non_passenger: Whether to include non-passenger links.
+        non_scc: Whether to include links and edges not in the largest SCC.
+    """
+    files = DetectFiles(input_dir)
+    converted = False
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if files.net:
+        print("Found SUMO network file:", files.net)
+        r = RoadNet.load_sumo(files.net, only_passenger=not non_passenger_links)
+        if not non_scc_links:
+            print("Extracting largest strongly connected component...")
+            r.remove_items_outside_max_scc()
+        if auto_partition:
+            part_cnt = min(32, os.cpu_count() or 1, r.node_count // 40)
+            print(f"Auto partition count determined: {part_cnt}")
+        if part_cnt > 1:
+            print(f"Partitioning network into {part_cnt} parts...")
+            r.partition_roadnet(part_cnt)
+        r.save(str(out_dir / Path(files.net).name))
+        converted = True
+    if files.poly:
+        print("Found POLY file:", files.poly)
+        shutil.copy(files.poly, str(out_dir / Path(files.poly).name))
+        converted = True
+    if files.cscsv:
+        print("Found charging station CSV file:", files.cscsv)
+        shutil.copy(files.cscsv, str(out_dir / Path(files.cscsv).name))
+        converted = True
+    if files.osm:
+        print("Found OSM file:", files.osm)
+        shutil.copy(files.osm, str(out_dir / Path(files.osm).name))
+        converted = True
+    if files.grid:
+        print("Found power grid file:", files.grid)
+        shutil.copy(files.grid, str(out_dir / Path(files.grid).name))
+        converted = True
+    if files.py:
+        print("Found vehicle Python file:", files.py)
+        shutil.copy(files.py, str(out_dir / Path(files.py).name))
+        converted = True
+    if files.pref:
+        print("Found vehicle preference file:", files.pref)
+        shutil.copy(files.pref, str(out_dir / Path(files.pref).name))
+        converted = True
+    if files.plg:
+        print("Found plugin file:", files.plg)
+        shutil.copy(files.plg, str(out_dir / Path(files.plg).name))
+        converted = True
+    if not converted:
+        print("No supported files found in the input directory.")
+    return converted
+
+
+__all__ = ["Node", "Edge", "SubNet", "RoadNet", "ConvertCase"]

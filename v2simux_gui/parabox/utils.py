@@ -1,4 +1,6 @@
 from v2simux_gui.common import *
+
+from v2simux import MsgPack
 import multiprocessing as mp
 import sys, time
 
@@ -19,13 +21,13 @@ class RedirectStdout:
         pass
 
 
-def work(root:str, par:Dict[str,str], alt:Dict[str,str], out:str, recv:RedirectStdout):
+def work(root:str, par:Dict[str, str], alt:Dict[str, str], out:str, recv:RedirectStdout):
     sys.stdout = recv
     import sim_single
     par.update({"d":root, "od":out})
     st_time = time.time()
     sim_single.work(par, recv.ln, recv.q, alt)
-    print(f"done:{time.time()-st_time:.2f}")
+    recv.q.put_nowait(MsgPack(recv.ln, f"done:{time.time()-st_time:.2f}"))
 
 
 __all__ = ["RedirectStdout", "ITEM_NONE", "mp", "_L", "work"]

@@ -6,10 +6,8 @@ def print_help():
     print(Lang.TRIPGEN_HELP_STR.format(sys.argv[0],DEFAULT_CNAME))
     sys.exit()
 
-if __name__ == "__main__":
-    from version_checker import check_requirements
-    check_requirements()
     
+def main():
     params = ArgChecker()
     if params.pop_bool("h"):
         print_help()
@@ -24,3 +22,7 @@ if __name__ == "__main__":
     except KeyNotSpecifiedError as e:
         print(Lang.ERROR_SUMO_N_VEH_NOT_SPECIFIED)
         print_help()
+
+
+if __name__ == "__main__":
+    main()

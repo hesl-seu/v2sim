@@ -1,6 +1,6 @@
 from v2simux_gui.common import *
 
-from v2simux import CS, CSList, EV, EVDict
+from v2simux import CS, CSList, EV, EVDict, TrafficInst
 
 
 _L = LangLib.Load(__file__)
@@ -27,14 +27,14 @@ class StateFrame(Frame):
         self.text_qres = Text(self)
         self.text_qres.pack(side='top',fill='both',padx=3,pady=5)
     
-    def setStateInst(self, inst):
+    def setStateInst(self, inst:Optional[TrafficInst]):
         self.__inst = inst
         if inst is None:
             self.cb_fcs_query['values'] = []
             self.cb_scs_query['values'] = []
             return
-        fcslist = inst["fcs"]
-        scslist = inst["scs"]
+        fcslist = inst._fcs
+        scslist = inst._scs
         assert isinstance(fcslist, CSList)
         assert isinstance(scslist, CSList)
         self.cb_fcs_query['values'] = [cs.name for cs in fcslist]
@@ -51,7 +51,7 @@ class StateFrame(Frame):
         if q.strip()=="":
             self.set_qres(_L["EMPTY_QUERY"])
             return
-        cslist = self.__inst[cstype]
+        cslist = self.__inst._fcs if cstype=="fcs" else self.__inst._scs
         assert isinstance(cslist, CSList)
         try:
             cs = cslist[q]
@@ -87,7 +87,7 @@ class StateFrame(Frame):
         if q.strip()=="":
             self.set_qres(_L["EMPTY_QUERY"])
             return
-        vehs = self.__inst["VEHs"]
+        vehs = self.__inst._VEHs
         assert isinstance(vehs, EVDict)
         try:
             veh = vehs[q]

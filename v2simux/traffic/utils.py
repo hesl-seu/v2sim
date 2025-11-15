@@ -230,6 +230,7 @@ class V2SimConfig:
         with open(file, "w") as f:
             json.dump(self.__dict__, f, indent=4)
 
+
 def PyVersion() -> Tuple[int, int, int, bool]:
     ver_info = sys.version_info
     has_gil = sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True # type: ignore

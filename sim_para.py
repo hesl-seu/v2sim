@@ -15,9 +15,12 @@ from v2simux import (
     get_sim_params,
     simulate_multi,
     load_external_components,
-    simulate_single
+    simulate_single,
 )
 
+
+EXT_COMP = (Path(__file__).parent / "external_components")
+            
 
 def _create_argchk(cmd: str) -> ArgChecker:
     return ArgChecker(cmd, ["plot", "gen-veh", "gen-fcs", "gen-scs"])
@@ -138,8 +141,8 @@ def parallel_sim(parallel: int, results_root: str, commands: List[SimCommand]):
     """
     plg_pool = PluginPool()
     sta_pool = StaPool()
-    if Path("external_components").exists():
-        load_external_components("external_components", plg_pool, sta_pool)
+    if EXT_COMP.exists():
+        load_external_components(EXT_COMP, plg_pool, sta_pool)
     pool = ProcessPoolExecutor(parallel)
     mpQ:queue.Queue = mp.Manager().Queue()
 
@@ -228,7 +231,7 @@ def parallel_sim(parallel: int, results_root: str, commands: List[SimCommand]):
         if e:
             if isinstance(e, (KeyboardInterrupt, CancelledError)):
                 continue
-            print("Error:", i, str(type(e)), e.with_traceback(e.__traceback__))
+            print("Error:", i, type(e).__name__, e.with_traceback(e.__traceback__))
 
     if len(non_paras) > 0:
         print(Lang.PARA_SIM_DONE_PARA.format(time2str(time.time() - st_time)))
@@ -241,9 +244,7 @@ def parallel_sim(parallel: int, results_root: str, commands: List[SimCommand]):
     print(Lang.MAIN_SIM_DONE.format(time2str(time.time() - st_time)))
 
 
-if __name__ == "__main__":
-    from version_checker import check_requirements
-    check_requirements()
+def main():
     args = ArgChecker(force_parametric=["p","d","r","c","n","f"])
     if args.pop_bool("h") or args.pop_bool("help"):
         print(Lang.PARA_HELP_STR.format(sys.argv[0]))
@@ -275,3 +276,7 @@ if __name__ == "__main__":
                 continue
             commands.append(SimCommand(line))
     parallel_sim(parallel, root, commands)
+
+
+if __name__ == "__main__":
+    main()

@@ -16,3 +16,6 @@ from .sim_core import (
     TRIP_EVENT_LOG,
     SIM_INFO_LOG
 )
+
+__version__ = "1.3.0.post1"
+__version_info__ = (1, 3, 0)

@@ -6,11 +6,11 @@ import os
 
 
 _ = LangLib.Load(__file__)
-RECENT_PROJECTS_FILE = Path(__file__).parent / "recent_projects.txt"
+RECENT_PROJECTS_FILE = Path.home() / ".v2simux" / "recent_projects.txt"
 
 
 class WelcomeBox(Tk):
-    def __init__(self, Q:mp.Queue, to_open:str=""):
+    def __init__(self, to_open:str=""):
         super().__init__()
         self.wm_attributes('-topmost',1)
         self.title(_("WELCOME"))
@@ -20,12 +20,16 @@ class WelcomeBox(Tk):
         x = (self.winfo_screenwidth() // 2) - (width // 2)
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f'{width}x{height}+{x}+{y}')
-        
-        self.__q = Q
 
         self.menu = Menu(self)
         self.config(menu=self.menu)
         add_lang_menu(self.menu)
+        menuTools = Menu(self.menu, tearoff=0)
+        menuTools.add_command(label=_("PARA"), command=self._goto_para)
+        menuTools.add_separator()
+        menuTools.add_command(label=_("HELP"), command=self.open_help)
+        menuTools.add_command(label=_("ABOUT"), command=self.show_about)
+        self.menu.add_cascade(label=_("TOOLS"), menu=menuTools)
 
         # Header
         header_frame = Frame(self)
@@ -135,33 +139,20 @@ class WelcomeBox(Tk):
         self.btn_panel.grid(row=2, column=2, sticky="ew")
         self.view_res_btn = Button(self.btn_panel, text=_("VIEW_RESULTS"), command=self._view_results)
         self.view_res_btn.grid(row=0, column=0, sticky="e", pady=(5, 0), padx=(5, 0))
-        self.open_btn = Button(self.btn_panel, text=_("OPEN"), command=self._close, state=DISABLED)
+        self.open_btn = Button(self.btn_panel, text=_("OPEN"), command=self._close)
         self.open_btn.grid(row=0, column=1, sticky="e", pady=(5, 0))
 
-        # Footer (status bar)
-        self.lb_sta = Label(self, text=_("LOAD_CORE"), anchor="w", relief="sunken")
-        self.lb_sta.pack(side="bottom", fill="x")
-
         self.__load_error = False
+        self.result = ("close", None)
     
-    def _checkdone(self):
-        try:
-            ret = self.__q.get_nowait()
-        except:
-            self.after(100, self._checkdone)
-            return
-        if ret == "done":
-            self.lb_sta.config(text=_("READY"))
-            self.open_btn.config(state=NORMAL)
-        elif ret == "error":
-            self.lb_sta.config(text=_("FAILED_START"))
-            self.select_linklbl.config(state=DISABLED)
-            MB.showerror(_("ERROR"), _("FAILED_START"))
-            self.open_btn.config(text=_("EXIT"), command=self._close, state=NORMAL)
-            self.__load_error = True
-        else:
-            self.after(100, self._checkdone)
-    
+    def open_help(self):
+        import webbrowser
+        webbrowser.open("https://hesl-seu.github.io/v2sim-wiki/")
+        
+    def show_about(self):
+        import v2simux
+        MB.showinfo(_("ABOUT"), _("ABOUT_TEXT").format(v2simux.__version__))
+
     def _destory(self):
         self.withdraw()
         self.quit()
@@ -173,29 +164,32 @@ class WelcomeBox(Tk):
             return False
         return True
 
+    def _goto_para(self):
+        self.result = ("para", None)
+        self._destory()
+
     def _close(self):
         if self.__load_error:
             self._destory()
             return
         if not self._check_selected(): return
-        self.__q.put_nowait(("main", self.recent_var.get()))
+        self.result = ("main", self.recent_var.get())
         self._destory()
     
     def _view_results(self):
         if not self._check_selected(): return
-        self.__q.put_nowait(("res", self.recent_var.get()))
+        self.result = ("res", self.recent_var.get())
         self._destory()
     
     def _convert_case(self, event):
-        self.__q.put_nowait(("conv", None))
+        self.result = ("conv", None)
         self._destory()
     
     def show(self):
         self.update()
         self.deiconify()
-        self.after(100, self._checkdone)
         self.mainloop()
-        self.__q.put_nowait(("close", None))
+        return self.result
     
     def load_recent_projects(self):
         self.project_list.delete(0, END)

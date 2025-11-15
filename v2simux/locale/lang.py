@@ -7,10 +7,10 @@ LangConfig.SetAppName("v2simux")
 
 
 class Lang:    
-    TRIPGEN_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/gen_trip to see the usage."
-    CSGEN_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/gen_cs to see the usage."
-    MAIN_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/sim_single to see the usage."
-    PARA_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/sim_para to see the usage."
+    TRIPGEN_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/v2sim/tools/gen_trip to see the usage."
+    CSGEN_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/v2sim/tools/gen_cs to see the usage."
+    MAIN_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/v2sim/tools/sim_single to see the usage."
+    PARA_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/v2sim/tools/sim_para to see the usage."
     
     ERROR_GENERAL = "Error: {}"
     ERROR_BAD_TYPE = "Error: Invalid data type '{}'."
@@ -140,43 +140,6 @@ class Lang:
     PLG_INVALID_PLUGIN = "Invalid plugin '{}'."
     PLG_DEPS_NOT_LOADED = "Plugin '{0}' depends on plugin '{1}', which has not been loaded."
     PLG_ALREADY_EXISTS = "Plugin '{}' already exists."
-
-    PLOT_CMD_HELP = '''Plotting program - Usage
-{} [-h] [--help] [-d <simulation_result_directory>] [-t <plot_start_time>] 
-[--trips <trip_file> [--trips-num <nums_to_draw>]]
-[--load-accum [--show-peak] [--peak-range <peak_range>] [--no-stackplot]]
-[--cs-curve [<cs_names>] [--show-waitcount] [--show-chargeload] [--show-dischargeload] [--show-netchargeload] [--show-v2gcap]]
-[--cs-price [<cs_names>] [--show-pbuy] [--show-psell]]
-[--ev-attrib <ev_ids> --ev-attrib-list <attributes_to_draw>] [--ev-route <ev_ids>]
-[--gen-compare] [--gen-total] [--gen-curve [<generator_names>]]
-[--bus-curve <bus_names>] [--bus-total]
-    h/help: Display this help.
-    d: Simulation result directory. 'results' by default.
-    t: Plot start time. 86400 by default.
-    trips: Plot the histogram of given trip file.
-        trips-num: Which trips to be draw, should be a comma separated integer list
-    load-accum: Plot accumulation of EVCL.
-        show-peak: Show peak value.
-        peak-range: Peak range.
-        no-stackplot: Do not use stackplot.
-    cs-curve: Plot CS curve. CS to be drawn should be given as a comma separated string list. If not given, all CS will be drawn.
-        hide-waitcount: Hide waiting count.
-        hide-chargeload: Hide charge load.
-        hide-dischargeload: Hide discharge load.
-        hide-netchargeload: Hide net charge load.
-        hide-v2gcap: Hide V2G capacity.
-    cs-price: Plot CS price. CS to be drawn should be given as a comma separated string list. If not given, all CS will be drawn.
-        hide-pbuy: Hide purchase price.
-        hide-psell: Hide selling price.
-    ev-attrib: Plot EV attributes. EVs to be drawn should be given as a comma separated string list.
-        ev-attrib-list: Attributes list to be drawn must be given. Should be a comma separated string list.
-    ev-route: Plot EV route. EVs to be drawn should be given as a comma separated string list.
-    gen-compare: Plot generator comparison.
-    gen-total: Plot total power generation.
-    gen-curve: Plot generator curve. Generators to be drawn should be given as a comma separated string list.
-    bus-curve: Plot bus curve. Buses to be drawn should be given as a comma separated string list.
-    bus-total: Plot total bus parameters.
-'''
     
     PLOT_FONT = "Arial"
     PLOT_FONT_SIZE_SMALL = "12"
@@ -187,6 +150,7 @@ class Lang:
     PLOT_STR_SLOW = "Slow"
     PLOT_NOT_SUPPORTED = "The existing data does not support drawing the graph of {}"
 
+    ADV_PLOT_TITLE = "Advanced Plotting Tool - Type 'help' for help"
     ADV_PLOT_HELP = '''Commands:
     plot <series_name> [<label> <color> <linestyle> <side>]: Add a series to the plot
     title <title>: Set the title of the plot
@@ -247,6 +211,16 @@ You can load the commands from a file as an argument in the command prompt/termi
     PLOT_PVW = "PV or Wind Turbine: {0}"
     PLOT_ESS = "ESS: {0}"
 
+    PLOT_TOOL_CLEARING = "Clearing {0}..."
+    PLOT_TOOL_PLOTTING = "Plotting {0}..."
+    PLOT_TOOL_EMPTY = "No plots to generate. Please check your options."
+    PLOT_TOOL_INDIR_NOT_FOUND = "Input directory {0} not found."
+    PLOT_TOOL_UNKNOWN_ARG = "Unknown argument: {0}"
+    PLOT_TOOL_NO_RESULTS = "No results found in {0}. Try using -r for recursive plotting."
+    PLOT_TOOL_NO_RESULTS_RECURSIVE = "No results found in {0} and its subdirectories."
+
+    CONVERT_ERROR_MISSING_PATHS = "Error: Please provide input and output directory paths by '-i' and '-o'."
+    CSQUERY_KEY_REQUIRED = "Please provide an AMap key in command line with '--key'"
     BAD_TRIP_OD = "Trip start node must be the same as the previous trip's end node, but got {0} after {1} for vehicle {2}'s trip {3}"
     BAD_TRIP_DEPART_TIME = "Trip departure time must be in ascending order, but got {0} after {1} for vehicle {2}'s trip {3}"
     PARA_WORLDS = "Paraworlds created. Number of sub-worlds: {0}."

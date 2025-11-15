@@ -1,8 +1,8 @@
 class _locale:
-    TRIPGEN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/gen_trip_cn 上的使用说明。"
-    CSGEN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/gen_cs_cn 上的使用说明。"
-    MAIN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/sim_single_cn 上的使用说明。"
-    PARA_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/sim_para_cn 上的使用说明。"
+    TRIPGEN_HELP_STR = "请阅读 https://hesl-seu.github.io/v2sim-wiki/#/zh_hans/v2sim/tools/gen_trip 上的使用说明。"
+    CSGEN_HELP_STR = "请阅读 https://hesl-seu.github.io/v2sim-wiki/#/zh_hans/v2sim/tools/gen_cs 上的使用说明。"
+    MAIN_HELP_STR = "请阅读 https://hesl-seu.github.io/v2sim-wiki/#/zh_hans/v2sim/tools/sim_single 上的使用说明。"
+    PARA_HELP_STR = "请阅读 https://hesl-seu.github.io/v2sim-wiki/#/zh_hans/v2sim/tools/sim_para 上的使用说明。"
 
     ERROR_GENERAL = "错误: {}"
     ERROR_BAD_TYPE = "错误: 无效的数据类型{}."
@@ -131,44 +131,6 @@ class _locale:
     PLG_DEPS_NOT_LOADED = "插件{0}依赖的插件{1}尚未加载."
     PLG_ALREADY_EXISTS = "插件{}已经存在于插件列表."
 
-    PLOT_CMD_HELP = '''
-绘图程序 - 使用方法
-{} [-h] [--help] [-d <仿真结果文件夹>] [-t <开始时间>] 
-[--trips <trip_file> [--trips-num <行程编号>]]
-[--load-accum [--show-peak] [--peak-range <peak_range>] [--no-stackplot]]
-[--cs-curve [<充电站名称>] [--show-waitcount] [--show-chargeload] [--show-dischargeload] [--show-netchargeload] [--show-v2gcap]]
-[--cs-price [<充电站名称>] [--show-pbuy] [--show-psell]]
-[--ev-attrib <电动汽车ID> --ev-attrib-list <要绘制的属性>] [--ev-route <电动汽车ID>]
-[--gen-compare] [--gen-total] [--gen-curve [<发电机名称>]]
-[--bus-curve <母线名称>] [--bus-total]
-    h/help: 显示此帮助
-    d: 仿真结果文件夹，默认是"results"
-    t: 绘图开始时间，默认是86400
-    trips: 绘制行程直方图
-        trips-num: 指定要绘制的行程编号
-    load-accum: 绘制累计充电负荷
-        show-peak: 显示峰值
-        peak-range: 峰值范围，例如0.85
-        no-stackplot: 禁用堆积图（采用曲线图）
-    cs-curve: 绘制充电站曲线，充电站应给出为逗号分隔的字符串列表，如果不给出，则绘制所有CS
-        hide-waitcount: 隐藏等待数
-        hide-chargeload: 隐藏充电负荷
-        hide-dischargeload: 隐藏放电负荷
-        hide-netchargeload: 隐藏净充电负荷
-        hide-v2gcap: 隐藏V2G容量
-    cs-price: 绘制充电站价格，充电站应给出为逗号分隔的字符串列表，如果不给出，则绘制所有CS
-        hide-pbuy: 隐藏购电价格
-        hide-psell: 隐藏售电价格
-    ev-attrib: 绘制电动汽车属性，电动汽车应给出为逗号分隔的字符串列表
-        ev-attrib-list: 要绘制的属性列表，例如"cost,earn"
-    ev-route: 绘制电动汽车路径，电动汽车应给出为逗号分隔的字符串列表
-    gen-compare: 绘制发电机比较
-    gen-total: 绘制发电机总参数
-    gen-curve: 绘制发电机曲线，发电机应给出为逗号分隔的字符串列表
-    bus-curve: 绘制母线曲线，母线应给出为逗号分隔的字符串列表
-    bus-total: 绘制母线总参数
-'''
-
     PLOT_FONT = "SimHei"
     PLOT_FONT_SIZE_SMALL = "13"
     PLOT_FONT_SIZE_MEDIUM = "15"
@@ -178,6 +140,7 @@ class _locale:
     PLOT_STR_SLOW = "慢"
     PLOT_NOT_SUPPORTED = "既有数据不支持绘制{}的图形"
 
+    ADV_PLOT_TITLE = "高级绘图工具 - 输入'help'获取帮助"
     ADV_PLOT_HELP = '''命令:
     plot <series_name> [<label> <color> <linestyle> <side>]: 绘制一个数据序列
     title <title>: 设置标题
@@ -233,6 +196,11 @@ class _locale:
     PLOT_PVW = "光伏或风机: {0}"
     PLOT_ESS = "储能系统: {0}"
 
+    PLOT_TOOL_CLEARING = "正在清除{0}..."
+    
+
+    CONVERT_ERROR_MISSING_PATHS = "错误: 请使用'-i'和'-o'参数指定输入输出文件夹。"
+    CSQUERY_KEY_REQUIRED = "请在命令行中使用'--key'提供高德地图密钥"
     BAD_TRIP_OD = "行程起始节点必须与前一个行程的结束节点相同，但车辆{2}的行程{3}的起点{0}不是{1}"
     BAD_TRIP_DEPART_TIME = "行程出发时间必须按升序排列，但车辆{2}的行程{3}的出发时间{0}早于{1}"
     PARA_WORLDS = "已创建{0}个并行仿真."

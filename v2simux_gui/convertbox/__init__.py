@@ -1,3 +1,4 @@
+import traceback
 from v2simux_gui.com_no_vx import *
 
 import os, sys, subprocess, threading
@@ -107,28 +108,20 @@ class ConvertBox(Tk):
         if not os.path.isdir(self.input_path):
             return False, "", _("INPUT_NOT_EXIST")
 
-        cmd = [
-                sys.executable, "convert_case.py", 
-                "-i", self.input_path,
-                "-o", self.output_path,
-                "-p", self.partition_count.get(),
-            ]
-        if self.auto_partition.get(): 
-            cmd.append("--auto-partition")
-        if self.non_passenger_links.get():
-            cmd.append("--non-passenger-links")
-        if self.non_scc_links.get():
-            cmd.append("--non-scc-items")
-        
-        p = subprocess.run(
-            cmd, text=True,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE
-        )
-        if p.returncode != 0:
-            return False, p.stdout, p.stderr
-        else:
-            return True, p.stdout, p.stderr
+        from v2simux import ConvertCase
+
+        try:
+            converted = ConvertCase(
+                self.input_path, self.output_path, 
+                part_cnt = int(self.partition_count.get()),
+                auto_partition = self.auto_partition.get(),
+                non_passenger_links = self.non_passenger_links.get(),
+                non_scc_links = self.non_scc_links.get()
+            )
+            return converted, "", ""
+        except Exception as e:
+            traceback.print_exc()
+            return False, "", str(e)
 
     def first_program_completed(self, result):
         ok, out, err = result

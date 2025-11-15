@@ -8,11 +8,9 @@ def print_help(err:str = ""):
         print(err)
     print(Lang.CSGEN_HELP_STR.format(sys.argv[0]))
     sys.exit()
-
-if __name__ == "__main__":
-    from version_checker import check_requirements
-    check_requirements()
     
+    
+def main():
     params = ArgChecker()
     if params.pop_bool("h") or params.pop_bool("help"):
         print_help()
@@ -23,3 +21,7 @@ if __name__ == "__main__":
         print_help(Lang.ERROR_CMD_NOT_SPECIFIED.format("d"))
     
     TrafficGenerator(root).CSFromArgs(params)
+
+
+if __name__ == "__main__":
+    main()

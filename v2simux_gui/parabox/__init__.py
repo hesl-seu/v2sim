@@ -71,9 +71,6 @@ class ParaBox(Tk):
         folder = filedialog.askdirectory(initialdir=str(init_dir),mustexist=True,title=_L("SEL_CASE_FOLDER"))
         if folder:
             dr = DetectFiles(folder)
-            if dr.cfg is None:
-                MB.showerror(_L("ERROR"), _L("NO_CFG_FILE"))
-                return
             if dr.net is None:
                 MB.showerror(_L("ERROR"), _L("NO_NET_FILE"))
                 return
@@ -154,6 +151,9 @@ class ParaBox(Tk):
     def check(self):
         while not self.q.empty():
             t = self.q.get()
+            if not isinstance(t, MsgPack):
+                print("Invalid message from worker:", t)
+                continue
             ln = t.clntID
             text = t.cmd.strip()
             if len(text)>0:
