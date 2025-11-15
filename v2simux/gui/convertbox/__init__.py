@@ -1,7 +1,7 @@
 import traceback
-from v2simux_gui.com_no_vx import *
+from v2simux.gui.com_no_vx import *
 
-import os, sys, subprocess, threading
+import os, threading
 
 
 _ = LangLib.Load(__file__)

@@ -1,5 +1,5 @@
-from v2simux_gui.com_no_vx import *
-from v2simux_gui.langhelper import *
+from v2simux.gui.com_no_vx import *
+from v2simux.gui.langhelper import *
 
 import os
 from PIL import Image, ImageTk
