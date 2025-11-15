@@ -17,5 +17,5 @@ from .sim_core import (
     SIM_INFO_LOG
 )
 
-__version__ = "1.3.0.post1"
+__version__ = "1.3.0rc1"
 __version_info__ = (1, 3, 0)

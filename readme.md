@@ -30,5 +30,15 @@ Paper link for the microscopic version: https://ieeexplore.ieee.org/document/109
 V2Sim-UX is a mesoscopic V2G simulation platform in urban power and transportation network. It is open-source under BSD license. The traffic simulation is based on [UXsim](https://github.com/toruseo/UXsim).
 
 ## Quick start
+This package has been uploaded to PyPI. It can be installed by:
+```
+pip install v2simux
+```
+
+Then, input the following command to open the GUI:
+```
+v2simux-gui
+```
+
 Visit our documents to see the quick start guide!
 Link: https://hesl-seu.github.io/v2sim-wiki/#/v2simux/quick-start (English)
