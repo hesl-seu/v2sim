@@ -1,7 +1,5 @@
 from v2simux_gui.com_no_vx import *
 from v2simux_gui.langhelper import *
-
-import multiprocessing as mp
 import os
 
 

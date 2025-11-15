@@ -1,11 +1,9 @@
-from pathlib import Path
 from feasytools import ArgChecker
-from v2simux import csQuery
+from v2simux import csQuery, AMAP_KEY_FILE
 from feasytools import LangLib
 
 
 _ = LangLib.LoadFor(__file__)
-AMapKeyFile = Path.home() / ".v2simux" / "amap_key.txt"
 
 
 def main():
@@ -15,8 +13,8 @@ def main():
     ak = args.pop_str("key", "")
     allyes = args.pop_bool("y")
 
-    if ak == "" and AMapKeyFile.exists():
-        with open(AMapKeyFile, "r") as f:
+    if ak == "" and AMAP_KEY_FILE.exists():
+        with open(AMAP_KEY_FILE, "r") as f:
             ak = f.read().strip()
     
     if ak == "":

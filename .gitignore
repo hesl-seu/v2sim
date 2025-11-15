@@ -12,6 +12,7 @@ saved_state
 buf.csv
 
 # Sensitive files
+token
 amap_key.txt
 v2sim/locale/lang.txt
 *.json

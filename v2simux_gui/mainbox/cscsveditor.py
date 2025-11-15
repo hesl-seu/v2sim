@@ -1,11 +1,10 @@
 from v2simux_gui.common import *
-
+from v2simux import AMAP_KEY_FILE
 from .utils import *
 from .controls import ScrollableTreeView
 
 
 _L = LangLib.Load(__file__)
-AMAP_KEY_FILE = "amap_key.txt"
 
 
 class CSCSVEditor(Frame):

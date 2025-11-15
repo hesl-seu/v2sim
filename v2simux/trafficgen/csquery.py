@@ -1,8 +1,12 @@
+import time, json, requests
 from dataclasses import dataclass
 from typing import Any, Optional, TextIO, Union, overload, List, Dict, Tuple
 from pathlib import Path
-import time, json, requests
 from ..traffic import CheckFile, DetectFiles, ReadXML
+
+
+AMAP_KEY_FILE = Path.home() / ".v2simux" / "amap_key.txt"
+
 
 class CSQueryError(Exception):
     def __init__(self, message:str, obj = None):
@@ -10,6 +14,7 @@ class CSQueryError(Exception):
             message += f"\nObject: {str(obj)}"
         super().__init__(message)
         self.obj = obj
+
 
 @dataclass
 class CS:
