@@ -286,5 +286,6 @@ You can load the commands from a file as an argument in the command prompt/termi
             return
         Lang.load(locale_code.split("_")[0])
 
+
 en_Lang = copy.deepcopy(Lang)
 Lang.load_default()

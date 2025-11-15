@@ -534,7 +534,7 @@ class MainBox(Tk):
         else:
             cmd_load_state = f'--initial-state="{self.folder}/saved_state"'
         commands = [sys.executable,
-                    str(V2SIM_UX_DIR / "sim_single.py"),
+                    str(V2SIM_UX_DIR / "tools" / "sim_single.py"),
                     f'-d="{self.folder}"', 
                     f"-b={start}", 
                     f"--break-at={self.entry_break.get()}",

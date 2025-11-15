@@ -1,6 +1,6 @@
 from v2simux.gui.common import *
-
-from v2simux import PluginPool, PluginBase, StaPool, RangeList, load_external_components
+from feasytools import RangeList
+from v2simux import PluginPool, PluginBase, StaPool, load_external_components
 from .controls import *
 from .utils import *
 

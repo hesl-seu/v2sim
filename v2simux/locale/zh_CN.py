@@ -197,7 +197,12 @@ class _locale:
     PLOT_ESS = "储能系统: {0}"
 
     PLOT_TOOL_CLEARING = "正在清除{0}..."
-    
+    PLOT_TOOL_PLOTTING = "正在绘制{0}..."
+    PLOT_TOOL_EMPTY = "没有要生成的图形。请检查您的选项。"
+    PLOT_TOOL_INDIR_NOT_FOUND = "未找到输入目录{0}。"
+    PLOT_TOOL_UNKNOWN_ARG = "未知参数: {0}"
+    PLOT_TOOL_NO_RESULTS = "在{0}中未找到结果。尝试使用-r进行递归绘图。"
+    PLOT_TOOL_NO_RESULTS_RECURSIVE = "在{0}及其子目录中未找到结果。"
 
     CONVERT_ERROR_MISSING_PATHS = "错误: 请使用'-i'和'-o'参数指定输入输出文件夹。"
     CSQUERY_KEY_REQUIRED = "请在命令行中使用'--key'提供高德地图密钥"

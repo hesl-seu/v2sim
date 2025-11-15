@@ -24,6 +24,7 @@ class WelcomeBox(Tk):
         add_lang_menu(self.menu)
         menuTools = Menu(self.menu, tearoff=0)
         menuTools.add_command(label=_("PARA"), command=self._goto_para)
+        menuTools.add_command(label=_("COMPARE"), command=self._compare_case)
         menuTools.add_separator()
         menuTools.add_command(label=_("HELP"), command=self.open_help)
         menuTools.add_command(label=_("ABOUT"), command=self.show_about)
@@ -179,6 +180,10 @@ class WelcomeBox(Tk):
         self.result = ("res", self.recent_var.get())
         self._destory()
     
+    def _compare_case(self):
+        self.result = ("cmp", None)
+        self._destory()
+
     def _convert_case(self, event):
         self.result = ("conv", None)
         self._destory()

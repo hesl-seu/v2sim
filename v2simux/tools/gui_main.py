@@ -29,6 +29,10 @@ def main():
         from v2simux.gui.parabox import ParaBox
         win = ParaBox()
         win.mainloop()
+    elif msg[0] == "cmp":
+        from v2simux.gui.cmpbox import CmpBox
+        win = CmpBox()
+        win.mainloop()
 
 if __name__ == "__main__":
     main()
