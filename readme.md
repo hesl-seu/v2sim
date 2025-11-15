@@ -34,5 +34,15 @@ V2Sim is a microscopic V2G simulation platform in urban power and transportation
 + **Note 2**: Code of PDN part is not included in the repository, it is stored in another repository: [FPowerKit](https://gitee.com/fmy_xfk/fpowerkit).
 
 ## Quick start
+This package has been uploaded to PyPI. It can be installed by:
+```
+pip install v2sim
+```
+
+Then, input the following command to open the GUI:
+```
+v2sim-gui
+```
+
 Visit our documents to see the quick start guide!
 Link: https://hesl-seu.github.io/v2sim-wiki/#/v2sim/quick-start (English)
