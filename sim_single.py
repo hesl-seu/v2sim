@@ -86,7 +86,7 @@ def work(pars:Optional[dict] = None, clntID:int = -1, q=None, alt:Optional[Dict[
 
     if visible:
         try:
-            from fgui import ViewBox
+            from v2simux_gui.progbox import ProgBox
         except:
             print(Lang.WARN_MAIN_GUI_NOT_FOUND)
             visible = False
@@ -98,7 +98,7 @@ def work(pars:Optional[dict] = None, clntID:int = -1, q=None, alt:Optional[Dict[
     })
     
     if visible:
-        vb = ViewBox(
+        vb = ProgBox(
             ["Driving", "Pending", "Charging", "Parking", "Depleted"],
             "Simulator Dashboard",
         )
