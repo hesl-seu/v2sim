@@ -1,8 +1,12 @@
+import time, json, requests
 from dataclasses import dataclass
 from typing import Any, Optional, TextIO, Union, overload, List, Dict, Tuple
 from pathlib import Path
-import time, json, requests
 from ..traffic import CheckFile, DetectFiles, ReadXML
+
+
+AMAP_KEY_FILE = Path.home() / ".v2simux" / "amap_key.txt"
+
 
 class CSQueryError(Exception):
     def __init__(self, message:str, obj = None):
@@ -10,6 +14,7 @@ class CSQueryError(Exception):
             message += f"\nObject: {str(obj)}"
         super().__init__(message)
         self.obj = obj
+
 
 @dataclass
 class CS:
@@ -193,17 +198,16 @@ def csQuery(root:str, new_loc:str, ak:str, allyes:bool):
     
     if len(cslist) == 0: return
     
-    print("Saving json...")
-    json_path = str(Path(root) / "cs.json")
-    CheckFile(json_path)
-    with open(json_path, 'w') as f:
-        json.dump(results, f, ensure_ascii=False)
-    
     print("Saving csv...")
     csv_path = str(Path(root) / "cs.csv")
     CheckFile(csv_path)
-    with open(csv_path, 'w') as f:
+    with open(csv_path, 'w', encoding="utf-8") as f:
         f.write("id,name,lat,lng\n")
         for itm in cslist:
             f.write(f"{itm.id},{itm.name},{itm.lat},{itm.lng}\n")
-    
+
+    print("Saving json...")
+    json_path = str(Path(root) / "cs.json")
+    CheckFile(json_path)
+    with open(json_path, 'w', encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False)

@@ -1,11 +1,12 @@
 import copy
-import importlib, locale
-from pathlib import Path
-from typing import List, Union
+import importlib
+from feasytools import LangConfig
 
-class Lang:
-    LANG_CODE = "en"
-    
+
+LangConfig.SetAppName("v2sim")
+
+
+class Lang:    
     TRIPGEN_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/gen_trip to see the usage."
     CSGEN_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/gen_cs to see the usage."
     MAIN_HELP_STR = "Read https://github.com/fmy-xfk/v2sim/wiki/sim_single to see the usage."
@@ -138,43 +139,6 @@ class Lang:
     PLG_DEPS_NOT_LOADED = "Plugin '{0}' depends on plugin '{1}', which has not been loaded."
     PLG_ALREADY_EXISTS = "Plugin '{}' already exists."
 
-    PLOT_CMD_HELP = '''Plotting program - Usage
-{} [-h] [--help] [-d <simulation_result_directory>] [-t <plot_start_time>] 
-[--trips <trip_file> [--trips-num <nums_to_draw>]]
-[--load-accum [--show-peak] [--peak-range <peak_range>] [--no-stackplot]]
-[--cs-curve [<cs_names>] [--show-waitcount] [--show-chargeload] [--show-dischargeload] [--show-netchargeload] [--show-v2gcap]]
-[--cs-price [<cs_names>] [--show-pbuy] [--show-psell]]
-[--ev-attrib <ev_ids> --ev-attrib-list <attributes_to_draw>] [--ev-route <ev_ids>]
-[--gen-compare] [--gen-total] [--gen-curve [<generator_names>]]
-[--bus-curve <bus_names>] [--bus-total]
-    h/help: Display this help.
-    d: Simulation result directory. 'results' by default.
-    t: Plot start time. 86400 by default.
-    trips: Plot the histogram of given trip file.
-        trips-num: Which trips to be draw, should be a comma separated integer list
-    load-accum: Plot accumulation of EVCL.
-        show-peak: Show peak value.
-        peak-range: Peak range.
-        no-stackplot: Do not use stackplot.
-    cs-curve: Plot CS curve. CS to be drawn should be given as a comma separated string list. If not given, all CS will be drawn.
-        hide-waitcount: Hide waiting count.
-        hide-chargeload: Hide charge load.
-        hide-dischargeload: Hide discharge load.
-        hide-netchargeload: Hide net charge load.
-        hide-v2gcap: Hide V2G capacity.
-    cs-price: Plot CS price. CS to be drawn should be given as a comma separated string list. If not given, all CS will be drawn.
-        hide-pbuy: Hide purchase price.
-        hide-psell: Hide selling price.
-    ev-attrib: Plot EV attributes. EVs to be drawn should be given as a comma separated string list.
-        ev-attrib-list: Attributes list to be drawn must be given. Should be a comma separated string list.
-    ev-route: Plot EV route. EVs to be drawn should be given as a comma separated string list.
-    gen-compare: Plot generator comparison.
-    gen-total: Plot total power generation.
-    gen-curve: Plot generator curve. Generators to be drawn should be given as a comma separated string list.
-    bus-curve: Plot bus curve. Buses to be drawn should be given as a comma separated string list.
-    bus-total: Plot total bus parameters.
-'''
-    
     PLOT_FONT = "Arial"
     PLOT_FONT_SIZE_SMALL = "12"
     PLOT_FONT_SIZE_MEDIUM = "14"
@@ -184,6 +148,7 @@ class Lang:
     PLOT_STR_SLOW = "Slow"
     PLOT_NOT_SUPPORTED = "The existing data does not support drawing the graph of {}"
 
+    ADV_PLOT_TITLE = "Advanced Plotting Tool - Type 'help' for help"
     ADV_PLOT_HELP = '''Commands:
     plot <series_name> [<label> <color> <linestyle> <side>]: Add a series to the plot
     title <title>: Set the title of the plot
@@ -244,8 +209,18 @@ You can load the commands from a file as an argument in the command prompt/termi
     PLOT_PVW = "PV or Wind Turbine: {0}"
     PLOT_ESS = "ESS: {0}"
 
+    PLOT_TOOL_CLEARING = "Clearing {0}..."
+    PLOT_TOOL_PLOTTING = "Plotting {0}..."
+    PLOT_TOOL_EMPTY = "No plots to generate. Please check your options."
+    PLOT_TOOL_INDIR_NOT_FOUND = "Input directory {0} not found."
+    PLOT_TOOL_UNKNOWN_ARG = "Unknown argument: {0}"
+    PLOT_TOOL_NO_RESULTS = "No results found in {0}. Try using -r for recursive plotting."
+    PLOT_TOOL_NO_RESULTS_RECURSIVE = "No results found in {0} and its subdirectories."
+
+    CSQUERY_KEY_REQUIRED = "Please provide an AMap key in command line with '--key'"
     BAD_TRIP_OD = "Trip start node must be the same as the previous trip's end node, but got {0} after {1} for vehicle {2}'s trip {3}"
     BAD_TRIP_DEPART_TIME = "Trip departure time must be in ascending order, but got {0} after {1} for vehicle {2}'s trip {3}"
+
 
     @staticmethod
     def format(item:str, **kwargs):
@@ -255,17 +230,17 @@ You can load the commands from a file as an argument in the command prompt/termi
 
     @staticmethod
     def load(lang:str)->bool:
-        if lang == "en":
+        if lang == "en_US" or lang == "en":
             lc = en_Lang
         else:
             try:
                 m = importlib.import_module(f"v2sim.locale.{lang}")
             except ImportError:
                 return False
-            if not hasattr(m, "_locale"): raise ValueError(f"Invalid language {lang}")
+            if not hasattr(m, "_locale"):
+                raise ValueError(f"Invalid language {lang}")
             lc = m._locale
-        Lang.LANG_CODE = lang
-        for key,val in lc.__dict__.items():
+        for key, val in lc.__dict__.items():
             assert isinstance(key,str)
             if key.startswith("__") and key.endswith("__"): continue
             if isinstance(val, str):
@@ -276,112 +251,14 @@ You can load the commands from a file as an argument in the command prompt/termi
         return True
     
     @staticmethod
-    def get_lang_code():
-        return Lang.LANG_CODE
-    
-    @staticmethod
-    def save_lang_code(auto:bool = False):
-        langf = Path(__file__).parent / "lang.txt"
-        with langf.open("w") as f:
-            if auto:
-                f.write("<auto>")
-            else:
-                f.write(Lang.LANG_CODE)
-    
-    @staticmethod
     def load_default():
-        langf = Path(__file__).parent / "lang.txt"
-        if langf.exists():
-            with langf.open("r") as f:
-                locale_code = f.read().strip()
-        else:
-            with langf.open("w") as f:
-                f.write("<auto>")
-            locale_code = "<auto>"
-        if locale_code == "<auto>":
-            locale_code = str(locale.getdefaultlocale()[0])
+        locale_code = LangConfig.GetLangCode()
         if "en" in locale_code:
             return
         if Lang.load(locale_code):
             return
         Lang.load(locale_code.split("_")[0])
         
-
-class CustomLocaleLib:
-    def __init__(self, supports_lang: List[str], default_lang:str=Lang.get_lang_code()):
-        self.__supports = supports_lang
-        assert len(supports_lang) > 0, Lang.ERROR_NO_SUPPORTED_LANG
-        if default_lang not in supports_lang:
-            self.__default = supports_lang[0]
-        else:
-            self.__default = default_lang
-        self.__lib = {lang: {} for lang in supports_lang}
-    
-    @staticmethod
-    def LoadFromFolder(folder:Union[str, Path]):
-        p = folder if isinstance(folder, Path) else Path(folder)
-        if not p.exists():
-            raise FileNotFoundError(f"Folder {folder} not found.")
-        if not p.is_dir():
-            raise NotADirectoryError(f"{folder} is not a directory.")
-        langs = []
-        for pc in p.iterdir():
-            if pc.is_file() and pc.suffix == ".lang":
-                langs.append(pc.stem)
-        lib = CustomLocaleLib(langs)
-        for lang in langs:
-            lib.LoadLanguageLib(lang, str(p / f"{lang}.lang"))
-        return lib
-    
-    @property
-    def SupportedLanguage(self):
-        return self.__supports
-    
-    @property
-    def DefaultLanguage(self):
-        return self.__default
-    @DefaultLanguage.setter
-    def DefaultLanguage(self, lang:str):
-        if lang == "<auto>":
-            lang = str(locale.getdefaultlocale()[0])
-        elif lang not in self.__supports:
-            raise ValueError(Lang.ERROR_UNSUPPORTED_LANG.format(lang))
-        Lang.load(lang)
-        self.__default = lang
-    
-    def SetLanguageLib(self, lang:str, **kwargs):
-        self.__lib[lang].clear()
-        for key,val in kwargs.items():
-            self.__lib[lang][key] = val
-    
-    def LoadLanguageLib(self, lang:str, path:str):
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line: continue
-                key,val = line.split("=", 1)
-                self.__lib[lang][key.strip()] = val.replace("\\n", "\n")
-    
-    def __setitem__(self, key, value):
-        assert isinstance(key, tuple)
-        assert len(key) == 2
-        assert isinstance(key[0], str)
-        assert isinstance(key[1], str)
-        self.__lib[key[0]][key[1]] = value
-    
-    def __getitem__(self, key) -> str:
-        assert isinstance(key, str)
-        try:
-            return self.__lib[Lang.get_lang_code()][key]
-        except KeyError:
-            return key
-    
-    def __call__(self, key) -> str:
-        assert isinstance(key, str)
-        try:
-            return self.__lib[Lang.get_lang_code()][key]
-        except KeyError:
-            return key
 
 en_Lang = copy.deepcopy(Lang)
 Lang.load_default()

@@ -1,6 +1,6 @@
 from itertools import chain
 import operator
-from ..locale import CustomLocaleLib
+from feasytools import LangLib
 from ..traffic import VehStatus
 from .base import *
 try:
@@ -10,14 +10,9 @@ except:
 
 FILE_EV = "ev"
 EV_ATTRIB = ["soc","status","cost","earn","x","y"]
-
-_L = CustomLocaleLib(["en", "zh_CN"])
-_L.SetLanguageLib("en",
-    EV = "EV",
-)
-_L.SetLanguageLib("zh_CN",
-    EV = "电动车",
-)
+_L = LangLib(["en", "zh_CN"])
+_L.SetLangLib("en", EV = "EV")
+_L.SetLangLib("zh_CN", EV = "电动车")
 
 class StaEV(StaBase):
     def __init__(self,path:str,tinst:TrafficInst,plugins:Dict[str,PluginBase]):

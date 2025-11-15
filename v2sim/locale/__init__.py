@@ -1,1 +1,1 @@
-from .lang import Lang, CustomLocaleLib
+from .lang import Lang

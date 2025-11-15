@@ -4,7 +4,7 @@ import pickle
 import gzip
 from itertools import chain
 from pathlib import Path
-from typing import Sequence, List, Tuple, Dict, Iterable, Optional
+from typing import Sequence, List, Tuple, Dict, Iterable, Optional, Union
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
 from feasytools import PQueue, Point, KDTree
@@ -17,6 +17,10 @@ from .params import *
 from .win_vis import WINDOWS_VISUALIZE
 from .utils import random_string, TWeights
 from ..locale import Lang
+from .utils import PyVersion, CheckPyVersion
+
+SUMO_FILE_NAME = "traffic.gz"
+TRAFFIC_INST_FILE_NAME = "inst.gz"
 
 if platform.system() == "Linux":
     import libsumo as traci
@@ -642,34 +646,46 @@ class TrafficInst:
             raise RuntimeError("Simulation has not started. Call 'simulation_start' first.")
         traci.close()
         self.__logger.close()
-    
-    def save_state(self, folder: str):
+
+    def save(self, folder: Union[str, Path]):
         """
         Save the current state of the simulation
             folder: Folder path
         """
-        f = Path(folder)
+        f = Path(folder) if isinstance(folder, str) else folder
         f.mkdir(parents=True, exist_ok=True)
-        traci.simulation.saveState(str(f / "traffic.xml.gz"))
-        with gzip.open(str(f / "inst.gz"), "wb") as f:
+        traci.simulation.saveState(str(f / SUMO_FILE_NAME))
+        obj = {
+            "ctime":self.__ctime,
+            "fQ":self._fQ,
+            "que":self._que,
+            "VEHs":self._VEHs,
+            "fcs":self._fcs,
+            "scs":self._scs,
+            "names_fcs":self.__names_fcs,
+            "names_scs":self.__names_scs,
+        }
+        with gzip.open(str(f / TRAFFIC_INST_FILE_NAME), "wb") as f:
             pickle.dump({
-                "ctime":self.__ctime,
-                "fQ":self._fQ,
-                "que":self._que,
-                "VEHs":self._VEHs,
-                "fcs":self._fcs,
-                "scs":self._scs,
-                "names_fcs":self.__names_fcs,
-                "names_scs":self.__names_scs,
+                "obj": obj,
+                "version": PyVersion(),
+                "pickler": pickle.__name__,
             }, f)
-        
+    
+    save_state = save  # Alias        
     
     def __load_v2sim_state(self, folder: str):
-        inst = Path(folder) / "inst.gz"
+        inst = Path(folder) / TRAFFIC_INST_FILE_NAME
         if not inst.exists():
             raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(inst))
         with gzip.open(str(inst), "rb") as f:
             d = pickle.load(f)
+        assert isinstance(d, dict) and "obj" in d and "pickler" in d and "version" in d, "Invalid TrafficInst state file."
+        if not CheckPyVersion(d["version"]):
+            raise RuntimeError(f"Python version mismatch for TrafficInst: Expect {PyVersion()}, got {d["version"]}")
+        if d["pickler"] != pickle.__name__:
+            raise RuntimeError(f"Pickler mismatch for TrafficInst: Expect {pickle.__name__}, got {d["pickler"]}")
+        d = d["obj"]
         self.__ctime = d["ctime"]
         self._fQ = d["fQ"]
         self._que = d["que"]
@@ -680,13 +696,10 @@ class TrafficInst:
         self.__names_scs = d["names_scs"]
     
     def __load_sumo_state(self, folder: str):
-        traffic = Path(folder) / "traffic.xml.gz"
+        traffic = Path(folder) / SUMO_FILE_NAME
         if not traffic.exists():
             raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(traffic))
         traci.simulation.loadState(str(traffic))
-        #cur_vehs = traci.vehicle.getIDList()
-        #for veh_id in cur_vehs:
-        #    traci.vehicle.subscribe(veh_id, (TC.VAR_DISTANCE,))
 
     def load_state(self, folder: str):
         """
@@ -696,4 +709,4 @@ class TrafficInst:
         self.__load_v2sim_state(folder)
         self.__load_sumo_state(folder)
 
-__all__ = ["TrafficInst"]
+__all__ = ["TrafficInst", "TRAFFIC_INST_FILE_NAME", "SUMO_FILE_NAME"]

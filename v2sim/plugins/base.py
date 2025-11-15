@@ -142,7 +142,7 @@ class PluginBase(Generic[PIResult]):
         return ConfigDict()
 
     def __init__(self, inst:TrafficInst, elem:ET.Element, work_dir:Path, res_dir:Path, enable_time:Optional[RangeList]=None,
-            interval:int=0, plg_deps:'Optional[List[PluginBase]]' = None):
+            interval:int=0, plg_deps:'Optional[List[PluginBase]]' = None, initial_state:Optional[object]=None):
         '''
         Initialize the plugin
             inst: Traffic network simulation instance
@@ -152,6 +152,7 @@ class PluginBase(Generic[PIResult]):
             interval: Plugin running interval, unit = second, 
                 if not specified, the invterval attribute must be specified in xml
             plugin_dependency: Plugin dependency list
+            initial_state: Initial plugin state, if specified, load the plugin state from it
         '''
         self.__PreStep = None
         self.__PostStep = None
@@ -172,6 +173,9 @@ class PluginBase(Generic[PIResult]):
         if plg_deps is None: plg_deps = []
 
         self.__respre = self.__respost = self.Init(elem, inst, work_dir, res_dir, plg_deps)
+
+        if initial_state is not None:
+            self._load_state(initial_state)
     
     @property
     @abstractmethod

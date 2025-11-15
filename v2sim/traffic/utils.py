@@ -294,7 +294,7 @@ class V2SimConfig:
     traffic_step: int = 10
     seed: int = 0
     routing_method:str = "astar"
-    load_state: bool = False
+    load_state: int = 0
     save_state_on_abort: bool = False
     save_state_on_finish: bool = False
     copy_state: bool = False

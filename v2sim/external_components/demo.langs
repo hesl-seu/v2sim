@@ -1,0 +1,7 @@
+[en_US]
+DESCRIPTION=Plugin description
+STA_NAME=Demo
+
+[zh_CN]
+DESCRIPTION=插件描述
+STA_NAME=示例统计项

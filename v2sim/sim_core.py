@@ -269,9 +269,9 @@ class V2SimInstance:
         # Detect SUMO configuration
         if not proj_cfg.cfg:
             raise FileNotFoundError(Lang.ERROR_SUMO_CONFIG_NOT_SPECIFIED)
-        sumocfg_file = proj_cfg.cfg
-        _stt, _edt, _rnet,_addf = GetTimeAndNetwork(sumocfg_file)
-        self.__print(f"  SUMO: {sumocfg_file}")
+        self.__sumocfg_file = proj_cfg.cfg
+        _stt, _edt, _rnet, _addf = GetTimeAndNetwork(self.__sumocfg_file)
+        self.__print(f"  SUMO: {self.__sumocfg_file}")
 
         # Detect road network file
         if _rnet is None:
@@ -291,28 +291,29 @@ class V2SimInstance:
         if len(elg.scc[0].edges) < 0.8 * elg.edge_count:
             print(Lang.WARN_SCC_TOO_SMALL.format(len(elg.scc[0].edges), elg.edge_count))
         self.__print(Lang.INFO_NET.format(rnet_file))
+        self.__rnet_file = rnet_file
         
         # Check vehicles and trips
         if not proj_cfg.veh:
             raise FileNotFoundError(Lang.ERROR_TRIPS_FILE_NOT_FOUND)
-        veh_file = proj_cfg.veh
+        self.__veh_file = proj_cfg.veh
         if vehicles is None:
-            vehicles = EVDict(veh_file)
-        self.__print(Lang.INFO_TRIPS.format(veh_file, len(vehicles)))
+            vehicles = EVDict(self.__veh_file)
+        self.__print(Lang.INFO_TRIPS.format(self.__veh_file, len(vehicles)))
 
         # Check FCS file
         if not proj_cfg.fcs:
             raise FileNotFoundError(Lang.ERROR_FCS_FILE_NOT_FOUND)
-        fcs_file = proj_cfg.fcs
-        fcs_obj:CSList[FCS] = CSList(filePath = fcs_file, csType = FCS)
-        self.__print(Lang.INFO_FCS.format(fcs_file,len(fcs_obj)))
+        self.__fcs_file = proj_cfg.fcs
+        fcs_obj:CSList[FCS] = CSList(filePath = self.__fcs_file, csType = FCS)
+        self.__print(Lang.INFO_FCS.format(self.__fcs_file, len(fcs_obj)))
 
         # Check SCS file
         if not proj_cfg.scs:
             raise FileNotFoundError(Lang.ERROR_SCS_FILE_NOT_FOUND)
-        scs_file = proj_cfg.scs
-        scs_obj:CSList[SCS] = CSList(filePath = scs_file, csType = SCS)
-        self.__print(Lang.INFO_SCS.format(scs_file,len(scs_obj)))
+        self.__scs_file = proj_cfg.scs
+        scs_obj:CSList[SCS] = CSList(filePath = self.__scs_file, csType = SCS)
+        self.__print(Lang.INFO_SCS.format(self.__scs_file, len(scs_obj)))
 
         # Check start and end time
         if start_time == -1:
@@ -324,66 +325,65 @@ class V2SimInstance:
         self.__start_time = start_time
         self.__end_time = end_time
         self.__sim_dur = end_time - start_time
+        self.__steplen = traffic_step
         self.__print(Lang.INFO_TIME.format(start_time,end_time,traffic_step))
 
+        self.routing_algo = route_algo
+        
         # Create a simulation instance
         self.__inst = TrafficInst(
             rnet_file, start_time, traffic_step, 
             end_time, str(pres / "cproc.clog"), seed,
-            vehfile = veh_file, veh_obj = vehicles,
-            fcsfile = fcs_file, fcs_obj = fcs_obj,
-            scsfile = scs_file, scs_obj = scs_obj,
+            vehfile = self.__veh_file, veh_obj = vehicles,
+            fcsfile = self.__fcs_file, fcs_obj = fcs_obj,
+            scsfile = self.__scs_file, scs_obj = scs_obj,
             initial_state_folder = initial_state,
             routing_algo = route_algo,
-            force_static_routing=static_routing,
-            ignore_driving=ignore_driving,
+            force_static_routing = static_routing,
+            ignore_driving = ignore_driving,
         )
 
         # Enable plugins
-        self.__gridplg = None
-        if proj_cfg.plg:
-            plg_file = proj_cfg.plg
-            plg_man = PluginMan(
-                str(plg_file), 
-                pres,
-                self.__inst,
-                list(map(lambda x: x.strip().lower(), no_plg.split(","))),
-                plg_pool
-            )
-            for plugname, plugin in plg_man.GetPlugins().items():
-                if isinstance(plugin, PluginPDN):
-                    self.__gridplg = plugin
-                self.__print(Lang.INFO_PLG.format(plugname, plugin.Description))
+        if initial_state != "":
+            plugin_state_file = Path(initial_state) / PLUGINS_FILE
+            with gzip.open(plugin_state_file, "rb") as f:
+                d = pickle.load(f)
+                assert isinstance(d, dict) and "obj" in d and "version" in d and "pickler" in d, "Invalid plugin state file."
+                plugin_state = d["obj"]
+                assert isinstance(plugin_state, dict), "Invalid plugin states."
+                assert CheckPyVersion(d["version"]), "Incompatible Python version for plugin states: saved {}, current {}".format(d["version"], PyVersion())
+                assert d["pickler"] == pickle.__name__, "Incompatible pickler for plugin states: saved {}, current {}".format(d["pickler"], pickle.__name__)
         else:
-            plg_man = PluginMan(None, pres, self.__inst, [], plg_pool)
+            plugin_state = None
+        
+        if proj_cfg.plg:
+            self.__plg_file = proj_cfg.plg
+            disabled_plugins = list(map(lambda x: x.strip().lower(), no_plg.split(",")))
+            self.__plgman = PluginMan(self.__plg_file, pres, self.__inst, disabled_plugins, plg_pool, plugin_state)
+        else:
+            self.__plgman = PluginMan(None, pres, self.__inst, [], plg_pool, plugin_state)
+        
+        # Find the power grid plugin
+        self.__gridplg = None
+        for plugname, plugin in self.__plgman.GetPlugins().items():
+            if isinstance(plugin, PluginPDN):
+                self.__gridplg = plugin
+            self.__print(Lang.INFO_PLG.format(plugname, plugin.Description))
 
         # Create a data logger
         log_item = log.strip().lower().split(",")
         if len(log_item) == 1 and log_item[0] == "": log_item = []
-        mySta = StaWriter(str(pres), self.__inst, plg_man.GetPlugins(), sta_pool)
-        for itm in log_item:
-            mySta.Add(itm)
-        
-        self.__sta = mySta
-        self.__plgman = plg_man
-        if initial_state:
-            self.__load_plugin_states(Path(initial_state) / "plugins.gz")
-        self.__steplen = traffic_step
-        self.__sumocfg_file = sumocfg_file
-        self.__rnet_file = rnet_file
+        self.__sta = StaWriter(pres, self.__inst, self.__plgman.GetPlugins(), sta_pool, log_item)
+
         self.__copy = copy
         self.__plot_cmd = plot_command
-        self.__veh_file = veh_file
-        self.__fcs_file = fcs_file
-        self.__scs_file = scs_file
-        self.__plg_file = plg_file
         self.__proj_cfg = proj_cfg
         self.__proj_dir = proj_dir
         self.__working_flag = False
         self.save_on_abort = save_on_abort
         self.save_on_finish = save_on_finish
         self.copy_state = copy_state
-        self.routing_algo = route_algo
+        
 
         if alt_command is not None:
             for k,v in alt_command.items():
@@ -525,7 +525,7 @@ class V2SimInstance:
         assert self.__mpQ is not None, "Not working in multiprocessing mode. No host exists."
         self.__mpsend(command, obj)
     
-    def start(self, load_from:str = ""):
+    def start(self):
         '''
         Start simulation.
             If you use this function, do not use function 'simulation'.
@@ -534,8 +534,6 @@ class V2SimInstance:
         self.__working_flag = True
         self.__inst.simulation_start(self.__sumocfg_file, self.__rnet_file, self.__start_time, self.__vb is not None)
         self.__plgman.PreSimulationAll()
-        if load_from != "":
-            self.load_state(load_from)
     
     def step(self) -> int:
         '''
@@ -562,21 +560,16 @@ class V2SimInstance:
             self.step()
         return self.__inst.current_time
     
-    def __load_plugin_states(self, p:Path):
-        if not p.exists(): raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(p))
-        with gzip.open(str(p), "rb") as f:
-            self.__plgman.LoadStates(pickle.load(f))
-
-    def load_state(self, load_from:str):
-        '''Load the previous state of the simulation'''
-        self.__inst.load_state(load_from)
-        self.__load_plugin_states(Path(load_from) / "plugins.gz")
-    
-    def save_state(self, save_to:str):
+    def save(self, folder:Union[str, Path]):
         '''Save the current state of the simulation'''
-        self.__inst.save_state(save_to)
-        with gzip.open(str(Path(save_to) / "plugins.gz"), "wb") as f:
-            pickle.dump(self.__plgman.SaveStates(), f)
+        p = Path(folder) if isinstance(folder, str) else folder
+        self.__inst.save(p)
+        with gzip.open(p / PLUGINS_FILE, "wb") as f:
+            pickle.dump({
+                "obj": self.__plgman.SaveStates(),
+                "version": PyVersion(),
+                "pickler": pickle.__name__
+            }, f)
     
     def stop(self, save_state_to:str = ""):
         '''
@@ -585,7 +578,7 @@ class V2SimInstance:
             Follow the start - step - stop paradigm.
         '''
         if save_state_to != "":
-            self.save_state(save_state_to)
+            self.save(save_state_to)
             if self.copy_state:
                 shutil.copytree(save_state_to, self.__proj_dir / "saved_state", dirs_exist_ok=True)
         self.__plgman.PostSimulationAll()
@@ -633,7 +626,7 @@ class V2SimInstance:
                 if self.save_on_abort:
                     p = self.__pres / "saved_state"
                     p.mkdir(parents=True, exist_ok=True)
-                    self.save_state(str(p))
+                    self.save(p)
                 break
             self._istep()
         

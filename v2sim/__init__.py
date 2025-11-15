@@ -12,3 +12,5 @@ from .sim_core import (
     V2SimInstance,
     MsgPack
 )
+
+__version__ = "1.3.0rc1"

@@ -1,19 +1,18 @@
 from collections import defaultdict
 from itertools import chain
-
+from feasytools import LangLib
+from fpowerkit import IslandResult, DistFlowSolver, Estimator
 from ..traffic.cs import CS
-from ..locale import CustomLocaleLib
-from fpowerkit import IslandResult
 from .pdn import PluginPDN
 from .base import *
 
-_locale = CustomLocaleLib(["zh_CN","en"])
-_locale.SetLanguageLib("zh_CN",
+_locale = LangLib(["zh_CN","en"])
+_locale.SetLangLib("zh_CN",
     DESCRIPTION = "过流保护",
     ERROR_NO_PDN = "过流保护依赖于PDN插件",
     ERROR_SMART_CHARGE = "启用有序充电时过流保护不可用",
 )
-_locale.SetLanguageLib("en",
+_locale.SetLangLib("en",
     DESCRIPTION = "Over-current protection",
     ERROR_NO_PDN = "Over-current protection depends on PDN plugin",
     ERROR_SMART_CHARGE = "Over-current protection is not available when smart charging is enabled",
@@ -36,7 +35,7 @@ class PluginOvercurrent(PluginBase[None]):
         '''Get the plugin configuration item list'''
         return ConfigDict()
     
-    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,res_dir:Path,plg_deps:'List[PluginBase]')->None:
+    def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path, res_dir:Path, plg_deps:'List[PluginBase]')->None:
         self.__file = open(str(res_dir / "current_protect.log"), "w")
         self.SetPreStep(self._work)
         self.SetPostSimulation(self.__file.close)
@@ -44,6 +43,8 @@ class PluginOvercurrent(PluginBase[None]):
         self.__pdn = plg_deps[0]
         if self.__pdn.isSmartChargeEnabled():
             raise RuntimeError(_locale["ERROR_SMART_CHARGE"])
+        if self.__pdn.Solver.est != Estimator.DistFlow:
+            raise RuntimeError("Over-current protection only works with DistFlowSolver")
         self.__csatb:Dict[str, List[CS]] = defaultdict(list)
         for cs in chain(inst.SCSList, inst.FCSList):
             self.__csatb[cs._bus].append(cs)
@@ -64,11 +65,11 @@ class PluginOvercurrent(PluginBase[None]):
         '''
         Get the V2G demand power of all bus with slow charging stations at time _t, unit kWh/s, 3.6MW=3600kW=1kWh/s
         '''
-        
         if sta == PluginStatus.EXECUTE:
             p = self.__pdn
             if p.LastPreStepSucceed:
                 svr = p.Solver
+                assert isinstance(svr.est, DistFlowSolver), "Over-current protection only works with DistFlowSolver"
                 if len(svr.est.OverflowLines) > 0:
                     print(f"[{_t}] Overcurrent protection triggered: ", svr.est.OverflowLines, file=self.__file)
                     for l in svr.est.OverflowLines:

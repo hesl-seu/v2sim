@@ -1,17 +1,17 @@
 from itertools import chain, repeat
-from ..locale import CustomLocaleLib
+from feasytools import LangLib
 from .base import *
 
 FILE_FCS = "fcs"
 FILE_SCS = "scs"
 CS_ATTRIB = ["cnt","c","d","v2g","pb","ps"]
 
-_L = CustomLocaleLib(["en", "zh_CN"])
-_L.SetLanguageLib("en",
+_L = LangLib(["en", "zh_CN"])
+_L.SetLangLib("en",
     FCS = "FCS",
     SCS = "SCS",
 )
-_L.SetLanguageLib("zh_CN",
+_L.SetLangLib("zh_CN",
     FCS = "快充站",
     SCS = "慢充站",
 )
