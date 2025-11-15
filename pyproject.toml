@@ -11,15 +11,15 @@ license = "BSD-3-Clause"
 description = "V2Sim-UX: An Open-Source Mesoscopic V2G Simulation Platform in Urban Power and Transportation Network"
 
 [project.scripts]
-v2simux-gui = "gui_main:main"
-v2simux = "sim_single:work"
-v2simux-para = "sim_para:main"
-v2simux-advplot = "cmd_advplot:main"
-v2simux-convert = "cmd_convert:main"
-v2simux-csquery = "cmd_csquery:main"
-v2simux-gen-cs = "cmd_gen_cs:main"
-v2simux-gen-trip = "cmd_gen_trip:main"
-v2simux-plot = "cmd_plot:main"
+v2simux-gui = "v2simux.tools.gui_main:main"
+v2simux = "v2simux.tools.sim_single:work"
+v2simux-para = "v2simux.tools.sim_para:main"
+v2simux-advplot = "v2simux.tools.cmd_advplot:main"
+v2simux-convert = "v2simux.tools.cmd_convert:main"
+v2simux-csquery = "v2simux.tools.cmd_csquery:main"
+v2simux-gen-cs = "v2simux.tools.cmd_gen_cs:main"
+v2simux-gen-trip = "v2simux.tools.cmd_gen_trip:main"
+v2simux-plot = "v2simux.tools.cmd_plot:main"
 
 [project.readme]
 file = "README.md"
@@ -37,8 +37,7 @@ name = "devel"
 url = "https://pypi.anaconda.org/scientific-python-nightly-wheels/simple"
 
 [tool.hatch.build]
-include = [ "v2simux/*", "v2simux_gui/*", "v2simux_tools/*", "cases/ux_*", "external_components/*", "gui_*.py", "sim_*.py", "version_checker.py", "requirements.txt",]
-exclude = [ "cases/ux_*/results*", "cases/ux_*/*.veh.xml*", "cs.csv",]
+include = [ "v2simux/*",]
 
 [tool.uv.sources.pandas]
 index = "devel"
