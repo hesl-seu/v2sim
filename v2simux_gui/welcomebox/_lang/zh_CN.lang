@@ -1,0 +1,17 @@
+WELCOME=欢迎使用 V2Sim
+RECENT_PROJ=最近项目：
+CONFIRM=确认
+CONFIRM_TEXT=确定要清空最近项目列表吗？此操作不可撤销！
+SELECT_PROJ_FOLDER=选择项目文件夹
+ADD_PROJ=添加项目...
+CONV_CASE=转换案例...
+CLEAR_LIST=清空列表
+VIEW_RESULTS=查看结果
+OPEN=打开
+LOAD_CORE=正在加载 V2Sim-UX 核心...
+READY=V2Sim-UX 已就绪
+FAILED_START=V2Sim 核心启动失败，详情请查看控制台
+ERROR=错误
+WARNING=警告
+PLS_SELECT_PROJ=请选择一个项目！
+EXIT=退出

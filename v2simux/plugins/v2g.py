@@ -1,18 +1,17 @@
-from ..locale import CustomLocaleLib
 from fpowerkit import Generator
-from feasytools import ComFunc
+from feasytools import ComFunc, LangLib
 from .pdn import PluginPDN
 from .base import *
 
 V2GRes = List[float]
 
-_locale = CustomLocaleLib(["zh_CN","en"])
-_locale.SetLanguageLib("zh_CN",
+_locale = LangLib(["zh_CN","en"])
+_locale.SetLangLib("zh_CN",
     DESCRIPTION = "V2G调度系统",
     ERROR_NO_PDN = "V2G调度依赖于PDN插件",
     ERROR_SMART_CHARGE = "启用有序充电时V2G调度插件不可用",
 )
-_locale.SetLanguageLib("en",
+_locale.SetLangLib("en",
     DESCRIPTION = "V2G scheduling system",
     ERROR_NO_PDN = "V2G scheduling depends on PDN plugin",
     ERROR_SMART_CHARGE = "V2G scheduling plugin is not available when smart charging is enabled",

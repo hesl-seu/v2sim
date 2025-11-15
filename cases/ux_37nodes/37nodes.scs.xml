@@ -1,5 +1,5 @@
 <root>
-<scs name="scs_node8" node="N8" slots="35" bus="b15" v2galloc="Average" x="10319.0" y="19412.0">
+<scs name="scs_N8" node="N8" slots="10" bus="b0_4" v2galloc="Average" x="10319.0" y="19412.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -7,7 +7,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node32" node="N32" slots="35" bus="b9" v2galloc="Average" x="28929.0" y="18680.0">
+<scs name="scs_N32" node="N32" slots="10" bus="b1_9" v2galloc="Average" x="28929.0" y="18680.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -15,7 +15,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node10" node="N10" slots="35" bus="b17" v2galloc="Average" x="3959.0" y="16684.0">
+<scs name="scs_N10" node="N10" slots="10" bus="b0_2" v2galloc="Average" x="3959.0" y="16684.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -23,7 +23,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node12" node="N12" slots="35" bus="b25" v2galloc="Average" x="17563.0" y="18756.0">
+<scs name="scs_N12" node="N12" slots="10" bus="b0_8" v2galloc="Average" x="17563.0" y="18756.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -31,7 +31,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node13" node="N13" slots="35" bus="b24" v2galloc="Average" x="16017.0" y="15062.0">
+<scs name="scs_N13" node="N13" slots="10" bus="b0_9" v2galloc="Average" x="16017.0" y="15062.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -39,7 +39,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node15" node="N15" slots="35" bus="b6" v2galloc="Average" x="18498.0" y="12601.0">
+<scs name="scs_N15" node="N15" slots="10" bus="b1_13" v2galloc="Average" x="18498.0" y="12601.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -47,7 +47,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node17" node="N17" slots="35" bus="b8" v2galloc="Average" x="22255.0" y="16653.0">
+<scs name="scs_N17" node="N17" slots="10" bus="b0_11" v2galloc="Average" x="22255.0" y="16653.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -55,7 +55,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node23" node="N23" slots="35" bus="b3" v2galloc="Average" x="12892.0" y="7015.0">
+<scs name="scs_N23" node="N23" slots="10" bus="b1_24" v2galloc="Average" x="12892.0" y="7015.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -63,7 +63,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node25" node="N25" slots="35" bus="b27" v2galloc="Average" x="20360.0" y="4956.0">
+<scs name="scs_N25" node="N25" slots="10" bus="b1_2" v2galloc="Average" x="20360.0" y="4956.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -71,7 +71,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node31" node="N31" slots="35" bus="b32" v2galloc="Average" x="30799.0" y="15213.0">
+<scs name="scs_N31" node="N31" slots="10" bus="b1_8" v2galloc="Average" x="30799.0" y="15213.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -79,7 +79,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node1" node="N1" slots="35" bus="b21" v2galloc="Average" x="0.0" y="21035.0">
+<scs name="scs_N1" node="N1" slots="10" bus="b0_31" v2galloc="Average" x="0.0" y="21035.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -87,7 +87,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node6" node="N6" slots="35" bus="b18" v2galloc="Average" x="3962.0" y="12068.0">
+<scs name="scs_N6" node="N6" slots="10" bus="b0_19" v2galloc="Average" x="3962.0" y="12068.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -95,7 +95,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node7" node="N7" slots="35" bus="b17" v2galloc="Average" x="7041.0" y="15547.0">
+<scs name="scs_N7" node="N7" slots="10" bus="b0_3" v2galloc="Average" x="7041.0" y="15547.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -103,7 +103,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node11" node="N11" slots="35" bus="b13" v2galloc="Average" x="13624.0" y="23983.0">
+<scs name="scs_N11" node="N11" slots="10" bus="b0_6" v2galloc="Average" x="13624.0" y="23983.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -111,7 +111,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node3" node="N3" slots="35" bus="b13" v2galloc="Average" x="13602.0" y="26043.0">
+<scs name="scs_N3" node="N3" slots="10" bus="b0_26" v2galloc="Average" x="13602.0" y="26043.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -119,7 +119,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node35" node="N35" slots="35" bus="b10" v2galloc="Average" x="23382.0" y="21142.0">
+<scs name="scs_N35" node="N35" slots="10" bus="b0_12" v2galloc="Average" x="23382.0" y="21142.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -127,7 +127,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node14" node="N14" slots="35" bus="b24" v2galloc="Average" x="17670.0" y="15884.0">
+<scs name="scs_N14" node="N14" slots="10" bus="b0_10" v2galloc="Average" x="17670.0" y="15884.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -135,7 +135,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node21" node="N21" slots="35" bus="b5" v2galloc="Average" x="16084.0" y="10338.0">
+<scs name="scs_N21" node="N21" slots="10" bus="b1_23" v2galloc="Average" x="16084.0" y="10338.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -143,7 +143,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node16" node="N16" slots="35" bus="b7" v2galloc="Average" x="22141.0" y="12521.0">
+<scs name="scs_N16" node="N16" slots="10" bus="b1_12" v2galloc="Average" x="22141.0" y="12521.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -151,7 +151,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node20" node="N20" slots="35" bus="b5" v2galloc="Average" x="18453.0" y="9449.0">
+<scs name="scs_N20" node="N20" slots="10" bus="b1_3" v2galloc="Average" x="18453.0" y="9449.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -159,7 +159,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node19" node="N19" slots="35" bus="b26" v2galloc="Average" x="21471.0" y="8638.0">
+<scs name="scs_N19" node="N19" slots="10" bus="b1_4" v2galloc="Average" x="21471.0" y="8638.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -167,7 +167,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node18" node="N18" slots="35" bus="b26" v2galloc="Average" x="22874.0" y="8909.0">
+<scs name="scs_N18" node="N18" slots="10" bus="b1_4" v2galloc="Average" x="22874.0" y="8909.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -175,7 +175,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node29" node="N29" slots="35" bus="b26" v2galloc="Average" x="26035.0" y="8054.0">
+<scs name="scs_N29" node="N29" slots="10" bus="b1_6" v2galloc="Average" x="26035.0" y="8054.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -183,7 +183,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node37" node="N37" slots="35" bus="b32" v2galloc="Average" x="28695.0" y="10713.0">
+<scs name="scs_N37" node="N37" slots="10" bus="b1_7" v2galloc="Average" x="28695.0" y="10713.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -191,7 +191,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node2" node="N2" slots="35" bus="b14" v2galloc="Average" x="6704.0" y="26334.0">
+<scs name="scs_N2" node="N2" slots="10" bus="b0_27" v2galloc="Average" x="6704.0" y="26334.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -199,7 +199,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node5" node="N5" slots="35" bus="b20" v2galloc="Average" x="514.0" y="11293.0">
+<scs name="scs_N5" node="N5" slots="10" bus="b0_20" v2galloc="Average" x="514.0" y="11293.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -207,7 +207,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node22" node="N22" slots="35" bus="b4" v2galloc="Average" x="14048.0" y="11023.0">
+<scs name="scs_N22" node="N22" slots="10" bus="b1_15" v2galloc="Average" x="14048.0" y="11023.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -215,7 +215,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node24" node="N24" slots="35" bus="b28" v2galloc="Average" x="15407.0" y="5151.0">
+<scs name="scs_N24" node="N24" slots="10" bus="b1_19" v2galloc="Average" x="15407.0" y="5151.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -223,7 +223,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node28" node="N28" slots="35" bus="b2" v2galloc="Average" x="8438.0" y="3536.0">
+<scs name="scs_N28" node="N28" slots="10" bus="b1_18" v2galloc="Average" x="8438.0" y="3536.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -231,7 +231,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node27" node="N27" slots="35" bus="b2" v2galloc="Average" x="10459.0" y="1522.0">
+<scs name="scs_N27" node="N27" slots="10" bus="b1_25" v2galloc="Average" x="10459.0" y="1522.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -239,7 +239,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node26" node="N26" slots="35" bus="b29" v2galloc="Average" x="21618.0" y="0.0">
+<scs name="scs_N26" node="N26" slots="10" bus="b1_1" v2galloc="Average" x="21618.0" y="0.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -247,7 +247,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node30" node="N30" slots="35" bus="b30" v2galloc="Average" x="30425.0" y="2530.0">
+<scs name="scs_N30" node="N30" slots="10" bus="b1_28" v2galloc="Average" x="30425.0" y="2530.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -255,7 +255,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node9" node="N9" slots="35" bus="b32" v2galloc="Average" x="36086.0" y="15663.0">
+<scs name="scs_N9" node="N9" slots="10" bus="b1_33" v2galloc="Average" x="36086.0" y="15663.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -263,7 +263,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node33" node="N33" slots="35" bus="b10" v2galloc="Average" x="27076.0" y="22159.0">
+<scs name="scs_N33" node="N33" slots="10" bus="b0_14" v2galloc="Average" x="27076.0" y="22159.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -271,7 +271,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node34" node="N34" slots="35" bus="b33" v2galloc="Average" x="31650.0" y="21295.0">
+<scs name="scs_N34" node="N34" slots="10" bus="b0_15" v2galloc="Average" x="31650.0" y="21295.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -279,7 +279,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node4" node="N4" slots="35" bus="b11" v2galloc="Average" x="23247.0" y="29171.0">
+<scs name="scs_N4" node="N4" slots="10" bus="b0_13" v2galloc="Average" x="23247.0" y="29171.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>
@@ -287,7 +287,7 @@
     <item btime="0" price="0" />
   </psell>
 </scs>
-<scs name="scs_node36" node="N36" slots="35" bus="b33" v2galloc="Average" x="36142.0" y="23234.0">
+<scs name="scs_N36" node="N36" slots="10" bus="b0_16" v2galloc="Average" x="36142.0" y="23234.0">
   <pbuy>
     <item btime="0" price="1.0" />
   </pbuy>

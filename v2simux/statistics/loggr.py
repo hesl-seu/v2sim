@@ -1,7 +1,6 @@
 from itertools import chain
 from typing import Optional
-from feasytools import TimeFunc
-from ..locale import CustomLocaleLib
+from feasytools import TimeFunc, LangLib
 from .base import *
 
 FILE_GEN = "gen"
@@ -18,8 +17,8 @@ LINE_ATTRIB = ["P","Q","I"]
 PVW_ATTRIB = ["P","curt"]
 ESS_ATTRIB = ["P","soc"]
 
-_L = CustomLocaleLib(["en", "zh_CN"])
-_L.SetLanguageLib("en",
+_L = LangLib(["en", "zh_CN"])
+_L.SetLangLib("en",
     GEN = "Generator",
     BUS = "Bus",
     LINE = "Line",
@@ -27,7 +26,7 @@ _L.SetLanguageLib("en",
     ESS = "ESS",
 )
 
-_L.SetLanguageLib("zh_CN",
+_L.SetLangLib("zh_CN",
     GEN = "发电机",
     BUS = "母线",
     LINE = "线路",

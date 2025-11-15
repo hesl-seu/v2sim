@@ -1,19 +1,18 @@
 from collections import defaultdict
 from itertools import chain
-
-from ..traffic.cs import CS
-from ..locale import CustomLocaleLib
+from feasytools import LangLib
 from fpowerkit import IslandResult, DistFlowSolver, Estimator
+from ..traffic.cs import CS
 from .pdn import PluginPDN
 from .base import *
 
-_locale = CustomLocaleLib(["zh_CN","en"])
-_locale.SetLanguageLib("zh_CN",
+_locale = LangLib(["zh_CN","en"])
+_locale.SetLangLib("zh_CN",
     DESCRIPTION = "过流保护",
     ERROR_NO_PDN = "过流保护依赖于PDN插件",
     ERROR_SMART_CHARGE = "启用有序充电时过流保护不可用",
 )
-_locale.SetLanguageLib("en",
+_locale.SetLangLib("en",
     DESCRIPTION = "Over-current protection",
     ERROR_NO_PDN = "Over-current protection depends on PDN plugin",
     ERROR_SMART_CHARGE = "Over-current protection is not available when smart charging is enabled",

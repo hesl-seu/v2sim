@@ -1,16 +1,15 @@
+import os
 from collections import defaultdict
 from itertools import chain
-import os
 from warnings import warn
 from feasytools import TimeImplictFunc
-from fpowerkit import Grid, FloatVar, GridSolveResult, CombinedSolver, Estimator, Calculator, DistFlowSolver
-
-from ..locale import CustomLocaleLib
+from fpowerkit import Grid, GridSolveResult, CombinedSolver, Estimator, Calculator, DistFlowSolver
+from feasytools import LangLib
 from ..traffic import DetectFiles, CS
 from .base import *
 
-_locale = CustomLocaleLib(["zh_CN","en"])
-_locale.SetLanguageLib("zh_CN",
+_locale = LangLib(["zh_CN","en"])
+_locale.SetLangLib("zh_CN",
     DESCRIPTION = "配电网模型",
     ERROR_NO_GRID = "未指定电网文件",
     ERROR_CS_NODE_NOT_EXIST = "错误: 充电站{0}的母线{1}在电网中不存在",
@@ -20,7 +19,7 @@ _locale.SetLanguageLib("zh_CN",
     PDN_SOLVE_FAILED_CNT = "[PDN]总共求解失败{}次",
     PDN_SOLVE_OK_SINCE = "[PDN]从时间{0}开始成功求解配电网. 之前总共失败{1}次"
 )
-_locale.SetLanguageLib("en",
+_locale.SetLangLib("en",
     DESCRIPTION = "Power distribution network model",
     ERROR_NO_GRID = "No grid file specified",
     ERROR_CS_NODE_NOT_EXIST = "Error: The bus {1} of charging station {0} does not exist in the grid",

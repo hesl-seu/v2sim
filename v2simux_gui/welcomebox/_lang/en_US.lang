@@ -1,0 +1,17 @@
+WELCOME=Welcome to V2Sim
+RECENT_PROJ=Recent projects:
+CONFIRM=Confirm
+CONFIRM_TEXT=Are you sure to clear the recent project list? This action cannot be undone!
+SELECT_PROJ_FOLDER=Select project folder
+ADD_PROJ=Add project...
+CONV_CASE=Convert case...
+CLEAR_LIST=Clear list
+VIEW_RESULTS=View Results
+OPEN=Open
+LOAD_CORE=Loading V2Sim-UX core...
+READY=V2Sim-UX is ready.
+FAILED_START=Failed to start V2Sim core. See console for details.
+ERROR=Error
+WARNING=Warning
+PLS_SELECT_PROJ=Please select a project!
+EXIT=Exit

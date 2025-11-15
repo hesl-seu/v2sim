@@ -1,6 +1,4 @@
 class _locale:
-    LANG_CODE = "zh_CN"
-
     TRIPGEN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/gen_trip_cn 上的使用说明。"
     CSGEN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/gen_cs_cn 上的使用说明。"
     MAIN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/sim_single_cn 上的使用说明。"

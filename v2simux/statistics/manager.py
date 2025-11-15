@@ -1,5 +1,5 @@
-from collections import defaultdict
 import os
+from collections import defaultdict
 from pathlib import Path
 from feasytools import SegFunc
 from typing import Type, Optional, Union

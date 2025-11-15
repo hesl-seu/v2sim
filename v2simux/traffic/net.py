@@ -373,6 +373,7 @@ class RoadNet:
         r: Net = readNet(fname)
         assert isinstance(r, Net), Lang.INVALID_SUMO_NETWORK.format(fname)
         for node in r.getNodes():
+            print(node.getID(), node._coord, node._shape)
             ret.add_node(
                 node_id = node.getID(),
                 x = int(node.getCoord()[0]),

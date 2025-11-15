@@ -6,28 +6,19 @@ External Plugin Example:
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Iterable, Any, Tuple, List, Dict
-from v2simux import CustomLocaleLib, TrafficInst
+from feasytools import LangLib
+from v2simux import TrafficInst
 from v2simux.plugins import *
 from v2simux.statistics import *
 
-_L = CustomLocaleLib(["zh_CN","en"])
-_L.SetLanguageLib("zh_CN",
-    DESCRIPTION = "插件描述",
-    STA_NAME = "示例统计项",
-    # More language information
-)
-_L.SetLanguageLib("en",
-    DESCRIPTION = "Plugin description",
-    STA_NAME = "Demo",
-    # More language information
-)
+_L = LangLib.LoadFor(__file__)
 
 class DemoExternalPlugin(PluginBase):
     @property
     def Description(self)->str:
         return _L["DESCRIPTION"]
     
-    def Init(self,elem:ET.Element,inst:TrafficInst,work_dir:Path,plg_deps:'List[PluginBase]') -> object:
+    def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path, plg_deps:List[PluginBase]) -> object:
         '''
         Add plugin initialization code here, return:
             Return value when the plugin is offline
@@ -35,7 +26,7 @@ class DemoExternalPlugin(PluginBase):
         self.SetPreStep(self.Work) # Indicate that the Work function should be called in PreStep (i.e. before SUMO simulation step)
         return None
 
-    def Work(self,_t:int,/,sta:PluginStatus)->Tuple[bool,None]:
+    def Work(self, _t:int, /, sta:PluginStatus)->Tuple[bool,None]:
         '''The execution function of the plugin at time _t'''
         raise NotImplementedError
 
