@@ -1,0 +1,16 @@
+TITLE=Plugin Manager
+FILENAME=File name
+CONTENT=Content
+PLUGIN_ITEM=Plugin: {0}, Class name: {1}, Dependencies: {2}
+STA_ITEM=Statistic: {0}, Class name: {1}
+IMPORT_PLUGIN_TITLE=Import Plugin
+INFO=Information
+IMPORT_SUCCESS=Import succeed.
+ERROR=Error
+WARNING=Warning
+DELETE_ONLY_TOPLEVEL=Please select the file name for deletion.
+CONFIRM=Confirm
+CONFIRM_DELETE=Are you sure to delete '{0}'?
+DELETE_SUCCESS=Deletion succeed.
+IMPORT_BUTTON=Import...
+DELETE_BUTTON=Remove

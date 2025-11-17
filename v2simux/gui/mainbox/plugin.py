@@ -34,10 +34,7 @@ class PluginEditor(ScrollableTreeView):
         super().__init__(master, True, True, True, True, self.__addgetter, **kwargs)
         self.sta_pool = StaPool()
         self.plg_pool = PluginPool()
-        if Path(EXT_COMP).exists():
-            load_external_components(EXT_COMP, self.plg_pool, self.sta_pool)
-        else:
-            print(f"Warning: external components folder '{EXT_COMP}' not found.")
+        load_external_components(None, self.plg_pool, self.sta_pool)
         self["show"] = 'headings'
         self["columns"] = ("Name", "Interval", "Enabled", "Online", "Extra")
         self.column("Name", width=120, stretch=NO)

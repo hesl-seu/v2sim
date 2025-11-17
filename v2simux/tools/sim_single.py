@@ -36,8 +36,7 @@ def work(pars:Optional[dict] = None, clntID:int = -1, q = None, alt:Optional[Dic
 
     sta_pool = StaPool()
     plg_pool = PluginPool()
-    if Path("external_components").exists():
-        load_external_components("external_components", plg_pool, sta_pool)
+    load_external_components(None, plg_pool, sta_pool)
 
     if args.pop_bool("ls-com"):
         print(Lang.MAIN_LS_TITLE_PLG)

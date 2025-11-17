@@ -19,9 +19,9 @@ class PluginStatus(enum.IntEnum):
     HOLD = 1        # Current call should retain the result of the last plugin execution
     OFFLINE = 2     # Current call should return the return value when the plugin is offline
 
-PIResult = TypeVar('PIResult',covariant=True)
-PIExec = Callable[[int,PluginStatus],Tuple[bool,PIResult]]
-PINoRet = Callable[[],None]
+PIResult = TypeVar('PIResult', covariant=True)
+PIExec = Callable[[int, PluginStatus], Tuple[bool, PIResult]]
+PINoRet = Callable[[], None]
 
 @dataclass
 class ConfigItem:
@@ -114,16 +114,16 @@ class PluginBase(Generic[PIResult]):
     __PreStep: Optional[PIExec]
     __PostSimulation: Optional[PINoRet]
     __PostStep: Optional[PIExec]
-    def SetPreSimulation(self,func:PINoRet) -> None:
+    def SetPreSimulation(self, func:PINoRet) -> None:
         '''Pre-simulation plugin processing, run after other parameters are loaded'''
         self.__PreSimulation = func
-    def SetPreStep(self,func:PIExec) -> None:
+    def SetPreStep(self, func:PIExec) -> None:
         '''Plugin work before simulation step'''
         self.__PreStep = func
-    def SetPostStep(self,func:PIExec) -> None:
+    def SetPostStep(self, func:PIExec) -> None:
         '''Plugin work after simulation step'''
         self.__PostStep = func
-    def SetPostSimulation(self,func:PINoRet) -> None:
+    def SetPostSimulation(self, func:PINoRet) -> None:
         '''Post-simulation plugin processing'''
         self.__PostSimulation = func
 

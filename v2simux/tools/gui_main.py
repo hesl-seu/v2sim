@@ -21,10 +21,6 @@ def main():
         from v2simux.gui.viewerbox import ViewerBox
         win = ViewerBox(msg[1])
         win.mainloop()
-    elif msg[0] == "conv":
-        from v2simux.gui.convertbox import ConvertBox
-        win = ConvertBox()
-        win.mainloop()
     elif msg[0] == "para":
         from v2simux.gui.parabox import ParaBox
         win = ParaBox()
@@ -32,6 +28,14 @@ def main():
     elif msg[0] == "cmp":
         from v2simux.gui.cmpbox import CmpBox
         win = CmpBox()
+        win.mainloop()
+    elif msg[0] == "plg":
+        from v2simux.gui.plgbox import PlgBox
+        win = PlgBox()
+        win.mainloop()
+    elif msg[0] == "conv":
+        from v2simux.gui.convertbox import ConvertBox
+        win = ConvertBox()
         win.mainloop()
 
 if __name__ == "__main__":

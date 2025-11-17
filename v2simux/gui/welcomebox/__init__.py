@@ -1,10 +1,10 @@
-from v2simux.gui.com_no_vx import *
+from v2simux.gui.common import *
 from v2simux.gui.langhelper import *
 import os
 
 
 _ = LangLib.Load(__file__)
-RECENT_PROJECTS_FILE = Path.home() / ".v2simux" / "recent_projects.txt"
+RECENT_PROJECTS_FILE = CONFIG_DIR / "recent_projects.txt"
 
 
 class WelcomeBox(Tk):
@@ -23,6 +23,7 @@ class WelcomeBox(Tk):
         self.config(menu=self.menu)
         add_lang_menu(self.menu)
         menuTools = Menu(self.menu, tearoff=0)
+        menuTools.add_command(label=_("PLUGINS"), command=self._manage_plugins)
         menuTools.add_command(label=_("PARA"), command=self._goto_para)
         menuTools.add_command(label=_("COMPARE"), command=self._compare_case)
         menuTools.add_separator()
@@ -162,6 +163,10 @@ class WelcomeBox(Tk):
             MB.showwarning(_("WARNING"), _("PLS_SELECT_PROJ"))
             return False
         return True
+
+    def _manage_plugins(self):
+        self.result = ("plg", None)
+        self._destory()
 
     def _goto_para(self):
         self.result = ("para", None)

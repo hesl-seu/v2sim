@@ -2,10 +2,10 @@ import time, json, requests
 from dataclasses import dataclass
 from typing import Any, Optional, TextIO, Union, overload, List, Dict, Tuple
 from pathlib import Path
-from ..traffic import CheckFile, DetectFiles, ReadXML
+from ..traffic import CheckFile, DetectFiles, ReadXML, CONFIG_DIR
 
 
-AMAP_KEY_FILE = Path.home() / ".v2simux" / "amap_key.txt"
+AMAP_KEY_FILE = CONFIG_DIR / "amap_key.txt"
 
 
 class CSQueryError(Exception):

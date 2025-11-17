@@ -1,5 +1,6 @@
 import gzip
 import dill as pickle
+import inspect
 import importlib, os, queue, shutil, signal, time, sys
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
@@ -11,12 +12,12 @@ from .statistics import *
 from .traffic import *
 from .locale import Lang
 from .trafficgen import TrafficGenerator
-import inspect
 
 PLUGINS_FILE = "plugins.gz"
 RESULTS_FOLDER = "results"
 TRIP_EVENT_LOG = "cproc.clog"
 SIM_INFO_LOG = "cproc.log"
+PLUGINS_DIR = CONFIG_DIR / "plugins"
 
 
 @dataclass
@@ -27,11 +28,31 @@ class MsgPack:
 
 
 def load_external_components(
-    external_plugin_dir: Union[str, Path], plugin_pool: PluginPool, sta_pool: StaPool
+    external_plugin_dir: Union[str, Path, None] = None,
+    plugin_pool: Optional[PluginPool] = None, sta_pool: Optional[StaPool] = None
 ):
-    exp = Path(external_plugin_dir).absolute() if isinstance(external_plugin_dir, str) else external_plugin_dir.absolute()
+    """
+    Load external components from the specified directory into the plugin and statistical item pools.
+        external_plugin_dir: Directory containing external components. If None, use the default plugins directory.
+        plugin_pool: Plugin pool to register loaded plugins.
+        sta_pool: Statistical item pool to register loaded statistical items.
+    Returns:
+        A tuple containing two dictionaries:
+            - The first dictionary maps module names to their loaded plugin exports.
+            - The second dictionary maps module names to their loaded statistical item exports.
+    """
+    plg_ret:Dict[str, Any] = {}
+    sta_ret:Dict[str, Any] = {}
+    if external_plugin_dir is None:
+        exp = PLUGINS_DIR
+        if not exp.exists():
+            exp.mkdir(parents=True, exist_ok=True)
+    elif isinstance(external_plugin_dir, str):
+        exp = Path(external_plugin_dir).absolute()
+    else:
+        exp = external_plugin_dir.absolute()
     if not (exp.exists() and exp.is_dir()):
-        return
+        return plg_ret, sta_ret
     sys.path.append(str(exp))
     for module_file in exp.iterdir():
         if not (
@@ -48,14 +69,20 @@ def load_external_components(
             module = None
         if hasattr(module, "plugin_exports"):
             try:
-                plugin_pool._Register(*module.plugin_exports) # type: ignore
+                plg_exports = getattr(module, "plugin_exports")
+                if plugin_pool is not None: plugin_pool._Register(*plg_exports)
+                plg_ret[module_name] = plg_exports
             except Exception as e:
                 print(Lang.WARN_EXT_INVALID_PLUGIN.format(module_name, e))
         if hasattr(module, "sta_exports"):
             try:
-                sta_pool.Register(*module.sta_exports) # type: ignore
+                sta_exports = getattr(module, "sta_exports")
+                if sta_pool is not None: sta_pool.Register(*sta_exports)
+                sta_ret[module_name] = sta_exports
             except Exception as e:
                 print(Lang.WARN_EXT_INVALID_STA.format(module_name, e))
+    return plg_ret, sta_ret
+
                 
 def get_sim_params(
         args:Union[str, ArgChecker],

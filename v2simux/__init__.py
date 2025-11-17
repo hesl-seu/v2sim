@@ -14,7 +14,8 @@ from .sim_core import (
     PLUGINS_FILE,
     RESULTS_FOLDER,
     TRIP_EVENT_LOG,
-    SIM_INFO_LOG
+    SIM_INFO_LOG,
+    PLUGINS_DIR,
 )
 
 __version__ = "1.3.0rc2"

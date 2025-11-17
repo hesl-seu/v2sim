@@ -5,6 +5,7 @@ from typing import Optional, Set, Dict, List, Tuple, Union
 from xml.etree import ElementTree as ET
 from ..locale import Lang
 
+CONFIG_DIR = Path.home() / ".v2sim"
 SAVED_STATE_FOLDER = "saved_state"
 
 IntPairList = List[Tuple[int, int]]
@@ -242,6 +243,6 @@ def CheckPyVersion(ver:Tuple[int, int, int, bool]) -> bool:
     return ver[0] == cur_ver[0] and ver[1] == cur_ver[1] and ver[3] == cur_ver[3]
 
 __all__ = [
-    "IntPairList", "PriceList", "FileDetectResult", "V2SimConfig", "PyVersion", "CheckPyVersion",
+    "IntPairList", "PriceList", "FileDetectResult", "V2SimConfig", "PyVersion", "CheckPyVersion", "CONFIG_DIR",
     "DetectFiles", "CheckFile", "ClearBakFiles", "ReadXML", "LoadFCS", "LoadSCS", "SAVED_STATE_FOLDER"
 ]

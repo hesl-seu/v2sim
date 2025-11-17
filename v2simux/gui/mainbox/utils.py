@@ -5,7 +5,6 @@ import functools
 _L = LangLib.Load(__file__)
 
 V2SIM_UX_DIR = Path(__file__).parent.parent.parent
-EXT_COMP = str(V2SIM_UX_DIR / "external_components")
 SIM_YES = "YES"
 SIM_NO = "NO"
 
@@ -40,4 +39,4 @@ def errwrapper(func):
             showerr(str(e))
     return wrapped
 
-__all__ = ["showerr", "showwarn", "try_int", "try_float", "try_split", "errwrapper", "EXT_COMP", "SIM_YES", "SIM_NO", "V2SIM_UX_DIR"]
+__all__ = ["showerr", "showwarn", "try_int", "try_float", "try_split", "errwrapper", "SIM_YES", "SIM_NO", "V2SIM_UX_DIR"]

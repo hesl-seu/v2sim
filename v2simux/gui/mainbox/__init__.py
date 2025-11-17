@@ -271,7 +271,7 @@ class MainBox(Tk):
         self.sim_cb_randomize_traffic.grid(row=0, column=2, padx=3, pady=3, sticky="w")
 
         self.sim_algo_panel = Frame(self.sim_time)
-        self.sim_algo_panel.grid(row=4, column=2, padx=0, pady=0, sticky="w")
+        self.sim_algo_panel.grid(row=3, column=2, padx=0, pady=0, sticky="w")
 
         self.ralgo = StringVar(self, "astar")
         self.lb_route_algo = Label(self.sim_algo_panel, text=_L["SIM_ROUTE_ALGO"])

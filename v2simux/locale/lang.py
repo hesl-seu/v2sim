@@ -7,10 +7,10 @@ LangConfig.SetAppName("v2simux")
 
 
 class Lang:    
-    TRIPGEN_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/v2sim/tools/gen_trip to see the usage."
-    CSGEN_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/v2sim/tools/gen_cs to see the usage."
-    MAIN_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/v2sim/tools/sim_single to see the usage."
-    PARA_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/v2sim/tools/sim_para to see the usage."
+    TRIPGEN_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/tools/gen_trip to see the usage."
+    CSGEN_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/tools/gen_cs to see the usage."
+    MAIN_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/tools/sim_single to see the usage."
+    PARA_HELP_STR = "Read https://hesl-seu.github.io/v2sim-wiki/#/tools/sim_para to see the usage."
     
     ERROR_GENERAL = "Error: {}"
     ERROR_BAD_TYPE = "Error: Invalid data type '{}'."

@@ -17,9 +17,6 @@ from v2simux import (
     load_external_components,
     simulate_single,
 )
-
-
-EXT_COMP = (Path(__file__).parent / "external_components")
             
 
 def _create_argchk(cmd: str) -> ArgChecker:
@@ -141,8 +138,7 @@ def parallel_sim(parallel: int, results_root: str, commands: List[SimCommand]):
     """
     plg_pool = PluginPool()
     sta_pool = StaPool()
-    if EXT_COMP.exists():
-        load_external_components(EXT_COMP, plg_pool, sta_pool)
+    load_external_components(None, plg_pool, sta_pool)
     pool = ProcessPoolExecutor(parallel)
     mpQ:queue.Queue = mp.Manager().Queue()
 
