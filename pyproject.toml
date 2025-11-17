@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "v2sim"
 version = "1.3.0rc1"
-dependencies = [ "libsumo", "numpy", "matplotlib", "feasytools>=0.1.4", "fpowerkit>=0.3.4", "pyproj", "requests",]
+dependencies = [ "libsumo", "numpy", "matplotlib", "feasytools>=0.1.4", "fpowerkit>=0.3.4", "pyproj", "requests", "scikit-learn", "numba"]
 requires-python = ">= 3.8"
 license = "BSD-3-Clause"
 description = "V2Sim: An Open-Source Microscopic V2G Simulation Platform in Urban Power and Transportation Network"

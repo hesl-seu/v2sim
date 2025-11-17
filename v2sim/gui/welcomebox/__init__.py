@@ -1,10 +1,10 @@
-from v2sim.gui.com_no_vx import *
+from v2sim.gui.common import *
 from v2sim.gui.langhelper import *
 import os
 
 
 _ = LangLib.Load(__file__)
-RECENT_PROJECTS_FILE = Path.home() / ".v2sim" / "recent_projects.txt"
+RECENT_PROJECTS_FILE = CONFIG_DIR / "recent_projects.txt"
 
 
 class WelcomeBox(Tk):
@@ -23,6 +23,7 @@ class WelcomeBox(Tk):
         self.config(menu=self.menu)
         add_lang_menu(self.menu)
         menuTools = Menu(self.menu, tearoff=0)
+        menuTools.add_command(label=_("PLUGINS"), command=self._manage_plugins)
         menuTools.add_command(label=_("PARA"), command=self._goto_para)
         menuTools.add_command(label=_("COMPARE"), command=self._compare_case)
         menuTools.add_separator()
@@ -123,6 +124,16 @@ class WelcomeBox(Tk):
         self.clear_linklbl.grid(row=0, column=1, sticky="w", pady=(5, 0), padx=(10, 0))
         self.clear_linklbl.bind("<Button-1>", clear_list)
 
+        self.new_linklbl = Label(
+            self.links_panel,
+            text=_("NEW_PROJ"),
+            foreground="blue",
+            cursor="hand2",
+            font=("Arial", 10, "underline")
+        )
+        self.new_linklbl.grid(row=0, column=2, sticky="w", pady=(5, 0), padx=(10, 0))
+        self.new_linklbl.bind("<Button-1>", self._create_case)
+
         # Buttons
         self.btn_panel = Frame(middle_frame)
         self.btn_panel.grid(row=2, column=2, sticky="ew")
@@ -153,8 +164,16 @@ class WelcomeBox(Tk):
             return False
         return True
 
+    def _manage_plugins(self):
+        self.result = ("plg", None)
+        self._destory()
+        
     def _goto_para(self):
         self.result = ("para", None)
+        self._destory()
+    
+    def _create_case(self, event):
+        self.result = ("new", None)
         self._destory()
 
     def _close(self):

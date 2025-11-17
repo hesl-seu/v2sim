@@ -29,6 +29,16 @@ def main():
         from v2sim.gui.cmpbox import CmpBox
         win = CmpBox()
         win.mainloop()
+    elif msg[0] == "plg":
+        from v2simux.gui.plgbox import PlgBox
+        win = PlgBox()
+        win.mainloop()
+    elif msg[0] == "new":
+        import os
+        try:
+            os.system("v2sim-osm")
+        except KeyboardInterrupt:
+            pass
 
 if __name__ == "__main__":
     main()

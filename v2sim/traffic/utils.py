@@ -5,6 +5,7 @@ from xml.etree import ElementTree as ET
 import random, string, gzip, sys
 from ..locale import Lang
 
+CONFIG_DIR = Path.home() / ".v2simux"
 SAVED_STATE_FOLDER = "saved_state"
 
 IntPairList = List[Tuple[int, int]]
@@ -337,7 +338,7 @@ def CheckPyVersion(ver:Tuple[int, int, int, bool]) -> bool:
     return ver[0] == cur_ver[0] and ver[1] == cur_ver[1] and ver[3] == cur_ver[3]
 
 __all__ = [
-    "IntPairList", "PriceList", "TWeights", "FixSUMOConfig",
+    "IntPairList", "PriceList", "TWeights", "FixSUMOConfig", "CONFIG_DIR",
     "FileDetectResult", "DetectFiles", "CheckFile", "ClearBakFiles",
     "ReadXML", "LoadFCS", "LoadSCS", "GetTimeAndNetwork", "SAVED_STATE_FOLDER",
     "ReadSUMONet", "V2SimConfig", "PyVersion", "CheckPyVersion",

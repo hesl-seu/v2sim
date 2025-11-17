@@ -1,8 +1,8 @@
 class _locale:
-    TRIPGEN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/gen_trip_cn 上的使用说明。"
-    CSGEN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/gen_cs_cn 上的使用说明。"
-    MAIN_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/sim_single_cn 上的使用说明。"
-    PARA_HELP_STR = "请阅读 https://github.com/fmy-xfk/v2sim/wiki/sim_para_cn 上的使用说明。"
+    TRIPGEN_HELP_STR = "请阅读 https://hesl-seu.github.io/v2sim-wiki/#/zh_hans/tools/gen_trip 上的使用说明。"
+    CSGEN_HELP_STR = "请阅读 https://hesl-seu.github.io/v2sim-wiki/#/zh_hans/tools/gen_cs 上的使用说明。"
+    MAIN_HELP_STR = "请阅读 https://hesl-seu.github.io/v2sim-wiki/#/zh_hans/tools/sim_single 上的使用说明。"
+    PARA_HELP_STR = "请阅读 https://hesl-seu.github.io/v2sim-wiki/#/zh_hans/tools/sim_para 上的使用说明。"
 
     ERROR_GENERAL = "错误: {}"
     ERROR_BAD_TYPE = "错误: 无效的数据类型{}."

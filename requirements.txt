@@ -5,5 +5,7 @@ feasytools>=0.1.4
 fpowerkit>=0.3.2
 pyproj
 requests
+scikit-learn
+numba
 cvxpy
 ecos
