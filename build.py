@@ -1,3 +1,4 @@
+from pathlib import Path
 import os, sys
 
 MODE_LIST = [".dev", "a", "b", "rc", "", ".post"]

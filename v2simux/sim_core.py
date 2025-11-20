@@ -55,11 +55,17 @@ def load_external_components(
         return plg_ret, sta_ret
     sys.path.append(str(exp))
     for module_file in exp.iterdir():
-        if not (
-            module_file.is_file()
-            and module_file.suffix == ".py"
-            and not module_file.name.startswith("_")
-        ):
+        if (not module_file.is_file() or module_file.name.startswith("_")): continue
+        if module_file.suffix == ".link":
+            # Read the actual module path from the .link file
+            with open(module_file, "r", encoding="utf-8") as f:
+                linked_path = f.read().strip()
+            module_file = Path(linked_path)
+            if (not module_file.is_file()
+                or module_file.name.startswith("_") 
+                or module_file.suffix != ".py"): continue
+            sys.path.append(str(module_file.parent))
+        elif module_file.suffix != ".py":
             continue
         module_name = module_file.stem
         try:

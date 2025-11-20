@@ -1,4 +1,5 @@
 import enum
+from itertools import chain
 import os
 import sys
 import threading
@@ -68,6 +69,9 @@ class WorldSpec(ABC):
     @abstractmethod
     def get_link(self, link_id:str) -> Optional[Link]: ...
 
+    @abstractmethod
+    def get_neighbor_links(self, node_id:str) -> Iterable[Link]: ...
+    
     @abstractmethod
     def links(self) -> Iterable[Link]: ...
 
@@ -140,6 +144,12 @@ class SingleWorld(WorldSpec):
     
     def get_link(self, link_id:str) -> Optional[Link]:
         return self.world.get_link(link_id)
+    
+    def get_neighbor_links(self, node_id: str) -> Iterable[Link]:
+        node = self.world.get_node(node_id)
+        if node:
+            return chain(node.inlinks.values(), node.outlinks.values())
+        return []
     
     def links(self) -> List[Link]:
         return self.world.LINKS
@@ -294,6 +304,12 @@ class ParaWorlds(WorldSpec):
     def get_link(self, link_id:str) -> Optional[Link]:
         return self.worlds[self.wid_of_edges[link_id]].get_link(link_id)
     
+    def get_neighbor_links(self, node_id: str) -> Iterable[Link]:
+        for wid in self.wid_of_nodes[node_id]:
+            node = self.worlds[wid].get_node(node_id)
+            if node:
+                yield from chain(node.inlinks.values(), node.outlinks.values())
+
     def links(self) -> Iterable[Link]:
         return (link for W in self.worlds.values() for link in W.LINKS)
 

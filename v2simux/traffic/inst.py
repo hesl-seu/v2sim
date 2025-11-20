@@ -220,12 +220,12 @@ class TrafficInst:
         return self.__ctime
 
     @property
-    def FCSList(self)->CSList[FCS]:
+    def FCSList(self) -> CSList[FCS]:
         """Fast charging station list"""
         return self._fcs
 
     @property
-    def SCSList(self)->CSList[SCS]:
+    def SCSList(self) -> CSList[SCS]:
         """Slow charging station list"""
         return self._scs
 

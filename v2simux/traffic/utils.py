@@ -5,7 +5,7 @@ from typing import Optional, Set, Dict, List, Tuple, Union
 from xml.etree import ElementTree as ET
 from ..locale import Lang
 
-CONFIG_DIR = Path.home() / ".v2sim"
+CONFIG_DIR = Path.home() / ".v2simux"
 SAVED_STATE_FOLDER = "saved_state"
 
 IntPairList = List[Tuple[int, int]]

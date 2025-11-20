@@ -1,6 +1,6 @@
 from v2simux.gui.common import *
 from collections import defaultdict
-import v2simux
+from v2simux import load_external_components, PLUGINS_DIR
 import os
 import shutil
 
@@ -16,29 +16,19 @@ class PlgBox(Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
-        plgs, stas = v2simux.load_external_components()
-        combined:Dict[str, List[str]] = defaultdict(list)
-        for k, v in plgs.items():
-            combined[k].append(_("PLUGIN_ITEM").format(v[0], v[1].__name__, '.'.join(v[2])))
-        for k, v in stas.items():
-            combined[k].append(_("STA_ITEM").format(v[0], v[1].__name__))
-
         tree = Treeview(self)
         tree.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 0))
 
         vsb = Scrollbar(self, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=vsb.set)
         vsb.grid(row=0, column=1, sticky="ns")
-        for key, val in combined.items():
-            key_id = tree.insert('', 'end', text=f"{key}.py", open=False)
-            for v in val:
-                tree.insert(key_id, 'end', text=v)
-        
-        def refresh_tree():
+
+        def refresh_tree(confirm_have:str = ""):
+            confirm_have_exists = False
             for iid in tree.get_children():
                 tree.delete(iid)
 
-            plgs, stas = v2simux.load_external_components()
+            plgs, stas = load_external_components()
             combined = defaultdict(list)
             for k, v in plgs.items():
                 combined[k].append(_("PLUGIN_ITEM").format(v[0], v[1].__name__, '.'.join(v[2])))
@@ -46,9 +36,19 @@ class PlgBox(Tk):
                 combined[k].append(_("STA_ITEM").format(v[0], v[1].__name__))
 
             for key, val in combined.items():
-                key_id = tree.insert('', 'end', text=f"{key}.py", open=False)
+                if (PLUGINS_DIR / f"{key}.py").exists():
+                    fname = f"{key}.py"
+                elif (PLUGINS_DIR / f"{key}.link").exists():
+                    fname = f"{key}.link"
+                else:
+                    raise RuntimeError("Internal error: plugin/statistics file not found.")
+                
+                key_id = tree.insert('', 'end', text=fname, open=False)
+                if key == confirm_have:
+                    confirm_have_exists = True
                 for v in val:
                     tree.insert(key_id, 'end', text=v)
+            return confirm_have_exists
 
         def get_lang_file(src_path: Union[str, Path]) -> Union[Path, None]:
             src_parent = Path(src_path).parent
@@ -60,23 +60,39 @@ class PlgBox(Tk):
                 src_lang = None
             return src_lang
         
-        def on_import():
+        def on_import(link = False):
             src = filedialog.askopenfilename(title=_("IMPORT_PLUGIN_TITLE"), filetypes=[(_("Python files"), "*.py")])
-            if not src:
-                return
+            if not src: return
             src_lang = get_lang_file(src)
 
-            dest_dir = v2simux.PLUGINS_DIR
+            dest_dir = PLUGINS_DIR
+            dest_dir.mkdir(parents=True, exist_ok=True)
 
+            dest_path_link = dest_dir / (Path(src).stem + ".link")
+            dest_path_py = dest_dir / (Path(src).stem + ".py")
+            
             try:
-                dest_path = os.path.join(dest_dir, os.path.basename(src))
-                shutil.copy2(src, dest_path)
-                if src_lang is not None:
-                    shutil.copy2(src_lang, dest_dir / src_lang.name)
-                MB.showinfo(_("INFO"), _("IMPORT_SUCCESS"))
-                refresh_tree()
+                if dest_path_link.exists():
+                    raise RuntimeError(_("ERROR_FILE_EXISTS").format(dest_path_link.name))
+                if dest_path_py.exists():
+                    raise RuntimeError(_("ERROR_FILE_EXISTS").format(dest_path_py.name))
+                if link:
+                    with open(dest_path_link, "w", encoding="utf-8") as f:
+                        f.write(src)
+                else:
+                    shutil.copy2(src, dest_path_py)
+                    if src_lang is not None:
+                        shutil.copy2(src_lang, dest_dir / src_lang.name)
+                plg_name = Path(src).stem
+                if refresh_tree(plg_name):
+                    MB.showinfo(_("INFO"), _("IMPORT_SUCCESS").format(plg_name))
+                else:
+                    MB.showwarning(_("WARNING"), _("IMPORT_BUT_NOT_LOADED").format(plg_name))
             except Exception as e:
                 MB.showerror(_("ERROR"), str(e))
+        
+        def on_import_link():
+            on_import(link=True)
 
         def on_delete():
             sel = tree.selection()
@@ -93,7 +109,7 @@ class PlgBox(Tk):
             if not MB.askyesno(_("CONFIRM"), _("CONFIRM_DELETE").format(text)):
                 return
 
-            file = v2simux.PLUGINS_DIR / text  # keep extension
+            file = PLUGINS_DIR / text  # keep extension
             src_lang = get_lang_file(file)
             try:
                 os.remove(file)
@@ -117,6 +133,9 @@ class PlgBox(Tk):
 
         btn_import = Button(btn_frame, text=_("IMPORT_BUTTON"), command=on_import)
         btn_import.pack(side="left", padx=(0, 4))
+
+        btn_import_link = Button(btn_frame, text=_("IMPORT_LINK_BUTTON"), command=on_import_link)
+        btn_import_link.pack(side="left", padx=(0, 4))
 
         btn_delete = Button(btn_frame, text=_("DELETE_BUTTON"), command=on_delete, state="disabled")
         btn_delete.pack(side="left")

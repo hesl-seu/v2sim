@@ -1,23 +1,3 @@
-# 关闭找不到路径的错误提示
-# Suppress route not found error
-SUPPRESS_ROUTE_NOT_FOUND = True
-
-# 默认快充站的充电桩数量, 如果*.fcs.xml中定义了快充站参数，则不会使用此项
-# Default number of charging piles in the fast charging station, this item will not be used if the fast charging station parameters are defined in *.fcs.xml
-DEFAULT_CS_SLOTS = 20
-
-# 默认路边慢充的充电桩数量, 如果*.scs.xml中定义了路边慢充参数，则不会使用此项
-# Default number of charging piles on the roadside slow charging, this item will not be used if the roadside slow charging parameters are defined in *.scs.xml
-DEFAULT_PK_SLOTS = 20
-
-# 默认购电价格, 如果*.fcs.xml或*.scs.xml中定义了购电价格，则对应的快充站或路边慢充不会使用此项
-# Default purchase price, if the purchase price is defined in *.fcs.xml or *.scs.xml, the corresponding fast charging station or roadside slow charging will not use this item
-DEFAULT_BUY_PRICE = ([0], [1.5])
-
-# 默认售电价格, 如果*.fcs.xml或*.scs.xml中定义了购电价格，则对应的快充站或路边慢充不会使用此项
-# Default selling price, if the purchase price is defined in *.fcs.xml or *.scs.xml, the corresponding fast charging station or roadside slow charging will not use this item
-DEFAULT_SELL_PRICE = ([0], [1.0])
-
 # 默认快充速率kW, 1 kW=1/3600 kWh/s, 如果*.veh.xml或自动生成机构中定义了每辆EV的快充速率，则不会使用此项
 # Default fast charge rate kW. This item will not be used if the fast charge rate of each EV is defined in *.veh.xml or automatically generated organization
 DEFAULT_FAST_CHARGE_RATE = 120 
@@ -85,10 +65,6 @@ DEFAULT_ETA_CHARGE = 0.9
 # 默认放电效率
 # Default discharge efficiency
 DEFAULT_ETA_DISCHARGE = 0.9
-
-# 默认充电站所属母线名称
-# Default bus name of charging station
-DEFAULT_BUS_NAME = "BusAny"
 
 # 默认电动车充电功率修正函数
 # Default electric vehicle charging power correction function
