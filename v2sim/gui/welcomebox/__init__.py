@@ -150,8 +150,14 @@ class WelcomeBox(Tk):
         webbrowser.open("https://hesl-seu.github.io/v2sim-wiki/")
         
     def show_about(self):
-        import v2simux
-        MB.showinfo(_("ABOUT"), _("ABOUT_TEXT").format(v2simux.__version__))
+        import v2sim
+        py_ver = v2sim.PyVersion()
+        py_ver_str = f"{py_ver[0]}.{py_ver[1]}.{py_ver[2]}"
+        if not py_ver[3]:
+            py_ver_str += " free-threading"
+        else:
+            py_ver_str += " with GIL"
+        MB.showinfo(_("ABOUT"), _("ABOUT_TEXT").format(v2sim.__version__, py_ver_str))
 
     def _destory(self):
         self.withdraw()

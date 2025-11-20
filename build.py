@@ -1,3 +1,4 @@
+from pathlib import Path
 import os, sys
 
 MODE_LIST = [".dev", "a", "b", "rc", "", ".post"]
@@ -184,6 +185,21 @@ def sync_versions(next_major:bool=False, next_minor:bool=False, next_patch:bool=
     with open('version.txt', 'w') as f:
         f.write(str(VERSION))
 
+def ensure_all_v2sim():
+    flag = True
+    for root, dirs, files in os.walk("."):
+        for file in files:
+            if file.endswith(".py"):
+                path = os.path.join(root, file)
+                if Path(path).absolute() == Path(__file__).absolute():
+                    continue
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                if "v2simux" in content.lower():
+                    print(f"Found 'v2simux' in {path}")
+                    flag = False
+    return flag
+
 def build():
     try:
         import uv
@@ -221,5 +237,7 @@ if __name__ == "__main__":
     if len(args) > 0:
         raise ValueError(f"Unknown arguments: {args.keys()}")
     
+    assert ensure_all_v2sim(), "Some files still reference v2simux, please fix them before building."
     sync_versions(next_major=next_major, next_minor=next_minor, next_patch=next_patch, phase=set_phase)
+    input("All checks passed. Press Enter to start building...")
     build()

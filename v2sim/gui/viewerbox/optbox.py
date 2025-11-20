@@ -1,4 +1,4 @@
-from v2simux.gui.common import *
+from v2sim.gui.common import *
 
 
 class OptionBox(Frame):

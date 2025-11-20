@@ -278,6 +278,15 @@ class CSList(Generic[T_CS]):
             indices = self._remap[indices]
         return self._cs[indices]
 
+    def __contains__(self, cs_name: str) -> bool:
+        """
+        Check if a charging station with the specified name exists
+            cs_name: Charging station name
+        Return
+            True if exists, False if not.
+        """
+        return cs_name in self._remap
+    
     def get_V2G_cap(self, t: int) -> List[float]:
         """
         Get the maximum V2G return power (considering losses) of each charging station at the current moment, in kWh/s

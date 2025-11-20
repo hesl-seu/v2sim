@@ -5,7 +5,7 @@ from xml.etree import ElementTree as ET
 import random, string, gzip, sys
 from ..locale import Lang
 
-CONFIG_DIR = Path.home() / ".v2simux"
+CONFIG_DIR = Path.home() / ".v2sim"
 SAVED_STATE_FOLDER = "saved_state"
 
 IntPairList = List[Tuple[int, int]]

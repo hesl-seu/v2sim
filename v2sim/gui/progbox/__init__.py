@@ -1,4 +1,4 @@
-from v2simux.gui.com_no_vx import *
+from v2sim.gui.com_no_vx import *
 from queue import Queue
 
 

@@ -30,7 +30,7 @@ def main():
         win = CmpBox()
         win.mainloop()
     elif msg[0] == "plg":
-        from v2simux.gui.plgbox import PlgBox
+        from v2sim.gui.plgbox import PlgBox
         win = PlgBox()
         win.mainloop()
     elif msg[0] == "new":
