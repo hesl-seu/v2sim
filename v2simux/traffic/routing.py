@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Callable, List, Dict, Tuple, Set
-from sklearn.neighbors import KDTree
+from scipy.spatial import KDTree
 from .uxsim import Link
 import heapq
 import math
@@ -241,7 +241,7 @@ def build_target_kdtree(node_coords: CoordsDict, to_nodes: Set[str]) -> Tuple[KD
     为目标节点构建kDTree并建立索引到节点ID的映射
     Returns: (kdtree, index_to_node_id)
     """
-    target_coords = []
+    target_coords:List[Tuple[float, float]] = []
     index_to_node = {}
     
     for idx, node_id in enumerate(to_nodes):

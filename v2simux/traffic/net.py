@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Set
 from collections import defaultdict
 from dataclasses import dataclass, field
-from sklearn.cluster import KMeans
-from sklearn.neighbors import KDTree
+from scipy.cluster.vq import kmeans, vq
+from scipy.spatial import KDTree
 from collections import defaultdict
 from .utils import DetectFiles, ReadXML
 from ..locale import Lang
@@ -126,7 +126,7 @@ class RoadNet:
         """
         self.__nodeL = list(self.nodes.values())
         coords = np.array([node.get_coord() for node in self.__nodeL])
-        self.__kdt = KDTree(coords, metric='euclidean')
+        self.__kdt = KDTree(coords)
 
     @property
     def kdtree(self) -> KDTree:
@@ -154,15 +154,15 @@ class RoadNet:
         """
         Find the nearest node to the given coordinates.
         """
-        dist, idx = self.kdtree.query([[x, y]], k=1)
-        return self.__nodeL[idx[0][0]]
+        dist, idx = self.kdtree.query([[x, y]], k=1, workers=-1)
+        return self.__nodeL[idx.item()]
     
     def find_nearest_node_with_distance(self, x:float, y:float) -> Tuple[float, Node]:
         """
         Find the nearest node to the given coordinates.
         """
-        dist, idx = self.kdtree.query([[x, y]], k=1)
-        return dist[0][0], self.__nodeL[idx[0][0]]
+        dist, idx = self.kdtree.query([[x, y]], k=1, workers=-1)
+        return dist.item(), self.__nodeL[idx.item()]
     
     def calc_max_scc(self):
         """
@@ -609,8 +609,8 @@ class RoadNet:
                     assignment[edge_id] = partition_id
         else:
             # 使用K-means聚类
-            kmeans = KMeans(n_clusters=num_partitions, random_state=42, n_init=10)
-            group_labels = kmeans.fit_predict(group_features)
+            centroids, distortion = kmeans(group_features, num_partitions, iter=10, rng=42)
+            group_labels, distances = vq(group_features, centroids)
             
             assignment = {}
             for i, (edge_group, label) in enumerate(zip(group_edges, group_labels)):

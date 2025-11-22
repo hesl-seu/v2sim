@@ -2,7 +2,7 @@ import os
 import sys
 from typing import Dict, Iterable, Tuple, Type, Union, Optional, TypeVar, Generic, List
 from feasytools import RangeList
-from sklearn.neighbors import KDTree
+from scipy.spatial import KDTree
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from ..locale import Lang
 from .ev import EV
@@ -142,7 +142,7 @@ class CSList(Generic[T_CS]):
         """
         if n >= self._n or self._kdtree is None:
             return range(self._n)
-        dist, idx = self._kdtree.query(pos, k=n, return_distance=True)
+        dist, idx = self._kdtree.query([pos], k=n)
         return idx.reshape(-1)
 
     def index(self, name: str) -> int:

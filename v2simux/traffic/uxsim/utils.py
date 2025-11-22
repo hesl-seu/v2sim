@@ -2,6 +2,7 @@
 General utilities for UXsim.
 """
 
+from typing import Iterable, Optional
 import warnings
 import functools
 import traceback
@@ -141,7 +142,7 @@ class LoggingWarning(UserWarning):
     """
     pass
 
-def plot_multiple_y(x=None, ys=None, labels=None, **kwarg):
+def plot_multiple_y(x=None, ys:Optional[Iterable]=None, labels=None, **kwarg):
     """
     Plot multiple y values on the same plot, normalizing each value to [0, 1].
 
@@ -159,7 +160,9 @@ def plot_multiple_y(x=None, ys=None, labels=None, **kwarg):
     if labels is None:
         labels = [f"data-{i}" for i in lange(ys)]
 
-    for i,y in enumerate(ys):
+    assert ys is not None, "ys must be provided."
+    
+    for i, y in enumerate(ys):
         y_min = np.min(y)
         y_max = np.max(y)
         if x is not None:

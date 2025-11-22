@@ -4,7 +4,7 @@ from itertools import repeat
 from pathlib import Path
 from feasytools import ArgChecker
 from fpowerkit import Grid
-from sklearn.neighbors import KDTree
+from scipy.spatial import KDTree
 from typing import IO, Any, Literal, Tuple, TypeVar, Union, Dict, List
 import time
 import random
@@ -299,8 +299,8 @@ class TrafficGenerator:
                 bus_pos.append((x, y))
             bus_names = gr.BusNames
         if use_grid:
-            bkdt = KDTree(bus_pos, metric="euclidean")
-            selector = lambda cname: bus_names[bkdt.query([self.__rnet.get_node(cname).get_coord()], k=1)[1][0][0]]
+            bkdt = KDTree(bus_pos)
+            selector = lambda cname: bus_names[bkdt.query([self.__rnet.get_node(cname).get_coord()], k=1)[1].item()]
         else:
             bus_names = bus.select(self.__bus_names, busCount, givenBus)
             selector = lambda cname: random.choice(bus_names)

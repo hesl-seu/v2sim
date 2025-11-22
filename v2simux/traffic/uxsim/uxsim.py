@@ -115,7 +115,8 @@ class Node:
                 if i >= len(s.signal):
                     i = 0
 
-        s.signal_log = []
+        # s.signal_log = []
+        # 不记录节点交通灯信号状态以节省内存
 
         #flow capacity (macroscopic/continuous representation for signal)
         s.flag_lanes_automatically_determined = False
@@ -159,7 +160,7 @@ class Node:
         s.signal_t += s.W.DELTAT
         s.cycle_length = sum(s.signal)
 
-        s.signal_log.append(s.signal_phase)
+        # s.signal_log.append(s.signal_phase)
 
     def flow_capacity_update(s):
         """
@@ -197,7 +198,7 @@ class Node:
                         if veh.specified_route[0] in outlinks:
                             outlinks = [veh.specified_route[0]]
                         else:
-                            raise ValueError(f"Vehicle {veh.name}: specified route {s.specified_route} is inconsistent at the origin node {s.name}. Debug info: {outlinks=}")
+                            raise ValueError(f"Vehicle {veh.name}: specified route {veh.specified_route} is inconsistent at the origin node {s.name}. Debug info: {outlinks=}")
                     
                     preference = np.array([veh.route_pref[l.id] for l in outlinks], dtype=float)
                     if s.W.hard_deterministic_mode == False:
@@ -230,7 +231,7 @@ class Node:
                             assert veh.leader.lane == veh.lane
 
                         outlink.vehicles.append(veh)
-                        outlink.vehicles_enter_log[s.W.T*s.W.DELTAT] = veh
+                        # outlink.vehicles_enter_log[s.W.T*s.W.DELTAT] = veh
 
                         outlink.cum_arrival[-1] += s.W.DELTAN
                         veh.link_arrival_time = s.W.T*s.W.DELTAT
@@ -301,7 +302,7 @@ class Node:
 
                 #リンク間遷移実行
                 inlink.vehicles.popleft()
-                outlink.vehicles_enter_log[s.W.T*s.W.DELTAT] = veh
+                # outlink.vehicles_enter_log[s.W.T*s.W.DELTAT] = veh
                 veh.link = outlink
                 veh.x = 0
 
@@ -544,7 +545,8 @@ class Link:
         s.vehicles:deque[Vehicle] = deque()
 
         #流入した車両一覧．t: Vehicle
-        s.vehicles_enter_log = {}
+        # s.vehicles_enter_log = {}
+        # 流入车辆不统计以减小内存占用
 
         #旅行時間
         s.traveltime_instant = []
@@ -864,7 +866,7 @@ class Vehicle:
     """
     Vehicle or platoon in a network.
     """
-    def __init__(s, W, orig, dest, departure_time, name=None, 
+    def __init__(s, W:'World', orig, dest, departure_time, name=None, 
                  route_pref=None, route_choice_principle=None,
                  mode="single_trip", links_prefer=[], links_avoid=[], 
                  trip_abort=1, departure_time_is_time_step=0, 
@@ -939,7 +941,7 @@ class Vehicle:
         s.state = "home"
 
         #リンク内位置
-        s.link = None
+        s.link:Link = None
         s.x = 0
         s.x_next = 0
         s.x_old = 0
@@ -1375,7 +1377,7 @@ class Vehicle:
             xx = s.x
         if link == -1:
             return (-1, -1)
-        link = s.W.get_link(link)
+        link:Link = s.W.get_link(link)
         x0 = link.start_node.x
         y0 = link.start_node.y
         x1 = link.end_node.x
@@ -1460,7 +1462,8 @@ class RouteChoice:
         #iからjに行くために来たノード. This is not used anymore
         s.pred = np.zeros([len(s.W.NODES), len(s.W.NODES)])
 
-        s.dist_record = {}
+        # s.dist_record = {}
+        # 不记录距离以减少内存占用
 
         #homogeneous DUO用．kに行くための最短経路的上にあれば1: array[dest,link]==1 if link is on the shortest path to dest
         #s.route_pref = {k.id: {l:0 for l in s.W.LINKS} for k in s.W.NODES} #old definition, {node_id: {link: preference}. preference of link is 1 if it is on the shortest path to node_id
@@ -1502,7 +1505,7 @@ class RouteChoice:
         s.dist = dist.T
         s.next = pred.T
 
-        s.dist_record[s.W.T] = s.dist
+        # s.dist_record[s.W.T] = s.dist
 
     def homogeneous_DUO_update(s):
         """
@@ -1545,7 +1548,7 @@ class World:
     """
     World (i.e., simulation environment). A World object is consistently referred to as `W` in this code.
     """
-
+    analyzer: Analyzer
     def __init__(W, name="", deltan=5, reaction_time=1, 
                  duo_update_time=600, duo_update_weight=0.5, duo_noise=0.01, route_choice_principle="homogeneous_DUO", route_choice_update_gradual=False, instantaneous_TT_timestep_interval=5, 
                  eular_dt=120, eular_dx=100, 
@@ -1661,7 +1664,7 @@ class World:
         if W.DELTAT_ROUTE < W.instantaneous_TT_timestep_interval:
             W.instantaneous_TT_timestep_interval = W.DELTAT_ROUTE
 
-        W.route_pref_for_vehs = None
+        W.route_pref_for_vehs:dict = None
 
         ## progress print setting
         W.show_progress = show_progress
@@ -2330,7 +2333,7 @@ class World:
         Postprocessing after simulation finished.
         """
         W.print(" simulation finished")
-        W.analyzer.basic_analysis()
+        # W.analyzer.basic_analysis()
 
     def get_node(W, node):
         """Get a Node instance by name or object.

@@ -1,9 +1,6 @@
---extra-index-url https://pypi.anaconda.org/scientific-python-nightly-wheels/simple
 feasytools>=0.1.4
 fpowerkit>=0.3.6.post1
 networkx>=3.2.1
-scikit-learn>=1.8.dev0
-pandas>=3.0.0.dev0
 numpy
 matplotlib
 pyproj
