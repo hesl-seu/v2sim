@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Sequence, List, Tuple, Dict, Iterable, Optional, Union
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
-from feasytools import PQueue, Point, KDTree
+from feasytools import PQueue
+from scipy.spatial import KDTree
 from .evdict import EVDict
 from .trip import TripsLogger
 from .cslist import *
@@ -265,7 +266,7 @@ class TrafficInst:
         return self.__names
     
     def __sel_best_CS(
-        self, veh: EV, omega: float, current_edge: Optional[str] = None, cur_pos: Optional[Point] = None
+        self, veh: EV, omega: float, current_edge: Optional[str] = None, cur_pos: Optional[Tuple[float, float]] = None
     ) -> Tuple[List[str], TWeights]:
         """
         Select the nearest available charging station based on the edge where the car is currently located, and return the path and average weight
@@ -349,7 +350,7 @@ class TrafficInst:
                 self.__add_veh2(veh_id, trip.depart_edge, trip.arrive_edge)
         else:  # Charge once on the way
             x, y = self.__get_edge_pos(trip.depart_edge)
-            route, weights = self.__sel_best_CS(veh, veh.omega, trip.depart_edge, Point(x, y))
+            route, weights = self.__sel_best_CS(veh, veh.omega, trip.depart_edge, (x, y))
             if len(route) == 0:
                 # The power is not enough to drive to any charging station, you need to charge for a while
                 veh.target_CS = None
@@ -548,14 +549,12 @@ class TrafficInst:
         
         if self.FCSList._kdtree == None:
             self.FCSList._kdtree = KDTree(
-                (Point(cs._x, cs._y) for cs in self.FCSList),
-                range(self.FCSList._n)
+                [(cs._x, cs._y) for cs in self.FCSList],
             )
         
         if self.SCSList._kdtree == None:
             self.SCSList._kdtree = KDTree(
-                (Point(cs._x, cs._y) for cs in self.SCSList),
-                range(self.SCSList._n)
+                [(cs._x, cs._y) for cs in self.SCSList],
             )
 
     def simulation_step(self, step_len: int):

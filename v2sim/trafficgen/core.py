@@ -2,7 +2,8 @@ from collections import defaultdict
 from enum import IntEnum
 from itertools import repeat
 from pathlib import Path
-from feasytools import ArgChecker, KDTree, Point
+from feasytools import ArgChecker
+from scipy.spatial import KDTree
 from fpowerkit import Grid
 from typing import IO, Any, Literal, Tuple, TypeVar, Union, Dict, List
 import time
@@ -290,7 +291,7 @@ class TrafficGenerator:
             cs_slots = repeat(slots, len(cs_names))
             cs_pos = {csname: self.__rnet.get_edge_pos(csname) for csname in cs_names}
         use_grid = False
-        bp:List[Point] = []
+        bp:List[Tuple[float, float]] = []
         if grid_file != "":
             gr = Grid.fromFile(grid_file)
             use_grid = True
@@ -302,11 +303,11 @@ class TrafficGenerator:
                 except:
                     use_grid = False
                     break
-                bp.append(Point(x,y))
+                bp.append((x, y))
             bus_names = gr.BusNames
         if use_grid:
-            bkdt:KDTree[Point, str] = KDTree(bp, bus_names)
-            selector = lambda cname: bkdt.nearest_mapped(Point(*self.__rnet.get_edge_pos(cname)))  
+            bkdt = KDTree(bp)
+            selector = lambda cname: bus_names[bkdt.query([self.__rnet.get_edge_pos(cname)], k=1)[1].item()]
         else:
             bus_names = bus.select(self.__bus_names, busCount, givenBus)
             selector = lambda cname: random.choice(bus_names)

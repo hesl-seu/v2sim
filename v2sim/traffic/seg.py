@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.neighbors import KDTree
+from scipy.spatial import KDTree
 from typing import Tuple
 from numba import jit
 
@@ -27,11 +27,11 @@ class KDTreeSegmentSearch:
         self.sample_points, self.sample_segment_indices = self._sample_segment_points(sample_points_per_segment)
         
         # 构建KDTree
-        self.kdtree = KDTree(self.sample_points, leaf_size=leaf_size)
+        self.kdtree = KDTree(self.sample_points, leafsize=leaf_size)
         
         # 构建端点KDTree用于快速候选筛选
         endpoints = np.vstack([self.segments[:, :2], self.segments[:, 2:]])
-        self.endpoint_tree = KDTree(endpoints, leaf_size=leaf_size)
+        self.endpoint_tree = KDTree(endpoints, leafsize=leaf_size)
         
         # 预计算边界框
         self.bbox_min = np.minimum(self.segments[:, :2], self.segments[:, 2:])
@@ -71,7 +71,7 @@ class KDTreeSegmentSearch:
         distances, indices = self.kdtree.query(point, k=min(n_candidates, len(self.sample_points)))
         
         # 获取对应的线段索引
-        candidate_segment_indices = self.sample_segment_indices[indices[0]]
+        candidate_segment_indices = self.sample_segment_indices[indices]
         
         # 去重
         unique_candidates = np.unique(candidate_segment_indices)
@@ -91,7 +91,7 @@ class KDTreeSegmentSearch:
         distances, indices = self.endpoint_tree.query(point, k=min(n_candidates * 2, self.n_segments * 2))
         
         # 端点索引映射回线段索引
-        segment_indices = indices[0] % self.n_segments
+        segment_indices = indices % self.n_segments
         
         # 去重
         unique_candidates = np.unique(segment_indices)

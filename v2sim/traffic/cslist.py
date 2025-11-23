@@ -1,6 +1,7 @@
 from itertools import repeat
-from typing import Dict, Iterable, Type, Union, Optional, TypeVar, Generic, List
-from feasytools import RangeList, KDTree, Point
+from typing import Dict, Iterable, Tuple, Type, Union, Optional, TypeVar, Generic, List
+from feasytools import RangeList
+from scipy.spatial import KDTree
 from ..locale import Lang
 from .utils import ReadXML
 from .params import *
@@ -107,11 +108,11 @@ class CSList(Generic[T_CS]):
             if cs._x == float("inf") or cs._y == float("inf"):
                 self._kdtree = None
                 break
-            pts.append(Point(cs._x, cs._y))
+            pts.append((cs._x, cs._y))
         else:
-            self._kdtree = KDTree(pts, range(self._n))
+            self._kdtree = KDTree(pts)
     
-    def select_near(self, pos: Point, n: int = 2147483647) -> Iterable[int]:
+    def select_near(self, pos: Tuple[float, float], n: int = 2147483647) -> Iterable[int]:
         """
         Select the n nearest charging station numbers to (x, y).
             pos: coordinate
@@ -121,7 +122,7 @@ class CSList(Generic[T_CS]):
         """
         if n >= self._n or self._kdtree is None:
             return range(self._n)
-        return self._kdtree.k_nearest_mapped(pos, n)
+        return self._kdtree.query(pos, n)[1]
 
     def index(self, name: str) -> int:
         """
