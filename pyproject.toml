@@ -31,16 +31,5 @@ Documentation = "https://hesl-seu.github.io/v2sim-wiki/"
 Repository = "https://github.com/hesl-seu/v2sim"
 Issues = "https://github.com/hesl-seu/v2sim/issues"
 
-[tool.uv]
-[[tool.uv.index]]
-name = "devel"
-url = "https://pypi.anaconda.org/scientific-python-nightly-wheels/simple"
-
 [tool.hatch.build]
 include = [ "v2simux/*",]
-
-[tool.uv.sources.pandas]
-index = "devel"
-
-[tool.uv.sources.scikit-learn]
-index = "devel"
