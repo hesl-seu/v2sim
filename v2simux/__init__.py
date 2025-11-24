@@ -5,6 +5,7 @@ from .plotkit import *
 from .plugins import *
 from .statistics import *
 from .sim_core import (
+    get_internal_components,
     load_external_components,
     get_sim_params,
     simulate_multi,
@@ -18,4 +19,4 @@ from .sim_core import (
     PLUGINS_DIR,
 )
 
-__version__ = "1.3.1"
+__version__ = "1.3.2"

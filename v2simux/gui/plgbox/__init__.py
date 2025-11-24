@@ -1,6 +1,6 @@
 from v2simux.gui.common import *
 from collections import defaultdict
-from v2simux import load_external_components, PLUGINS_DIR
+from v2simux import load_external_components, PLUGINS_DIR, get_internal_components
 import os
 import shutil
 
@@ -17,6 +17,10 @@ class PlgBox(Tk):
         self.rowconfigure(0, weight=1)
 
         tree = Treeview(self)
+        # hide the column headings, show only the tree column
+        tree["show"] = "tree"
+        # ensure the tree column (#0) expands to fill available space
+        tree.column("#0", anchor="w", stretch=True)
         tree.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 0))
 
         vsb = Scrollbar(self, orient="vertical", command=tree.yview)
@@ -27,7 +31,16 @@ class PlgBox(Tk):
             confirm_have_exists = False
             for iid in tree.get_children():
                 tree.delete(iid)
+            
+            # Load internal components
+            plgs_i, stas_i = get_internal_components()
+            key_id = tree.insert('', 'end', text=_("INTERNAL"), open=False)
+            for k, p, d in plgs_i:
+                tree.insert(key_id, 'end', text=_("PLUGIN_ITEM").format(k, p.__name__, '.'.join(d)))
+            for k, p in stas_i:
+                tree.insert(key_id, 'end', text=_("STA_ITEM").format(k, p.__name__))
 
+            # Load external components
             plgs, stas = load_external_components()
             combined = defaultdict(list)
             for k, v in plgs.items():
@@ -124,7 +137,9 @@ class PlgBox(Tk):
             sel = tree.selection()
             state = "disabled"
             if len(sel) == 1 and tree.parent(sel[0]) == '':
-                state = "normal"
+                text = tree.item(sel[0], "text")
+                if text and text != _("INTERNAL"):
+                    state = "normal"
             btn_delete.config(state=state)
 
         # buttons frame

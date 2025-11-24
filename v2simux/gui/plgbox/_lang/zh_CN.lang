@@ -17,3 +17,4 @@ IMPORT_LINK_BUTTON=导入链接...
 DELETE_BUTTON=移除
 IMPORT_BUT_NOT_LOADED=插件{0}已导入，但是它不包含有效的插件或统计项。
 ERROR_FILE_EXISTS=文件{0}已经存在。
+INTERNAL=(内部组件)

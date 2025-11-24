@@ -2,7 +2,7 @@ import os
 from collections import defaultdict
 from pathlib import Path
 from feasytools import SegFunc
-from typing import Type, Optional, Union
+from typing import Tuple, Type, Optional, Union
 from ..plugins import *
 from .logcs import *
 from .logev import *
@@ -10,20 +10,47 @@ from .loggr import *
 from ..locale import Lang
 
 
+StaExports = Tuple[str, Type[StaBase]]
+
+_internal_stas:Dict[str, Type[StaBase]] = {
+    FILE_FCS: StaFCS,
+    FILE_SCS: StaSCS,
+    FILE_EV: StaEV,
+    FILE_GEN: StaGen,
+    FILE_BUS: StaBus,
+    FILE_LINE: StaLine,
+    FILE_PVW: StaPVWind,
+    FILE_ESS: StaESS,
+}
+
+
+def GetInternalStatistics():
+    """
+    Get internal statistical item list
+    Returns:
+        A list containing StaExports of internal statistical items
+    """
+    sta_ret:List[StaExports] = []
+    for k, p in _internal_stas.items():
+        sta_ret.append((k, p))
+    return sta_ret
+
+
+def RegStaItem(name:str):
+    def decorator(cls):
+        nonlocal name
+        if not issubclass(cls, StaBase):
+            raise ValueError(Lang.PLG_NOT_SUBCLASS.format(cls))
+        _internal_stas[name] = cls
+        return cls
+    return decorator
+
+
 class StaPool:
     def __init__(self, load_internal_logger: bool = True):
-        self.__ava_logger: Dict[str, type] = {}
+        self.__ava_logger: Dict[str, Type[StaBase]] = {}
         if load_internal_logger:
-            self.__ava_logger = {
-                FILE_FCS: StaFCS,
-                FILE_SCS: StaSCS,
-                FILE_EV: StaEV,
-                FILE_GEN: StaGen,
-                FILE_BUS: StaBus,
-                FILE_LINE: StaLine,
-                FILE_PVW: StaPVWind,
-                FILE_ESS: StaESS,
-            }
+            self.__ava_logger = _internal_stas.copy()
 
     def Register(self, name: str, base: Type) -> None:
         """Register a statistic item"""
@@ -205,3 +232,5 @@ class StaReader:
         for table in self.__items.values():
             t = max(t, table.LastTime)
         return t
+
+__all__ = ['StaPool', 'StaReader', 'StaWriter', 'RegStaItem', 'StaExports', 'GetInternalStatistics']

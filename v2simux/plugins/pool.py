@@ -1,13 +1,41 @@
+from typing import Type
 from .base import *
 from .pdn import PluginPDN
 from .v2g import PluginV2G
 from .ocur import PluginOvercurrent
 
-_internal_plugins = {
+PluginExports = Tuple[str, Type[PluginBase], List[str]]
+
+_internal_plugins:Dict[str, Tuple[Type[PluginBase], List[str]]] = {
     "pdn": (PluginPDN,[]),
     "v2g": (PluginV2G,["pdn"]),
     "ocur": (PluginOvercurrent,["pdn"]),
 }
+
+
+def GetInternalPlugins():
+    """
+    Get internal plugin list
+    Returns:
+        A list containing PluginExports of internal plugins
+    """
+    plg_ret:List[PluginExports] = []
+    for k, (p, d) in _internal_plugins.items():
+        plg_ret.append((k, p, d))
+    return plg_ret
+
+
+def RegPlugin(name:str, dependencies:Optional[List[str]] = None):
+    def decorator(cls):
+        nonlocal name, dependencies
+        if not issubclass(cls, PluginBase):
+            raise PluginError(Lang.PLG_NOT_SUBCLASS.format(cls))
+        if dependencies is None:
+            dependencies = []
+        _internal_plugins[name] = (cls, dependencies)
+        return cls
+    return decorator
+
 
 class PluginError(Exception):
     pass
@@ -156,3 +184,5 @@ class PluginMan:
         for name, p in self.__curPlugins.items():
             ret[name] = p._save_state()
         return ret
+
+__all__ = ['PluginPool', 'PluginMan', 'PluginError', 'RegPlugin', 'PluginExports', 'GetInternalPlugins']

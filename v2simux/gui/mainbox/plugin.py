@@ -1,5 +1,6 @@
 from v2simux.gui.common import *
 from feasytools import RangeList
+from xml.etree import ElementTree as ET
 from v2simux import PluginPool, PluginBase, StaPool, load_external_components
 from .controls import *
 from .utils import *
@@ -52,17 +53,44 @@ class PluginEditor(ScrollableTreeView):
         self.setColEditMode("Online", ConfigItem("Online", EditMode.RANGELIST, "Online time ranges", rangelist_hint=True))
         self.setColEditMode("Extra", ConfigItem("Extra", EditMode.DISABLED, "Extra properties"))
         self.__onEnabledSet = onEnabledSet
+        self.__elements:Dict[str, ET.Element] = {}
     
-    def add(self, plg_name:str, interval:Union[int, str], enabled:str, online:Union[RangeList, str], extra:Dict[str, Any]):
-        new_line = (plg_name, interval, enabled, online, str(extra))
+    def add(self, plg_name:str, interval:Union[int, str], enabled:str, online:Union[RangeList, str], extra:Dict[str, Any], elem:Optional[ET.Element] = None):
+        assert plg_name not in self.__elements, f"Plugin {plg_name} already exists."
+        new_line = (plg_name, interval, enabled, online, str(extra), elem)
         self.insert("", "end", values=new_line)
         plg_type = self.plg_pool.GetPluginType(plg_name)
         assert issubclass(plg_type, PluginBase)
         self.setCellEditMode(plg_name, "Extra", ConfigItem("Extra", EditMode.PROP, "Extra properties", prop_config=plg_type.ElemShouldHave()))
+        self.__elements[plg_name] = elem if elem is not None else ET.Element(plg_name)
         self.__onEnabledSet(new_line, plg_name)
     
     def is_enabled(self, plg_name:str):
         for i in self.get_children():
             if self.item(i, 'values')[0] == plg_name:
                 return self.item(i, 'values')[2] == SIM_YES
-        return False       
+        return False
+    
+    def save_xml(self, filename: Union[str, Path], data:Optional[List[Tuple]] = None):
+        rt = ET.Element("root")
+        with open(filename, "w") as f:
+            f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+            if data is None: data = self.getAllData()
+            for d in data:
+                # Structure: (Name, Interval, Enabled, Online, Extra, Elem)
+                attr = {"interval":str(d[1]), "enabled":str(d[2])}
+                attr.update(eval(d[4]))
+                for k,v in attr.items():
+                    if not isinstance(v, str):
+                        attr[k] = str(v)
+                e = self.__elements[d[0]]
+                e.attrib.update(attr)
+                if d[3] != ALWAYS_ONLINE:
+                    ol = ET.Element("online")
+                    lst = eval(d[3])
+                    for r in lst:
+                        ol.append(ET.Element("item", {"btime":str(r[0]), "etime":str(r[1])}))
+                    e.append(ol)
+                rt.append(e)
+            f.write(ET.tostring(rt, "unicode", ).replace("><", ">\n<"))
+    
