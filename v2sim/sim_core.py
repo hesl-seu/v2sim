@@ -27,6 +27,15 @@ class MsgPack:
     cmd:str
     obj:Any = None
 
+def get_internal_components():
+    """
+    Get internal components
+    Returns:
+        A tuple containing two lists:
+            - The first list contains plugins
+            - The second list contains statistical items
+    """
+    return GetInternalPlugins(), GetInternalStatistics()
 
 def load_external_components(
     external_plugin_dir: Union[str, Path, None] = None,
@@ -42,8 +51,8 @@ def load_external_components(
             - The first dictionary maps module names to their loaded plugin exports.
             - The second dictionary maps module names to their loaded statistical item exports.
     """
-    plg_ret:Dict[str, Any] = {}
-    sta_ret:Dict[str, Any] = {}
+    plg_ret:Dict[str, PluginExports] = {}
+    sta_ret:Dict[str, StaExports] = {}
     if external_plugin_dir is None:
         exp = PLUGINS_DIR
         if not exp.exists():

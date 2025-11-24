@@ -562,25 +562,7 @@ class MainBox(Tk):
             else:
                 filename = self.folder + "/plugins.plg.xml"
             try:
-                rt = ET.Element("root")
-                with open(filename, "w") as f:
-                    f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-                    for d in data:
-                        attr = {"interval":str(d[1]), "enabled":str(d[2])}
-                        attr.update(eval(d[4]))
-                        for k,v in attr.items():
-                            if not isinstance(v, str):
-                                attr[k] = str(v)
-                        e = ET.Element(d[0], attr)
-                        if d[3] != ALWAYS_ONLINE:
-                            ol = ET.Element("online")
-                            lst = eval(d[3])
-                            for r in lst:
-                                ol.append(ET.Element("item", {"btime":str(r[0]), "etime":str(r[1])}))
-                            e.append(ol)
-                        rt.append(e)
-                    f.write(ET.tostring(rt, "unicode", ).replace("><", ">\n<"))
-                pass
+                self.sim_plglist.save_xml(filename, data)
             except Exception as e:
                 self.setStatus(f"Error: {e}")
                 traceback.print_exc()
@@ -771,7 +753,9 @@ class MainBox(Tk):
 
                 # Check online attribute
                 olelem = p.find("online")
-                if olelem is not None: ol_str = RangeList(olelem)
+                if olelem is not None:
+                    ol_str = RangeList(olelem)
+                    p.remove(olelem)
                 else: ol_str = ALWAYS_ONLINE
 
                 # Check enabled attribute
@@ -783,7 +767,7 @@ class MainBox(Tk):
                 # Check interval attribute
                 intv = p.attrib.pop("interval")
                 attr.update(p.attrib)
-                self.sim_plglist.add(p.tag, intv, enabled, ol_str, attr)
+                self.sim_plglist.add(p.tag, intv, enabled, ol_str, attr, p)
 
         # Check if PDN exists
         if "pdn" not in plg_set:
