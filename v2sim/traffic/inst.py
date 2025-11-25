@@ -525,11 +525,10 @@ class TrafficInst:
         """
         return self._fcs.get_veh_count() + self._scs.get_veh_count()
     
-    def add_trip(self, veh_id:str, depart_time:int, trip:Trip, force_sc:bool = False, force_fc:bool = False, force_fcs:Optional[str] = None):
+    def add_trip(self, veh_id:str, trip:Trip, force_sc:bool = False, force_fc:bool = False, force_fcs:Optional[str] = None):
         """
         Add a new trip for a vehicle
             veh_id: Vehicle ID
-            depart_time: Departure time
             trip: Trip instance
             force_sc: Whether to force slow charging at the destination if needed
             force_fc: Whether to force fast charging on the way if needed
@@ -538,6 +537,7 @@ class TrafficInst:
         """
         if veh_id not in self._VEHs:
             raise RuntimeError(Lang.VEH_NOT_FOUND.format(veh_id))
+        depart_time = trip.depart_time
         assert depart_time >= self.__ctime, Lang.DEPART_TIME_PASSED.format(veh_id, depart_time, self.__ctime)
         self._que.push(depart_time, (veh_id, (trip, force_sc, force_fc, force_fcs)))
     
