@@ -156,6 +156,10 @@ class EV:
         self.__tmp_pc_max = _INF # Temporary variable, maximum charging power kWh/s
         self.__tmp_pd = self._v2g_rate # Temporary variable, maximum discharging power kWh/s
     
+        self._force_fc = False         # Whether to force fast charging
+        self._force_fcs:Optional[str] = None   # If force fast charging, the target fast charging station
+        self._force_sc = False         # Whether to force slow charging
+    
     def set_temp_max_pc(self, pc: float):
         """Set temporary maximum charging power kWh/s. 
         This function must be called in MaxPCAllocator."""
@@ -165,6 +169,20 @@ class EV:
         """Set temporary discharging power kWh/s.
         This function must be called in V2GAllocator."""
         self.__tmp_pd = pd
+    
+    def set_force_fast_charge(self, cs: Optional[str] = None):
+        """Force the vehicle to fast charge at next departure. 
+        + If cs is not None, set the target fast charging station to cs. If cs is None, find a suitable FCS automatically.
+        + After the next departure, this configuration will be cleared automatically, whether the vehicle departs successfully or not."""
+        self._force_fc = True
+        self._force_fcs = cs
+    
+    def set_force_slow_charge(self):
+        """Force the vehicle to enter slow charge station at next arrival.
+        Note:
+        + If there is no vacancy in the SCS, this configuration will be ignored.
+        + After the next arrival, this configuration will be cleared automatically, whether the vehicle enters the SCS or not."""
+        self._force_sc = True
 
     @property
     def estimated_charge_time(self) -> float:

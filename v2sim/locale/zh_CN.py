@@ -201,7 +201,8 @@ class _locale:
     PLOT_TOOL_UNKNOWN_ARG = "未知参数: {0}"
     PLOT_TOOL_NO_RESULTS = "在{0}中未找到结果。尝试使用-r进行递归绘图。"
     PLOT_TOOL_NO_RESULTS_RECURSIVE = "在{0}及其子目录中未找到结果。"
-
+    VEH_NOT_FOUND = "车辆{0}未在模拟器中找到。"
     CSQUERY_KEY_REQUIRED = "请在命令行中使用'--key'提供高德地图密钥"
     BAD_TRIP_OD = "行程起始节点必须与前一个行程的结束节点相同，但车辆{2}的行程{3}的起点{0}不是{1}"
     BAD_TRIP_DEPART_TIME = "行程出发时间必须按升序排列，但车辆{2}的行程{3}的出发时间{0}早于{1}"
+    DEPART_TIME_PASSED = "车辆{0}的出发时间{1}已超过当前时间{2}。"

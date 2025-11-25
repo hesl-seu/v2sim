@@ -216,10 +216,11 @@ You can load the commands from a file as an argument in the command prompt/termi
     PLOT_TOOL_UNKNOWN_ARG = "Unknown argument: {0}"
     PLOT_TOOL_NO_RESULTS = "No results found in {0}. Try using -r for recursive plotting."
     PLOT_TOOL_NO_RESULTS_RECURSIVE = "No results found in {0} and its subdirectories."
-
+    VEH_NOT_FOUND = "Vehicle {0} not found in the simulator."
     CSQUERY_KEY_REQUIRED = "Please provide an AMap key in command line with '--key'"
     BAD_TRIP_OD = "Trip start node must be the same as the previous trip's end node, but got {0} after {1} for vehicle {2}'s trip {3}"
     BAD_TRIP_DEPART_TIME = "Trip departure time must be in ascending order, but got {0} after {1} for vehicle {2}'s trip {3}"
+    DEPART_TIME_PASSED = "Vehicle {0}'s depart time {1} has already passed the current time {2}."
 
 
     @staticmethod

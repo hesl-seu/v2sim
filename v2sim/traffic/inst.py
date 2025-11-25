@@ -4,7 +4,7 @@ import pickle
 import gzip
 from itertools import chain
 from pathlib import Path
-from typing import Sequence, List, Tuple, Dict, Iterable, Optional, Union
+from typing import Any, Sequence, List, Tuple, Dict, Iterable, Optional, Union
 from sumolib.net import readNet, Net
 from sumolib.net.edge import Edge
 from feasytools import PQueue
@@ -160,8 +160,8 @@ class TrafficInst:
             return
         
         # Load vehicles
-        self._fQ = PQueue()  # Fault queue
-        self._que = PQueue()  # Departure queue
+        self._fQ:PQueue[str] = PQueue()  # Fault queue
+        self._que:PQueue[Tuple[str, Any]] = PQueue()  # Departure queue
         self._VEHs = veh_obj if veh_obj else EVDict(vehfile)
 
         # Load charging stations
@@ -172,7 +172,7 @@ class TrafficInst:
 
         # Load vehicles to charging stations and prepare to depart
         for veh in self._VEHs.values():
-            self._que.push(veh.trip.depart_time, veh.ID)
+            self._que.push(veh.trip.depart_time, (veh.ID, None))
             if veh.trip.depart_edge not in self.__names_scs:
                 continue  # Only vehicles with slow charging stations can be added to the slow charging station
             # There is a 20% chance of adding to a rechargeable parking point
@@ -336,11 +336,11 @@ class TrafficInst:
         if ENABLE_DIST_BASED_CHARGING_DECISION:
             stage = self.__find_route_trip(trip, veh._cache_route)
             # Determine whether the battery is sufficient
-            direct_depart = veh.is_batt_enough(stage.length)
+            direct_depart = (not veh._force_fc) and veh.is_batt_enough(stage.length)
         else:
             # Determine whether the EV needs to be fast charged
             stage = None
-            direct_depart = veh.SOC >= veh.kfc
+            direct_depart = (not veh._force_fc) and veh.SOC >= veh.kfc
         if direct_depart:  # Direct departure
             veh.target_CS = None
             veh.charge_target = veh.full_battery
@@ -349,20 +349,29 @@ class TrafficInst:
             else:
                 self.__add_veh2(veh_id, trip.depart_edge, trip.arrive_edge)
         else:  # Charge once on the way
-            x, y = self.__get_edge_pos(trip.depart_edge)
-            route, weights = self.__sel_best_CS(veh, veh.omega, trip.depart_edge, (x, y))
-            if len(route) == 0:
-                # The power is not enough to drive to any charging station, you need to charge for a while
-                veh.target_CS = None
-                return False, None
-            else: # Found a charging station
-                veh.target_CS = route[-1]
-                self.__add_veh(veh_id, route)
+            if veh._force_fc is not None and veh._force_fcs is not None:
+                # Forced to a specified fast charging station
+                veh.target_CS = veh._force_fcs
+                self.__add_veh2(veh_id, trip.depart_edge, veh._force_fcs)
+            else:
+                x, y = self.__get_edge_pos(trip.depart_edge)
+                route, weights = self.__sel_best_CS(veh, veh.omega, trip.depart_edge, (x, y))
+                if len(route) == 0:
+                    # The power is not enough to drive to any charging station, you need to charge for a while
+                    veh.target_CS = None
+                    veh._force_fc = False  # Clear the fast charge force flag
+                    veh._force_fcs = None  # Clear the fast charge target flag
+                    return False, None
+                else: # Found a charging station
+                    veh.target_CS = route[-1]
+                    self.__add_veh(veh_id, route)
         # Stop slow charging of the vehicle and add it to the waiting to depart set
         if self._scs.pop_veh(veh):
             self.__logger.leave_SCS(self.__ctime, veh, trip.depart_edge)
         veh.stop_charging()
         veh.status = VehStatus.Pending
+        veh._force_fc = False  # Clear the fast charge force flag
+        veh._force_fcs = None  # Clear the fast charge target flag
         return True, weights
 
     def __end_trip(self, veh_id: str, dist:float = -1):
@@ -374,7 +383,7 @@ class TrafficInst:
         veh = self._VEHs[veh_id]
         veh.status = VehStatus.Parking
         arr_sta = TripsLogger.ARRIVAL_NO_CHARGE
-        if veh.SOC < veh.ksc:
+        if veh.SOC < veh.ksc or veh._force_sc:
             # Add to the slow charge station
             if self.__start_charging_SCS(veh):
                 arr_sta = TripsLogger.ARRIVAL_CHARGE_SUCCESSFULLY
@@ -386,7 +395,7 @@ class TrafficInst:
         tid = veh.next_trip()
         if tid != -1:
             ntrip = veh.trip
-            self._que.push(ntrip.depart_time, veh_id)
+            self._que.push(ntrip.depart_time, (veh.ID, None))
 
     def __start_charging_SCS(self, veh: EV) -> bool:
         """
@@ -471,9 +480,16 @@ class TrafficInst:
         """
         ret = {}
         while not self._que.empty() and self._que.top[0] <= self.__ctime:
-            depart_time, veh_id = self._que.pop()
+            depart_time, (veh_id, extras) = self._que.pop()
             veh = self._VEHs[veh_id]
-            trip = veh.trip
+            if extras is not None:
+                trip, force_sc, force_fc, force_fcs = extras
+                veh._force_sc = force_sc
+                veh._force_fc = force_fc
+                veh._force_fcs = force_fcs
+                assert isinstance(trip, Trip)
+            else:
+                trip = veh.trip
             success, weights = self.__start_trip(veh_id)
             if success:
                 depart_delay = max(0, self.__ctime - depart_time)
@@ -486,7 +502,7 @@ class TrafficInst:
                     # Plugged in the charging pile, you can wait
                     delay = int(1 + (batt_req - veh.battery) / veh.rate)
                     self.__logger.depart_delay(self.__ctime, veh, batt_req, delay)
-                    self._que.push(depart_time + delay, veh_id)
+                    self._que.push(depart_time + delay, (veh_id, None))
                 else:
                     # Not plugged in the charging pile, sent to the nearest fast charging station (consume 2 times of the running time)
                     veh.status = VehStatus.Depleted
@@ -508,7 +524,23 @@ class TrafficInst:
         Get the number of parked vehicles in all charging station and non-charging station edges
         """
         return self._fcs.get_veh_count() + self._scs.get_veh_count()
-
+    
+    def add_trip(self, veh_id:str, depart_time:int, trip:Trip, force_sc:bool = False, force_fc:bool = False, force_fcs:Optional[str] = None):
+        """
+        Add a new trip for a vehicle
+            veh_id: Vehicle ID
+            depart_time: Departure time
+            trip: Trip instance
+            force_sc: Whether to force slow charging at the destination if needed
+            force_fc: Whether to force fast charging on the way if needed
+            force_fcs: If not None and force_fc is True, force fast charging at the specified fast charging station on the way
+        Note: The force will not be set immediately. They will be set when the vehicle departs.
+        """
+        if veh_id not in self._VEHs:
+            raise RuntimeError(Lang.VEH_NOT_FOUND.format(veh_id))
+        assert depart_time >= self.__ctime, Lang.DEPART_TIME_PASSED.format(veh_id, depart_time, self.__ctime)
+        self._que.push(depart_time, (veh_id, (trip, force_sc, force_fc, force_fcs)))
+    
     def simulation_start(
         self,
         sumocfg_file: str,
