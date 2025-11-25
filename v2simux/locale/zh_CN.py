@@ -233,3 +233,4 @@ class _locale:
     NO_HOST_EXISTS = "未在多进程模式下工作。主机不存在。"
     ALT_COMMAND_NOT_SUPPORTED = "当指定了initial_state时，无法使用alt_command。"
     INVALID_PLUGIN_STATES = "保存的状态中存在无效的插件状态：{0}。"
+    DEPART_TIME_PASSED = "车辆{0}的出发时间{1}已超过当前时间{2}。"

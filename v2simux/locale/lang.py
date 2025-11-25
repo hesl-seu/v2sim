@@ -248,6 +248,7 @@ You can load the commands from a file as an argument in the command prompt/termi
     NO_HOST_EXISTS = "Not working in multiprocessing mode. No host exists."
     ALT_COMMAND_NOT_SUPPORTED = "Cannot use alt_command when initial_state is specified."
     INVALID_PLUGIN_STATES = "Invalid plugin states in saved state: {0}."
+    DEPART_TIME_PASSED = "Vehicle {0}'s depart time {1} has already passed the current time {2}."
 
     @staticmethod
     def format(item:str, **kwargs):
