@@ -440,11 +440,13 @@ class TrafficInst:
             depart_time, (veh_id, extras) = self._que.pop()
             veh = self._VEHs[veh_id]
             if extras is not None:
-                force_sc, force_fc, force_fcs = extras
+                trip, force_sc, force_fc, force_fcs = extras
                 veh._force_sc = force_sc
                 veh._force_fc = force_fc
                 veh._force_fcs = force_fcs
-            trip = veh.trip
+                assert isinstance(trip, Trip)
+            else:
+                trip = veh.trip
             if self.__start_trip(veh_id):
                 depart_delay = max(0, self.__ctime - depart_time)
                 self.__logger.depart(self.__ctime, veh, depart_delay, veh.target_CS)
@@ -490,13 +492,12 @@ class TrafficInst:
         """
         return self._fcs.get_veh_count() + self._scs.get_veh_count()
 
-    def add_trip(self, veh_id:str, depart_time:int, from_node:str, to_node:str, force_sc:bool = False, force_fc:bool = False, force_fcs:Optional[str] = None):
+    def add_trip(self, veh_id:str, depart_time:int, trip:Trip, force_sc:bool = False, force_fc:bool = False, force_fcs:Optional[str] = None):
         """
         Add a new trip for a vehicle
             veh_id: Vehicle ID
             depart_time: Departure time
-            from_node: Departure node
-            to_node: Destination node
+            trip: Trip instance
             force_sc: Whether to force slow charging at the destination if needed
             force_fc: Whether to force fast charging on the way if needed
             force_fcs: If not None and force_fc is True, force fast charging at the specified fast charging station on the way
@@ -505,7 +506,7 @@ class TrafficInst:
         if veh_id not in self._VEHs:
             raise RuntimeError(Lang.VEH_NOT_FOUND.format(veh_id))
         assert depart_time >= self.__ctime, Lang.DEPART_TIME_PASSED.format(veh_id, depart_time, self.__ctime)
-        self._que.push(depart_time, (veh_id, (force_sc, force_fc, force_fcs)))
+        self._que.push(depart_time, (veh_id, (trip, force_sc, force_fc, force_fcs)))
     
     def simulation_start(self):
         """
