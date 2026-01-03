@@ -1,3 +1,6 @@
+### ADDENDUM：Lost Appendix in the Paper
+The appendix of the paper seems to be lost when uploading the final manuscript. The content of the appendix (bundles of data) can be found [here](https://github.com/hesl-seu/v2sim/tree/main/v2sim/probtable).
+
 # V2Sim Family
 
 > Open-Source V2G Simulation Platform in Urban Power and Transportation Network
