@@ -41,14 +41,14 @@ class PropertyPanel(Frame):
         self.tree = ScrollableTreeView(self, allowSave=False)
         self.tree['show'] = 'headings'
         self.tree["columns"] = ("t", "d")
-        self.tree.column("t", width=120, stretch=NO)
-        self.tree.column("d", width=120, stretch=YES)
+        self.tree.column("t", width=150, stretch=NO)
+        self.tree.column("d", width=150, stretch=YES)
         self.tree.heading("t", text=_L["PROPERTY"])
         self.tree.heading("d", text=_L["VALUE"])
         self.tree.tree.bind("<<TreeviewSelect>>", self.__onclick)
         self.tree.pack(fill="both", expand=True)
         self.__desc_var = StringVar(self, _L["PROP_NODESC"])
-        self.__desc = Label(self, textvariable=self.__desc_var)
+        self.__desc = Label(self, textvariable=self.__desc_var, wraplength=300, justify="left")
         self.__desc.pack(fill="x", expand=False)
         self.setData(data, edit_modes)
 

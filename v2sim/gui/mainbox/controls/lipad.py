@@ -1,6 +1,6 @@
 from v2sim.gui.common import *
 
-from v2sim import StaPool, StaBase
+from v2sim.stats import StaPool, StaBase
 
 
 class LogItemPad(LabelFrame):

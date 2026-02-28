@@ -1,6 +1,6 @@
 from v2sim.gui.common import *
 
-from v2sim import StaPool
+from v2sim.stats import StaPool
 from .pareditor import ParamsEditor
 from ..mainbox.controls import LogItemPad
 from .utils import *

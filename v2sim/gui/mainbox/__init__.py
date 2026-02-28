@@ -1,39 +1,33 @@
-from v2sim.gui.common import *
-from v2sim.gui.langhelper import add_lang_menu
+import subprocess
 
-import os
-import sys
-import time
-import traceback
-import v2sim
-from xml.etree import ElementTree as ET
+from v2sim.gui.common import *
+from v2sim.gui.langhelper import *
+
+import os, sys, time, traceback
+from pathlib import Path
 from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, PDUniform
-from v2sim import *
-from .controls import *
-from .cscsveditor import CSCSVEditor
-from .cseditor import CSEditorGUI
+from v2sim import FileDetectResult, V2SimConfig, DetectFiles, ReadXML, RoadNet
+from v2sim.plugins import PluginBase, PluginPDN
+from v2sim.gen import TrafficGenerator, StationQuery, TripsGenMode
+from .utils import *
 from .loadingbox import LoadingBox
 from .plugin import PluginEditor
-from .utils import *
+from .sedit import StationEditor, StationEditorMode
+from .cscsveditor import CSCSVEditor
+from .controls import LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, NetworkPanel, OAfter
 
-
-DEFAULT_GRID_NAME = "pdn.grid.xml"
-DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
 
 _L = LangLib.Load(__file__)
-
-SIM_YES = "YES"
-SIM_NO = "NO"
-LOAD_CFG = "SUMO Config"
+DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
 LOAD_FCS = "Fast CS"
 LOAD_SCS = "Slow CS"
+LOAD_GS = "Gas Station"
 LOAD_NET = "Network"
 LOAD_CSCSV = "CS CSV"
 LOAD_PLG = "Plugins"
 LOAD_GEN = "Instance"
-EXT_COMP = "external_components"
-
+    
 
 class MainBox(Tk):
     def __OnPluginEnabledSet(self, itm:Tuple[Any,...]=(), v:str=""):
@@ -47,15 +41,18 @@ class MainBox(Tk):
         def proc_exception(e: Optional[Exception] = None):
             if e:
                 self.setStatus(f"Error: {e}")
+                traceback.print_exc()
                 showerr(f"Error: {e}")
             else:
                 self.setStatus(_L["STA_READY"])
        
-        def on_CSGendone(ctl: CSEditorGUI, e: Optional[Exception] = None, 
-                warns:List[Tuple] = [], far_cnt = 0, scc_cnt = 0):
+        def on_CSGendone(ctl: StationEditor, e: Optional[Exception] = None,
+                    warns:List[Tuple] = [], far_cnt = 0, scc_cnt = 0):
             ctl.btn_regen.config(state=NORMAL)
             proc_exception(e)
 
+            if len(warns) == 0: return
+            
             with open("CS_generation_warnings.log", "w") as fh:
                 for ln in warns:
                     if ln[0] == "far_poly":
@@ -69,15 +66,13 @@ class MainBox(Tk):
                     elif ln[0] == "scc_name":
                         fh.write(f"Edge {ln[1]} disallows passenger vehicles.")
 
-            if len(warns) > 0:
-                text = "Some warnings have been written in CS_generation_warnings.log:"
-                if far_cnt: 
-                    text += f"{far_cnt} CS(s) are abondoned since their distance to the nearest edge is greater than 200m."
-                if scc_cnt: 
-                    if text != "": text += "\n"
-                    text += f"{far_cnt} CS(s) are abondoned since they are not in the largest strongly connected component or disallow passenger vehicles."
-                showwarn(text)
-            
+            text = "Some warnings have been written in CS_generation_warnings.log:"
+            if far_cnt: 
+                text += f"{far_cnt} CS(s) are abondoned since their distance to the nearest edge is greater than 200m."
+            if scc_cnt: 
+                if text != "": text += "\n"
+                text += f"{far_cnt} CS(s) are abondoned since they are not in the largest strongly connected component or disallow passenger vehicles."
+            showwarn(text)
         
         self._Q.register("CSGenDone", on_CSGendone)
 
@@ -96,7 +91,6 @@ class MainBox(Tk):
             self._ldfrm.setText(LOAD_GEN, _L['DONE'])
         self._Q.register("TrafficGenLoaded", on_TrafficGenLoaded)
 
-        
         self._Q.register("cvnetloaded", self.on_cvnet_loaded)
 
         self.folder:str = to_open
@@ -135,65 +129,75 @@ class MainBox(Tk):
         self.lb_scs = Label(self.panel_info, text = _L["BAR_NONE"])
         self.lb_scs.grid(row=2, column=1, padx=3, pady=3)
 
+        self.lb_gs_indicatif = Label(self.panel_info, text = _L["BAR_GS"])
+        self.lb_gs_indicatif.grid(row=3, column=0, padx=3, pady=3)
+        self.lb_gs = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_gs.grid(row=3, column=1, padx=3, pady=3)
+
         self.lb_grid_indicatif = Label(self.panel_info, text = _L["BAR_GRID"])
-        self.lb_grid_indicatif.grid(row=3, column=0, padx=3, pady=3)
+        self.lb_grid_indicatif.grid(row=4, column=0, padx=3, pady=3)
         self.lb_grid = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_grid.grid(row=3, column=1, padx=3, pady=3)
+        self.lb_grid.grid(row=4, column=1, padx=3, pady=3)
 
         self.lb_net_indicatif = Label(self.panel_info, text = _L["BAR_RNET"])
-        self.lb_net_indicatif.grid(row=4, column=0, padx=3, pady=3)
+        self.lb_net_indicatif.grid(row=5, column=0, padx=3, pady=3)
         self.lb_net = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_net.grid(row=4, column=1, padx=3, pady=3)
+        self.lb_net.grid(row=5, column=1, padx=3, pady=3)
 
         self.lb_veh_indicatif = Label(self.panel_info, text = _L["BAR_VEH"])
-        self.lb_veh_indicatif.grid(row=5, column=0, padx=3, pady=3)
+        self.lb_veh_indicatif.grid(row=6, column=0, padx=3, pady=3)
         self.lb_veh = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_veh.grid(row=5, column=1, padx=3, pady=3)
+        self.lb_veh.grid(row=6, column=1, padx=3, pady=3)
 
         self.lb_plg_indicatif = Label(self.panel_info, text = _L["BAR_PLG"])
-        self.lb_plg_indicatif.grid(row=6, column=0, padx=3, pady=3)
+        self.lb_plg_indicatif.grid(row=7, column=0, padx=3, pady=3)
         self.lb_plg = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_plg.grid(row=6, column=1, padx=3, pady=3)
-
-        self.lb_cfg_indicatif = Label(self.panel_info, text = _L["BAR_SUMO"])
-        self.lb_cfg_indicatif.grid(row=7, column=0, padx=3, pady=3)
-        self.lb_cfg = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_cfg.grid(row=7, column=1, padx=3, pady=3)
-
-        self.lb_taz_indicatif = Label(self.panel_info, text = _L["BAR_TAZ"])
-        self.lb_taz_indicatif.grid(row=8, column=0, padx=3, pady=3)
-        self.lb_taz = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_taz.grid(row=8, column=1, padx=3, pady=3)
-
-        self.lb_taz_type_indicatif = Label(self.panel_info, text = _L["BAR_TAZTYPE"])
-        self.lb_taz_type_indicatif.grid(row=9, column=0, padx=3, pady=3)
-        self.lb_taz_type = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_taz_type.grid(row=9, column=1, padx=3, pady=3)
-
-        self.lb_py_indicatif = Label(self.panel_info, text = _L["BAR_ADDON"])
-        self.lb_py_indicatif.grid(row=10, column=0, padx=3, pady=3)
-        self.lb_py = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_py.grid(row=10, column=1, padx=3, pady=3)
-
-        self.lb_osm_indicatif = Label(self.panel_info, text = _L["BAR_OSM"])
-        self.lb_osm_indicatif.grid(row=11, column=0, padx=3, pady=3)
-        self.lb_osm = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_osm.grid(row=11, column=1, padx=3, pady=3)
-
-        self.lb_poly_indicatif = Label(self.panel_info, text = _L["BAR_POLY"])
-        self.lb_poly_indicatif.grid(row=12, column=0, padx=3, pady=3)
-        self.lb_poly = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_poly.grid(row=12, column=1, padx=3, pady=3)
-
-        self.lb_poi_indicatif = Label(self.panel_info, text = _L["BAR_POI"])
-        self.lb_poi_indicatif.grid(row=13, column=0, padx=3, pady=3)
-        self.lb_poi = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_poi.grid(row=13, column=1, padx=3, pady=3)
+        self.lb_plg.grid(row=7, column=1, padx=3, pady=3)
 
         self.lb_cscsv_indicatif = Label(self.panel_info, text = _L["BAR_CSCSV"])
-        self.lb_cscsv_indicatif.grid(row=14, column=0, padx=3, pady=3)
+        self.lb_cscsv_indicatif.grid(row=8, column=0, padx=3, pady=3)
         self.lb_cscsv = Label(self.panel_info, text = _L["BAR_NONE"])
-        self.lb_cscsv.grid(row=14, column=1, padx=3, pady=3)
+        self.lb_cscsv.grid(row=8, column=1, padx=3, pady=3)
+
+        self.lb_gscsv_indicatif = Label(self.panel_info, text = _L["BAR_GSCSV"])
+        self.lb_gscsv_indicatif.grid(row=9, column=0, padx=3, pady=3)
+        self.lb_gscsv = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_gscsv.grid(row=9, column=1, padx=3, pady=3)
+
+        self.lb_node_type_indicatif = Label(self.panel_info, text = _L["BAR_NODETYPE"])
+        self.lb_node_type_indicatif.grid(row=10, column=0, padx=3, pady=3)
+        self.lb_node_type = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_node_type.grid(row=10, column=1, padx=3, pady=3)
+
+        self.lb_taz_type_indicatif = Label(self.panel_info, text = _L["BAR_TAZTYPE"])
+        self.lb_taz_type_indicatif.grid(row=11, column=0, padx=3, pady=3)
+        self.lb_taz_type = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_taz_type.grid(row=11, column=1, padx=3, pady=3)
+
+        self.lb_py_indicatif = Label(self.panel_info, text = _L["BAR_ADDON"])
+        self.lb_py_indicatif.grid(row=12, column=0, padx=3, pady=3)
+        self.lb_py = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_py.grid(row=12, column=1, padx=3, pady=3)
+
+        self.lb_osm_indicatif = Label(self.panel_info, text = _L["BAR_OSM"])
+        self.lb_osm_indicatif.grid(row=13, column=0, padx=3, pady=3)
+        self.lb_osm = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_osm.grid(row=13, column=1, padx=3, pady=3)
+
+        self.lb_poly_indicatif = Label(self.panel_info, text = _L["BAR_POLY"])
+        self.lb_poly_indicatif.grid(row=14, column=0, padx=3, pady=3)
+        self.lb_poly = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_poly.grid(row=14, column=1, padx=3, pady=3)
+
+        self.lb_poi_indicatif = Label(self.panel_info, text = _L["BAR_POI"])
+        self.lb_poi_indicatif.grid(row=15, column=0, padx=3, pady=3)
+        self.lb_poi = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_poi.grid(row=15, column=1, padx=3, pady=3)
+
+        self.lb_traffic_indicatif = Label(self.panel_info, text = _L["BAR_TRAFFIC"])
+        self.lb_traffic_indicatif.grid(row=16, column=0, padx=3, pady=3)
+        self.lb_traffic = Label(self.panel_info, text = _L["BAR_NONE"])
+        self.lb_traffic.grid(row=16, column=1, padx=3, pady=3)
 
         self.tabs = Notebook(self)
         self.tabs.grid(row=0, column=1, padx=3, pady=3, sticky="nsew")
@@ -201,37 +205,39 @@ class MainBox(Tk):
         self.tab_sim = Frame(self.tabs)
         self.sim_time = LabelFrame(self.tab_sim, text=_L["SIM_BASIC"])
         self.sim_time.pack(fill="x", expand=False)
-
         self.lb_start = Label(self.sim_time, text=_L["SIM_BEGT"])
         self.lb_start.grid(row=0, column=0, padx=3, pady=3, sticky="w")
         self.entry_start = Entry(self.sim_time)
         self.entry_start.insert(0, "0")
         self.entry_start.grid(row=0, column=1, padx=3, pady=3, sticky="w")
 
+        self.lb_break = Label(self.sim_time, text=_L["SIM_BREAKT"])
+        self.lb_break.grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.entry_break = Entry(self.sim_time)
+        self.entry_break.insert(0, "172800")
+        self.entry_break.grid(row=1, column=1, padx=3, pady=3, sticky="w")
+
         self.lb_end = Label(self.sim_time, text=_L["SIM_ENDT"])
-        self.lb_end.grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.lb_end.grid(row=2, column=0, padx=3, pady=3, sticky="w")
         self.entry_end = Entry(self.sim_time)
         self.entry_end.insert(0, "172800")
-        self.entry_end.grid(row=1, column=1, padx=3, pady=3, sticky="w")
+        self.entry_end.grid(row=2, column=1, padx=3, pady=3, sticky="w")
 
         self.lb_step = Label(self.sim_time, text=_L["SIM_STEP"])
-        self.lb_step.grid(row=2, column=0, padx=3, pady=3, sticky="w")
+        self.lb_step.grid(row=3, column=0, padx=3, pady=3, sticky="w")
         self.entry_step = Entry(self.sim_time)
         self.entry_step.insert(0, "10")
-        self.entry_step.grid(row=2, column=1, padx=3, pady=3, sticky="w")
+        self.entry_step.grid(row=3, column=1, padx=3, pady=3, sticky="w")
 
         self.lb_seed = Label(self.sim_time, text=_L["SIM_SEED"])
-        self.lb_seed.grid(row=3, column=0, padx=3, pady=3, sticky="w")
+        self.lb_seed.grid(row=4, column=0, padx=3, pady=3, sticky="w")
         self.entry_seed = Entry(self.sim_time)
         self.entry_seed.insert(0, "0")
-        self.entry_seed.grid(row=3, column=1, padx=3, pady=3, sticky="w")
-        
-        self.ralgo = StringVar(self, "CH")
-        self.lb_route_algo = Label(self.sim_time, text=_L["SIM_ROUTE_ALGO"])
-        self.lb_route_algo.grid(row=4, column=0, padx=3, pady=3, sticky="w")
-        self.combo_ralgo = Combobox(self.sim_time, textvariable=self.ralgo, values=["dijkstra", "astar", "CH", "CHWrapper"])
-        self.combo_ralgo.grid(row=4, column=1, padx=3, pady=3, sticky="w")
+        self.entry_seed.grid(row=4, column=1, padx=3, pady=3, sticky="w")
 
+        #######################
+        # Load State Options
+        #######################
         self.sim_state_load_panel = Frame(self.sim_time)
         self.sim_state_load_panel.grid(row=0, column=2, padx=0, pady=0, sticky="w")
 
@@ -252,6 +258,9 @@ class MainBox(Tk):
             value=2, variable=self.sim_load_state, command=self.on_load_state_changed)
         self.sim_cb_load_saved_state.grid(row=0, column=3, padx=3, pady=3, sticky="w")
 
+        #######################
+        # Save State Options
+        #######################
         self.sim_state_save_panel = Frame(self.sim_time)
         self.sim_state_save_panel.grid(row=1, column=2, padx=0, pady=0, sticky="w")
         
@@ -270,14 +279,63 @@ class MainBox(Tk):
         self.sim_cb_copy_state = Checkbutton(self.sim_state_save_panel, text=_L["SIM_COPY_STATE"], variable=self.sim_copy_state)
         self.sim_cb_copy_state.grid(row=0, column=3, padx=3, pady=3, sticky="w")
 
-        self.sim_static_route = BooleanVar(self, False)
-        self.sim_cb_static_route = Checkbutton(self.sim_time, text=_L["SIM_STATIC_ROUTE"], variable=self.sim_static_route)
-        self.sim_cb_static_route.grid(row=2, column=2, padx=3, pady=3, sticky="w")
+        #######################
+        # Routing Options
+        #######################
+        self.sim_algo_panel = Frame(self.sim_time)
+        self.sim_algo_panel.grid(row=2, column=2, padx=0, pady=0, sticky="w")
 
-        self.sim_visualize = BooleanVar(self, False)
-        self.sim_cb_visualize = Checkbutton(self.sim_time, text=_L["SIM_VISUALIZE"], variable=self.sim_visualize)
-        self.sim_cb_visualize.grid(row=3, column=2, padx=3, pady=3, sticky="w")
+        self.ralgo = StringVar(self, "astar")
+        self.lb_route_algo = Label(self.sim_algo_panel, text=_L["SIM_ROUTE_ALGO"])
+        self.lb_route_algo.grid(row=0, column=0, padx=3, pady=3, sticky="w")
+        self.combo_ralgo = Combobox(self.sim_algo_panel, textvariable=self.ralgo, values=[])
+        self.combo_ralgo.grid(row=0, column=1, padx=3, pady=3, sticky="w")
 
+        #######################
+        # UXsim Options
+        #######################
+        self.sim_ux_options_panel = Frame(self.sim_time)
+        self.sim_ux_options_panel.grid(row=3, column=2, padx=0, pady=0, sticky="w")
+        
+        self.sim_lb_ux = Label(self.sim_ux_options_panel, text=_L["SIM_UX_OPTIONS"])
+        self.sim_lb_ux.grid(row=0, column=0, padx=3, pady=3, sticky="w")
+
+        self.sim_ux_no_para = BooleanVar(self, False)
+        self.sim_cb_ux_no_para = Checkbutton(self.sim_ux_options_panel, text=_L["SIM_UX_NO_PARA"], variable=self.sim_ux_no_para)
+        self.sim_cb_ux_no_para.grid(row=0, column=1, padx=3, pady=3, sticky="w")
+
+        self.sim_ux_show_info = BooleanVar(self, False)
+        self.sim_cb_ux_show_info = Checkbutton(self.sim_ux_options_panel, text=_L["SIM_UX_SHOW_INFO"], variable=self.sim_ux_show_info)
+        self.sim_cb_ux_show_info.grid(row=0, column=2, padx=3, pady=3, sticky="w")
+
+        self.sim_ux_rand = BooleanVar(self, False)
+        self.sim_cb_ux_rand = Checkbutton(self.sim_ux_options_panel, text=_L["SIM_UX_RAND"], variable=self.sim_ux_rand)
+        self.sim_cb_ux_rand.grid(row=0, column=3, padx=3, pady=3, sticky="w")
+
+        #######################
+        # SUMO Options
+        #######################
+        self.sim_sumo_options_panel = Frame(self.sim_time)
+        self.sim_sumo_options_panel.grid(row=4, column=2, padx=0, pady=0, sticky="w")
+
+        self.sim_lb_sumo = Label(self.sim_sumo_options_panel, text=_L["SIM_SUMO_OPTIONS"])
+        self.sim_lb_sumo.grid(row=0, column=0, padx=3, pady=3, sticky="w")
+
+        self.sim_sumo_show = BooleanVar(self, False)
+        self.sim_cb_sumo_show = Checkbutton(self.sim_sumo_options_panel, text=_L["SIM_SUMO_SHOW"], variable=self.sim_sumo_show)
+        self.sim_cb_sumo_show.grid(row=0, column=1, padx=3, pady=3, sticky="w")
+
+        self.sim_sumo_ignore_driving = BooleanVar(self, False)
+        self.sim_cb_sumo_ignore_driving = Checkbutton(self.sim_sumo_options_panel, text=_L["SIM_SUMO_IGNORE_DRIVING"], variable=self.sim_sumo_ignore_driving)
+        self.sim_cb_sumo_ignore_driving.grid(row=0, column=2, padx=3, pady=3, sticky="w")
+
+        self.sim_sumo_raise_routing_error = BooleanVar(self, False)
+        self.sim_cb_sumo_raise_routing_error = Checkbutton(self.sim_sumo_options_panel, text=_L["SIM_SUMO_RAISE_ROUTING_ERROR"], variable=self.sim_sumo_raise_routing_error)
+        self.sim_cb_sumo_raise_routing_error.grid(row=0, column=3, padx=3, pady=3, sticky="w")
+
+        #######################
+        # Plugins
+        #######################
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
         self.sim_plglist = PluginEditor(self.sim_plugins, self.__OnPluginEnabledSet)
         self.sim_plglist.pack(fill="both", expand=True)
@@ -295,19 +353,24 @@ class MainBox(Tk):
         self.tabs.add(self.tab_sim, text=_L["TAB_SIM"])
 
         self.tab_CsCsv = Frame(self.tabs)
-        self.CsCsv_editor = CSCSVEditor(self.tab_CsCsv, self.CSCSVDownloadWorker)
+        self.CsCsv_editor = CSCSVEditor(self.tab_CsCsv, self.CSCSVDownloadWorker, self.GSCSVDownloadWorker)
         self.CsCsv_editor.pack(fill="both", expand=True)
         self.tabs.add(self.tab_CsCsv, text=_L["TAB_CSCSV"])
 
         self.tab_FCS = Frame(self.tabs)
-        self.FCS_editor = CSEditorGUI(self.tab_FCS, self.generateCS, False)
+        self.FCS_editor = StationEditor(self.tab_FCS, self.generateCS, StationEditorMode.FCS)
         self.FCS_editor.pack(fill="both", expand=True)
         self.tabs.add(self.tab_FCS, text=_L["TAB_FCS"])
 
         self.tab_SCS = Frame(self.tabs)
-        self.SCS_editor = CSEditorGUI(self.tab_SCS, self.generateCS, True)
+        self.SCS_editor = StationEditor(self.tab_SCS, self.generateCS, StationEditorMode.SCS)
         self.SCS_editor.pack(fill="both", expand=True)
         self.tabs.add(self.tab_SCS, text=_L["TAB_SCS"])
+
+        self.tab_GS = Frame(self.tabs)
+        self.GS_editor = StationEditor(self.tab_GS, self.generateCS, StationEditorMode.GS)
+        self.GS_editor.pack(fill="both", expand=True)
+        self.tabs.add(self.tab_GS, text=_L["TAB_GS"])
 
         self.tab_Net = Frame(self.tabs)
         self.cv_net = NetworkPanel(self.tab_Net)
@@ -321,7 +384,7 @@ class MainBox(Tk):
             else:
                 self.lb_gridsave.config(text=_L["UNSAVED"],foreground="red")
         self.cv_net.save_callback = on_saved_changed
-        self.btn_savegrid = Button(self.panel_net, text=_L["SAVE_GRID"], command=self.saveGrid)
+        self.btn_savegrid = Button(self.panel_net, text=_L["SAVE_GRID"], command=self.save)
         self.btn_savegrid.pack(side='left',padx=3,pady=3, anchor='w')
         self.lb_puvalues = Label(self.panel_net, text=_L["PU_VALS"].format('Null','Null'))
         self.lb_puvalues.pack(side='left',padx=3,pady=3, anchor='w')
@@ -383,20 +446,10 @@ class MainBox(Tk):
         self.fr_veh_src.pack(fill="x", expand=False)
         self.rb_veh_src0 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODAUTO"], value=0, variable=self.veh_gen_src)
         self.rb_veh_src0.grid(row=0, column=0, padx=3, pady=3, sticky="w")
-        self.rb_veh_src1 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODTAZ"], value=1, variable=self.veh_gen_src)
+        self.rb_veh_src1 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODTYPE"], value=1, variable=self.veh_gen_src)
         self.rb_veh_src1.grid(row=1, column=0, padx=3, pady=3, sticky="w")
         self.rb_veh_src2 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODPOLY"], value=2, variable=self.veh_gen_src)
         self.rb_veh_src2.grid(row=2, column=0, padx=3, pady=3, sticky="w")
-
-        self.veh_route_cache = IntVar(self, 0)
-        self.fr_veh_route_cache = LabelFrame(self.tab_Veh,text=_L["VEH_ROUTE_CACHE"])
-        self.fr_veh_route_cache.pack(fill="x", expand=False)
-        self.rb_veh_route_cache0 = Radiobutton(self.fr_veh_route_cache, text=_L["VEH_ROUTE_NO_CACHE"], value=0, variable=self.veh_route_cache)
-        self.rb_veh_route_cache0.grid(row=0, column=0, padx=3, pady=3, sticky="w")
-        self.rb_veh_route_cache1 = Radiobutton(self.fr_veh_route_cache, text=_L["VEH_ROUTE_RUNTIME_CACHE"], value=1, variable=self.veh_route_cache)
-        self.rb_veh_route_cache1.grid(row=1, column=0, padx=3, pady=3, sticky="w")
-        self.rb_veh_route_cache2 = Radiobutton(self.fr_veh_route_cache, text=_L["VEH_ROUTE_STATIC_CACHE"], value=2, variable=self.veh_route_cache)
-        self.rb_veh_route_cache2.grid(row=2, column=0, padx=3, pady=3, sticky="w")
 
         self.btn_genveh = Button(self.tab_Veh, text=_L["VEH_GEN"], command=self.generateVeh)
         self.btn_genveh.pack(anchor="w")
@@ -413,7 +466,14 @@ class MainBox(Tk):
         val = self.sim_load_state.get()
         s = NORMAL if val == 0 else DISABLED
         self.entry_start.config(state=s)
-
+        # self.entry_break.config(state=s) # break time is always editable
+        self.entry_end.config(state=s)
+        self.entry_step.config(state=s)
+        self.entry_seed.config(state=s)
+        self.combo_ralgo.config(state=s)
+        self.sim_cb_ux_no_para.config(state=s)
+        self.sim_cb_ux_show_info.config(state=s)
+    
     def netsave(self):
         ret = filedialog.asksaveasfilename(
             defaultextension=".eps",
@@ -443,18 +503,30 @@ class MainBox(Tk):
         if not self.sim_plglist.saved: self.sim_plglist.save()
         if not self.FCS_editor.saved: self.FCS_editor.save()
         if not self.SCS_editor.saved: self.SCS_editor.save()
-        if not self.cv_net.saved: self.saveGrid()
+        if not self.cv_net.saved: self.saveNet()
     
-    def saveGrid(self):
-        defpath = self.folder+"/"+DEFAULT_GRID_NAME
+    def get_default_grid_path(self) -> str:
+        return str(Path(self.folder) / Path(self.folder).name) + ".grid.xml"
+    
+    def get_default_roadnet_path(self) -> str:
+        return str(Path(self.folder) / Path(self.folder).name) + ".net.xml"
+    
+    def saveNet(self):
         assert self.state is not None
         if self.state.grid:
-            path = self.state.grid
-            os.remove(path)
-            if not path.lower().endswith(".xml"): path = defpath
+            gpath = self.state.grid
+            os.remove(gpath)
+            if not gpath.lower().endswith(".xml"):
+                gpath = self.get_default_grid_path()
         else:
-            path = defpath
-        self.cv_net.saveGrid(path)
+            gpath = self.get_default_grid_path()
+        if self.state.net:
+            npath = self.state.net
+            if not npath.lower().endswith(".xml"):
+                npath = self.get_default_roadnet_path()
+        else:
+            npath = self.get_default_roadnet_path()
+        self.cv_net.save(gpath, npath)
         
     def onDestroy(self):
         if not self.saved:
@@ -468,8 +540,10 @@ class MainBox(Tk):
         if not self.__checkFolderOpened(): return
         start = try_int(self.entry_start.get(), "start time")
         assert start >= 0, "Start time must be non-negative integer"
+        break_at = try_int(self.entry_break.get(), "break time")
+        assert break_at > start, "Break time must be greater than start time"
         end = try_int(self.entry_end.get(), "end time")
-        assert end >= start, "End time must be greater than or equal to start time"
+        assert end >= break_at, "End time must be greater than or equal to break time"
         step = try_int(self.entry_step.get(), "time step")
         assert step > 0, "Time step must be positive integer"
         seed = try_int(self.entry_seed.get(), "random seed")
@@ -479,7 +553,7 @@ class MainBox(Tk):
         assert "veh" in self.state, "No vehicles loaded"
 
         logs = []
-        for x in ("fcs","scs","ev","gen","bus","line","pvw","ess"):
+        for x in ("fcs","scs","gs","ev","gen","bus","line","pvw","ess"):
             if self.sim_statistic[x]:
                 logs.append(x)
         assert logs, _L["NO_STA"]
@@ -487,46 +561,39 @@ class MainBox(Tk):
         if not self.saved:
             if not MB.askyesno(_L["MB_INFO"],_L["MB_SAVE_AND_SIM"]): return
             self.save()
-
-        #Check SUMOCFG
-        assert self.state.cfg, _L["NO_SUMO_CFG"]
-        
-        cflag, tr, route_file_name = FixSUMOConfig(self.state.cfg, start, end)
-        if cflag:
-            if MB.askyesno(_L["MB_INFO"],_L["MB_CFG_MODIFY"]):
-                tr.write(self.state.cfg)
-                route_path = Path(self.state.cfg).absolute().parent / route_file_name
-                if route_file_name.strip() != "" and route_path.exists():
-                    route_path.unlink()
-            else:
-                return
         
         # Save preference
         vcfg = V2SimConfig()
         vcfg.start_time = start
+        vcfg.break_time = break_at
         vcfg.end_time = end
         vcfg.traffic_step = step
         vcfg.seed = seed
-        vcfg.visualize = self.sim_visualize.get()
         vcfg.load_state = self.sim_load_state.get()
         vcfg.save_state_on_abort = self.sim_save_on_abort.get()
         vcfg.save_state_on_finish = self.sim_save_on_finish.get()
         vcfg.copy_state = self.sim_copy_state.get()
-        vcfg.force_caching = self.sim_static_route.get()
         vcfg.routing_method = self.ralgo.get()
+        vcfg.ux_no_para = self.sim_ux_no_para.get()
+        vcfg.ux_show_info = self.sim_ux_show_info.get()
+        vcfg.ux_rand = self.sim_ux_rand.get()
+        vcfg.sumo_ignore_driving = self.sim_sumo_ignore_driving.get()
+        vcfg.sumo_raise_routing_error = self.sim_sumo_raise_routing_error.get()
+        vcfg.visualize = self.sim_sumo_show.get()
         vcfg.stats = logs
         vcfg.save(self.folder + "/preference.v2simcfg")
-
+        
         if self.sim_load_state.get() == 0:
             cmd_load_state = ""
         elif self.sim_load_state.get() == 1:
             cmd_load_state = "--load-last-state"
         else:
-            cmd_load_state = f'--initial-state="{self.folder}/saved_state"'    
+            cmd_load_state = f'--initial-state="{self.folder}/saved_state"'
         commands = [sys.executable,
-                    str(V2SIM_DIR / "tools" / "sim_single.py"),
+                    str(V2SIM_DIR / "app" / "sim_single.py"),
                     f'-d="{self.folder}"', 
                     f"-b={start}", 
+                    f"--break-at={self.entry_break.get()}",
                     f"-e={end}", 
                     f"-l={step}", 
                     "-log", ','.join(logs),
@@ -534,20 +601,26 @@ class MainBox(Tk):
                     cmd_load_state,
                     "--save-on-abort" if self.sim_save_on_abort.get() else "",
                     "--save-on-finish" if self.sim_save_on_finish.get() else "",
-                    "--copy-state" if self.sim_copy_state.get() else "",
+                    "--copy-state-to-proj" if self.sim_copy_state.get() else "",
                     "--route-algo", self.ralgo.get(),
-                    "--static-routing" if self.sim_static_route.get() else "",
+                    "--uxsim-no-parallel" if self.sim_ux_no_para.get() else "",
+                    "--uxsim-show-info" if self.sim_ux_show_info.get() else "",
+                    "--uxsim-randomize" if self.sim_ux_rand.get() else "",
+                    "--sumo-ignore-driving" if self.sim_sumo_ignore_driving.get() else "",
+                    "--sumo-raise-routing-error" if self.sim_sumo_raise_routing_error.get() else "",
                 ]
-        
-        visualize = self.sim_visualize.get()
-        if platform.system() == "Windows":
-            with open(v2sim.traffic.win_vis.__file__,"w") as f:
-                f.write(f"WINDOWS_VISUALIZE = {visualize}")
-        else:
-            if visualize: commands.append("--show")
+        commands = [c for c in commands if c != ""] # remove empty strings
+        if self.state.sumo:
+            visualize = self.sim_sumo_show.get()
+            import platform, v2sim.sim.win_vis
+            if platform.system() == "Windows":
+                with open(v2sim.sim.win_vis.__file__,"w") as f:
+                    f.write(f"WINDOWS_VISUALIZE = {visualize}")
+            else:
+                if visualize: commands.append("--show")
         self.destroy()
         try:
-            os.system(" ".join(commands))
+            subprocess.run(commands)
         except KeyboardInterrupt:
             pass
         
@@ -593,7 +666,7 @@ class MainBox(Tk):
             showerr("No project folder selected")
             return
         if loads is None: loads = [
-            LOAD_GEN, LOAD_CFG, LOAD_FCS, LOAD_SCS, LOAD_CSCSV, LOAD_NET, LOAD_PLG
+            LOAD_GEN, LOAD_FCS, LOAD_SCS, LOAD_GS,LOAD_CSCSV, LOAD_NET, LOAD_PLG
         ]
         self._ldfrm = LoadingBox(loads, self._Q)
         self.update()
@@ -606,7 +679,7 @@ class MainBox(Tk):
 
         # Check if grid exists
         if not res.grid: 
-            with open(self.folder+"/"+DEFAULT_GRID_NAME,"w") as f:
+            with open(self.get_default_grid_path(),"w") as f:
                 f.write(DEFAULT_GRID)
             self.state = res = DetectFiles(self.folder)
         
@@ -616,20 +689,6 @@ class MainBox(Tk):
         if LOAD_GEN in loads:
             self._Q.submit("TrafficGenLoaded", self._load_tg)
 
-        self.update()
-
-        # Load SUMO config
-        if LOAD_CFG in loads:
-            if res.cfg:
-                st,et,x,addf = GetTimeAndNetwork(res.cfg)
-                if st == -1: st = 0
-                if et == -1: et = 172800
-                self.entry_start.delete(0, END)
-                self.entry_start.insert(0, str(st))
-                self.entry_end.delete(0, END)
-                self.entry_end.insert(0, str(et))
-            self._ldfrm.setText(LOAD_CFG, _L['DONE'])
-        
         self.update()
 
         # Load FCS
@@ -642,6 +701,12 @@ class MainBox(Tk):
         if LOAD_SCS in loads:
             self._load_scs(lambda: self._ldfrm.setText(LOAD_SCS, _L['DONE']))
         
+        self.update()
+
+        # Load GS
+        if LOAD_GS in loads:
+            self._load_gs(lambda: self._ldfrm.setText(LOAD_GS, _L['DONE']))
+
         self.update()
 
         # Load CSCSV
@@ -677,27 +742,31 @@ class MainBox(Tk):
             else:
                 lb.config(text="None", foreground="red" if must else "black")
         
-        setText(self.lb_fcs, "fcs", True)
-        setText(self.lb_scs, "scs", True)
+        setText(self.lb_fcs, "fcs")
+        setText(self.lb_scs, "scs")
+        setText(self.lb_gs, "gs")
         setText(self.lb_grid, "grid")
         setText(self.lb_net, "net", True)
         setText(self.lb_veh, "veh", True)
         setText(self.lb_plg, "plg")
-        setText(self.lb_cfg, "cfg")
-        setText(self.lb_taz, "taz")
         setText(self.lb_py, "py")
+        setText(self.lb_node_type, "node_type")
         setText(self.lb_taz_type, "taz_type")
         setText(self.lb_osm, "osm")
         setText(self.lb_poly, "poly")
         setText(self.lb_poi, "poi")
         setText(self.lb_cscsv, "cscsv")
+        setText(self.lb_gscsv, "gscsv")
+        self.lb_traffic.config(text="SUMO" if res.sumo else "UXsim")
 
         self.update()
-
+        
         if self.state.pref:
             vcfg = V2SimConfig.load(self.state.pref)
             self.entry_start.delete(0, END)
             self.entry_start.insert(0, str(vcfg.start_time))
+            self.entry_break.delete(0, END)
+            self.entry_break.insert(0, str(vcfg.break_time))
             self.entry_end.delete(0, END)
             self.entry_end.insert(0, str(vcfg.end_time))
             self.entry_step.delete(0, END)
@@ -710,19 +779,47 @@ class MainBox(Tk):
             self.sim_save_on_finish.set(vcfg.save_state_on_finish)
             self.sim_save_on_abort.set(vcfg.save_state_on_abort)
             self.sim_copy_state.set(vcfg.copy_state)
-            self.sim_visualize.set(vcfg.visualize)
-            self.sim_static_route.set(vcfg.force_caching)
+            self.sim_ux_no_para.set(vcfg.ux_no_para)
+            self.sim_ux_show_info.set(vcfg.ux_show_info)
+            self.sim_ux_rand.set(vcfg.ux_rand)
+            self.sim_sumo_ignore_driving.set(vcfg.sumo_ignore_driving)
+            self.sim_sumo_raise_routing_error.set(vcfg.sumo_raise_routing_error)
             if vcfg.stats:
                 for x in vcfg.stats:
                     if x in self.sim_statistic:
                         self.sim_statistic[x] = True
                     else:
                         showerr(_L["UKN_STA_TYPE"].format(x, ', '.join(self.sim_statistic.keys())))
+        
+        self.sim_cb_load_last_state.configure(state="normal" if self.state.last_result_state else "disabled")
+        self.sim_cb_load_saved_state.configure(state="normal" if self.state.saved_state else "disabled")
+
         self.update()
 
+        if self.state.sumo:
+            self.combo_ralgo.config(values=["CH", "dijkstra", "astar", "CHWrapper"])
+            self._set_uxsim_panel_enabled(False)
+            self._set_sumo_panel_enabled(True)
+        else:
+            self.combo_ralgo.config(values=["dijkstra", "astar"])
+            self._set_uxsim_panel_enabled(True)
+            self._set_sumo_panel_enabled(False)
+            
         self.setStatus(_L["STA_READY"])
         
         if len(loads) == 0: self._ldfrm.destroy()
+    
+    def _set_uxsim_panel_enabled(self, val:bool):
+        state = NORMAL if val else DISABLED
+        self.sim_cb_ux_rand.config(state=state)
+        self.sim_cb_ux_show_info.config(state=state)
+        self.sim_cb_ux_no_para.config(state=state)
+    
+    def _set_sumo_panel_enabled(self, val:bool):
+        state = NORMAL if val else DISABLED
+        self.sim_cb_sumo_show.config(state=state)
+        self.sim_cb_sumo_ignore_driving.config(state=state)
+        self.sim_cb_sumo_raise_routing_error.config(state=state)
     
     def _load_plugins(self):
         plg_set:Set[str] = set()
@@ -818,12 +915,30 @@ class MainBox(Tk):
             self.SCS_editor.clear()
             after()
 
+    def _load_gs(self, afterx:OAfter=None):
+        assert self.state is not None
+        def after():
+            assert self.state is not None
+            v = "gs" in self.state
+            self.sim_statistic["gs"] = v
+            self.sim_statistic.setEnabled("gs", v)
+            self.GS_editor.setCSCSV("gscsv" in self.state)
+            if afterx: afterx()
+        if self.state.gs:
+            self.GS_editor._Q.setcallback("loaded", after)
+            self.GS_editor.load(self.state.gs)
+        else:
+            self.GS_editor.clear()
+            after()
+    
     def _load_cscsv(self, after:OAfter = None):
         assert self.state is not None
-        if self.state.cscsv:
-            if after:
-                self.CsCsv_editor._Q.setcallback("loaded", after)
-            self.CsCsv_editor.load(self.state.cscsv)
+        files = []
+        if self.state.cscsv: files.append(self.state.cscsv)
+        if self.state.gscsv: files.append(self.state.gscsv)
+        if len(files) > 0:
+            if after: self.CsCsv_editor._Q.setcallback("loaded", after)
+            self.CsCsv_editor.load(files)
         else:
             self.CsCsv_editor.clear()
             if after: after()
@@ -833,26 +948,23 @@ class MainBox(Tk):
             self.tabs.select(self.tab_Net)
             time.sleep(0.01)
             self.tabs.select(tab_ret)
-            self.lb_gridsave.config(text=_L["SAVED"],foreground="green")
+            self.lb_gridsave.config(text = _L["SAVED"], foreground="green")
             
-            assert self.state is not None and self.state.net is not None
-            if self.state.grid:
-                self.cv_net.setGrid(PowerGrid.fromFile(self.state.grid))
-            assert self.cv_net.Grid is not None
-            self.lb_puvalues.configure(text=_L["PU_VALS"].format(self.cv_net.Grid.Ub,self.cv_net.Grid.Sb_MVA))
+            assert self.state is not None
 
             def __el(state: FileDetectResult, after:OAfter=None):
                 assert state.net is not None
                 el = RoadNet.load(state.net)
-                return el, after
+                pdn = PowerGrid.fromFile(state.grid, external_proj=el.getProjectorOrNone()) if state.grid else None
+                return el, pdn, after
             
             self._Q.submit("cvnetloaded", __el, self.state, after)
 
-    def on_cvnet_loaded(self, el:RoadNet, after:OAfter=None):
-        assert self.state is not None
-        self.cv_net.FCSNames = LoadFCS(self.state.fcs) if self.state.fcs else set()
-        self.cv_net.SCSNames = LoadSCS(self.state.scs) if self.state.scs else set()
-        self.cv_net.setRoadNet(el, after = after)
+    def on_cvnet_loaded(self, el:RoadNet, pdn:Optional[PowerGrid]=None, after:OAfter=None):
+        if pdn:
+            self.cv_net.setGrid(pdn)
+            self.lb_puvalues.configure(text=_L["PU_VALS"].format(pdn.Ub, pdn.Sb_MVA))
+        self.cv_net.setRoadNet(el, after = after)    
 
     def openFolder(self):
         init_dir = Path("./cases")
@@ -862,19 +974,22 @@ class MainBox(Tk):
             self.folder = str(Path(folder))
             self._load()
     
-    def generateCS(self, ctl:CSEditorGUI, cscsv_mode:int, **kwargs):
+    def generateCS(self, ctl:StationEditor, cscsv_mode:int, **kwargs):
         if not self.tg:
             showerr("No traffic generator loaded")
             return
-        self.setStatus("Generating CS...")
+        self.setStatus("Generating stations...")
         if cscsv_mode == 0:
-            cs_file = ""
+            csv_file = ""
             poly_file = ""
         elif cscsv_mode == 1:
-            cs_file = self.state.cscsv if self.state else ""
+            if ctl.mode == StationEditorMode.GS:
+                csv_file = self.state.gscsv if self.state else ""
+            else:
+                csv_file = self.state.cscsv if self.state else ""
             poly_file = ""
         else:
-            cs_file = ""
+            csv_file = ""
             poly_file = self.state.poly if self.state else ""
         use_grid = kwargs.pop("use_grid", False)
         assert self.state is not None
@@ -883,17 +998,19 @@ class MainBox(Tk):
                 showerr("No grid loaded")
                 return
             kwargs["grid_file"] = self.state.grid
-        kwargs["cs_file"] = cs_file
+        kwargs["csv_file"] = csv_file
         kwargs["poly_file"] = poly_file
 
         def work(ctl, **kwargs):
             try:
                 if not self.tg: return
-                warns, far_cnt, scc_cnt = self.tg._CS(**kwargs)
+                warns, far_cnt, scc_cnt = self.tg._Station(**kwargs)
                 if kwargs["mode"] == "fcs":
                     self._load([LOAD_FCS, LOAD_GEN])
-                else:
+                elif kwargs["mode"] == "scs":
                     self._load([LOAD_SCS, LOAD_GEN])
+                elif kwargs["mode"] == "gs":
+                    self._load([LOAD_GS, LOAD_GEN])
                 return ctl, None, warns, far_cnt, scc_cnt
             except Exception as e:
                 print(f"\nError generating CS: {e}")
@@ -921,22 +1038,22 @@ class MainBox(Tk):
                 "kfc":eval(pars["KFC"]),
                 "kv2g":eval(pars["KV2G"]),
             }
-        except:
-            showerr("Invalid Vehicle parameters")
-            return
+        except Exception as e:
+            raise ValueError("Invalid Vehicle parameters") from e
+        
         if self.veh_gen_src.get() == 0:
             mode = TripsGenMode.AUTO
         elif self.veh_gen_src.get() == 1:
-            mode = TripsGenMode.TAZ
+            assert self.state is not None
+            mode = TripsGenMode.TAZ if self.state.sumo else TripsGenMode.NODE
         else:
             mode = TripsGenMode.POLY
-        route_cache = RoutingCacheMode(self.veh_route_cache.get())
         self.btn_genveh.config(state = DISABLED)
 
         def work() -> Optional[Exception]:
             try:
                 assert self.tg
-                self.tg.EVTrips(carcnt, carseed, day_count, mode = mode, route_cache = route_cache, **new_pars)
+                self.tg.VTrips(carcnt, carseed, day_count, mode = mode, **new_pars)
                 self._load([])
                 return None
             except Exception as e:
@@ -956,7 +1073,21 @@ class MainBox(Tk):
         key = self.CsCsv_editor.entry_amapkey.get()
         def work():
             try:
-                csQuery(self.folder,"",key,True)
+                StationQuery(self.folder, "", key, True, "cs")
+                self._load([LOAD_CSCSV])
+                return None
+            except Exception as e:
+                return e
+        
+        self._Q.submit("CSCSVDownloadDone", work)
+    
+    def GSCSVDownloadWorker(self):
+        if not self.__checkFolderOpened(): return
+        self.setStatus("Downloading GS CSV...")
+        key = self.CsCsv_editor.entry_amapkey.get()
+        def work():
+            try:
+                StationQuery(self.folder, "", key, True, "gs")
                 self._load([LOAD_CSCSV])
                 return None
             except Exception as e:
@@ -970,6 +1101,4 @@ class MainBox(Tk):
     def _win(self):
         self.title(_L["TITLE"])
 
-if __name__ == "__main__":
-    win = MainBox()
-    win.mainloop()
+__all__ = ["MainBox"]

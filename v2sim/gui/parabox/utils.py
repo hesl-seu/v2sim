@@ -1,6 +1,6 @@
 from v2sim.gui.common import *
 
-from v2sim import MsgPack
+from v2sim import MsgPack, ClientOptions, AltCommand
 import multiprocessing as mp
 import sys, time
 
@@ -21,12 +21,14 @@ class RedirectStdout:
         pass
 
 
-def work(root:str, par:Dict[str, str], alt:Dict[str, str], out:str, recv:RedirectStdout):
+def work(root:str, par:Dict[str, Any], alt:Dict[str, str], out:str, recv:RedirectStdout):
     sys.stdout = recv
-    from v2sim.tools.sim_single import work
-    par.update({"d":root, "od":out})
+    from v2sim.app.sim_single import work
+    par.update({"d":root, "o":out, "silent":True})
     st_time = time.time()
-    work(par, recv.ln, recv.q, alt)
+    alti = {k:int(v) for k, v in alt.items()}
+    altc = AltCommand(**alti)
+    work(par, ClientOptions(recv.ln, recv.q), altc)
     recv.q.put_nowait(MsgPack(recv.ln, f"done:{time.time()-st_time:.2f}"))
 
 

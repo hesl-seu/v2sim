@@ -62,6 +62,18 @@ class ScrollableTreeView(Frame):
         self.delegate_widget = None
         self.selected_item = None
 
+    def setheadings(self, *items):
+        # items = List[(Name:str, Width:int, Text:str, ColEditMode:EditMode, Stretch:bool = False)]
+        self.tree['show'] = 'headings'
+        self.tree["columns"] = [x[0] for x in items]
+        for item in items:
+            if len(item) > 4: stretch = YES if item[4] else NO
+            else: stretch = False
+            self.tree.column(item[0], width=item[1], stretch=stretch)
+            self.tree.heading(item[0], text=item[2])
+            if len(item) > 3 and item[3] is not None:
+                self.setColEditMode(item[0], item[3])
+
     def additm(self):
         if self.addgetter:
             cols = self.addgetter()
@@ -217,6 +229,7 @@ class ScrollableTreeView(Frame):
                 assert isinstance(xx, tuple)
                 assert isinstance(xx[0], int)
                 assert isinstance(xx[1], (int,float))
+            from .sfe import SegFuncEditor
             self.delegate_widget = SegFuncEditor(SegFunc(obj), self.delegate_var) # type: ignore
             self.delegate_widget.bind('<Destroy>', self.tree_item_edit_done)
         else:

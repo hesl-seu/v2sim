@@ -2,7 +2,7 @@ from v2sim.gui.common import *
 
 from typing import Protocol, runtime_checkable
 from ..mainbox.controls import ScrollableTreeView
-from v2sim import ReadOnlyStatistics
+from v2sim.plot import ReadOnlyStatistics
 
 
 _L = LangLib.Load(__file__)

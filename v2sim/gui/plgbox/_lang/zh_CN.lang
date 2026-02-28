@@ -2,6 +2,7 @@ TITLE=插件管理器
 FILENAME=文件名
 CONTENT=内容
 PLUGIN_ITEM=插件: {0}, 类名: {1}, 依赖: {2}
+PLUGIN_NO_DEP=(无)
 STA_ITEM=统计项: {0}, 类名: {1}
 IMPORT_PLUGIN_TITLE=导入插件
 INFO=信息

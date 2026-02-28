@@ -1,0 +1,10 @@
+<vtypes>
+    <ev vtype="private" weight="1" cap="100kWh" range="630km" pcf="200kW" pcs="5.98kW" pdv="20kW" />
+    <ev vtype="private" weight="1" cap="55.9kWh" range="370km" pcf="60kW" pcs="7kW" pdv="20kW" />
+    <ev vtype="private" weight="1" cap="84kWh" range="400km" pcf="70kW" pcs="7kW" pdv="20kW" />
+    <ev vtype="private" weight="1" cap="76.8kWh" range="450km" pcf="100kW" pcs="7kW" pdv="20kW" />
+    <ev vtype="private" weight="1" cap="90.3kWh" range="500km" pcf="60kW" pcs="7kW" pdv="20kW" />
+    <ev vtype="private" weight="1" cap="100kWh" range="510km" pcf="100kW" pcs="7kW" pdv="20kW" />
+    <gv vtype="private" weight="4" cap="40L" range="500km" />
+    <gv vtype="private" weight="4" cap="55L" range="750km" />
+</vtypes>

@@ -1,11 +1,11 @@
 from v2sim.gui.common import *
-import sumolib
+
 from dataclasses import dataclass
 from itertools import chain
 from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
-from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy
-from fpowerkit import Grid as fGrid
+from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy, Grid as fGrid, PositionBase
 from v2sim import RoadNet
+from v2sim.net import Edge, Node
 from .prope import PropertyPanel
 
 
@@ -37,7 +37,9 @@ class BIDC:
     def add(self, id:int, cls:str, item:Any):
         if id in self._mp: raise KeyError(f"{id} is already in BIDC")
         self._mp[id] = (cls, item)
-        self._rv[item] = id
+        if (item, cls) in self._rv:
+            raise KeyError(f"Item {item} is already in BIDC")
+        self._rv[(item, cls)] = id
     
     def pop(self, id:int):
         item = self._mp.pop(id)[1]
@@ -49,7 +51,7 @@ class BIDC:
     
     def get(self, id:int):
         return self._mp[id]
-
+    
     def set_desc(self, id:int, desc:Any):
         cls, _ = self._mp[id]
         self._mp[id] = (cls, desc)
@@ -67,16 +69,8 @@ class BIDC:
         else:
             raise TypeError(f"Invalid val: {val}")
     
-    def queryID(self, item:Any):
-        return self._rv[item]
-    
-    def queryIDandCls(self, item:Any):
-        id = self._rv[item]
-        return id, self._mp[id][0]
-    
-    def queryCls(self, item:Any):
-        id = self._rv[item]
-        return self._mp[id][0]
+    def queryID(self, item:Any, cls:str):
+        return self._rv[(item, cls)]
     
 class NetworkPanel(Frame):
     def _draw_done_center(self):
@@ -117,7 +111,20 @@ class NetworkPanel(Frame):
         
         self.save_callback = save_callback
         self.__saved = True
+        self.__rnet_editable = False
     
+    def check_pos(self, b: PositionBase):
+        assert self._r is not None
+        if self._r.hasGeoProj():
+            name0, desc0 = "Longitude", "Longitude of the bus"
+            name1, desc1 = "Latitude", "Latitude of the bus"
+            pos = b.LonLat
+        else:
+            name0, desc0 = "X", "X coordinate of the bus"
+            name1, desc1 = "Y", "Y coordinate of the bus"
+            pos = b.position
+        return name0, desc0, name1, desc1, pos
+
     def savefig(self, save_to:str):
         if save_to.lower().endswith(".eps"):
             self._cv.postscript(file = save_to)
@@ -136,15 +143,20 @@ class NetworkPanel(Frame):
             self._scale['x'] += dx
             self._scale['y'] += dy
     
+    def convRealXY2PlotXY(self, realX:float, realY:float):
+        return realX * self._scale['k'] + self._scale['x'], (-realY) * self._scale['k'] + self._scale['y']
+    
+    def convPlotXY2RealXY(self, plotX:float, plotY:float):
+        x = (plotX - self._scale['x'])/self._scale['k']
+        y = -(plotY - self._scale['y'])/self._scale['k']
+        return x, y
+
     def convLL2PlotXY(self, lon:Optional[float], lat:Optional[float]) -> Tuple[float, float]:
         '''Convert longitude and latitude to canvas coordinates'''
         if lon is None: lon = 0
         if lat is None: lat = 0
-        if self._r:
-            try:
-                x, y = self._r.sumo.convertLonLat2XY(lon, lat)
-            except:
-                x, y = lon, lat
+        if self._r and self._r.hasGeoProj():
+            x, y = self._r.convertLonLat2XY(lon, lat)
         else:
             x, y = lon, lat
         y = -y
@@ -156,23 +168,22 @@ class NetworkPanel(Frame):
         y = -(y - self._scale['y'])/self._scale['k']
         if self._r is None: return (x, y)
         try:
-            return self._r.sumo.convertXY2LonLat(x, y)
+            return self._r.convertXY2LonLat(x, y)
         except:
             return (x, y)
     
     def clear(self):
         self._cv.delete('all')
         self._scale_cnt = 0
-        self._items:BIDC = BIDC(["bus", "bustext", "gen", "gentext", "genconn", "line", "edge"])
+        self._items:BIDC = BIDC(["bus", "bustext", "gen", "gentext", "genconn", "line", "edge", "node"])
         self._Redges:Dict[str, int] = {}
         self._located_edges:Set[str] = set()
         self._drag = {'item': None,'x': 0,'y': 0}
         self._scale = {'k':1.0, 'x':0, 'y':0}
-        self._r = None
-        self.FCSNames = set()
-        self.SCSNames = set()
+        self._r:Optional[RoadNet] = None
         self._g = None
         self.__en = False
+        self._world_colors = None
     
     def setRoadNet(self, roadnet:RoadNet, repaint:bool=True, after:OAfter=None):
         '''
@@ -184,8 +195,10 @@ class NetworkPanel(Frame):
                 If after is not None, this repaint operation will be done asynchronously.
         '''
         self._r = roadnet
+        self._world_colors = self._r.create_color_map()
         if repaint: 
             self._draw_async(after=after)
+        self.__rnet_editable = not self._r.is_from_sumo()
     
     @property
     def Enabled(self) -> bool:
@@ -217,6 +230,8 @@ class NetworkPanel(Frame):
             if typename.endswith("conn"): return clicked_item + 1
             elif typename.endswith("text"): return clicked_item + 2
             else: return clicked_item
+        def _EMW(x):
+            return x if self.__rnet_editable else EditMode.DISABLED
         x, y = event.x, event.y
         nr_item = self._cv.find_closest(x, y)
         ovl_item = self._cv.find_overlapping(x-5, y-5, x+5, y+5)
@@ -227,21 +242,48 @@ class NetworkPanel(Frame):
             assert self._r is not None
             assert self._g is not None
             if itm.type == "edge":
+                e = self._r.edges[itm.desc]
+                node_ids = self._r.node_ids
                 self._pr.setData2(
-                    (itm.desc, ConfigItem("Name", EditMode.DISABLED, "Name of the edge")),
-                    (str(itm.desc in self.FCSNames), ConfigItem("Has FCS", EditMode.DISABLED, "Name of the edge")),
-                    (str(itm.desc in self.SCSNames), ConfigItem("Has SCS", EditMode.DISABLED, "Name of the edge")),
+                    (e.name, ConfigItem("Name", _EMW(EditMode.ENTRY), "Name of the edge")),
+                    (e.from_node.name, ConfigItem("From", _EMW(EditMode.COMBO), "From node", combo_values=node_ids)),
+                    (e.to_node.name, ConfigItem("To", _EMW(EditMode.COMBO), "To node", combo_values=node_ids)),
+                    (e.length, ConfigItem("Length", _EMW(EditMode.ENTRY), "Length in meter\nMay not be the same as the euclidean distance.")),
+                    (e.lanes, ConfigItem("Lanes", _EMW(EditMode.SPIN), "Number of lanes", spin_range=(1,100))),
+                    (e.speed_limit, ConfigItem("Speed limit", _EMW(EditMode.ENTRY), "Speed limit in m/s"))
                 )
                 self.LocateEdge(itm.desc, 'purple')
+                if self.__rnet_editable:
+                    self._item_editing = e
+                    self._item_editing_id = clicked_item
+            elif itm.type == "node":
+                n = self._r.nodes[itm.desc]
+                if self._r.hasGeoProj():
+                    lon, lat = self._r.convertXY2LonLat(n.x, n.y)
+                    self._pr.setData2(
+                        (n.name, ConfigItem("Name", _EMW(EditMode.ENTRY), "Name of the node")),
+                        (lon, ConfigItem("Longitude", _EMW(EditMode.ENTRY), "Longitude of the node")),
+                        (lat, ConfigItem("Latitude", _EMW(EditMode.ENTRY), "Latitude of the node")),
+                    )
+                else:
+                    self._pr.setData2(
+                        (n.name, ConfigItem("Name", _EMW(EditMode.ENTRY), "Name of the node")),
+                        (n.x, ConfigItem("X", _EMW(EditMode.ENTRY), "X coordinate of the node")),
+                        (n.y, ConfigItem("Y", _EMW(EditMode.ENTRY), "Y coordinate of the node")),
+                    )
+                if self.__rnet_editable:
+                    self._item_editing = n
+                    self._item_editing_id = clicked_item
             elif itm.type in ("bus", "bustext"):
                 if itm.type == 'bustext':
                     b = self._g.Bus(_removesuffix(itm.desc,".text"))
                 else:
                     b = self._g.Bus(itm.desc)
+                name0, desc0, name1, desc1, pos = self.check_pos(b)
                 self._pr.setData2(
                     (b.ID, ConfigItem("Name", EditMode.ENTRY, "Name of the bus")),
-                    (b.Lon, ConfigItem("Longitude", EditMode.ENTRY, "Longitude of the bus.\nIf longtitude not available, set it to an X coordinate")),
-                    (b.Lat, ConfigItem("Latitude", EditMode.ENTRY, "Latitude of the bus.\nIf latitude not available, set it to a Y coordinate")),
+                    (pos[0], ConfigItem(name0, EditMode.ENTRY, desc0)),
+                    (pos[1], ConfigItem(name1, EditMode.ENTRY, desc1)),
                     (b.V, ConfigItem("V/pu", EditMode.ENTRY, "Voltage magnitude in per unit.\nSet to None if not fixed")),
                     (b.MinV, ConfigItem("Vmin/pu", EditMode.ENTRY, "Minimum voltage magnitude in per unit")),
                     (b.MaxV, ConfigItem("Vmax/pu", EditMode.ENTRY, "Maximum voltage magnitude in per unit")),
@@ -268,18 +310,19 @@ class NetworkPanel(Frame):
                 self._item_editing_id = clicked_item
             elif itm.type in ("gen", "gentext", "genconn"):
                 g = self._g.Gen(_removesuffix(_removesuffix(itm.desc,".text"),".conn"))
+                name0, desc0, name1, desc1, pos = self.check_pos(g)
                 self._pr.setData({
-                    "Name":g.ID,"Bus":g.BusID,
-                    "Longitude":g.Lon,"Latitude":g.Lat,
-                    "P/pu":g.P,"Q/pu":g.Q,
-                    "Pmax/pu":g.Pmax,"Pmin/pu":g.Pmin,
-                    "Qmax/pu":g.Qmax,"Qmin/pu":g.Qmin,
-                    "CostA":g.CostA,"CostB":g.CostB,"CostC":g.CostC
+                    "Name":g.ID,        "Bus":g.BusID,
+                    name0:pos[0],       name1:pos[1],
+                    "P/pu":g.P,         "Q/pu":g.Q,
+                    "Pmax/pu":g.Pmax,   "Pmin/pu":g.Pmin,
+                    "Qmax/pu":g.Qmax,   "Qmin/pu":g.Qmin,
+                    "CostA":g.CostA,    "CostB":g.CostB,        "CostC":g.CostC
                 }, ConfigItemDict((
                     ConfigItem("Name", EditMode.ENTRY, "Name of the generator"),
                     ConfigItem("Bus", EditMode.COMBO, "Bus to which the generator is connected", combo_values=self._g.BusNames),
-                    ConfigItem("Longitude", EditMode.ENTRY, "Longitude of the generator.\nIf longtitude not available, set it to an X coordinate"),
-                    ConfigItem("Latitude", EditMode.ENTRY, "Latitude of the generator.\nIf latitude not available, set it to a Y coordinate"),
+                    ConfigItem(name0, EditMode.ENTRY, desc0),
+                    ConfigItem(name1, EditMode.ENTRY, desc1),
                     ConfigItem("P/pu", EditMode.ENTRY, "Active power output in per unit.\nSet to None if not fixed"),
                     ConfigItem("Q/pu", EditMode.ENTRY, "Reactive power output in per unit.\nSet to None if not fixed"),
                     ConfigItem("Pmax/pu", EditMode.SEGFUNC, "Maximum active power output in per unit"),
@@ -294,11 +337,12 @@ class NetworkPanel(Frame):
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
             elif itm.type in ("pvw", "pvwtext", "pvwconn"):
                 p = self._g.PVWind(_removesuffix(_removesuffix(itm.desc,".text"), ".conn"))
+                name0, desc0, name1, desc1, pos = self.check_pos(p)
                 self._pr.setData2(
                     (p.ID, ConfigItem("Name", EditMode.ENTRY, "Name of the PV/Wind generator")),
                     (p.BusID, ConfigItem("Bus", EditMode.COMBO, "Bus to which the PV/Wind generator is connected", combo_values=self._g.BusNames)),
-                    (p.Lon, ConfigItem("Longitude", EditMode.ENTRY, "Longitude of the PV/Wind generator.\nIf longtitude not available, set it to an X coordinate")),
-                    (p.Lat, ConfigItem("Latitude", EditMode.ENTRY, "Latitude of the PV/Wind generator.\nIf latitude not available, set it to a Y coordinate")),
+                    (pos[0], ConfigItem(name0, EditMode.ENTRY, desc0)),
+                    (pos[1], ConfigItem(name1, EditMode.ENTRY, desc1)),
                     (p.P, ConfigItem("P/pu", EditMode.SEGFUNC, "Active power output of the PV/Wind generator")),
                     (p.PF, ConfigItem("Power Factor", EditMode.ENTRY, "Power Factor should be 0.0~1.0")),
                     (p._tag, ConfigItem("Tag", EditMode.COMBO, "Tag should be 'PV' or 'Wind'", combo_values=['PV', 'Wind'])),
@@ -308,6 +352,7 @@ class NetworkPanel(Frame):
                 self._item_editing_id = _edit_id(itm.type, clicked_item)
             elif itm.type in ('ess', 'esstext', 'essconn'):
                 e = self._g.ESS(_removesuffix(_removesuffix(itm.desc,".text"),".conn"))
+                name0, desc0, name1, desc1, pos = self.check_pos(e)
                 cp = e._cprice
                 if cp is not None: cp /= self._g.Sb_kVA
                 dp = e._dprice
@@ -315,8 +360,8 @@ class NetworkPanel(Frame):
                 self._pr.setData2(
                     (e.ID, ConfigItem("Name", EditMode.ENTRY, "Name of the ESS")),
                     (e.BusID, ConfigItem("Bus", EditMode.COMBO, "Bus to which the ESS is connected", combo_values=self._g.BusNames)),
-                    (e.Lon, ConfigItem("Longitude", EditMode.ENTRY, "Longitude of the ESS.\nIf longtitude not available, set it to an X coordinate")),
-                    (e.Lat, ConfigItem("Latitude", EditMode.ENTRY, "Latitude of the ESS.\nIf latitude not available, set it to a Y coordinate")),
+                    (pos[0], ConfigItem(name0, EditMode.ENTRY, desc0)),
+                    (pos[1], ConfigItem(name1, EditMode.ENTRY, desc1)),
                     (e.Cap * self._g.Sb_MVA, ConfigItem("Capacity/MWh", EditMode.ENTRY, "Maximum active power output of the ESS")),
                     (e.SOC, ConfigItem("SOC", EditMode.ENTRY, "State of Charge of the ESS, 0~1")),
                     (e.EC, ConfigItem("Ec", EditMode.ENTRY, "Charging Efficiency of the ESS")),
@@ -335,7 +380,7 @@ class NetworkPanel(Frame):
             else:
                 self._pr.setDataEmpty()
             self._pr.tree.show_title(f"Type: {itm.type} (ID = {clicked_item})")
-            if itm.type in ('bus', 'gen', 'pvw', 'ess'):
+            if itm.type in ('bus', 'gen', 'pvw', 'ess') or (itm.type == 'node' and self.__rnet_editable):
                 self._drag['item'] = clicked_item
                 self._drag["x"] = event.x
                 self._drag["y"] = event.y
@@ -358,12 +403,12 @@ class NetworkPanel(Frame):
         if self.save_callback: self.save_callback(v)
         self.__saved = v
     
-    def __move_gen(self, i:int, e:GenLike, nLon:float, nLat:float, move_gen:bool=True):
-        assert e.Lon is not None and e.Lat is not None
-        x0, y0 = self.convLL2PlotXY(e.Lon, e.Lat)
-        x1, y1 = self.convLL2PlotXY(nLon, nLat)
-        e.Lon = nLon
-        e.Lat = nLat
+    def __move_gen(self, i:int, e:GenLike, newLL:Tuple[float, float] = (-1, -1), newPlotXY:Tuple[float, float] = (0, 0), move_gen:bool=True):
+        x0, y0 = self.convRealXY2PlotXY(e.x, e.y)
+        if newLL != (-1, -1):
+            newPlotXY = self.convLL2PlotXY(*newLL)
+        x1, y1 = newPlotXY
+        e.x, e.y = self.convPlotXY2RealXY(*newPlotXY)
         dx, dy = x1 - x0, y1 - y0
         if move_gen: self._cv.move(i, dx, dy)
         self._cv.move(i-2, dx, dy)
@@ -371,38 +416,56 @@ class NetworkPanel(Frame):
         self.__replot_genline(i-1, e, self._g.Bus(e.BusID))
     
     def __replot_genline(self, i:int, e:GenLike, b:Bus):
-        assert e.Lon is not None and e.Lat is not None
-        assert b.Lon is not None and b.Lat is not None
-        x0, y0 = self.convLL2PlotXY(e.Lon, e.Lat)
-        x1, y1 = self.convLL2PlotXY(b.Lon, b.Lat)
+        x0, y0 = self.convRealXY2PlotXY(e.x, e.y)
+        x1, y1 = self.convRealXY2PlotXY(b.x, b.y)
         self._cv.coords(i, x0, y0, x1, y1)
     
     def __move_line(self, i:int, e:Line):
         assert self._g is not None
-        latf1, lonf1 = self._g.Bus(e.fBus).position
-        assert latf1 is not None and lonf1 is not None
-        pf1 = self.convLL2PlotXY(lonf1,latf1)
-        latt1, lont1 = self._g.Bus(e.tBus).position
-        assert latt1 is not None and lont1 is not None
-        pt1 = self.convLL2PlotXY(lont1,latt1)
-        self._cv.coords(i, pf1[0], pf1[1], pt1[0], pt1[1])
+        x_from, y_from = self._g.Bus(e.fBus).pos
+        p_from = self.convRealXY2PlotXY(x_from, y_from)
+        x_to, y_to = self._g.Bus(e.tBus).pos
+        p_to = self.convRealXY2PlotXY(x_to, y_to)
+        self._cv.coords(i, p_from[0], p_from[1], p_to[0], p_to[1])
     
-    def __move_bus(self, i:int, e:Bus, nLon:float, nLat:float, move_bus:bool=True):
-        assert e.Lon is not None and e.Lat is not None
-        x0, y0 = self.convLL2PlotXY(e.Lon, e.Lat)
-        x1, y1 = self.convLL2PlotXY(nLon, nLat)
-        e.Lon = nLon
-        e.Lat = nLat
-        dx, dy = x1-x0, y1-y0
+    def __move_edge(self, i:int, e:Edge):
+        assert self._r is not None
+        (x0, y0), (x1, y1) = self._r.get_offset_shape(e.name)
+        (x0, y0) = self.convRealXY2PlotXY(x0, y0)
+        (x1, y1) = self.convRealXY2PlotXY(x1, y1)
+        self._cv.coords(i, x0, y0, x1, y1)
+
+    def __move_node(self, i:int, e:Node, newPlotX:float, newPlotY:float, move_node:bool=True):
+        oldPlotX, oldPlotY = self.convRealXY2PlotXY(e.x, e.y)
+        dx, dy = newPlotX - oldPlotX, newPlotY - oldPlotY
+        e.x, e.y = self.convPlotXY2RealXY(newPlotX, newPlotY)
+        if move_node:
+            self._cv.move(i, dx, dy)
+        assert self._r is not None
+        for l in chain(e.incoming_edges, e.outgoing_edges):
+            lid = self._items.queryID(l.name, "edge")
+            self.__move_edge(lid, l)
+
+    def __move_bus(self, i:int, e:Bus, newLL:Tuple[float, float] = (-1, -1), newPlotXY:Tuple[float, float] = (0, 0), move_bus:bool=True):
+        assert self._r is not None
+        x0, y0 = self.convRealXY2PlotXY(e.x, e.y)
+        if newLL != (-1, -1):
+            x1, y1 = self.convLL2PlotXY(*newLL)
+            e.x, e.y = self.convPlotXY2RealXY(x1, y1)
+        else:
+            x1, y1 = newPlotXY
+            e.x, e.y = self.convPlotXY2RealXY(x1, y1)
+        
+        dx, dy = x1 - x0, y1 - y0
         if move_bus:
             self._cv.move(i, dx, dy)
         self._cv.move(i-1, dx, dy)
         assert self._g is not None
         for g in self._g.GensAtBus(e.ID):
-            gid = self._items.queryID(g.ID)
+            gid = self._items.queryID(g.ID, "gen")
             self.__replot_genline(gid-1, g, e)
         for l in chain(self._g._ladjfb[e.ID], self._g._ladjtb[e.ID]):
-            lid = self._items.queryID(l.ID)
+            lid = self._items.queryID(l.ID, "line")
             self.__move_line(lid, l)
 
     @staticmethod
@@ -415,13 +478,53 @@ class NetworkPanel(Frame):
         ret = self._pr.getAllData()
         e = self._item_editing
         i = self._item_editing_id
-        assert self._g is not None
-        if isinstance(e, Bus):
+        
+        if isinstance(e, Edge):
+            assert self._r is not None
+            if ret['Name'] != e.name and ret['Name'] in self._r.edge_ids:
+                MB.showerror("Error", f"New name duplicated: {ret['Name']}")
+                return
+            e.length = float(ret['Length'])
+            e.lanes = int(ret['Lanes'])
+            e.speed_limit = float(ret['Speed limit'])
+            if e.name != ret['Name']:
+                self.UnlocateEdge(e.name)
+                self._Redges.pop(e.name)
+                self._r.rename_edge(e.name, ret['Name'])
+                self._items.set_desc(i, ret['Name'])
+                self._Redges[e.name] = i
+                self.LocateEdge(e.name, 'purple')
+            if ret["From"] != e.from_node.name or ret["To"] != e.to_node.name:
+                node_ids = set(self._r.node_ids)
+                if ret["From"] not in node_ids:
+                    MB.showerror("Error", f"Node {ret['From']} does not exist.")
+                    return
+                if ret["To"] not in node_ids:
+                    MB.showerror("Error", f"Node {ret['To']} does not exist.")
+                    return
+                self._r.update_edge(e.name, ret["From"], ret["To"])
+                self.__move_edge(i, e)
+        elif isinstance(e, Node):
+            assert self._r is not None
+            if ret['Name'] != e.name and ret['Name'] in self._r.node_ids:
+                MB.showerror("Error", f"New name duplicated: {ret['Name']}")
+                return
+            if self._r.hasGeoProj():
+                nLon = float(ret['Longitude'])
+                nLat = float(ret['Latitude'])
+                plotX, plotY = self.convLL2PlotXY(nLon, nLat)
+            else:
+                x, y = float(ret['X']), float(ret['Y'])
+                plotX, plotY = self.convRealXY2PlotXY(x, y)
+            self.__move_node(i, e, plotX, plotY)
+            if e.name != ret['Name']:
+                self._r.update_node(e.name, ret['Name'])
+                self._items.set_desc(i, ret['Name'])
+        elif isinstance(e, Bus):
+            assert self._g is not None and self._r is not None
             if ret['Name'] != e.ID and ret['Name'] in self._g.BusNames:
                 MB.showerror("Error", f"New name duplicated: {ret['Name']}")
                 return
-            nLon = float(ret['Longitude'])
-            nLat = float(ret["Latitude"])
             e.Pd = self._float2func(ret['Pd/pu'])
             e.Qd = self._float2func(ret['Qd/pu'])
             v = self.__chk(ret['V/pu'])
@@ -431,18 +534,33 @@ class NetworkPanel(Frame):
                 e.unfixV()
             e.MinV = float(ret['Vmin/pu'])
             e.MaxV = float(ret['Vmax/pu'])
-            self.__move_bus(i, e, nLon, nLat)
+            if self._r.hasGeoProj():
+                nLon = float(ret['Longitude'])
+                nLat = float(ret["Latitude"])
+                self.__move_bus(i, e, newLL=(nLon, nLat))
+            else:
+                x = float(ret['X'])
+                y = float(ret['Y'])
+                self.__move_bus(i, e, newPlotXY=(x, y))
             self._g.ChangeBusID(e.ID, ret['Name'])
             self._items.set_desc(i, ret['Name'])
             self._cv.itemconfig(i-1, text = e.ID)
         elif isinstance(e, Generator):
+            assert self._g is not None and self._r is not None
             nLon = float(ret['Longitude'])
             nLat = float(ret["Latitude"])
             e.CostA = self._float2func(ret['CostA'])
             e.CostB = self._float2func(ret['CostB'])
             e.CostC = self._float2func(ret['CostC'])
             self._g.ChangeGenBus(e.ID, ret['Bus'])
-            self.__move_gen(i, e, nLon, nLat)
+            if self._r.hasGeoProj():
+                nLon = float(ret['Longitude'])
+                nLat = float(ret["Latitude"])
+                self.__move_gen(i, e, newLL=(nLon, nLat))
+            else:
+                x = float(ret['X'])
+                y = float(ret['Y'])
+                self.__move_gen(i, e, newPlotXY=(x, y))
             p = self.__chk(ret['P/pu'])
             q = self.__chk(ret['Q/pu'])
             if p is not None:
@@ -459,16 +577,25 @@ class NetworkPanel(Frame):
             e.Qmin = self._float2func(ret['Qmin/pu'])
             self._g.ChangeGenID(e.ID, ret['Name'])
             self._items.set_desc(i, ret['Name'])
+            # e._id = ret['Name']
         elif isinstance(e, PVWind):
-            nLon = float(ret['Longitude'])
-            nLat = float(ret["Latitude"])
+            assert self._g is not None and self._r is not None
             self._g.ChangePVWindBus(e.ID, ret['Bus'])
-            self.__move_gen(i, e, nLon, nLat)
+            if self._r.hasGeoProj():
+                nLon = float(ret['Longitude'])
+                nLat = float(ret["Latitude"])
+                self.__move_gen(i, e, newLL=(nLon, nLat))
+            else:
+                x = float(ret['X'])
+                y = float(ret['Y'])
+                self.__move_gen(i, e, newPlotXY=(x, y))
             p = self.__chk(ret['P/pu'])
             e.P = self._float2func(p) if p is not None else 0
             self._g.ChangePVWindID(e.ID, ret['Name'])
             self._items.set_desc(i, ret['Name'])
+            # e._id = ret['Name']
         elif isinstance(e, Line):
+            assert self._g is not None
             self._g.ChangeLineFromBus(e.ID, ret['From Bus'])
             self._g.ChangeLineToBus(e.ID, ret['To Bus'])
             e.R = float(ret['R/pu'])
@@ -478,9 +605,17 @@ class NetworkPanel(Frame):
             self.__move_line(i, e)
             self._g.ChangeLineID(e.ID, ret['Name'])
             self._items.set_desc(i, ret['Name'])
+            # e._id = ret['Name']
         elif isinstance(e, ESS):
-            nLon = float(ret['Longitude'])
-            nLat = float(ret["Latitude"])
+            assert self._g is not None and self._r is not None
+            if self._r.hasGeoProj():
+                nLon = float(ret['Longitude'])
+                nLat = float(ret["Latitude"])
+                self.__move_gen(i, e, newLL=(nLon, nLat))
+            else:
+                x = float(ret['X'])
+                y = float(ret['Y'])
+                self.__move_gen(i, e, newPlotXY=(x, y))
             e.Cap = float(ret['Capacity/MWh']) / self._g.Sb_MVA
             e._elec = float(ret['SOC']) * e.Cap
             e.EC = float(ret['Ec'])
@@ -524,7 +659,6 @@ class NetworkPanel(Frame):
         if not self.__en: return
         i = self._drag["item"]
         if isinstance(i,int):
-            assert self._g is not None
             self.saved = False
             co = self._cv.coords(i)
             if len(co) == 4: 
@@ -539,17 +673,25 @@ class NetworkPanel(Frame):
                 raise RuntimeError("Invalid item")
             nLon, nLat = self.convPlotXY2LL(cx, cy)
             if self._items[i].type == 'bus':
+                assert self._g is not None
                 e = self._g.Bus(self._items[i].desc)
-                self.__move_bus(i, e, nLon, nLat, False)
+                self.__move_bus(i, e, newLL = (nLon, nLat), move_bus = False)
             elif self._items[i].type == 'gen':
+                assert self._g is not None
                 e = self._g.Gen(self._items[i].desc)
-                self.__move_gen(i, e, nLon, nLat, False)
+                self.__move_gen(i, e, newLL = (nLon, nLat), move_gen = False)
             elif self._items[i].type == 'pvw':
+                assert self._g is not None
                 e = self._g.PVWind(self._items[i].desc)
-                self.__move_gen(i, e, nLon, nLat, False)
+                self.__move_gen(i, e, newLL = (nLon, nLat), move_gen = False)
             elif self._items[i].type == 'ess':
+                assert self._g is not None
                 e = self._g.ESS(self._items[i].desc)
-                self.__move_gen(i, e, nLon, nLat, False)
+                self.__move_gen(i, e, newLL = (nLon, nLat), move_gen = False)
+            elif self._items[i].type == 'node':
+                assert self._r is not None
+                e = self._r.nodes[self._items[i].desc]
+                self.__move_node(i, e, cx, cy, False)
             self._onLClick(event)
         self._drag["item"] = None
         
@@ -603,15 +745,17 @@ class NetworkPanel(Frame):
             c, lw = self.__get_edge_prop(edge)
             self._cv.itemconfig(pid, fill=c, width=lw)
         
-    def __get_edge_prop(self, edge:str) -> Tuple[str, float]:
+    def __get_edge_prop(self, edge:str) -> Tuple[Any, float]:
         assert self._r is not None
-        good = self._r.is_edge_in_largest_scc(edge)
-        if edge in self.FCSNames:
-            return ("darkblue",3) if good else ("darkgray",3)
-        elif edge in self.SCSNames:
-            return ("blue",2) if good else ("gray",2)
-        else:
-            return ("blue",1) if good else ("gray",1)
+        # Get the edge properties from the road network
+        e = self._r.edges[edge]
+        if self._world_colors and e.world_id in self._world_colors:
+            return self._world_colors[e.world_id], 2
+        return ("blue", 2)
+
+    def _draw_node(self, x:float, y:float, r, color, name:str):
+        pid = self._cv.create_oval(x-r, y-r, x+r, y+r, fill=color, width=1)
+        self._items[pid] = itemdesc("node", name)
 
     def _draw_edge(self, shape:PointList, color:str, lw:float, ename:str):
         shape = [(p[0], -p[1]) for p in shape]
@@ -628,7 +772,7 @@ class NetworkPanel(Frame):
         self._items[self._cv.create_line(x1,y1,x2,y2,width=lw,fill=color)] = itemdesc('line', name)
     
     def _draw_gen(self,x,y,r,color,lw,name,xb,yb,tp):
-        assert tp == 'gen' or tp == 'pvw' or tp == 'ess'
+        assert tp in ('gen', 'pvw', 'ess')
         self._items[self._cv.create_text(x+1.8*r,y+1.8*r,text=name)] = itemdesc(tp+'text', name+".text")
         self._items[self._cv.create_line(x, y, xb, yb, width=lw)] = itemdesc(tp+"conn", name+".conn")
         if tp == 'gen':
@@ -646,65 +790,49 @@ class NetworkPanel(Frame):
         if self._r is None: return
         self.__en = False
         self._cv.delete('all')
-        
-        minx = min(n.x for n in self._r.nodes.values())
-        maxx = max(n.x for n in self._r.nodes.values())
-        miny = min(n.y for n in self._r.nodes.values())
-        maxy = max(n.y for n in self._r.nodes.values())
 
-        for e in self._r.sumo.getEdges():
-            assert isinstance(e, sumolib.net.edge.Edge)
-            ename:str = e.getID()
-            shape = e.getShape()
-            if shape is None:
-                raise ValueError(f"Edge {ename} has no shape")
-            assert isinstance(shape, list) and len(shape) >= 2
+        minx, miny, maxx, maxy = self._r.getBoundary()
+        if minx > maxx or miny > maxy:
+            r = 5
+        else:
+            r = max(maxx-minx, maxy-miny)/200
+            
+        for ename in self._r.edges.keys():
+            shape = self._r.get_offset_shape(ename)
             c, lw = self.__get_edge_prop(ename)
-            shape = [(p[0]*scale+dx,p[1]*scale+dy) for p in shape]
+            shape = [(p[0] * scale + dx, p[1] * scale + dy) for p in shape]
             self._Q.delegate(self._draw_edge, shape, c, lw, ename)
+        
+        for nd in self._r.nodes.values():
+            x, y = nd.get_coord()
+            x = x * scale + dx
+            y = -y * scale + dy
+            self._Q.delegate(self._draw_node, x, y, r/2, 'gray', nd.name)
             
         if self._g is not None:
-            if minx > maxx or miny > maxy:
-                r = 5
-                cx, cy = 0, 0
-            else:
-                r = max(maxx-minx, maxy-miny)/100
-                cx = minx
-                cy = miny
-            locless = 0
-            for b in self._g.Buses:
-                if b.Lon is None or b.Lat is None:
-                    x,y = cx+(locless//20)*7*r, cy+(locless%20)*7*r
-                    locless += 1
-                    b.Lon, b.Lat = self.convPlotXY2LL(x,y)
-                    print(f"Bus {b.ID} has no location, set to Lon, Lat = ({b.Lon:.6f},{b.Lat:.6f})")
             for line in self._g.Lines:
-                x1, y1 = self.convLL2PlotXY(*self._g.Bus(line.fBus).LonLat)
-                x2, y2 = self.convLL2PlotXY(*self._g.Bus(line.tBus).LonLat)
+                x1, y1 = self.convRealXY2PlotXY(*self._g.Bus(line.fBus).pos)
+                x2, y2 = self.convRealXY2PlotXY(*self._g.Bus(line.tBus).pos)
                 self._Q.delegate(self._draw_line, x1, y1, x2, y2, 'black', 2, line.ID)
             
             for g in chain(self._g.Gens, self._g.PVWinds, self._g.ESSs):
                 tp = g.__class__.__name__.lower()[:3]
-                xb, yb = self.convLL2PlotXY(*self._g.Bus(g.BusID).LonLat)
-                if g.Lon is None or g.Lat is None:
-                    x,y = xb, yb+3*r
-                    locless += 1
-                    g.Lon, g.Lat = self.convPlotXY2LL(x,y)
-                    t = g.__class__.__name__
-                    print(f"{t} {g.ID} has no location, set to Lon, Lat = ({b.Lon:.6f},{b.Lat:.6f})")
-                x, y = self.convLL2PlotXY(g.Lon, g.Lat)
+                xb, yb = self.convRealXY2PlotXY(*self._g.Bus(g.BusID).pos)
+                x, y = self.convRealXY2PlotXY(g.x, g.y)
                 self._Q.delegate(self._draw_gen, x, y, r, 'white', 2, g.ID, xb, yb, tp)
 
             for b in self._g.Buses:
-                x, y = self.convLL2PlotXY(b.Lon, b.Lat)
+                x, y = self.convRealXY2PlotXY(b.x, b.y)
                 self._Q.delegate(self._draw_bus, x, y, r, 'white', 2, b.ID)
         
         if center: self._Q.trigger("draw_done_center")
     
-    def saveGrid(self, path:str):
-        '''Save the current grid to a file'''
+    def save(self, grid_path:str, net_path:str):
+        '''Save the current network to files'''
         if self._g:
-            self._g.saveFileXML(path)
-            self.saved = True
+            self._g.saveFileXML(grid_path)
+        if self._r and not self._r.is_from_sumo():
+            self._r.save(net_path)
+        self.saved = True
 
-__all__ = ['NetworkPanel', 'itemdesc', 'BIDC', 'OAfter', 'OESet']
+__all__ = ["NetworkPanel", "itemdesc", "BIDC", "GenLike", "PointList", "OAfter", "OESet"]

@@ -1,12 +1,12 @@
+import enum
+from xml.etree.ElementTree import Element
 from abc import abstractmethod
 from dataclasses import dataclass
-import enum
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Callable, Generic, Iterable, Optional, Protocol, TypeVar, runtime_checkable, List, Tuple, Dict
 from feasytools import RangeList
 from fpowerkit import Grid
-from ..traffic import TrafficInst
+from ..sim import TrafficInst
 from ..locale import Lang
 
 Getter = Callable[[Any], str]
@@ -19,9 +19,9 @@ class PluginStatus(enum.IntEnum):
     HOLD = 1        # Current call should retain the result of the last plugin execution
     OFFLINE = 2     # Current call should return the return value when the plugin is offline
 
-PIResult = TypeVar('PIResult',covariant=True)
-PIExec = Callable[[int,PluginStatus],Tuple[bool,PIResult]]
-PINoRet = Callable[[],None]
+PIResult = TypeVar('PIResult', covariant=True)
+PIExec = Callable[[int, PluginStatus], Tuple[bool, PIResult]]
+PINoRet = Callable[[], None]
 
 @dataclass
 class ConfigItem:
@@ -114,16 +114,16 @@ class PluginBase(Generic[PIResult]):
     __PreStep: Optional[PIExec]
     __PostSimulation: Optional[PINoRet]
     __PostStep: Optional[PIExec]
-    def SetPreSimulation(self,func:PINoRet) -> None:
+    def SetPreSimulation(self, func:PINoRet) -> None:
         '''Pre-simulation plugin processing, run after other parameters are loaded'''
         self.__PreSimulation = func
-    def SetPreStep(self,func:PIExec) -> None:
+    def SetPreStep(self, func:PIExec) -> None:
         '''Plugin work before simulation step'''
         self.__PreStep = func
-    def SetPostStep(self,func:PIExec) -> None:
+    def SetPostStep(self, func:PIExec) -> None:
         '''Plugin work after simulation step'''
         self.__PostStep = func
-    def SetPostSimulation(self,func:PINoRet) -> None:
+    def SetPostSimulation(self, func:PINoRet) -> None:
         '''Post-simulation plugin processing'''
         self.__PostSimulation = func
 
@@ -141,7 +141,7 @@ class PluginBase(Generic[PIResult]):
         '''Get the plugin configuration item list'''
         return ConfigDict()
 
-    def __init__(self, inst:TrafficInst, elem:ET.Element, work_dir:Path, res_dir:Path, enable_time:Optional[RangeList]=None,
+    def __init__(self, inst:TrafficInst, elem:Element, work_dir:Path, res_dir:Path, enable_time:Optional[RangeList]=None,
             interval:int=0, plg_deps:'Optional[List[PluginBase]]' = None, initial_state:Optional[object]=None):
         '''
         Initialize the plugin
@@ -179,100 +179,92 @@ class PluginBase(Generic[PIResult]):
     
     @property
     @abstractmethod
-    def Description(self)->str:
+    def Description(self) -> str:
         '''Get the plugin description'''
         raise NotImplementedError
     
     @property
-    def Name(self)->str:
+    def Name(self) -> str:
         '''Get the plugin name'''
         return self.__name
     
     @property
-    def Interval(self)->int:
+    def Interval(self) -> int:
         '''Get the plugin running interval, unit = second'''
         return self.__interval
     
     @property
-    def OnlineTime(self)->Optional[RangeList]:
+    def OnlineTime(self) -> Optional[RangeList]:
         '''Get the plugin enable time'''
         return self.__on
     
     @property
-    def LastTime(self)->int:
-        '''
-        Get the time when the last plugin was in PluginStatus.EXECUTE state
-        '''
+    def LastTime(self) -> int:
+        '''Get the time when the last plugin was in PluginStatus.EXECUTE state'''
         return self.__lastTpre
     
     @property
-    def LastPreStepSucceed(self)->bool:
-        '''
-        Get whether PreStep was successful when the last plugin was in PluginStatus.EXECUTE state
-        '''
+    def LastPreStepSucceed(self) -> bool:
+        '''Get whether PreStep was successful when the last plugin was in PluginStatus.EXECUTE state'''
         return self.__lastOkpre
     
     @property
-    def LastPostStepSucceed(self)->bool:
-        '''
-        Get whether PostStep was successful when the last plugin was in PluginStatus.EXECUTE state
-        '''
+    def LastPostStepSucceed(self) -> bool:
+        '''Get whether PostStep was successful when the last plugin was in PluginStatus.EXECUTE state'''
         return self.__lastOkpost
 
     @property
-    def LastPreStepResult(self)->PIResult:
-        '''
-        Get the result of PreStep when the last plugin was in PluginStatus.EXECUTE state
-        '''
+    def LastPreStepResult(self) -> PIResult:
+        '''Get the result of PreStep when the last plugin was in PluginStatus.EXECUTE state'''
         return self.__respre
     
     @property
-    def LastPostStepResult(self)->PIResult:
+    def LastPostStepResult(self) -> PIResult:
         '''
         Get the result of PostStep when the last plugin was in PluginStatus.EXECUTE state
         '''
         return self.__respost
     
     @abstractmethod
-    def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path, 
-             res_dir:Path, plg_deps:'List[PluginBase]') -> PIResult:
+    def Init(self, elem:Element, inst:TrafficInst, work_dir:Path, res_dir:Path, plg_deps:'List[PluginBase]') -> PIResult:
         '''
         Initialize the plugin from the XML element, TrafficInst, work path, result path, and plugin dependency.
         Return the result of offline.
         '''
+        ...
     
     def IsOnline(self, t:int):
         '''Determine if the plugin is online'''
         return self.__on is None or t in self.__on
     
-    def _presim(self)->None:
+    def _presim(self):
         '''Run the plugin PreSimulation'''
         if self.__PreSimulation is not None:
             self.__PreSimulation()
     
-    def _postsim(self)->None:
+    def _postsim(self):
         '''Run the plugin PostSimulation'''
         if self.__PostSimulation is not None:
             self.__PostSimulation()
     
-    def _precall(self, _t:int)->None:
+    def _precall(self, _t:int):
         '''Run the plugin PreStep'''
         if self.__PreStep is None: return
         if self.__on != None and _t not in self.__on:
             self.__PreStep(_t,PluginStatus.OFFLINE)
         elif self.__lastTpre + self.__interval <= _t or self.__lastTpre < 0:
-            self.__lastOkpre, self.__respre = self.__PreStep(_t,PluginStatus.EXECUTE)
+            self.__lastOkpre, self.__respre = self.__PreStep(_t, PluginStatus.EXECUTE)
             self.__lastTpre = _t
         else:
-            self.__PreStep(_t,PluginStatus.HOLD)
+            self.__PreStep(_t, PluginStatus.HOLD)
     
     def _postcall(self, _t:int, /)->None:
         '''Run the plugin PostStep'''
         if self.__PostStep is None: return
         if self.__on != None and _t not in self.__on:
-            self.__PostStep(_t,PluginStatus.OFFLINE)
+            self.__PostStep(_t, PluginStatus.OFFLINE)
         elif self.__lastTpost + self.__interval <= _t or self.__lastTpost < 0:
-            self.__lastOkpost, self.__respost = self.__PostStep(_t,PluginStatus.EXECUTE)
+            self.__lastOkpost, self.__respost = self.__PostStep(_t, PluginStatus.EXECUTE)
             self.__lastTpost = _t
         else:
-            self.__PostStep(_t,PluginStatus.HOLD)
+            self.__PostStep(_t, PluginStatus.HOLD)

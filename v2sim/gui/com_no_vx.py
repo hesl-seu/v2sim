@@ -28,6 +28,6 @@ from typing import Dict, List, Set, Tuple, Any, Union, Optional, Iterable, Calla
 __all__ = [
     "LangLib", "LangConfig", "EventQueue", "Path", "Dict", "List", "Set", "Tuple", "Any", "Union", "Optional", "Iterable", "Callable", "Literal",
     "Toplevel", "MB", "BooleanVar", "StringVar", "IntVar", "Canvas", "Event", "Tk", "Menu", "filedialog", "Text", "Listbox", "PhotoImage", "Widget",
-    "NO", "YES", "NORMAL", "DISABLED", "END", "X", "Y", "BOTH", "LEFT", "RIGHT", "TOP", "BOTTOM", "W", "E", "platform",
+    "NO", "YES", "NORMAL", "DISABLED", "END", "X", "Y", "BOTH", "LEFT", "RIGHT", "TOP", "BOTTOM", "W", "E",
     "Treeview", "Button", "LabelFrame", "Checkbutton", "Combobox", "Frame", "Label", "Entry", "Spinbox", "Scrollbar", "Radiobutton", "Notebook", "OptionMenu",
 ]

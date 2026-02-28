@@ -4,7 +4,6 @@ import os
 
 
 _ = LangLib.Load(__file__)
-RECENT_PROJECTS_FILE = CONFIG_DIR / "recent_projects.txt"
 
 
 class WelcomeBox(Tk):
@@ -13,8 +12,8 @@ class WelcomeBox(Tk):
         self.wm_attributes('-topmost',1)
         self.title(_("WELCOME"))
         self.update_idletasks()
-        width = 600
-        height = 350
+        width = 800
+        height = 450
         x = (self.winfo_screenwidth() // 2) - (width // 2)
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f'{width}x{height}+{x}+{y}')
@@ -114,6 +113,26 @@ class WelcomeBox(Tk):
         self.select_linklbl.grid(row=0, column=0, sticky="w", pady=(5, 0))
         self.select_linklbl.bind("<Button-1>", select_project)
         
+        self.osm_linklbl = Label(
+            self.links_panel,
+            text=_("OPEN_OSM"),
+            foreground="blue",
+            cursor="hand2",
+            font=("Arial", 10, "underline")
+        )
+        self.osm_linklbl.grid(row=0, column=1, sticky="w", pady=(5, 0), padx=(10, 0))
+        self.osm_linklbl.bind("<Button-1>", self._open_osm)
+        
+        self.convert_linklbl = Label(
+            self.links_panel,
+            text=_("CONV_CASE"),
+            foreground="blue",
+            cursor="hand2",
+            font=("Arial", 10, "underline")
+        )
+        self.convert_linklbl.grid(row=0, column=2, sticky="w", pady=(5, 0), padx=(10, 0))
+        self.convert_linklbl.bind("<Button-1>", self._convert_case)
+
         self.clear_linklbl = Label(
             self.links_panel,
             text=_("CLEAR_LIST"),
@@ -121,18 +140,8 @@ class WelcomeBox(Tk):
             cursor="hand2",
             font=("Arial", 10, "underline")
         )
-        self.clear_linklbl.grid(row=0, column=1, sticky="w", pady=(5, 0), padx=(10, 0))
+        self.clear_linklbl.grid(row=0, column=3, sticky="w", pady=(5, 0), padx=(10, 0))
         self.clear_linklbl.bind("<Button-1>", clear_list)
-
-        self.new_linklbl = Label(
-            self.links_panel,
-            text=_("NEW_PROJ"),
-            foreground="blue",
-            cursor="hand2",
-            font=("Arial", 10, "underline")
-        )
-        self.new_linklbl.grid(row=0, column=2, sticky="w", pady=(5, 0), padx=(10, 0))
-        self.new_linklbl.bind("<Button-1>", self._create_case)
 
         # Buttons
         self.btn_panel = Frame(middle_frame)
@@ -148,7 +157,11 @@ class WelcomeBox(Tk):
     def open_help(self):
         import webbrowser
         webbrowser.open("https://hesl-seu.github.io/v2sim-wiki/")
-        
+    
+    def _open_osm(self, event):
+        self.result = ("osm", None)
+        self._destroy()
+
     def show_about(self):
         import v2sim
         py_ver = v2sim.PyVersion()
@@ -159,7 +172,7 @@ class WelcomeBox(Tk):
             py_ver_str += " with GIL"
         MB.showinfo(_("ABOUT"), _("ABOUT_TEXT").format(v2sim.__version__, py_ver_str))
 
-    def _destory(self):
+    def _destroy(self):
         self.withdraw()
         self.quit()
         self.destroy()
@@ -172,32 +185,32 @@ class WelcomeBox(Tk):
 
     def _manage_plugins(self):
         self.result = ("plg", None)
-        self._destory()
-        
+        self._destroy()
+
     def _goto_para(self):
         self.result = ("para", None)
-        self._destory()
-    
-    def _create_case(self, event):
-        self.result = ("new", None)
-        self._destory()
+        self._destroy()
 
     def _close(self):
         if self.__load_error:
-            self._destory()
+            self._destroy()
             return
         if not self._check_selected(): return
         self.result = ("main", self.recent_var.get())
-        self._destory()
+        self._destroy()
     
     def _view_results(self):
         if not self._check_selected(): return
         self.result = ("res", self.recent_var.get())
-        self._destory()
+        self._destroy()
     
     def _compare_case(self):
         self.result = ("cmp", None)
-        self._destory()
+        self._destroy()
+
+    def _convert_case(self, event):
+        self.result = ("conv", None)
+        self._destroy()
     
     def show(self):
         self.update()

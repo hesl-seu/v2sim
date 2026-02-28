@@ -2,7 +2,7 @@ from collections import defaultdict
 from itertools import chain
 from feasytools import LangLib
 from fpowerkit import IslandResult, DistFlowSolver, Estimator
-from ..traffic.cs import CS
+from ..hub import CS
 from .pdn import PluginPDN
 from .base import *
 
@@ -27,7 +27,7 @@ class PluginOvercurrent(PluginBase[None]):
         '''Save the plugin state'''
         return None
     
-    def _load_state(self,state:object) -> None:
+    def _load_state(self, state:object) -> None:
         '''Load the plugin state'''
 
     @staticmethod
@@ -35,7 +35,7 @@ class PluginOvercurrent(PluginBase[None]):
         '''Get the plugin configuration item list'''
         return ConfigDict()
     
-    def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path, res_dir:Path, plg_deps:'List[PluginBase]')->None:
+    def Init(self, elem:Element, inst:TrafficInst, work_dir:Path, res_dir:Path, plg_deps:'List[PluginBase]')->None:
         self.__file = open(str(res_dir / "current_protect.log"), "w")
         self.SetPreStep(self._work)
         self.SetPostSimulation(self.__file.close)
@@ -61,7 +61,7 @@ class PluginOvercurrent(PluginBase[None]):
             cs.force_shutdown()
         print(f"CS {','.join(map(lambda x:x.name, self.__csatb[b]))} forced shutdown at bus {b}.", file=self.__file)
 
-    def _work(self,_t:int,/,sta:PluginStatus)->Tuple[bool, None]:
+    def _work(self, _t:int, /, sta:PluginStatus) -> Tuple[bool, None]:
         '''
         Get the V2G demand power of all bus with slow charging stations at time _t, unit kWh/s, 3.6MW=3600kW=1kWh/s
         '''

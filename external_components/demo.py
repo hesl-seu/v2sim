@@ -3,13 +3,13 @@ External Plugin Example:
   Please put the external plugin in the external_plugins folder, 
   and the plugin file name is "plugin_name.py"
 '''
-import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element
 from pathlib import Path
 from typing import Iterable, Any, Tuple, List, Dict
 from feasytools import LangLib
 from v2sim import TrafficInst
 from v2sim.plugins import *
-from v2sim.statistics import *
+from v2sim.stats import *
 
 _L = LangLib.LoadFor(__file__)
 
@@ -18,7 +18,7 @@ class DemoExternalPlugin(PluginBase):
     def Description(self)->str:
         return _L["DESCRIPTION"]
     
-    def Init(self, elem:ET.Element, inst:TrafficInst, work_dir:Path, plg_deps:List[PluginBase]) -> object:
+    def Init(self, elem:Element, inst:TrafficInst, work_dir:Path, res_dir:Path, plg_deps:List[PluginBase]) -> object:
         '''
         Add plugin initialization code here, return:
             Return value when the plugin is offline

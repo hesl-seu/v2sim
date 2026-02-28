@@ -1,0 +1,23 @@
+{
+    "start_time": 0,
+    "end_time": 172800,
+    "break_time": 172800,
+    "traffic_step": 30,
+    "seed": 0,
+    "routing_method": "astar",
+    "load_state": 0,
+    "save_state_on_abort": true,
+    "save_state_on_finish": true,
+    "copy_state": true,
+    "visualize": false,
+    "ux_no_para": false,
+    "ux_show_info": false,
+    "ux_rand": false,
+    "sumo_ignore_driving": false,
+    "sumo_raise_routing_error": false,
+    "stats": [
+        "fcs",
+        "scs",
+        "gs"
+    ]
+}

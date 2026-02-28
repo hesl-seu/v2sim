@@ -36,7 +36,8 @@ class PlgBox(Tk):
             plgs_i, stas_i = get_internal_components()
             key_id = tree.insert('', 'end', text=_("INTERNAL"), open=False)
             for k, p, d in plgs_i:
-                tree.insert(key_id, 'end', text=_("PLUGIN_ITEM").format(k, p.__name__, '.'.join(d)))
+                d_str = ','.join(d) if d else _("PLUGIN_NO_DEP")
+                tree.insert(key_id, 'end', text=_("PLUGIN_ITEM").format(k, p.__name__, d_str))
             for k, p in stas_i:
                 tree.insert(key_id, 'end', text=_("STA_ITEM").format(k, p.__name__))
 
@@ -44,7 +45,8 @@ class PlgBox(Tk):
             plgs, stas = load_external_components()
             combined = defaultdict(list)
             for k, v in plgs.items():
-                combined[k].append(_("PLUGIN_ITEM").format(v[0], v[1].__name__, '.'.join(v[2])))
+                d_str = ','.join(v[2]) if v[2] else _("PLUGIN_NO_DEP")
+                combined[k].append(_("PLUGIN_ITEM").format(v[0], v[1].__name__, d_str))
             for k, v in stas.items():
                 combined[k].append(_("STA_ITEM").format(v[0], v[1].__name__))
 

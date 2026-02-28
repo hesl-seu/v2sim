@@ -1,0 +1,53 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+<gs name="GS1" edge="CS1" slots="6" x="inf" y="inf" >
+<pbuy>
+  <item btime="0" price="7.0" />
+</pbuy>
+</gs>
+<gs name="GS2" edge="CS2" slots="6" x="inf" y="inf" >
+<pbuy>
+  <item btime="0" price="7.0" />
+</pbuy>
+</gs>
+<gs name="GS3" edge="CS3" slots="6" x="inf" y="inf" >
+<pbuy>
+  <item btime="0" price="7.0" />
+</pbuy>
+</gs>
+<gs name="GS4" edge="CS4" slots="6" x="inf" y="inf" >
+<pbuy>
+  <item btime="0" price="7.0" />
+</pbuy>
+</gs>
+<gs name="GS5" edge="CS5" slots="6" x="inf" y="inf" >
+<pbuy>
+  <item btime="0" price="7.0" />
+</pbuy>
+</gs>
+<gs name="GS6" edge="CS6" slots="6" x="inf" y="inf" >
+<pbuy>
+  <item btime="0" price="7.0" />
+</pbuy>
+</gs>
+<gs name="GS7" edge="CS7" slots="6" x="inf" y="inf" >
+<pbuy>
+  <item btime="0" price="7.0" />
+</pbuy>
+</gs>
+<gs name="GS8" edge="CS8" slots="6" x="inf" y="inf" >
+<pbuy>
+  <item btime="0" price="7.0" />
+</pbuy>
+</gs>
+<gs name="GS9" edge="CS9" slots="6" x="inf" y="inf" >
+<pbuy>
+  <item btime="0" price="7.0" />
+</pbuy>
+</gs>
+<gs name="GS10" edge="CS10" slots="6" x="inf" y="inf" >
+<pbuy>
+  <item btime="0" price="7.0" />
+</pbuy>
+</gs>
+</root>

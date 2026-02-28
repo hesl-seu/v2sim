@@ -1,7 +1,8 @@
 from v2sim.gui.common import *
 from feasytools import RangeList
 from xml.etree import ElementTree as ET
-from v2sim import PluginPool, PluginBase, StaPool, load_external_components
+from v2sim import load_external_components
+from v2sim.plugins import PluginBase
 from .controls import *
 from .utils import *
 
@@ -33,6 +34,8 @@ class PluginEditor(ScrollableTreeView):
             
     def __init__(self, master, onEnabledSet:Callable[[Tuple[Any,...], str], None] = empty_postfunc, **kwargs):
         super().__init__(master, True, True, True, True, self.__addgetter, **kwargs)
+        from v2sim.plugins import PluginPool
+        from v2sim.stats import StaPool
         self.sta_pool = StaPool()
         self.plg_pool = PluginPool()
         load_external_components(None, self.plg_pool, self.sta_pool)
@@ -54,6 +57,10 @@ class PluginEditor(ScrollableTreeView):
         self.setColEditMode("Extra", ConfigItem("Extra", EditMode.DISABLED, "Extra properties"))
         self.__onEnabledSet = onEnabledSet
         self.__elements:Dict[str, ET.Element] = {}
+    
+    def clear(self):
+        super().clear()
+        self.__elements.clear()
     
     def add(self, plg_name:str, interval:Union[int, str], enabled:str, online:Union[RangeList, str], extra:Dict[str, Any], elem:Optional[ET.Element] = None):
         assert plg_name not in self.__elements, f"Plugin {plg_name} already exists."

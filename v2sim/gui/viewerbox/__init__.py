@@ -1,11 +1,9 @@
-import pickle
 from v2sim.gui.com_no_vx import *
 from v2sim.gui.langhelper import add_lang_menu
 
-import os
-import gzip
-import traceback
-from v2sim import ReadOnlyStatistics, AdvancedPlot, SAVED_STATE_FOLDER, TRAFFIC_INST_FILE_NAME
+import os, gzip, traceback
+from v2sim import SAVED_STATE_FOLDER, TRAFFIC_INST_FILE_NAME, TrafficInst
+from v2sim.plot import AdvancedPlot, ReadOnlyStatistics
 from PIL import Image, ImageTk
 from .srd import SelectResultsDialog
 from .plotpage import PlotPage, AVAILABLE_ITEMS, AVAILABLE_ITEMS2
@@ -79,7 +77,8 @@ class ViewerBox(Tk):
         
         self._ava ={
             "fcs": False,
-            "scs": False, 
+            "scs": False,
+            "gs": False,
             "ev": False, 
             "gen": False, 
             "bus": False, 
@@ -169,8 +168,8 @@ class ViewerBox(Tk):
                 if file.lower().endswith(('png', 'jpg', 'jpeg', 'gif')):  # 只列出图片文件
                     self.pic_list.insert(END, file)
 
-    def on_state_loaded(self, par):
-        self.tab_state.setStateInst(par)
+    def on_state_loaded(self, par, mode):
+        self.tab_state.setStateInst(par, mode)
     
     def on_loaded(self, sta:ReadOnlyStatistics, npl:AdvancedPlot):
         assert isinstance(sta, ReadOnlyStatistics)
@@ -190,6 +189,11 @@ class ViewerBox(Tk):
             self.tab_state.cb_scs_query['values'] = self._sta.SCS_head
             if self._sta.SCS_head:
                 self.tab_state.cb_scs_query.set(self._sta.SCS_head[0])
+        if self._sta.has_GS():
+            self._pp.gs_pad.setValues([ITEM_SUM, ITEM_ALL] + self._sta.GS_head)
+            self.tab_state.cb_gs_query['values'] = self._sta.GS_head
+            if self._sta.GS_head:
+                self.tab_state.cb_gs_query.set(self._sta.GS_head[0])
         if self._sta.has_GEN():
             self._pp.gen_pad.setValues([ITEM_ALL_G,ITEM_ALL_V2G,ITEM_ALL] + self._sta.gen_head)
         if self._sta.has_BUS():
@@ -291,15 +295,24 @@ class ViewerBox(Tk):
 
         def load_state_async(state_path:Path):
             try:
-                with gzip.open(state_path, 'rb') as f:
-                    d = pickle.load(f)
-                    assert isinstance(d, dict)
-                    inst = d["obj"]
-                    assert isinstance(inst, dict)
-            except:
+                import cloudpickle as pickle
+                with gzip.open(state_path, 'rb') as fp:
+                    d  = pickle.load(fp)
+                assert isinstance(d, dict)
+                assert "obj" in d
+                inst = d["obj"]
+                from v2sim.sim.ux import TrafficUX
+                if isinstance(inst, TrafficUX):
+                    mode = "ux"
+                else:
+                    mode = "sumo"
+            except Exception as e:
                 MB.showerror(_L["ERROR"], _L["SAVED_STATE_LOAD_FAILED"])
+                traceback.print_exc()
+                print(e)
                 inst = None
-            return inst
+                mode = ""
+            return inst, mode
 
         if state_path.exists():
             self._Q.submit("state_loaded", load_state_async, state_path)
@@ -377,12 +390,27 @@ class ViewerBox(Tk):
                 **self._pp.pars("scs")
             )
 
+    def _plot_gs(self):
+        t = self._pp.gs_pad.get()
+        if t.strip()=="" or t==ITEM_ALL:
+            gs = self._sta.GS_head
+        elif t==ITEM_SUM:
+            gs = ["<sum>"]
+        else:
+            gs = [x.strip() for x in t.split(',')]
+        for i,g in enumerate(gs,start=1):
+            self._Q.delegate(self.set_status, f'({i} of {len(gs)})Plotting GS graph...')
+            self._npl.quick_gs(
+                gs_name=g, res_path=self._sta.root,
+                **self._pp.pars("gs")
+            )
+    
     def _plot_ev(self):
         self._npl.tl = int(self._pp.entry_time.get())
         t = self._pp.ev_pad.get()
         evs=None if t.strip()=="" else [x.strip() for x in t.split(',')]
         if evs is None:
-            self._Q.trigger("error", 'ID of EV cannot be empty')
+            self._Q.delegate(self.set_status, 'ID of EV cannot be empty')
             return
         for ev in evs:
             self._npl.quick_ev(ev_name = ev,

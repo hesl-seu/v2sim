@@ -5,7 +5,7 @@ from .plotpad import PlotPad
 
 
 _L = LangLib.Load(__file__)
-AVAILABLE_ITEMS = ["fcs","scs","ev","gen","bus","line","pvw","ess"]
+AVAILABLE_ITEMS = ["fcs","scs","gs","ev","gen","bus","line","pvw","ess"]
 AVAILABLE_ITEMS2 = AVAILABLE_ITEMS + ["fcs_accum","scs_accum","bus_total","gen_total"]
 
 
@@ -84,6 +84,18 @@ class PlotPage(Frame):
         self.scs_opts.pack(side='top',fill='x',padx=3)
         self.scs_pad = PlotPad(self.panel_scs, True)
         self.scs_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
+
+        self.plot_gs = BooleanVar(self, False)
+        self.cb_gs = Checkbutton(self, text=_L["GS_TITLE"], variable=self.plot_gs)
+        self.cb_gs.grid(row=9,column=0,padx=3,pady=5,sticky='w')
+        self.panel_gs = Frame(self, border=1, relief='groove')
+        self.panel_gs.grid(row=10,column=0,sticky="nsew",padx=(5,3),pady=(0,5))
+        self.gs_opts = OptionBox(self.panel_gs, {
+            "cnt": (_L["GS_NVEH"], True)
+        })
+        self.gs_opts.pack(side='top',fill='x',padx=3)
+        self.gs_pad = PlotPad(self.panel_gs)
+        self.gs_pad.pack(side='top',fill='x',padx=3,pady=(0,3))
 
         self.plot_ev = BooleanVar(self, False)
         self.cb_ev = Checkbutton(self, text=_L["EV_TITLE"], variable=self.plot_ev)
@@ -182,6 +194,7 @@ class PlotPage(Frame):
             "gen_total": self.gen_pad.accum.get() and self.plot_gen.get(),
             "fcs": self.fcs_opts.getValues() if self.plot_fcs.get() else None,
             "scs": self.scs_opts.getValues() if self.plot_scs.get() else None,
+            "gs": self.gs_opts.getValues() if self.plot_gs.get() else None,
             "ev": self.ev_opts.getValues() if self.plot_ev.get() else None,
             "gen": self.gen_opts.getValues() if self.plot_gen.get() else None,
             "bus": self.bus_opts.getValues() if self.plot_bus.get() else None,

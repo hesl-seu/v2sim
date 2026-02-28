@@ -36,7 +36,14 @@ def errwrapper(func):
         try:
             return func(*args, **kwargs)
         except Exception as e:
+            import traceback
+            save_to = V2SIM_DIR / "error.log"
+            with open(save_to, "a", encoding="utf-8") as f:
+                f.write(traceback.format_exc())
+                f.write("\n")
+                f.write(str(type(e)) + ": " + str(e))
             showerr(str(e))
+            print(f"An error occurred. Details saved to {save_to}")
     return wrapped
 
 __all__ = ["showerr", "showwarn", "try_int", "try_float", "try_split", "errwrapper", "SIM_YES", "SIM_NO", "V2SIM_DIR"]

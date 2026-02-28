@@ -1,0 +1,199 @@
+<roadnet v2simfmtver="1.0">
+  <location netOffset="-648678.39,-3534503.27" convBoundary="0.0,0.0,36142.74,29171.7" origBoundary="118.57614,31.9337,118.95954,32.1965" projParameter="+proj=utm +zone=50 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"/>  <node id="N8" x="10319" y="19412"/>
+  <node id="N32" x="28929" y="18680"/>
+  <node id="N10" x="3959" y="16684"/>
+  <node id="N12" x="17563" y="18756"/>
+  <node id="N13" x="16017" y="15062"/>
+  <node id="N15" x="18498" y="12601"/>
+  <node id="N17" x="22255" y="16653"/>
+  <node id="N23" x="12892" y="7015"/>
+  <node id="N25" x="20360" y="4956"/>
+  <node id="N31" x="30799" y="15213"/>
+  <node id="N1" x="0" y="21035"/>
+  <node id="N6" x="3962" y="12068"/>
+  <node id="N7" x="7041" y="15547"/>
+  <node id="N11" x="13624" y="23983"/>
+  <node id="N3" x="13602" y="26043"/>
+  <node id="N35" x="23382" y="21142"/>
+  <node id="N14" x="17670" y="15884"/>
+  <node id="N21" x="16084" y="10338"/>
+  <node id="N16" x="22141" y="12521"/>
+  <node id="N20" x="18453" y="9449"/>
+  <node id="N19" x="21471" y="8638"/>
+  <node id="N18" x="22874" y="8909"/>
+  <node id="N29" x="26035" y="8054"/>
+  <node id="N37" x="28695" y="10713"/>
+  <node id="N2" x="6704" y="26334"/>
+  <node id="N5" x="514" y="11293"/>
+  <node id="N22" x="14048" y="11023"/>
+  <node id="N24" x="15407" y="5151"/>
+  <node id="N28" x="8438" y="3536"/>
+  <node id="N27" x="10459" y="1522"/>
+  <node id="N26" x="21618" y="0"/>
+  <node id="N30" x="30425" y="2530"/>
+  <node id="N9" x="36086" y="15663"/>
+  <node id="N33" x="27076" y="22159"/>
+  <node id="N34" x="31650" y="21295"/>
+  <node id="N4" x="23247" y="29171"/>
+  <node id="N36" x="36142" y="23234"/>
+  <node id="CS1" x="9972" y="19457"/>
+  <node id="CS2" x="3572" y="16502"/>
+  <node id="CS3" x="17046" y="18820"/>
+  <node id="CS4" x="15787" y="14938"/>
+  <node id="CS5" x="18213" y="12510"/>
+  <node id="CS6" x="22111" y="16561"/>
+  <node id="CS7" x="12957" y="6718"/>
+  <node id="CS8" x="20190" y="4755"/>
+  <node id="CS9" x="30983" y="15487"/>
+  <node id="CS10" x="29283" y="18641"/>
+  <edge id="cse1" from="N8" to="CS1" length="100.0" lanes="4" speed="13.89" world_id="2"/>
+  <edge id="cse10" from="N32" to="CS10" length="100.0" lanes="4" speed="13.89" world_id="0"/>
+  <edge id="cse10rev" from="CS10" to="N32" length="100.0" lanes="4" speed="13.89" world_id="0"/>
+  <edge id="cse1rev" from="CS1" to="N8" length="100.0" lanes="4" speed="13.89" world_id="2"/>
+  <edge id="cse2" from="N10" to="CS2" length="100.0" lanes="4" speed="13.89" world_id="2"/>
+  <edge id="cse2rev" from="CS2" to="N10" length="100.0" lanes="4" speed="13.89" world_id="2"/>
+  <edge id="cse3" from="N12" to="CS3" length="100.0" lanes="4" speed="13.89" world_id="3"/>
+  <edge id="cse3rev" from="CS3" to="N12" length="100.0" lanes="4" speed="13.89" world_id="3"/>
+  <edge id="cse4" from="N13" to="CS4" length="100.0" lanes="4" speed="13.89" world_id="3"/>
+  <edge id="cse4rev" from="CS4" to="N13" length="100.0" lanes="4" speed="13.89" world_id="3"/>
+  <edge id="cse5" from="N15" to="CS5" length="100.0" lanes="4" speed="13.89" world_id="1"/>
+  <edge id="cse5rev" from="CS5" to="N15" length="100.0" lanes="4" speed="13.89" world_id="1"/>
+  <edge id="cse6" from="N17" to="CS6" length="100.0" lanes="4" speed="13.89" world_id="3"/>
+  <edge id="cse6rev" from="CS6" to="N17" length="100.0" lanes="4" speed="13.89" world_id="3"/>
+  <edge id="cse7" from="N23" to="CS7" length="100.0" lanes="4" speed="13.89" world_id="1"/>
+  <edge id="cse7rev" from="CS7" to="N23" length="100.0" lanes="4" speed="13.89" world_id="1"/>
+  <edge id="cse8" from="N25" to="CS8" length="100.0" lanes="4" speed="13.89" world_id="1"/>
+  <edge id="cse8rev" from="CS8" to="N25" length="100.0" lanes="4" speed="13.89" world_id="1"/>
+  <edge id="cse9" from="N31" to="CS9" length="100.0" lanes="4" speed="13.89" world_id="0"/>
+  <edge id="cse9rev" from="CS9" to="N31" length="100.0" lanes="4" speed="13.89" world_id="0"/>
+  <edge id="edge10_1" from="N10" to="N1" length="5818.57" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge10_6" from="N10" to="N6" length="4556.1" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge10_7" from="N10" to="N7" length="3239.96" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge11_12" from="N11" to="N12" length="6492.97" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge11_3" from="N11" to="N3" length="2036.05" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge11_8" from="N11" to="N8" length="5594.74" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge12_11" from="N12" to="N11" length="6492.97" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge12_13" from="N12" to="N13" length="3943.99" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge12_17" from="N12" to="N17" length="5062.58" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge12_35" from="N12" to="N35" length="6226.59" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge13_12" from="N13" to="N12" length="3943.99" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge13_14" from="N13" to="N14" length="1788.05" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge13_21" from="N13" to="N21" length="4677.88" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge13_8" from="N13" to="N8" length="7126.9" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge14_13" from="N14" to="N13" length="1788.05" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge14_15" from="N14" to="N15" length="3349.06" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge14_17" from="N14" to="N17" length="4585.3" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge15_14" from="N15" to="N14" length="3349.06" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge15_16" from="N15" to="N16" length="3607.63" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge15_20" from="N15" to="N20" length="3108.97" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge16_15" from="N16" to="N15" length="3607.63" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge16_17" from="N16" to="N17" length="4083.45" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge16_19" from="N16" to="N19" length="3898.5" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge16_31" from="N16" to="N31" length="9012.66" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge17_12" from="N17" to="N12" length="5062.58" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge17_14" from="N17" to="N14" length="4585.3" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge17_16" from="N17" to="N16" length="4083.45" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge17_32" from="N17" to="N32" length="6910.15" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge17_35" from="N17" to="N35" length="4572.72" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge18_19" from="N18" to="N19" length="1398.84" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge18_29" from="N18" to="N29" length="3190.63" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge18_37" from="N18" to="N37" length="5990.61" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge19_16" from="N19" to="N16" length="3898.5" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge19_18" from="N19" to="N18" length="1398.84" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge19_20" from="N19" to="N20" length="3076.72" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge19_25" from="N19" to="N25" length="3790.07" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge1_10" from="N1" to="N10" length="5818.57" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge1_2" from="N1" to="N2" length="8508.54" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge1_5" from="N1" to="N5" length="9696.13" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge20_15" from="N20" to="N15" length="3108.97" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge20_19" from="N20" to="N19" length="3076.72" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge20_21" from="N20" to="N21" length="2488.92" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge20_25" from="N20" to="N25" length="4811.24" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge21_13" from="N21" to="N13" length="4677.88" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge21_20" from="N21" to="N20" length="2488.92" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge21_22" from="N21" to="N22" length="2108.08" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge21_24" from="N21" to="N24" length="5185.53" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge22_21" from="N22" to="N21" length="2108.08" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge22_23" from="N22" to="N23" length="4134.09" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge22_7" from="N22" to="N7" length="8308.45" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge23_22" from="N23" to="N22" length="4134.09" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge23_24" from="N23" to="N24" length="3077.91" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge23_28" from="N23" to="N28" length="5598.94" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge23_6" from="N23" to="N6" length="10217.59" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge24_21" from="N24" to="N21" length="5185.53" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge24_23" from="N24" to="N23" length="3077.91" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge24_25" from="N24" to="N25" length="4902.73" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge24_27" from="N24" to="N27" length="6078.49" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge25_19" from="N25" to="N19" length="3790.07" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge25_20" from="N25" to="N20" length="4811.24" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge25_24" from="N25" to="N24" length="4902.73" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge25_26" from="N25" to="N26" length="5065.68" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge25_29" from="N25" to="N29" length="6394.94" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge26_25" from="N26" to="N25" length="5065.68" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge26_27" from="N26" to="N27" length="11203.62" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge26_30" from="N26" to="N30" length="9122.76" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge27_24" from="N27" to="N24" length="6078.49" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge27_26" from="N27" to="N26" length="11203.62" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge27_28" from="N27" to="N28" length="2819.52" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge28_23" from="N28" to="N23" length="5598.94" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge28_27" from="N28" to="N27" length="2819.52" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge28_5" from="N28" to="N5" length="11046.4" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge29_18" from="N29" to="N18" length="3190.63" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge29_25" from="N29" to="N25" length="6394.94" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge29_30" from="N29" to="N30" length="7015.54" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge29_37" from="N29" to="N37" length="3689.88" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge2_1" from="N2" to="N1" length="8508.54" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge2_3" from="N2" to="N3" length="6862.38" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge2_8" from="N2" to="N8" length="7754.33" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge30_26" from="N30" to="N26" length="9122.76" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge30_29" from="N30" to="N29" length="7015.54" lanes="4" speed="40.0" world_id="1"/>
+  <edge id="edge30_9" from="N30" to="N9" length="14250.93" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge31_16" from="N31" to="N16" length="9012.66" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge31_32" from="N31" to="N32" length="3889.58" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge31_37" from="N31" to="N37" length="4924.64" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge31_9" from="N31" to="N9" length="5248.07" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge32_17" from="N32" to="N17" length="6910.15" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge32_31" from="N32" to="N31" length="3889.58" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge32_33" from="N32" to="N33" length="3890.47" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge32_34" from="N32" to="N34" length="3724.05" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge33_32" from="N33" to="N32" length="3890.47" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge33_34" from="N33" to="N34" length="4595.69" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge33_35" from="N33" to="N35" length="3790.11" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge33_4" from="N33" to="N4" length="7913.14" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge34_32" from="N34" to="N32" length="3724.05" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge34_33" from="N34" to="N33" length="4595.69" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge34_36" from="N34" to="N36" length="4865.1" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge35_12" from="N35" to="N12" length="6226.59" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge35_17" from="N35" to="N17" length="4572.72" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge35_33" from="N35" to="N33" length="3790.11" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge35_4" from="N35" to="N4" length="7953.85" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge36_34" from="N36" to="N34" length="4865.1" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge36_9" from="N36" to="N9" length="7535.5" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge37_18" from="N37" to="N18" length="5990.61" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge37_29" from="N37" to="N29" length="3689.88" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge37_31" from="N37" to="N31" length="4924.64" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge3_11" from="N3" to="N11" length="2036.05" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge3_2" from="N3" to="N2" length="6862.38" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge3_4" from="N3" to="N4" length="10104.68" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge4_3" from="N4" to="N3" length="10104.68" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge4_33" from="N4" to="N33" length="7913.14" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge4_35" from="N4" to="N35" length="7953.85" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge5_1" from="N5" to="N1" length="9696.13" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge5_28" from="N5" to="N28" length="11046.4" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge5_6" from="N5" to="N6" length="3492.46" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge6_10" from="N6" to="N10" length="4556.1" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge6_23" from="N6" to="N23" length="10217.59" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge6_5" from="N6" to="N5" length="3492.46" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge6_7" from="N6" to="N7" length="4584.88" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge7_10" from="N7" to="N10" length="3239.96" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge7_22" from="N7" to="N22" length="8308.45" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge7_6" from="N7" to="N6" length="4584.88" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge7_8" from="N7" to="N8" length="5021.71" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge8_11" from="N8" to="N11" length="5594.74" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge8_13" from="N8" to="N13" length="7126.9" lanes="4" speed="40.0" world_id="3"/>
+  <edge id="edge8_2" from="N8" to="N2" length="7754.33" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge8_7" from="N8" to="N7" length="5021.71" lanes="4" speed="40.0" world_id="2"/>
+  <edge id="edge9_30" from="N9" to="N30" length="14250.93" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge9_31" from="N9" to="N31" length="5248.07" lanes="4" speed="40.0" world_id="0"/>
+  <edge id="edge9_36" from="N9" to="N36" length="7535.5" lanes="4" speed="40.0" world_id="0"/>
+</roadnet>

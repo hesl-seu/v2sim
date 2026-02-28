@@ -6,4 +6,5 @@ from .base import (
 from .pdn import PluginPDN
 from .v2g import PluginV2G
 from .ocur import PluginOvercurrent
+from .rater import PluginRater
 from .pool import *

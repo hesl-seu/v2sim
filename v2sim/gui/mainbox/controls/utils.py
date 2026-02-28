@@ -1,6 +1,6 @@
 from v2sim.gui.common import *
 
-from v2sim.trafficgen.misc import *
+from v2sim.gen.misc import *
 
 class EditDesc:
     def __init__(self, typename:type):
