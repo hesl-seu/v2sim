@@ -10,8 +10,11 @@
     "save_state_on_finish": true,
     "copy_state": false,
     "visualize": false,
-    "disable_parallel": false,
-    "show_uxsim_info": false,
+    "ux_no_para": false,
+    "ux_show_info": false,
+    "ux_rand": false,
+    "sumo_ignore_driving": false,
+    "sumo_raise_routing_error": false,
     "stats": [
         "fcs",
         "scs",
