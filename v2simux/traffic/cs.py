@@ -257,20 +257,20 @@ class CS(ABC):
         self._manual_offline = None
 
     @abstractmethod
-    def add_veh(self, veh_id: str) -> bool:
+    def add_veh(self, veh: EV) -> bool:
         """
         Add a vehicle to the charging queue. Wait when the charging pile is insufficient.
-            veh_id: Vehicle ID
+            veh: Vehicle instance
         Return:
             True if added successfully, False if the vehicle is already charging.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def pop_veh(self, veh_id: str) -> bool:
+    def pop_veh(self, veh: EV) -> bool:
         """
         Remove the vehicle from the charging queue.
-            veh_id: Vehicle ID
+            veh: Vehicle instance
         Return:
             True if removed successfully, False if the vehicle does not exist.
         """
@@ -455,14 +455,14 @@ class SCS(CS):
 
     def get_V2G_cap(self, _t:int, /) -> float:
         if self.is_offline(_t): return 0.0
-        tot_rate_ava = 0.0
-        # Do not check if psell is None due to performance considerations
-        v2gp = self._psell(_t) # type: ignore
+        pd_max = 0.0
+        assert self._psell is not None, "V2G not supported in %s." % self.name
+        v2gp = self._psell(_t)
         for ev in chain(self._chi, self._free):
             if ev.willing_to_v2g(_t, v2gp):
-                tot_rate_ava += ev.max_v2g_rate * ev.eta_discharge
-        self._cur_v2g_cap = tot_rate_ava
-        return tot_rate_ava
+                pd_max += ev.max_v2g_rate * ev.eta_discharge
+        self._cur_v2g_cap = pd_max
+        return pd_max
 
     def vehicles(self):
         return chain(self._chi, self._free)
@@ -575,6 +575,9 @@ class FCS(CS):
                 self._buf.remove(ev)
             except:
                 return False
+        if len(self._chi) < self._slots and len(self._buf) > 0:
+            ev = self._buf.popleft()
+            self._chi.add(ev)
         return True
 
     def __contains__(self, veh: EV) -> bool:
@@ -644,15 +647,10 @@ class FCS(CS):
                 AllocEnv(self, self._chi, cur_time), 
                 len(self._chi), self._pc_lim1, self._pc_limtot
             )
-
-        for ev in self._chi:
-            Wcharge += ev.charge(sec, self.pbuy(cur_time), ev._efc_rate)
-            if ev.battery >= ev.charge_target:
-                ret.append(ev)
-        for ev in ret:
-            self.pop_veh(ev)
-            if len(self._buf) > 0:
-                self._chi.add(self._buf.popleft())
+            for ev in self._chi:
+                Wcharge += ev.charge(sec, self.pbuy(cur_time), ev._efc_rate)
+                if ev.battery >= ev.charge_target: ret.append(ev)
+            for ev in ret: self.pop_veh(ev)
         self._cload = Wcharge / sec
         return ret
 

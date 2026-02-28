@@ -1,3 +1,13 @@
+import warnings
+
+
+warnings.warn(
+    "Package 'v2simux' is deprecated and has been merged into 'v2sim'. "
+    "Please use 'v2sim' instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 from .locale import *
 from .traffic import *
 from .trafficgen import *
@@ -19,4 +29,4 @@ from .sim_core import (
     PLUGINS_DIR,
 )
 
-__version__ = "1.3.2"
+__version__ = "1.3.3"
