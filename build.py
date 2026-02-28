@@ -1,3 +1,4 @@
+import subprocess
 import os, sys
 
 MODE_LIST = [".dev", "a", "b", "rc", "", ".post"]
@@ -139,7 +140,7 @@ def sync_versions(next_major:bool=False, next_minor:bool=False, next_patch:bool=
         
     print("Version:", VERSION)
 
-    init_file = "v2simux/__init__.py"
+    init_file = "v2sim/__init__.py"
     with open(init_file, 'r') as f:
         content = f.read()
         
@@ -163,7 +164,7 @@ def sync_versions(next_major:bool=False, next_minor:bool=False, next_patch:bool=
     try:
         import toml
     except ImportError:
-        os.system(f'{sys.executable} -m pip install toml')
+        subprocess.run(f'{sys.executable} -m pip install toml')
         import toml
 
     with open('pyproject.toml', 'r') as f:
@@ -188,10 +189,10 @@ def build():
     try:
         import uv
     except ImportError:
-        os.system(f'{sys.executable} -m pip install uv')
+        subprocess.run(f'{sys.executable} -m pip install uv')
         import uv
         
-    os.system('uv build')
+    subprocess.run('uv build')
     
 if __name__ == "__main__":
     from feasytools import ArgChecker
