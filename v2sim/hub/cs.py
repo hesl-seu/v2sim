@@ -136,7 +136,8 @@ class CS(BaseStation[EV], ABC):
     """Charging Station"""
     def __init__(self,
         name: str, bind: str, slots: int, bus: str, x: float, y: float, cs_type: CSType,
-        max_pc: float, max_pd: float, price_buy: PriceGetterLike, price_sell: Optional[PriceGetterLike] = None,
+        max_pc: float, max_pd: float, price_buy: PriceGetterLike, price_buy_is_service_fee:bool = False,
+        price_sell: Optional[PriceGetterLike] = None, price_sell_is_service_fee:bool = False,
         offline: Optional[RangeList] = None, owners: Optional[OwnerGroup] = None,
         pc_alloc: str="Average", pd_alloc: str="Average", allow_queuing: bool=True
     ):
@@ -153,7 +154,9 @@ class CS(BaseStation[EV], ABC):
         :param max_pc: Each pile's maximum power for charging an EV, kWh/s.
         :param max_pd: Each pile's maximum power for discharging an EV, kWh/s.
         :param price_buy: User charging price list, $/kWh.
+        :param price_buy_is_service_fee: Whether the price_buy is a service fee (added on top of the cost) rather than the actual price of energy. If True, the actual unit cost for user is (price_buy + electrcity price), where cost is the electricity cost for CS. If False, the actual unit cost for user is price_buy.
         :param price_sell: Energy selling price, $/kWh. The CS does not support V2G if None is passed.
+        :param price_sell_is_service_fee: Whether the price_sell is a service fee (deducted on top of the revenue) rather than the actual price of energy. If True, the actual unit revenue for user is (electrcity price - price_sell). If False, the actual unit revenue for user is price_sell.
         :param offline: Time range when the CS is offline. None means always online.
         :param owners: Set of owner IDs. None means public CS, otherwise private CS.
         :param pc_alloc:
@@ -165,7 +168,7 @@ class CS(BaseStation[EV], ABC):
         :param allow_queuing:
                 Whether to allow vehicles to queue when all charging piles are occupied.
         """
-        super().__init__(name, bind, slots, x, y, price_buy, offline, allow_queuing)
+        super().__init__(name, bind, slots, x, y, price_buy, price_buy_is_service_fee, offline, allow_queuing)
         self._owners: Optional[OwnerGroup] = owners
         self._bus: str = bus
         self._cs_type: CSType = cs_type
@@ -178,6 +181,7 @@ class CS(BaseStation[EV], ABC):
             self._psell = None
         else:
             self._psell = _pget_from_like(price_sell)
+        self._psell_is_serv_fee = price_sell_is_service_fee
 
         self._pc_lim1: float = max_pc # Maximum charging power of a single pile
         self._pc_limtot: float = float("inf") # Maximum charging power of the entire CS given by the PDN
@@ -215,7 +219,7 @@ class CS(BaseStation[EV], ABC):
         self._pc_is_constrained = False
     
     def __repr__(self):
-        return f"CS(name='{self._name}',slots={self._slots},pbuy={self._pbuy},psell={self._psell},offline={self._offline})"
+        return f"CS(name='{self._name}', slots={self._slots}, price_buy={self._pbuy}, price_buy_is_service_fee={self._pbuy_is_serv_fee}, price_sell={self._psell}, price_sell_is_service_fee={self._psell_is_serv_fee}, offline={self._offline})"
     
     def __str__(self):
         return f"CS(name='{self._name}')"
@@ -254,6 +258,7 @@ class CS(BaseStation[EV], ABC):
             "y": str(self._y),
             "max_pc": f"{self._pc_lim1 * 3600:.2f}",
             "pc_alloc": self._pc_alloc_str,
+            "pbuy_is_service_fee": str(self._pbuy_is_serv_fee),
         }
         if v2g:
             attrib["max_pd"] = f"{self._pd_lim1 * 3600:.2f}"
@@ -277,6 +282,21 @@ class CS(BaseStation[EV], ABC):
         """Electricity selling price, $/kWh"""
         if self._psell is None: raise ValueError("This charging station does not support V2G.")
         return self._psell(t, self, veh)
+    
+    def psell_is_service_fee(self) -> bool:
+        """Whether the price_sell is a service fee rather than the actual price of energy."""
+        if self._psell is None: raise ValueError("This charging station does not support V2G.")
+        return self._psell_is_serv_fee
+    
+    def real_psell(self, t:int, veh: EV, elec_price: float) -> float:
+        """The actual unit revenue for user, $/kWh"""
+        if self._psell is None: raise ValueError("This charging station does not support V2G.")
+        if self._psell_is_serv_fee:
+            return elec_price - self._psell(t, self, veh)
+            # Allow negative psell, which means the user pays the grid to discharge.
+            # Of course, users will not choose to discharge when the revenue is negative, but this will be handled by the vehicle's willingness to discharge rather than the CS.
+        else:
+            return self._psell(t, self, veh)
 
     @property
     def supports_V2G(self) -> bool:
@@ -528,13 +548,14 @@ class UniCS(CS):
             )
             if self._cs_type == CSType.FCS:
                 for ev in self._chi:
-                    c_, m_ = ev.charge(sec, self.pbuy(cur_time, ev))
+                    c_, m_ = ev.charge(sec, self.real_pbuy(cur_time, ev, pb_e))
                     Wcharge += c_; self._revenue += m_; self._cost += c_ * pb_e
                     if ev._energy >= ev._etar and ev._leave_at_etar: ret.append(ev)
             else:
                 for ev in self._chi:
-                    if not ev.willing_to_slow_charge(cur_time, self.pbuy(cur_time, ev)): continue
-                    c_, m_ = ev.charge(sec, self.pbuy(cur_time, ev))
+                    uc = self.real_pbuy(cur_time, ev, pb_e)
+                    if not ev.willing_to_slow_charge(cur_time, uc): continue
+                    c_, m_ = ev.charge(sec, uc)
                     Wcharge += c_; self._revenue += m_; self._cost += c_ * pb_e
                     if ev._energy >= ev._etar and ev._leave_at_etar: ret.append(ev)
             for ev in ret: self.pop_veh(ev)
@@ -612,13 +633,13 @@ class BiCS(CS):
                     for ev in self._chi:
                         if ev.soc < ev._kv:
                             self._c_evs.append(ev)
-                        elif ev.willing_to_v2g(cur_time, self.psell(cur_time, ev)):
+                        elif ev.willing_to_v2g(cur_time, self.real_psell(cur_time, ev, ps_e)):
                             self._d_evs.append(ev)
                 else:
                     for ev in self._chi:
-                        if ev.willing_to_slow_charge(cur_time, self.pbuy(cur_time, ev)) and ev.soc < ev._kv:
+                        if ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e)) and ev.soc < ev._kv:
                             self._c_evs.append(ev)
-                        elif ev.willing_to_v2g(cur_time, self.psell(cur_time, ev)):
+                        elif ev.willing_to_v2g(cur_time, self.real_psell(cur_time, ev, ps_e)):
                             self._d_evs.append(ev)
             else:
                 # Use the previously updated list of vehicles willing to discharge via V2G
@@ -626,14 +647,15 @@ class BiCS(CS):
                 if self._cs_type == CSType.FCS:
                     self._c_evs = [ev for ev in self._chi if ev.soc < ev._kv]
                 else:
-                    self._c_evs = [ev for ev in self._chi if ev.soc < ev._kv and ev.willing_to_slow_charge(cur_time, self.pbuy(cur_time, ev))]
+                    self._c_evs = [ev for ev in self._chi if ev.soc < ev._kv and 
+                        ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e))]
         else:
             # V2G is not enabled now, all vehicles charging to their _etar
             self._d_evs.clear()
             if self._cs_type == CSType.FCS:
                 self._c_evs = list(self._chi)
             else:
-                self._c_evs = [ev for ev in self._chi if ev.willing_to_slow_charge(cur_time, self.pbuy(cur_time, ev))]
+                self._c_evs = [ev for ev in self._chi if ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e))]
             
         m = len(self._c_evs)
         if m > 0:
@@ -644,7 +666,7 @@ class BiCS(CS):
             if v2g_enabled:
                 # When V2G is enabled, vehicles only charge to min(_cap * _kv, _etar)
                 for ev in self._c_evs:
-                    pb = self.pbuy(cur_time, ev)
+                    pb = self.real_pbuy(cur_time, ev, pb_e)
                     if ev._leave_at_etar:
                         c_, m_ = ev._bidirectional_charge(sec, pb, ev._etar)
                         Wcharge += c_; self._revenue += m_; self._cost += c_ * pb_e
@@ -655,10 +677,9 @@ class BiCS(CS):
             else:
                 # When V2G is not enabled, vehicles charge to _etar
                 for ev in self._c_evs:
-                    c_, m_ = ev._bidirectional_charge(sec, self.pbuy(cur_time, ev), ev._etar)
-                    Wcharge += c_; self._cost += m_; self._revenue += c_ * ps_e
-                    if ev._energy >= ev._etar and ev._leave_at_etar:
-                        ret.append(ev)
+                    c_, m_ = ev._bidirectional_charge(sec, self.real_pbuy(cur_time, ev, pb_e), ev._etar)
+                    Wcharge += c_; self._revenue += m_; self._cost += c_ * pb_e
+                    if ev._energy >= ev._etar and ev._leave_at_etar: ret.append(ev)
         
         n = len(self._d_evs)
         if n > 0:
@@ -666,8 +687,8 @@ class BiCS(CS):
             # If _pd_alloc do not allocate power to a vehicle, the vehicle's discharging power is set to maximum discharging power.
             self._pd_alloc(AllocEnv(self, self._d_evs, cur_time), n, v2g_demand, self._cur_v2g_cap)
             for ev in self._d_evs:
-                c_, m_ = ev.bidirectional_discharge(sec, self.psell(cur_time, ev))
-                Wdischarge += c_; self._revenue -= m_ # Revenue decreases when discharging
+                c_, m_ = ev.bidirectional_discharge(sec, self.real_psell(cur_time, ev, ps_e))
+                Wdischarge += c_; self._cost += m_; self._revenue += c_ * ps_e
         
         self._cload = Wcharge / sec
         self._dload = Wdischarge / sec

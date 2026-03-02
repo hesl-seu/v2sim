@@ -48,6 +48,7 @@ def _parse_station_params(cs_node: Element) -> Dict:
         "y": float(cs_node.attrib.get("y", "inf")),
         "offline": par_off,
         "price_buy": par_pbuy,
+        "price_buy_is_service_fee": cs_node.attrib.get("pbuy_is_service_fee", "False").lower() == "true",
     }
     if cs_node.tag == "fcs":
         cs_type = CSType.FCS

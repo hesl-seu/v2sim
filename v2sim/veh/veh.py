@@ -93,18 +93,18 @@ class Vehicle:
     def __init__(self, name: str, vtype: VehType, cap: float, pct: float, epm: float, omega: float, kr: float, kf: float, trips: List[Trip], trip_info: Dict[str, Any], base: Optional[str] = None):
         """
         Initialize Vehicle
-        Parameters:
-            name: Vehicle name
-            vtype: Vehicle type
-            cap: Vehicle battery capacity (kWh for EV, L for GV)
-            pct: Initial battery percentage (0.0~1.0)
-            epm: Energy consumption per meter (kWh/m for EV, L/m for GV)
-            omega: Decision parameter for selecting charging station
-            kr: User's estimation deviation of distance. For example, if kr=0.9, it means that the user thinks that the current energy can support 90% of the actual mileage.
-            kf: Minimum energy percentage required for direct departure without charging/refueling
-            trips: Vehicle trip list
-            trip_info: Trip generation related information
-            base: Vehicle base element (node or edge) in the road network
+        
+        :param name: Vehicle name
+        :param vtype: Vehicle type
+        :param cap: Vehicle battery capacity (kWh for EV, L for GV)
+        :param pct: Initial battery percentage (0.0~1.0)
+        :param epm: Energy consumption per meter (kWh/m for EV, L/m for GV)
+        :param omega: Decision parameter for selecting charging station
+        :param kr: User's estimation deviation of distance. For example, if kr=0.9, it means that the user thinks that the current energy can support 90% of the actual mileage.
+        :param kf: Minimum energy percentage required for direct departure without charging/refueling
+        :param trips: Vehicle trip list
+        :param trip_info: Trip generation related information
+        :param base: Vehicle base element (node or edge) in the road network
         """
         self._name = name               # Vehicle name
         self._sta = VehStatus.Parking   # Vehicle status
@@ -239,10 +239,9 @@ class Vehicle:
     def drive(self, new_dis: float):
         """
         Update the distance traveled and energy consumption. The vehicle must not be in refueling/recharging state.
-        Parameters:
-            new_dis: New distance traveled, m. No less than the previous distance.
-        Returns:
-            True if the vehicle has remaining energy after driving, False if the vehicle is depleted.
+        
+        :param new_dis: New distance traveled, m. No less than the previous distance.
+        :returns: True if the vehicle has remaining energy after driving, False if the vehicle is depleted.
         """
         assert new_dis >= self._dis - EPS
         self._energy -= (new_dis - self._dis) * self._epm
@@ -256,8 +255,8 @@ class Vehicle:
     def _unsafe_drive(self, new_dis: float):
         """
         Update the distance traveled and energy consumption in driving state without checking
-        Parameters:
-            new_dis: New distance traveled, m. No less than the previous distance.
+        
+        :param new_dis: New distance traveled, m. No less than the previous distance.
         """
         self._energy -= (new_dis - self._dis) * self._epm
         self._dis = new_dis
@@ -266,10 +265,9 @@ class Vehicle:
         """
         Whether the current energy level is sufficient to travel a distance of dist. 
         Note that this function uses the user's estimated distance, that is, range >= kr * dist
-        Parameters:
-            dist: Distance to be traveled (m)
-        Returns:
-            True if the current energy level is sufficient to travel the distance, False otherwise
+        
+        :param dist: Distance to be traveled (m)
+        :returns: True if the current energy level is sufficient to travel the distance, False otherwise
         """
         return self.range >= self._kr * dist
     
@@ -306,9 +304,9 @@ class Vehicle:
     def add_trip(self, trip: Trip, day: Optional[int] = None):
         """
         Add a trip to the vehicle's trip list
-        Parameters:
-            trip: Trip to be added. Note that the instance's depart_time will be modified if day is not None.
-            day: Day number (0 for the first day, 1 for the second day, etc.) to which the trip belongs. If None, the trip's depart_time will not be modified.
+        
+        :param trip: Trip to be added. Note that the instance's depart_time will be modified if day is not None.
+        :param day: Day number (0 for the first day, 1 for the second day, etc.) to which the trip belongs. If None, the trip's depart_time will not be modified.
         """
         if day is not None:
             assert day >= 0 and trip.depart_time >= 0 and trip.depart_time < 86400, f"[{trip.id}] day {day} must be >=0 and depart_time {trip.depart_time} must be in [0, 86400)"
@@ -358,9 +356,8 @@ class GV(Vehicle):
     def start_refueling(self, energy_target: Optional[float] = None):
         """
         Start refueling
-        Parameters:
-            energy_target: Target energy to restore, L.
-                If None, restore to full capacity.
+        
+        :param energy_target: Target energy to restore, L. If None, restore to full capacity.
         """
         self._etar = self._cap if energy_target is None else energy_target
         self.__ebeg = self._energy
@@ -368,11 +365,11 @@ class GV(Vehicle):
     def refuel(self, amount: float, unit_cost: float):
         """
         Add energy to the energy storage
-        Parameters:
-            amount: Amount to restore, L.
-            unit_cost: Unit cost of refueling, $/L.
-        Returns:
-            Money spent for this refueling, $
+        
+        :param amount: Amount to restore, L.
+        :param unit_cost: Unit cost of refueling, $/L.
+        :returns (delta_energy, money):
+            A tuple of actual amount restored (L) and money spent for this refueling ($).
         """
         _energy = self._energy
         self._energy += amount
@@ -386,8 +383,8 @@ class GV(Vehicle):
     def end_refueling(self) -> float:
         """
         End refueling/recharging
-        Returns:
-            actual restored amount (L)
+        
+        :returns: actual restored amount (L)
         """
         return self._energy - self.__ebeg
 

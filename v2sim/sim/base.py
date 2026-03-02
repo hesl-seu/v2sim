@@ -66,8 +66,7 @@ class TrafficInst(ABC):
                 # Do not directly add to a specific slow charging station here, or SCSHub will not be able to track the vehicle correctly
     
     @abstractmethod
-    def get_veh_pos(self, veh_id: str) -> Tuple[float, float]:
-        ...
+    def get_veh_pos(self, veh_id: str) -> Tuple[float, float]: ...
     
     @property
     def pdn(self) -> Grid:
@@ -141,12 +140,10 @@ class TrafficInst(ABC):
     @abstractmethod
     def edges(self): 
         """Get all road instances"""
-        ...
     
     @abstractmethod
     def get_edge_names(self) -> List[str]:
         """Get all road names"""
-        ...
     
     # Backward compatibility
     current_time = cur_time  
@@ -161,7 +158,7 @@ class TrafficInst(ABC):
     def simulation_start(self): ...
 
     @abstractmethod
-    def simulation_step(self, step_len:int): ...
+    def simulation_step(self, step_len: int): ...
 
     def post_simulation_step(self, deltaT: int):
         # Process vehicles in charging stations and parked vehicles
@@ -173,7 +170,7 @@ class TrafficInst(ABC):
         evs = self._hubs.fcs.update(deltaT, self._ct, pb_e, ps_e)
         for ev in evs: self._end_restore(ev)
         evs = self._hubs.scs.update(deltaT, self._ct, pb_e, ps_e)
-        assert len(evs) == 0, "SCS should not release vehicles automatically, but got {} vehicles.".format(len(evs))
+        assert len(evs) == 0, f"SCS should not release vehicles automatically, but got {len(evs)} vehicles."
 
         # Process faulty vehicles
         while not self._fQ.empty() and self._fQ.top[0] <= self._ct:

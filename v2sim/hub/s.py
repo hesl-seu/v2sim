@@ -207,8 +207,21 @@ def _pget_from_like(like: PriceGetterLike) -> PriceGetter:
 
 
 class BaseStation(Generic[T_Vehicle], ABC):
-    def __init__(self, name: str, bind: str, slots: int, x: float, y: float, 
-            price_buy: PriceGetterLike, offline: Optional[RangeList] = None, allow_queuing: bool=True):
+    def __init__(self, name: str, bind: str, slots: int, x: float, y: float, price_buy: PriceGetterLike, 
+            price_buy_is_service_fee:bool = False, offline: Optional[RangeList] = None, allow_queuing: bool=True):
+        """
+        Initialize the station
+
+        :param name: Name of the station
+        :param bind: The element in the road network where the station is located
+        :param slots: Number of chargers/oil pumps in the station
+        :param x: X-coordinate of the station
+        :param y: Y-coordinate of the station
+        :param price_buy_is_service_fee: Whether the price_buy is a service fee (added on top of the cost) rather than the actual price of energy.
+        :param price_buy: Price for users to buy energy, $/kWh or $/L. It can be a PriceGetter instance, a constant price (int or float), a SegFunc instance, or a list of (time, price) tuples.
+        :param offline: Time range when the station is offline, such as RangeList([(start1, end1), (start2, end2), ...]). None means always online.
+        :param allow_queuing: Whether to allow queuing when the station is full
+        """
         self._name: str = name
         self._bind: str = bind
         self._slots: int = slots
@@ -217,6 +230,7 @@ class BaseStation(Generic[T_Vehicle], ABC):
         self._offline: RangeList = offline if offline is not None else RangeList([])
         self._manual_offline: Optional[bool] = None
         self._pbuy: PriceGetter = _pget_from_like(price_buy)
+        self._pbuy_is_serv_fee:bool = price_buy_is_service_fee
         self._allow_que: bool = allow_queuing
         self._chi: Set[T_Vehicle] = set() # Vehicles currently charging
         self._buf: Deque[T_Vehicle] = deque() # Vehicles waiting in the queue
@@ -228,6 +242,12 @@ class BaseStation(Generic[T_Vehicle], ABC):
         self._chi.clear()
         self._buf.clear()
         self._manual_offline = None
+        self._revenue = 0.0
+        self._cost = 0.0
+    
+    def reset_money(self):
+        """Reset the revenue and cost to zero, while keeping the current vehicles and offline status. 
+        This can be used when simulating multiple days and we want to reset the daily revenue and cost while keeping the station status."""
         self._revenue = 0.0
         self._cost = 0.0
     
@@ -267,8 +287,19 @@ class BaseStation(Generic[T_Vehicle], ABC):
         return self._slots
 
     def pbuy(self, t: int, veh: T_Vehicle) -> float:
-        """Price of unit energy, $/kWh or $/L"""
+        """Price of unit energy for users, $/kWh or $/L. If price_buy_is_service_fee is True, this price is a service fee added on top of the energy cost (e.g., electricity purchase price), otherwise it is the actual price of energy."""
         return self._pbuy(t, self, veh)
+    
+    @property
+    def pbuy_is_service_fee(self) -> bool:
+        """Whether the price_buy is a service fee (added on top of the cost) rather than the actual price of energy."""
+        return self._pbuy_is_serv_fee
+    
+    def real_pbuy(self, t: int, veh: T_Vehicle, energy_cost: float) -> float:
+        """Return the real price of unit energy for a vehicle, considering service fees."""
+        pb = self.pbuy(t, veh)
+        if self._pbuy_is_serv_fee: pb += energy_cost  # Add service fee to the base price
+        return pb
 
     def is_online(self, t: int) -> bool:
         """
@@ -331,7 +362,8 @@ class BaseStation(Generic[T_Vehicle], ABC):
 
 class GS(BaseStation[GV]):
     def __init__(self, name: str, bind: str, slots: int, x: float, y: float, 
-                 price_buy: PriceGetterLike, offline: Optional[RangeList] = None, flow: float = 0.7):
+                 price_buy: PriceGetterLike, price_buy_is_service_fee:bool = False,
+                 offline: Optional[RangeList] = None, flow: float = 0.7):
         """
         Initialize the gas station
         
@@ -345,9 +377,10 @@ class GS(BaseStation[GV]):
         :param price_buy: Refueling price list, $/L.
             The first list is the time range, and the second list is the price,
             such as ([0, 3600, 7200], [1.1, 1.2, 1.1]).
+        :param price_buy_is_service_fee: Whether the price_buy is a service fee (added on top of the cost) rather than the actual price of energy.
         :param flow: Refueling flow rate, L/s
         """
-        super().__init__(name, bind, slots, x, y, price_buy, offline, True)
+        super().__init__(name, bind, slots, x, y, price_buy, price_buy_is_service_fee, offline, True)
         self._flow: float = flow  # L/s
 
     def __contains__(self, veh: GV) -> bool:
@@ -365,7 +398,8 @@ class GS(BaseStation[GV]):
             "bind": self._bind,
             "x": str(self._x),
             "y": str(self._y),
-            "slots": str(self._slots)
+            "slots": str(self._slots),
+            "pbuy_is_service_fee": str(self._pbuy_is_serv_fee),
         })
         ret.append(self._pbuy.to_xml("pbuy"))
         if len(self._offline) > 0: ret.append(self._offline.toXMLNode("offline"))
@@ -401,7 +435,9 @@ class GS(BaseStation[GV]):
             return ret
         
         for gv in self._chi:
-            c_, m_ = gv.refuel(sec * self._flow, self.pbuy(cur_time, gv))
+            uc = self.pbuy(cur_time, gv)
+            if self._pbuy_is_serv_fee: uc += pb_g
+            c_, m_ = gv.refuel(sec * self._flow, uc)
             self._revenue += m_; self._cost += c_ * pb_g
             if gv._energy >= gv._etar: ret.add(gv)
             
