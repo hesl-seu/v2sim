@@ -6,7 +6,7 @@ from pathlib import Path
 from xml.etree.ElementTree import Element, ElementTree
 from feasytools import ArgChecker, SegFunc
 from fpowerkit import Grid
-from typing import Any, Literal, Tuple, TypeVar, Union, Dict, List
+from typing import Any, Literal, Optional, Tuple, TypeVar, Union, Dict, List
 from ..hub import ConstPriceGetter, ToUPriceGetter
 from ..locale import Lang
 from ..utils import DetectFiles, V2SimConfig
@@ -67,6 +67,36 @@ class PricingMethod(IntEnum):
     FIXED = 0  # Fixed price
     RANDOM = 1  # 5-tier random price
 
+@dataclass
+class StationFilterConfig:
+    case_sensitive: bool = False
+    start_with: str = ""
+    not_start_with: str = ""
+    end_with: str = ""
+    not_end_with: str = ""
+
+    def check(self, name: str) -> bool:
+        if self.case_sensitive:
+            if self.start_with and not name.startswith(self.start_with):
+                return False
+            if self.not_start_with and name.startswith(self.not_start_with):
+                return False
+            if self.end_with and not name.endswith(self.end_with):
+                return False
+            if self.not_end_with and name.endswith(self.not_end_with):
+                return False
+        else:
+            lname = name.lower()
+            if self.start_with and not lname.startswith(self.start_with.lower()):
+                return False
+            if self.not_start_with and lname.startswith(self.not_start_with.lower()):
+                return False
+            if self.end_with and not lname.endswith(self.end_with.lower()):
+                return False
+            if self.not_end_with and lname.endswith(self.not_end_with.lower()):
+                return False
+        return True
+
 
 def gen_5seg_price(end_time:int, price: float):
     loop_end = end_time // 86400
@@ -90,6 +120,9 @@ class TrafficGenerator:
         root: str,
         silent: bool = False,
         existing: ProcExisting = ProcExisting.BACKUP,
+        fcs_filter_config: Optional[StationFilterConfig] = None,
+        scs_filter_config: Optional[StationFilterConfig] = None,
+        gs_filter_config: Optional[StationFilterConfig] = None,
     ):
         """
         Generator initialization
@@ -112,18 +145,36 @@ class TrafficGenerator:
             raise FileNotFoundError(Lang.ERROR_NET_FILE_NOT_SPECIFIED)
         self.__rnet = RoadNet.load(self.__cfg.net)
         if self.__cfg.sumo:
+            if fcs_filter_config is None:
+                fcs_filter_config = StationFilterConfig(start_with="CS", not_end_with="rev")
             self.__ava_fcs: List[str] = [
-                e for e in self.__rnet.edge_ids if e.upper().startswith("CS") and not e.lower().endswith("rev")
+                e for e in self.__rnet.edge_ids if fcs_filter_config.check(e)
             ]
+            if scs_filter_config is None:
+                scs_filter_config = StationFilterConfig(not_start_with="CS")
             self.__ava_scs: List[str] = [
-                e for e in self.__rnet.edge_ids if not e.upper().startswith("CS")
+                e for e in self.__rnet.edge_ids if scs_filter_config.check(e)
+            ]
+            if gs_filter_config is None:
+                gs_filter_config = StationFilterConfig()
+            self.__ava_gs: List[str] = [
+                e for e in self.__rnet.edge_ids if gs_filter_config.check(e)
             ]
         else:
+            if fcs_filter_config is None:
+                fcs_filter_config = StationFilterConfig(start_with="CS")
             self.__ava_fcs: List[str] = [
-                e for e in self.__rnet.node_ids if e.upper().startswith("CS")
+                e for e in self.__rnet.node_ids if fcs_filter_config.check(e)
             ]
+            if scs_filter_config is None:
+                scs_filter_config = StationFilterConfig(not_start_with="CS")
             self.__ava_scs: List[str] = [
-                e for e in self.__rnet.node_ids if not e.upper().startswith("CS")
+                e for e in self.__rnet.node_ids if scs_filter_config.check(e)
+            ]
+            if gs_filter_config is None:
+                gs_filter_config = StationFilterConfig()
+            self.__ava_gs: List[str] = [
+                e for e in self.__rnet.node_ids if gs_filter_config.check(e)
             ]
         
         self.__bus_names = ["None"]
@@ -132,11 +183,21 @@ class TrafficGenerator:
                 self.__cfg.grid, external_proj=self.__rnet.getProjectorOrNone()
             ).BusNames
         else:
-            print("Grid is not defined, and thus buses are not included. CS generation may meet errors.")
+            if not self.__silent: print("Grid is not defined, and thus buses are not included. Station generation may meet errors.")
         
         self.__cs_file = self.__cfg["cscsv"] if "cscsv" in self.__cfg else ""
         self.__gs_file = self.__cfg["gscsv"] if "gscsv" in self.__cfg else ""
         self.__grid_file = self.__cfg["grid"] if "grid" in self.__cfg else ""
+    
+    def __get_available(self, mode:str) -> List[str]:
+        if mode == "fcs":
+            return self.__ava_fcs
+        elif mode == "scs":
+            return self.__ava_scs
+        elif mode == "gs":
+            return self.__ava_gs
+        else:
+            raise ValueError(mode)
 
     def VTripsFromArgs(self, args: Union[str, ArgChecker]):
         """
@@ -291,7 +352,7 @@ class TrafficGenerator:
                     raise RuntimeError(f"Invalid type: {x}")
             cs_slots = [trans(cs_type[x]) for x in station_names]
         else:
-            used_cs = self.__ava_fcs if mode == "fcs" else self.__ava_scs
+            used_cs = self.__get_available(mode)
             cs_candidates = []
             if self.__cfg.sumo:
                 for name in used_cs:
@@ -494,17 +555,17 @@ class TrafficGenerator:
         pbuy = params.pop_float("pbuy", 1.5)
         if self.__cs_file != "":
             cs_file = self.__cs_file
-            print("CS file detected: ", cs_file)
+            if not self.__silent: print("CS file detected: ", cs_file)
         else:
             cs_file = params.pop_str("cs-file", "")
         if self.__gs_file != "" and cs_type == "gs":
             gs_file = self.__gs_file
-            print("GS file detected: ", gs_file)
+            if not self.__silent: print("GS file detected: ", gs_file)
         else:
             gs_file = params.pop_str("gs-file", "")
         if self.__grid_file != "":
             grid_file = self.__grid_file
-            print("Grid file detected: ", grid_file)
+            if not self.__silent: print("Grid file detected: ", grid_file)
         else:
             grid_file = params.pop_str("grid-file", "")
         
@@ -555,30 +616,30 @@ class TrafficGenerator:
         else:
             raise Exception(Lang.ERROR_UNKNOWN_CS_TYPE.format(cs_type))
 
-    def StationFromArgs(self, params: Union[str,ArgChecker]):
+    def StationFromArgs(self, params: Union[str, ArgChecker]):
         if isinstance(params, str):
             params = ArgChecker(params)
         type = params.pop_str("type", "fcs")
-        if type not in ["fcs", "scs"]:
+        if type not in ["fcs", "scs", "gs"]:
             raise Exception(Lang.ERROR_UNKNOWN_CS_TYPE.format(type))
         self.__StationFromArgs(type, params)
 
-    def FCSFromArgs(self, params: Union[str,ArgChecker]):
+    def FCSFromArgs(self, params: Union[str, ArgChecker]):
         if isinstance(params, str):
             params = ArgChecker(params)
         self.__StationFromArgs("fcs", params)
     
-    def SCSFromArgs(self, params: Union[str,ArgChecker]):
+    def SCSFromArgs(self, params: Union[str, ArgChecker]):
         if isinstance(params, str):
             params = ArgChecker(params)
         self.__StationFromArgs("scs", params)
     
-    def GSFromArgs(self, params: Union[str,ArgChecker]):
+    def GSFromArgs(self, params: Union[str, ArgChecker]):
         if isinstance(params, str):
             params = ArgChecker(params)
         self.__StationFromArgs("gs", params)
 
 __all__ = [
-    "TrafficGenerator", "DEFAULT_CNAME",
+    "TrafficGenerator", "DEFAULT_CNAME", "StationFilterConfig",
     "ProcExisting", "ListSelection", "PricingMethod",
 ]

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Callable, List, Literal, Optional, Dict, Tuple, Union
+from typing import Callable, List, Literal, Optional, Dict, Tuple, Union
 from ..veh import GV, EV, Vehicle
 from ..locale import Lang
 
