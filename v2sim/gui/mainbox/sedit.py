@@ -35,10 +35,12 @@ class StationEditor(Frame):
             ("y", 60, _L["CSE_Y"], EM.entry()),
             ("Offline", 100, _L["CSE_OFFLINE"], EM.rangelist(hint=True)),
             ("PriceBuy", 120, _L["CSE_PRICEBUY"], EM.segfunc(), True),
+            ("PBuyIsServFee", 100, _L["CSE_PBUYSERVFEE"], EM.combo(["True", "False"])),
         ]
         if mode != StationEditorMode.GS:
             headings.extend([
                 ("PriceSell", 120, _L["CSE_PRICESELL"], EM.segfunc(), True),
+                ("PSellIsServFee", 100, _L["CSE_PSELLSERVFEE"], EM.combo(["True", "False"])),
                 ("Bus", 120, _L["CSE_BUS"], EM.entry()),
                 ("MaxPc", 130, _L["CSE_MAXPC"], EM.spin(0, 1000)),
                 ("MaxPd", 130, _L["CSE_MAXPD"], EM.spin(0, 1000)),
@@ -172,19 +174,20 @@ class StationEditor(Frame):
             root = Element("root")
             for i, d in enumerate(data):
                 if self.__mode == StationEditorMode.GS:
-                    assert len(d) == 7
-                    name, bind, slots, x, y, ol, pbuy = d
+                    assert len(d) == 8
+                    name, bind, slots, x, y, ol, pbuy, pbuy_sf = d
                     c = self.cslist[i]
                     assert isinstance(c, GS)
                 else:
-                    assert len(d) == 13
-                    name, bind, slots, x, y, ol, pbuy, psell, bus, maxpc, maxpd, pcalloc, pdalloc = d
+                    assert len(d) == 15
+                    name, bind, slots, x, y, ol, pbuy, pbuy_sf, psell, psell_sf, bus, maxpc, maxpd, pcalloc, pdalloc = d
                     c = self.cslist[i]
                     assert isinstance(c, CS)
                     c._bus = bus
                     c._pc_lim1 = float(maxpc) / 3600
                     c._pd_lim1 = float(maxpd) / 3600
                     c._psell = mkFunc(psell)
+                    c._psell_is_serv_fee = psell_sf
                     c._pc_alloc_str = pcalloc
                     c._pd_alloc_str = pdalloc
                 c._name = name
@@ -195,6 +198,7 @@ class StationEditor(Frame):
                 if ol == ALWAYS_ONLINE: ol = "[]"
                 c._offline = RangeList(eval(ol))
                 c._pbuy = mkFunc(pbuy)
+                c._pbuy = pbuy_sf
                 root.append(c.to_xml())
 
             ElementTree(root).write(self.file, encoding="utf-8", xml_declaration=True)
@@ -363,9 +367,9 @@ class StationEditor(Frame):
         for cs in self.cslist:
             ol = str(cs._offline) if len(cs._offline)>0 else ALWAYS_ONLINE
             if self.__mode == StationEditorMode.GS:
-                v = (cs._name, cs._bind, cs._slots, cs._x, cs._y, ol, cs._pbuy)
+                v = (cs._name, cs._bind, cs._slots, cs._x, cs._y, ol, cs._pbuy, cs._pbuy_is_serv_fee)
             else:
                 assert isinstance(cs, CS)
-                v = (cs._name, cs._bind, cs._slots, cs._x, cs._y, ol, cs._pbuy, cs._psell, 
-                    cs.bus, cs._pc_lim1 * 3600, cs._pd_lim1 * 3600, cs._pc_alloc_str, cs._pd_alloc_str)
+                v = (cs._name, cs._bind, cs._slots, cs._x, cs._y, ol, cs._pbuy, cs._pbuy_is_serv_fee, cs._psell, 
+                    cs._psell_is_serv_fee, cs.bus, cs._pc_lim1 * 3600, cs._pd_lim1 * 3600, cs._pc_alloc_str, cs._pd_alloc_str)
             self._Q.delegate(self.tree.insert, "", "end", values=v)

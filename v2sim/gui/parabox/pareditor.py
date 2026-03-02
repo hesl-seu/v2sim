@@ -18,7 +18,7 @@ class ParamsEditor(Toplevel):
         for l,r in data.items():
             self.tree.insert("", "end", values=(l, r))
         self.tree.setColEditMode("lb", EditMode.combo([
-            'b','e','l','no-plg','seed','gen-veh','gen-fcs','gen-scs','plot'
+            'b','l','break-at','e','no-plg','seed','gen-veh','gen-fcs','gen-scs','plot-script'
         ]))
         self.tree.setColEditMode("rb", EditMode.entry())
         self.fr = Frame(self)

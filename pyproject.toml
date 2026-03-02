@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "v2sim"
-version = "1.4.0.post1"
+version = "1.4.1"
 dependencies = [ "feasytools>=0.1.4", "fpowerkit>=0.4.1", "networkx>=3.2.1", "numpy", "matplotlib", "pyproj", "requests", "cloudpickle", "sumolib", "dill", "libsumo", "scipy",]
 requires-python = ">= 3.9"
 license = "BSD-3-Clause"

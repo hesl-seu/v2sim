@@ -30,7 +30,7 @@ class LoadGroupBox(Toplevel):
         self.lb_m.grid(row=1, column=0, padx=3, pady=3)
         self.cb = Combobox(self.fr)
         self.cb.grid(row=1, column=1, padx=3, pady=3)
-        self.cb["values"] = [ITEM_NONE, "scs_slots", "fcs_slots", "start_time", "end_time", "traffic_step"]
+        self.cb["values"] = [ITEM_NONE, "scs_slots", "fcs_slots", "gs_slots", "start_time", "end_time", "traffic_step"]
         self.cb.current(0)
         self.lb_s = Label(self.fr, text=_L("START_VALUE"))
         self.lb_s.grid(row=2, column=0, padx=3, pady=3)
