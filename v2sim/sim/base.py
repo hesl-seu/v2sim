@@ -316,7 +316,7 @@ class TrafficInst(ABC):
         """Calculate the average queue rate of all stations."""
         tot = 0; s_cnt = 0
         for s in self.stations:
-            if not s._allow_que: continue
+            if not s._allow_que or s.slots == 0: continue
             tot += s.wait_count() / s.slots
             s_cnt += 1
         if s_cnt == 0:

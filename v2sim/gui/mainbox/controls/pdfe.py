@@ -1,6 +1,7 @@
 from v2sim.gui.common import *
 
 from feasytools import PDFunc, CreatePDFunc
+from feasytools.pdf import *
 from .scrtv import ScrollableTreeView
 
 
