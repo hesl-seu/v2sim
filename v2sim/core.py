@@ -130,13 +130,13 @@ def check_output(proj_dir:Path, out_dir:Optional[str] = None):
 
 
 def create_output_directory(
-    proj_dir: Path, out_dir: Optional[str] = None,
+    proj_dir: Path, out_dir: Optional[str] = None, use_trip_logger: bool = True
 ):
     # Check output directory
     pout = check_output(proj_dir, out_dir)
 
     # Create TripLogger
-    tlog = TripLogger(pout / TRIP_EVENT_LOG)
+    tlog = TripLogger(pout / TRIP_EVENT_LOG if use_trip_logger else None)
 
     return pout, tlog
 
@@ -301,7 +301,8 @@ class V2SimInstance:
         config: Union[None, SUMOConfig, UXsimConfig] = None, 
         disabled_plugins:Optional[List[str]] = None, logging_items:Optional[List[str]] = None,
         state_option: LoadStateOption = LoadStateOption.Skip, state_dir:Optional[str] = None, 
-        save_option: SaveStateOptions = SaveStateOptions.Skip, client_options: Optional[ClientOptions] = None
+        save_option: SaveStateOptions = SaveStateOptions.Skip, client_options: Optional[ClientOptions] = None,
+        use_trip_logger: bool = True
     ):
         show_prog = True
         proj = DetectFiles(proj_dir)
@@ -311,7 +312,7 @@ class V2SimInstance:
                 exec(code)
         
         pproj = Path(proj_dir)
-        pout, tlogger = create_output_directory(pproj, out_dir)
+        pout, tlogger = create_output_directory(pproj, out_dir, use_trip_logger)
 
         state_dir = check_state_dir(state_option, state_dir, pproj)     
 
@@ -339,10 +340,11 @@ class V2SimInstance:
         config: Union[None, SUMOConfig, UXsimConfig] = None, 
         disabled_plugins:Optional[List[str]] = None, logging_items:Optional[List[str]] = None,
         state_option: LoadStateOption = LoadStateOption.Skip, state_dir:Optional[str] = None, 
-        save_option: SaveStateOptions = SaveStateOptions.Skip, client_options: Optional[ClientOptions] = None
+        save_option: SaveStateOptions = SaveStateOptions.Skip, client_options: Optional[ClientOptions] = None,
+        use_trip_logger: bool = True
     ):
         pout.mkdir(parents=True, exist_ok=True)
-        tlogger = TripLogger(pout / TRIP_EVENT_LOG)
+        tlogger = TripLogger(pout / TRIP_EVENT_LOG if use_trip_logger else None) 
         state_dir = check_state_dir(state_option, state_dir, Path(case_data.case_dir))
         inst, show_prog = _create_inst(case_data, state_dir, tlogger, seed, silent, vscfg, config)
         plgfile = case_data.files.plg

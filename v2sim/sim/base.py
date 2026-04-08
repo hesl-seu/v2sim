@@ -163,8 +163,10 @@ class TrafficInst(ABC):
     def post_simulation_step(self, deltaT: int):
         # Process vehicles in charging stations and parked vehicles
         pb_g = self._gp(self._ct)
-        pb_e = self._pdn._cp(self._ct)
-        ps_e = self._pdn._dp(self._ct)
+        Sb_kVA = self._pdn.Sb_kVA
+        # Electricity price is $/puh. Convert to $/kWh
+        pb_e = self._pdn._cp(self._ct) / Sb_kVA
+        ps_e = self._pdn._dp(self._ct) / Sb_kVA
         gvs = self._hubs.gs.update(deltaT, self._ct, pb_g)
         for gv in gvs: self._end_restore(gv)
         evs = self._hubs.fcs.update(deltaT, self._ct, pb_e, ps_e)

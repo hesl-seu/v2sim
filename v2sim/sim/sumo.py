@@ -85,6 +85,7 @@ class TrafficSUMO(TrafficInst):
         sumocfg_file: str = "",
     ):
         super().__init__(start_time, step_len, end_time, roadnet, trip_logger, vehs, hubs, pdn, gasoline_price, seed, silent)
+        self.__seed = seed
         self.__gui = gui
         self.__sumocfg_file = sumocfg_file
         self.__ralgo = routing_algo
@@ -352,6 +353,7 @@ class TrafficSUMO(TrafficInst):
             "--routing-algorithm", self.__ralgo,
             # Keep the vehicle in the network for a exactly one step after arriving at the destination
             "--keep-after-arrival", str(self._step),
+            "--seed", str(self.__seed),
         ]
         traci.start(sumoCmd)
 

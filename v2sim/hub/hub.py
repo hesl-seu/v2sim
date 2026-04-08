@@ -66,6 +66,7 @@ def _parse_station_params(cs_node: Element) -> Dict:
             "owners": par_owners,
             "cs_type": cs_type,
             "price_sell": par_psell,
+            "price_sell_is_service_fee": cs_node.attrib.get("psell_is_service_fee", "False").lower() == "true",
             "max_pc": float(cs_node.attrib.get("max_pc", "inf")) / 3600,
             "max_pd": float(cs_node.attrib.get("max_pd", "inf")) / 3600,
             "pc_alloc": cs_node.attrib.get("pcalloc", "Average"),
@@ -417,7 +418,7 @@ class CSHub(StationHub[CS, EV]):
         :param sec: Charging duration is sec seconds
         :param cur_time: Current time (seconds)
         :param pb_e: The cost for CS buying electricity from the grid, $/kWh
-        :param ps_e: The revenue for CS selling electricity to the grid, $/k
+        :param ps_e: The revenue for CS selling electricity to the grid, $/kWh
         :return: Vehicle list that has completed charging (power is calculated in kWh/s)
         """
         if len(self.__pd_dem) > 0:  # Has V2G demand
@@ -450,6 +451,13 @@ class GSHub(StationHub[GS, GV]):
         super().__init__(par)
     
     def update(self, sec: int, cur_time: int, pb_g:float) -> List[GV]:
+        """
+        Refuel the GV with the current parameters.
+
+        :param sec: Refueling duration is sec seconds
+        :param cur_time: Current time (seconds)
+        :param pb_g: The cost for GS buying gasoline, $/L
+        """
         ret:List[GV] = []
         for gs in self._s:
             ret.extend(gs.update(sec, cur_time, pb_g))

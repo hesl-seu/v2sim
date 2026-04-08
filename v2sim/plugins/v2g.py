@@ -49,18 +49,23 @@ class PluginV2G(PluginBase[V2GRes]):
         self.__inst = inst
         self._cap:List[float] = [0.] * (len(inst.fcs) + len(inst.scs))
 
+        Sb_kVA = self.__pdn.Grid.Sb_kVA
         for i, cs in enumerate(chain(inst.fcs, inst.scs)):
             if cs._psell is None: continue
             if isinstance(cs._psell, ConstPriceGetter):
-                psell_func = cs._psell._price
+                # Electricity price defined by CS is $/kWh. Convert to $/puh.
+                psell_func = cs._psell._price * Sb_kVA
             elif isinstance(cs._psell, ToUPriceGetter):
-                psell_func = cs._psell._price_func
+                # Electricity price defined by CS is $/kWh. Convert to $/puh.
+                psell_func = cs._psell._price_func * Sb_kVA
             else:
                 raise RuntimeError("V2G only supports constant price or time-of-use price for selling electricity.")
+            if cs._psell_is_serv_fee:
+                psell_func = self.__pdn.Grid._dp + psell_func
             self.__pdn.Grid.AddGen(
                 Generator(
                     "V2G_" + cs._name, cs._bus, 
-                    0., psell_func * (self.__pdn.Grid.Sb * 1000), 0.,
+                    0., psell_func, 0.,
                     -1.0, -1.0, None,
                     0., ComFunc(self.__get_cap(i)), 0., 0.,
                 )
@@ -69,7 +74,7 @@ class PluginV2G(PluginBase[V2GRes]):
             self.__pdn.Solver.est.UpdateGrid(self.__pdn.Grid)
         return []
     
-    def __get_cap(self,i:int):
+    def __get_cap(self, i:int):
         def func(t: int) -> float:
             if not self.IsOnline(t): return 0.
             return self._cap[i]
@@ -96,11 +101,11 @@ class PluginV2G(PluginBase[V2GRes]):
                     f(self.__pdn.Grid.Gen("V2G_" + cs._name).P) if cs._psell is not None 
                     else 0.0 for cs in self.__inst.fcs
                 ]
-                if sum(ret1) > 1e-8: 
-                    ret2 = [
-                        f(self.__pdn.Grid.Gen("V2G_" + cs._name).P) if cs._psell is not None 
-                        else 0.0 for cs in self.__inst.scs
-                    ]
+                ret2 = [
+                    f(self.__pdn.Grid.Gen("V2G_" + cs._name).P) if cs._psell is not None 
+                    else 0.0 for cs in self.__inst.scs
+                ]
+                if sum(ret1) + sum(ret2) > 1e-8: 
                     ret = True, ret1 + ret2
                     self.__inst.fcs.set_V2G_demand(ret1)
                     self.__inst.scs.set_V2G_demand(ret2)

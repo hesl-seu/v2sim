@@ -1,8 +1,8 @@
+import os
 from pathlib import Path
 from typing import Callable, List, Literal, Optional, Dict, Tuple, Union
 from ..veh import GV, EV, Vehicle
 from ..locale import Lang
-
 
 _ArriveListener = Callable[[int, Vehicle, Literal[0, 1, 2], float], None]
 _ArriveFCSListener = Callable[[int, EV, str, float], None]
@@ -26,8 +26,11 @@ class TripLogger:
     ARRIVAL_NO_CHARGE = 0
     ARRIVAL_CHARGE_SUCCESSFULLY = 1
     ARRIVAL_CHARGE_FAILED = 2
-    def __init__(self, file_name:Union[Path, str], append:bool=False):
-        self.__ostream = open(file_name, 'a' if append else 'w', encoding='utf-8')
+    def __init__(self, file_name:Union[Path, str, None], append:bool=False):
+        if file_name is None:
+            self.__ostream = open(os.devnull, 'w')
+        else:
+            self.__ostream = open(file_name, 'a' if append else 'w', encoding='utf-8')
         self.__arrive_listeners:List[_ArriveListener] = []
         self.__arrive_cs_listeners:List[_ArriveFCSListener] = []
         self.__arrive_gs_listeners:List[_ArriveGSListener] = []

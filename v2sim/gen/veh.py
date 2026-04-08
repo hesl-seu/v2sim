@@ -276,6 +276,7 @@ class VehGenerator(ABC):
         :param use_buffer_day: Whether to use buffer day. When there are existing trips, this option does not work
         :param clear_existing: Whether to clear existing trips
         :param silent: Whether silent mode
+        :param fname: Saved file name (if None, not saved)
         """
         total_veh = len(vehs)
         pb = ProgressBar(total_veh, silent)

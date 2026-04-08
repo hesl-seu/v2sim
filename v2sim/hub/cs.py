@@ -172,7 +172,7 @@ class CS(BaseStation[EV], ABC):
         self._owners: Optional[OwnerGroup] = owners
         self._bus: str = bus
         self._cs_type: CSType = cs_type
-        self._pc_is_constrained: bool = False
+        self._pc_cutdown: float = 0.0
         
         if (price_sell is None or 
             (isinstance(price_sell, tuple) and len(price_sell) == 0) or
@@ -216,7 +216,7 @@ class CS(BaseStation[EV], ABC):
         self._cur_v2g_cap = 0.0
         self._pc_actual = None
         self._pd_actual = []
-        self._pc_is_constrained = False
+        self._pc_cutdown = 0.0
     
     def __repr__(self):
         return f"CS(name='{self._name}', slots={self._slots}, price_buy={self._pbuy}, price_buy_is_service_fee={self._pbuy_is_serv_fee}, price_sell={self._psell}, price_sell_is_service_fee={self._psell_is_serv_fee}, offline={self._offline})"
@@ -226,7 +226,16 @@ class CS(BaseStation[EV], ABC):
 
     def is_pc_constrained(self) -> bool:
         """Check if the charging power is constrained by the PDN"""
-        return self._pc_is_constrained
+        return self._pc_cutdown > 1e-6
+    
+    def pc_cutdown(self) -> float:
+        """Get the cut down power when the charging power is constrained, kWh/s"""
+        return self._pc_cutdown
+    
+    def pc_cutdown_percent(self) -> float:
+        """Get the cut down power percentage when the charging power is constrained"""
+        if self._pc_lim1 * self._slots < 1e-6: return 0.0
+        return self._pc_cutdown / (self._pc_lim1 * self._slots)
     
     def is_public(self) -> bool:
         """Check if this is a public charging station"""
@@ -263,6 +272,7 @@ class CS(BaseStation[EV], ABC):
         if v2g:
             attrib["max_pd"] = f"{self._pd_lim1 * 3600:.2f}"
             attrib["pd_alloc"] = self._pd_alloc_str
+            attrib["psell_is_service_fee"] = str(self._psell_is_serv_fee)
         ret = Element(tag, attrib)
         ret.append(self._pbuy.to_xml("pbuy"))
         if v2g and self._psell:
@@ -339,9 +349,11 @@ class CS(BaseStation[EV], ABC):
         
         :param value: Maximum charging power, kWh/s
         """
-        if value < self._pc_limtot:
-            self._pc_is_constrained = True
         self._pc_limtot = value
+        if value < self._pc_lim1 * self._slots:
+            self._pc_cutdown = self._pc_lim1 * self._slots - value
+        else:
+            self._pc_cutdown = 0.0
     
     @property
     def Pc(self) -> float:
