@@ -1,1 +1,48 @@
-<grid Sb="1.0MVA" Ub="12.66kV"><bus ID="b0" y="-163.719013" x="80.556175" V="1.0"><Pd const="0.0MW" /><Qd const="0.0Mvar" /></bus><bus ID="b1" y="-44.028832" x="81.116731" MinV="0.8" MaxV="1.2"><Pd const="10.2MW" /><Qd const="3.2Mvar" /></bus><bus ID="b2" y="103.479234" x="80.639935" MinV="0.8" MaxV="1.2"><Pd const="3.8MW" /><Qd const="0.7Mvar" /></bus><line ID="l1" From="b0" To="b1" R="0.008000ohm" X="0.020000ohm" MaxIkA="inf" Length_km="-1.0" /><line ID="l2" From="b1" To="b2" R="0.006000ohm" X="0.012000ohm" MaxIkA="inf" Length_km="-1.0" /><gen ID="g0" Bus="b0" y="-164.398865" x="102.569546"><Pmin const="0.0MW" /><Pmax const="100.0MW" /><Qmin const="-100.0Mvar" /><Qmax const="100.0Mvar" /><CostA const="2000.0$/MWh2" /><CostB const="300.0$/MWh" /><CostC const="5.0$" /></gen><gen ID="g1" Bus="b1" y="-43.414710" x="102.569546"><Pmin const="0.0MW" /><Pmax const="100.0MW" /><Qmin const="-100.0Mvar" /><Qmax const="100.0Mvar" /><CostA const="2500.0$/MWh2" /><CostB const="400.0$/MWh" /><CostC const="15.0$" /></gen></grid>
+<grid Sb="1.0MVA" Ub="12.66kV">
+<bus ID="b0" y="-163.719013" x="80.556175" V="1.0">
+<Pd const="0.0MW" />
+<Qd const="0.0Mvar" />
+</bus>
+<bus ID="b1" y="-44.028832" x="81.116731" MinV="0.8" MaxV="1.2">
+<Pd const="10.2MW" />
+<Qd const="3.2Mvar" />
+</bus>
+<bus ID="b2" y="103.479234" x="80.639935" MinV="0.8" MaxV="1.2">
+<Pd const="3.8MW" />
+<Qd const="0.7Mvar" />
+</bus>
+<line ID="l1" From="b0" To="b1" R="0.008000ohm" X="0.020000ohm" MaxIkA="inf" Length_km="-1.0" />
+<line ID="l2" From="b1" To="b2" R="0.006000ohm" X="0.012000ohm" MaxIkA="inf" Length_km="-1.0" />
+<gen ID="g0" Bus="b0" y="-164.398865" x="102.569546">
+<Pmin const="0.0MW" />
+<Pmax const="100.0MW" />
+<Qmin const="-100.0Mvar" />
+<Qmax const="100.0Mvar" />
+<CostA const="2000.0$/MWh2" />
+<CostB const="300.0$/MWh" />
+<CostC const="5.0$" />
+</gen>
+<gen ID="g1" Bus="b1" y="-43.414710" x="102.569546">
+<Pmin const="0.0MW" />
+<Pmax const="100.0MW" />
+<Qmin const="-100.0Mvar" />
+<Qmax const="100.0Mvar" />
+<CostA const="2500.0$/MWh2" />
+<CostB const="400.0$/MWh" />
+<CostC const="15.0$" />
+</gen>
+<cprice repeat="8" period="86400">
+    <item time="0" value="0.35$/kWh" />      <!-- 00:00 - 08:00 谷段 -->
+    <item time="28800" value="1.10$/kWh" />  <!-- 08:00 - 11:00 峰段 -->
+    <item time="39600" value="0.70$/kWh" />  <!-- 11:00 - 18:00 平段 -->
+    <item time="64800" value="1.10$/kWh" />  <!-- 18:00 - 23:00 峰段 -->
+    <item time="82800" value="0.70$/kWh" />  <!-- 23:00 - 24:00 平段 -->
+</cprice>
+<dprice repeat="8" period="86400">
+    <item time="0" value="0.35$/kWh" />      <!-- 谷段 -->
+    <item time="28800" value="1.10$/kWh" />  <!-- 峰段 -->
+    <item time="39600" value="0.70$/kWh" />  <!-- 平段 -->
+    <item time="64800" value="1.10$/kWh" />  <!-- 峰段 -->
+    <item time="82800" value="0.70$/kWh" />  <!-- 平段 -->
+</dprice>
+</grid>
