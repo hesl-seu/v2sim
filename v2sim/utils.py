@@ -5,9 +5,12 @@ from typing import Iterable, Optional, Set, Dict, List, Tuple, Union
 from xml.etree.ElementTree import ElementTree
 from .locale import Lang
 
+
+PathLike = Union[str, Path]
 CONFIG_DIR = Path.home() / ".v2sim"
 SAVED_STATE_FOLDER = "saved_state"
 RECENT_PROJECTS_FILE = CONFIG_DIR / "recent_projects.txt"
+
 
 def ClearRecentProjects():
     if RECENT_PROJECTS_FILE.exists():
@@ -34,13 +37,13 @@ def AddRecentProject(path: Union[str, Iterable[str]]):
         for proj in projects: # Keep only the 10 most recent projects
             f.write(proj + "\n")
 
-def ReadXML(file: str, compressed:Optional[bool]=None) -> ElementTree:
+def ReadXML(file: PathLike, compressed:Optional[bool]=None) -> ElementTree:
     '''
     Read XML file, support compressed GZ file
         file: file path
         compressed: whether the file is compressed. If None, the function will detect it, but only .xml and .xml.gz are supported.
     '''
-    filel = file.lower()
+    filel = str(file).lower()
     if filel.endswith(".xml.gz") or compressed == True:
         with gzip.open(file, "rt", encoding="utf8") as f:
             return ElementTree(file=f)
@@ -49,7 +52,7 @@ def ReadXML(file: str, compressed:Optional[bool]=None) -> ElementTree:
     else:
         raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(file))
 
-def LoadFCS(filename: str) -> Set[str]:
+def LoadFCS(filename: PathLike) -> Set[str]:
     '''Load FCS file and return a set of node names'''
     fcs_root = ReadXML(filename).getroot()
     if fcs_root is None:
@@ -60,7 +63,7 @@ def LoadFCS(filename: str) -> Set[str]:
             fcs_nodes.add(fcs.attrib["node"])
     return fcs_nodes
 
-def LoadSCS(filename: str) -> Set[str]:
+def LoadSCS(filename: PathLike) -> Set[str]:
     '''Load SCS file and return a set of node names'''
     scs_root = ReadXML(filename).getroot()
     if scs_root is None:
@@ -71,17 +74,18 @@ def LoadSCS(filename: str) -> Set[str]:
             scs_nodes.add(scs.attrib["node"])
     return scs_nodes
 
-def CheckFile(file: str):
+def CheckFile(file: PathLike):
+    file_str = str(file)
     p = Path(file)
     if p.exists():
         i = 1
         while True:
-            p = Path(file + f".bak{i}")
+            p = Path(file_str + f".bak{i}")
             i += 1
             if not p.exists(): break
         Path(file).rename(str(p))
 
-def ClearBakFiles(dir: str):
+def ClearBakFiles(dir: PathLike):
     for x in Path(dir).iterdir():
         if not x.is_file(): continue
         if x.suffix == ".bak": x.unlink()
@@ -129,7 +133,7 @@ class AddtionalTypes:
     Poi: bool
     Taz: bool
 
-def CheckAddtionalType(file: str) -> AddtionalTypes:
+def CheckAddtionalType(file: PathLike) -> AddtionalTypes:
     root = ReadXML(file, compressed=False).getroot()
     if root is None:
         raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(file))
@@ -138,7 +142,7 @@ def CheckAddtionalType(file: str) -> AddtionalTypes:
     taz = root.find("taz") is not None
     return AddtionalTypes(Poly=poly, Poi=poi, Taz=taz)
 
-def DetectFiles(dir: Union[str, Path]) -> FileDetectResult:
+def DetectFiles(dir: PathLike) -> FileDetectResult:
     """
     Detect simulation-realted files (SUMO config, SCS, FCS, power grid, etc.) in the given directory.
     Args:

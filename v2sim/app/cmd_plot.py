@@ -2,6 +2,7 @@ import shutil
 from pathlib import Path
 from feasytools import ArgChecker
 from v2sim import *
+from v2sim.plot import AdvancedPlot, ReadOnlyStatistics
 
 
 def clear_all(p: str):

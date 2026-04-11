@@ -253,8 +253,8 @@ class TrafficGenerator:
             self.__existing.do(self.__cfg["veh"])
         fname = f"{self.__root}/{self.__name}.veh.xml.gz" if save else None
         gtype = SUMOVehGenerator if self.__cfg.sumo else UXVehGenerator
-        return gtype(cname, self.__root, seed, mode).gen_vehs(
-            n, fname, day_count, self.__silent, omega, krel, kfc, v2g_prop, ksc, kv2g
+        return gtype(cname, self.__root, mode).gen_vehs(
+            n, fname, day_count, self.__silent, omega, krel, kfc, v2g_prop, ksc, kv2g, seed
         )
 
     def _Station(

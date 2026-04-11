@@ -64,16 +64,14 @@ class TripsGenMode(Enum):
 
 class VehGenerator(ABC):    
     """Class to generate trips"""
-    def __init__(self, CROOT: str, PNAME: str, seed):
+    def __init__(self, CROOT: str, PNAME: str):
         """
         Initialization
 
         :param CROOT: Trip parameter folder
         :param PNAME: SUMO configuration folder
-        :param seed: Random seed
         """
         self.files = DetectFiles(PNAME)
-        random.seed(seed)
         self.vTypes = VehicleTypePool(CROOT + "/vtypes.xml")
         
         # Start time of first trip
@@ -222,12 +220,14 @@ class VehGenerator(ABC):
         self.gen_trip_for_veh(day_count, v, use_buffer_day=True, clear_existing=False)
         return v
     
-    def gen_vehs(self, N: Union[int, Tuple[int, int]], fname: Optional[str] = None, day_count: int = 7, silent: bool = False, 
-            omega:PDFuncLike = None, krel:PDFuncLike = None, kfc:PDFuncLike = None,
-            v2g_prop:float = 1.0+1e-4, ksc:PDFuncLike = None, kv2g:PDFuncLike = None) -> VDict:
+    def gen_vehs(self, N: Union[int, Tuple[int, int]], fname: Optional[str] = None, 
+            day_count: int = 7, silent: bool = False, omega:PDFuncLike = None, 
+            krel:PDFuncLike = None, kfc:PDFuncLike = None, v2g_prop:float = 1.0+1e-4, 
+            ksc:PDFuncLike = None, kv2g:PDFuncLike = None, seed = None) -> VDict:
         """
         Generate EV and trips of N vehicles.
         The generated vehicles are returned as an EVDict instance, and will be saved to the file if fname is provided.
+        If seed is not None, the random seed will be set for reproducibility. Note that the random seed is only set for the generation of vehicles and trips, and will be reset to the original state after generation.
 
         :param N: Number of vehicles, or (num_ev, num_gv)
         :param fname: Saved file name (if None, not saved)
@@ -239,7 +239,12 @@ class VehGenerator(ABC):
         :param v2g_prop: Proportion of users willing to participate in V2G, for EV only
         :param ksc: PDFunc | None = None, for EV only
         :param kv2g: PDFunc | None = None, for EV only
+        :param seed: Random seed for reproducibility (if None, not set)
         """
+        if seed is not None:
+            rnd = random.getstate()
+            random.seed(seed)
+
         evs: dict[str, EV] = {}; gvs: dict[str, GV] = {}
         if isinstance(N, tuple):
             pb = ProgressBar(N[0] + N[1], silent)
@@ -261,15 +266,16 @@ class VehGenerator(ABC):
                 pb.increment()
         ret = VDict(evs, gvs)
         if fname: ret.save(fname)
+        if seed is not None: random.setstate(rnd)
         return ret
     
     def gen_trip_for_vehs(
         self, day_count:int, vehs: VDict,
         use_buffer_day: bool = True, clear_existing: bool = False,
-        silent: bool = False, fname: Optional[str] = None
+        silent: bool = False, fname: Optional[str] = None, seed = None
     ):
         """
-        Generate trips for existing vehicles.
+        Generate trips for existing vehicles. If seed is not None, the random seed will be set for reproducibility. Note that the random seed is only set for the generation of trips, and will be reset to the original state after generation.
 
         :param day_count: Number of days
         :param vehs: Vehicle dictionary
@@ -277,27 +283,32 @@ class VehGenerator(ABC):
         :param clear_existing: Whether to clear existing trips
         :param silent: Whether silent mode
         :param fname: Saved file name (if None, not saved)
+        :param seed: Random seed for reproducibility (if None, not set)
         """
+        if seed is not None:
+            rnd = random.getstate()
+            random.seed(seed)
+
         total_veh = len(vehs)
         pb = ProgressBar(total_veh, silent)
         for v in chain(vehs.evs.values(), vehs.gvs.values()):
             self.gen_trip_for_veh(day_count, v, use_buffer_day, clear_existing)
             pb.increment()
         if fname: vehs.save(fname)
+        if seed is not None: random.setstate(rnd)
 
 
 class UXVehGenerator(VehGenerator):
     """Class to generate trips for UXsim"""
-    def __init__(self, CROOT: str, PNAME: str, seed, mode: TripsGenMode = TripsGenMode.AUTO):
+    def __init__(self, CROOT: str, PNAME: str, mode: TripsGenMode = TripsGenMode.AUTO):
         """
         Initialization
 
         :param CROOT: Trip parameter folder
         :param PNAME: SUMO configuration folder
-        :param seed: Random seed
         :param mode: Generation mode
         """
-        super().__init__(CROOT, PNAME, seed)
+        super().__init__(CROOT, PNAME)
         _fn = self.files
         # Define various functional area types
         self.net = RoadNet.load(_fn["net"])
@@ -452,16 +463,15 @@ class UXVehGenerator(VehGenerator):
                 trip2_2.DType = trip2_1.OType
 
 class SUMOVehGenerator(VehGenerator):
-    def __init__(self, CROOT: str, PNAME: str, seed, mode: TripsGenMode = TripsGenMode.AUTO):
+    def __init__(self, CROOT: str, PNAME: str, mode: TripsGenMode = TripsGenMode.AUTO):
         """
         Initialization
 
         :param CROOT: Trip parameter folder
         :param PNAME: SUMO configuration folder
-        :param seed: Random seed
         :param mode: Generation mode
         """
-        super().__init__(CROOT, PNAME, seed)
+        super().__init__(CROOT, PNAME)
         _fn = self.files
         # Define various functional area types
         import sumolib

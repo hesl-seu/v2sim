@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from itertools import repeat
 from ..veh import *
 from ..locale import Lang
-from ..utils import ReadXML
+from ..utils import ReadXML, PathLike
 from .cs import *
 from .s import *
 
@@ -95,7 +95,7 @@ def LoadStationList(filePath:str):
     return _fcs, _scs, _gs
 
 
-def _LoadCSList(filePath:str, tag:Literal["fcs", "scs", ""]) -> List[CS]:
+def _LoadCSList(filePath:PathLike, tag:Literal["fcs", "scs", ""]) -> List[CS]:
     _cs = []
     root = ReadXML(filePath).getroot()
     if root is None: raise ValueError(f"Invalid {tag.upper()} file")
@@ -105,12 +105,12 @@ def _LoadCSList(filePath:str, tag:Literal["fcs", "scs", ""]) -> List[CS]:
         _cs.append(BiCS(**args) if args["price_sell"] else UniCS(**args))
     return _cs
 
-def LoadCSList(filePath:str): return _LoadCSList(filePath, "")
-def LoadSCSList(filePath:str): return _LoadCSList(filePath, "scs")
-def LoadFCSList(filePath:str): return _LoadCSList(filePath, "fcs")
+def LoadCSList(filePath:PathLike): return _LoadCSList(filePath, "")
+def LoadSCSList(filePath:PathLike): return _LoadCSList(filePath, "scs")
+def LoadFCSList(filePath:PathLike): return _LoadCSList(filePath, "fcs")
 
 
-def LoadGSList(filePath:str) -> List[GS]:
+def LoadGSList(filePath:PathLike) -> List[GS]:
     _gs = []
     root = ReadXML(filePath).getroot()
     if root is None: raise ValueError("Invalid GS file")

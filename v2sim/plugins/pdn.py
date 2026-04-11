@@ -53,7 +53,7 @@ _locale.SetLangLib("en",
 def _sv(x)->float:
     assert x is not None, _locale["ERROR_SOLVE_FAILED"]
     return x
-
+    
 class PluginPDN(PluginBase[float], IGridPlugin):
     @property
     def Description(self)->str:
@@ -135,7 +135,12 @@ class PluginPDN(PluginBase[float], IGridPlugin):
                 raise ValueError(_locale["ERROR_CS_NODE_NOT_EXIST"].format(c.name,c.bus))
             self.__pds[c.bus].append(c)
         
+        # Max load reduction proportion for each CS, used for statistics
+        self.__max_reduce_prop_cs:Dict[str, float] = {}
+
+        # Max load reduction proportion for each bus, used for statistics
         self.__max_reduce_prop:Dict[str, float] = {}
+
         for b, css in self.__pds.items():
             v = TimeImplictFunc(self.__create_closure(css, self.__gr.Sb_MVA))
             self.__gr.Bus(b).Pd += v
@@ -153,6 +158,10 @@ class PluginPDN(PluginBase[float], IGridPlugin):
             return len(self.__sol.est.DecBuses) > 0
         else:
             return False
+    
+    def HasEverFailed(self) -> bool:
+        '''Check if the PDN has ever failed to solve'''
+        return self.__badcnt > 0
     
     @property
     def Solver(self):
@@ -194,6 +203,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
                             for c in self.__pds[b]:
                                 l = k * c.Pc
                                 c.set_Pc_lim(l)
+                                self.__max_reduce_prop_cs[c.name] = max(self.__max_reduce_prop_cs.get(c.name, 0.0), 1 - k)
                                 print(f"    CS {c.name}: {l*3600:.2f} kW <- {c.Pc_kW:.2f} kW", file = self.__fh)
             if ok != GridSolveResult.Failed and self.last_ok == GridSolveResult.Failed and self.__badcnt>0:
                 print(_locale["PDN_SOLVE_OK_SINCE"].format(_t,self.__badcnt))
@@ -208,8 +218,14 @@ class PluginPDN(PluginBase[float], IGridPlugin):
         '''Get the maximum load reduction proportion at the specified bus'''
         return self.__max_reduce_prop.get(bus, 0.0)
     
+    GetMaxLoadReductionProportionOfBus = GetMaxLoadReductionProportion
+
+    def GetMaxLoadReductionProportionOfCS(self, cs_name:str) -> float:
+        '''Get the maximum load reduction proportion of the specified charging station'''
+        return self.__max_reduce_prop_cs.get(cs_name, 0.0)
+    
     def GetAverageMaxLoadReductionProportion(self) -> float:
-        '''Get the average maximum load reduction proportion'''
+        '''Get the average maximum load reduction proportion among all charging stations'''
         if len(self.__max_reduce_prop) == 0:
             return 0.0
         s = 0.0
