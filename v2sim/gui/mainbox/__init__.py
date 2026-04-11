@@ -553,7 +553,7 @@ class MainBox(Tk):
         assert "veh" in self.state, "No vehicles loaded"
 
         logs = []
-        for x in ("fcs","scs","gs","ev","gen","bus","line","pvw","ess"):
+        for x in ("fcs","scs","gs","ev","gen","bus","line","pvw","ess","utn"):
             if self.sim_statistic[x]:
                 logs.append(x)
         assert logs, _L["NO_STA"]

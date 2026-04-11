@@ -8,7 +8,6 @@ FILE_BUS = "bus"
 FILE_LINE = "line"
 FILE_PVW = "pvw"
 FILE_ESS = "ess"
-FILE_UTN = "utn"
 
 GEN_ATTRIB = ["P","Q","costp"]
 GEN_TOT_ATTRIB = ["totP","totQ","totC"]

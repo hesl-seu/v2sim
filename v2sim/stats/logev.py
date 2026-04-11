@@ -4,6 +4,7 @@ from .base import *
 
 
 FILE_EV = "ev"
+FILE_UTN = "utn"
 EV_ATTRIB = ["soc", "status", "cost", "earn", "x", "y"]
 _L = LangLib(["en", "zh_CN"])
 _L.SetLangLib("en", 
@@ -44,7 +45,7 @@ class StaEV(StaBase):
 
 class StaUTN(StaBase):
     def __init__(self, path:str, tinst:TrafficInst, plugins:Dict[str, PluginBase]):
-        super().__init__("utn", path, ["avg_speed"], tinst, plugins)
+        super().__init__(FILE_UTN, path, ["avg_speed"], tinst, plugins)
         if not hasattr(tinst, 'W'):
             raise RuntimeError("Traffic network statistics require TrafficUX instance")
 
