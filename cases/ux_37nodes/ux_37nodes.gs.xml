@@ -1,0 +1,52 @@
+<root>
+<gs name="gs_CS1" node="CS1" slots="6" bus="b0_4" x="9972.0" y="19457.0">
+  <pbuy>
+    <item btime="0" price="7.0" />
+  </pbuy>
+</gs>
+<gs name="gs_CS2" node="CS2" slots="6" bus="b0_2" x="3572.0" y="16502.0">
+  <pbuy>
+    <item btime="0" price="7.0" />
+  </pbuy>
+</gs>
+<gs name="gs_CS3" node="CS3" slots="6" bus="b0_8" x="17046.0" y="18820.0">
+  <pbuy>
+    <item btime="0" price="7.0" />
+  </pbuy>
+</gs>
+<gs name="gs_CS4" node="CS4" slots="6" bus="b0_9" x="15787.0" y="14938.0">
+  <pbuy>
+    <item btime="0" price="7.0" />
+  </pbuy>
+</gs>
+<gs name="gs_CS5" node="CS5" slots="6" bus="b1_13" x="18213.0" y="12510.0">
+  <pbuy>
+    <item btime="0" price="7.0" />
+  </pbuy>
+</gs>
+<gs name="gs_CS6" node="CS6" slots="6" bus="b0_11" x="22111.0" y="16561.0">
+  <pbuy>
+    <item btime="0" price="7.0" />
+  </pbuy>
+</gs>
+<gs name="gs_CS7" node="CS7" slots="6" bus="b1_24" x="12957.0" y="6718.0">
+  <pbuy>
+    <item btime="0" price="7.0" />
+  </pbuy>
+</gs>
+<gs name="gs_CS8" node="CS8" slots="6" bus="b1_2" x="20190.0" y="4755.0">
+  <pbuy>
+    <item btime="0" price="7.0" />
+  </pbuy>
+</gs>
+<gs name="gs_CS9" node="CS9" slots="6" bus="b1_8" x="30983.0" y="15487.0">
+  <pbuy>
+    <item btime="0" price="7.0" />
+  </pbuy>
+</gs>
+<gs name="gs_CS10" node="CS10" slots="6" bus="b1_9" x="29283.0" y="18641.0">
+  <pbuy>
+    <item btime="0" price="7.0" />
+  </pbuy>
+</gs>
+</root>

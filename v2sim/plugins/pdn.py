@@ -94,7 +94,9 @@ class PluginPDN(PluginBase[float], IGridPlugin):
 
         res = DetectFiles(str(work_dir))
         assert res.grid, _locale["ERROR_NO_GRID"]
-        self.__gr = Grid.fromFile(res.grid, True)
+
+        # Directly use the grid instance in TrafficInst, which is already initialized with the grid file. This allows sharing the grid instance with other plugins that depend on PDN. V2G plugin will alter the grid by adding generators, which can be reflected in the shared grid instance.
+        self.__gr = inst.pdn
 
         dec_bus = elem.get("DecBuses", "").strip()
         if dec_bus == r"%all%":

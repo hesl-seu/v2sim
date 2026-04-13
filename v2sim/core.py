@@ -142,28 +142,28 @@ def create_output_directory(
 
 
 def _create_plg_and_stats(plgfile:Optional[str], state_dir:Optional[str], pout:Path, inst:TrafficInst, logging_items:Optional[List[str]], disabled_plugins:Optional[List[str]]):
-        plg_pool, sta_pool = create_pools()
+    plg_pool, sta_pool = create_pools()
 
-        # Enable plugins
-        if state_dir is not None:
-            plugin_state_file = Path(state_dir) / PLUGINS_FILE
-            with gzip.open(plugin_state_file, "rb") as f:
-                d = pickle.load(f)
-            assert isinstance(d, dict) and "obj" in d and "version" in d and "pickler" in d, Lang.INVALID_PLUGIN_STATES.format(plugin_state_file)
-            plugin_state = d["obj"]
-            assert isinstance(plugin_state, dict), Lang.INVALID_PLUGIN_STATES.format(plugin_state_file)
-            assert CheckPyVersion(d["version"]), Lang.PY_VERSION_MISMATCH_PLG.format(d["version"], PyVersion())
-            assert d["pickler"] == pickle.__name__, Lang.PICKLER_MISMATCH_PLG.format(d["pickler"], pickle.__name__)
-        else:
-            plugin_state = None
+    # Enable plugins
+    if state_dir is not None:
+        plugin_state_file = Path(state_dir) / PLUGINS_FILE
+        with gzip.open(plugin_state_file, "rb") as f:
+            d = pickle.load(f)
+        assert isinstance(d, dict) and "obj" in d and "version" in d and "pickler" in d, Lang.INVALID_PLUGIN_STATES.format(plugin_state_file)
+        plugin_state = d["obj"]
+        assert isinstance(plugin_state, dict), Lang.INVALID_PLUGIN_STATES.format(plugin_state_file)
+        assert CheckPyVersion(d["version"]), Lang.PY_VERSION_MISMATCH_PLG.format(d["version"], PyVersion())
+        assert d["pickler"] == pickle.__name__, Lang.PICKLER_MISMATCH_PLG.format(d["pickler"], pickle.__name__)
+    else:
+        plugin_state = None
 
-        plgman = PluginMan(plgfile, pout, inst, plg_pool, disabled_plugins, plugin_state)
+    plgman = PluginMan(plgfile, pout, inst, plg_pool, disabled_plugins, plugin_state)
 
-        # Create a data logger
-        if logging_items is None: logging_items = ["fcs", "scs", "gs"]
-        stats = StaWriter(pout, inst, plgman.GetPlugins(), sta_pool, logging_items)
+    # Create a data logger
+    if logging_items is None: logging_items = ["fcs", "scs", "gs"]
+    stats = StaWriter(pout, inst, plgman.GetPlugins(), sta_pool, logging_items)
 
-        return plgman, stats
+    return plgman, stats
 
 
 def _create_inst(case_data:CaseData, state_dir:Optional[str], tlogger:TripLogger, seed:int, 

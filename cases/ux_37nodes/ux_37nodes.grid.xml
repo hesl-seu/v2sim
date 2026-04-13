@@ -1731,7 +1731,7 @@
 <item time="82800" value="0.0320Mvar" />
 </Qd>
 </bus>
-<bus ID="b1_1" x="21674.341836" y="-90.673630" MinV="0.9" MaxV="1.1">
+<bus ID="b1_1" x="21674.341836" y="-90.673630" V="1.0">
 <Pd repeat="8" period="86400">
 <item time="0" value="0.0000MW" />
 <item time="3600" value="0.0000MW" />

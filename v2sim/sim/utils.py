@@ -62,7 +62,12 @@ class CaseData:
     power_network: Grid
 
     def reset(self):
-        """Reset case data to initial state."""
+        """
+        Reset case data to initial state. 
+        Note:
+        1. V2G plugin will alter the grid by adding generators, it will not be reset here.
+        2. Road network is assumed to be static and will not be reset.
+        """
         self.vehicles.reset()
         self.mixed_hub.reset()
     
