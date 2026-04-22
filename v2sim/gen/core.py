@@ -273,9 +273,11 @@ class TrafficGenerator:
         stationCount: int = -1,
         givenStations: List[str] = [],
         priceBuyMethod: PricingMethod = PricingMethod.FIXED,
+        priceBuyIsServiceFee: bool = False,
         priceBuy: float = 1.0,
         hasSell: bool = False,
         priceSellMethod: PricingMethod = PricingMethod.FIXED,
+        priceSellIsServiceFee: bool = False,
         priceSell: float = 1.5,
         allowQueue: bool = True,
     ):
@@ -404,7 +406,8 @@ class TrafficGenerator:
                 "name": f"{mode}_{cname}", 
                 "bind": cname, 
                 "slots": str(sl), "bus": selector(cname),
-                "allow_queuing": str(allowQueue)
+                "allow_queuing": str(allowQueue),
+                "pbuy_is_service_fee": str(priceBuyIsServiceFee),
             })
             if cname in cs_pos:
                 x, y = cs_pos[cname]
@@ -420,6 +423,7 @@ class TrafficGenerator:
                 e.append(ToUPriceGetter(gen_5seg_price(self.__end_time, priceBuy)).to_xml("pbuy"))
             
             if hasSell:
+                e.attrib["psell_is_service_fee"] = str(priceSellIsServiceFee)
                 if priceSellMethod == PricingMethod.FIXED:
                     e.append(ConstPriceGetter(priceSell).to_xml("psell"))
                 else:
@@ -443,6 +447,7 @@ class TrafficGenerator:
         givenCS: List[str] = [],
         priceBuyMethod: PricingMethod = PricingMethod.FIXED,
         priceBuy: float = 1.5,
+        priceBuyIsServiceFee: bool = False,
     ):
         """
         Generate fast charging station file
@@ -471,6 +476,7 @@ class TrafficGenerator:
             givenStations=givenCS,
             priceBuyMethod=priceBuyMethod,
             priceBuy=priceBuy,
+            priceBuyIsServiceFee=priceBuyIsServiceFee,
             allowQueue=True,
         )
     
@@ -488,8 +494,10 @@ class TrafficGenerator:
         csCount: int = -1,
         givenCS: List[str] = [],
         priceBuyMethod: PricingMethod = PricingMethod.FIXED,
+        priceBuyIsServiceFee: bool = False,
         priceBuy: float = 1.5,
         priceSellMethod: PricingMethod = PricingMethod.FIXED,
+        priceSellIsServiceFee: bool = False,
         priceSell: float = 1.5,
     ):
         """
@@ -522,9 +530,11 @@ class TrafficGenerator:
             givenStations=givenCS,
             priceBuyMethod=priceBuyMethod,
             priceBuy=priceBuy,
+            priceBuyIsServiceFee=priceBuyIsServiceFee,
             hasSell=True,
             priceSellMethod=priceSellMethod,
             priceSell=priceSell,
+            priceSellIsServiceFee=priceSellIsServiceFee,
             allowQueue=False,
         )
     
@@ -534,6 +544,7 @@ class TrafficGenerator:
         gsCount: int = -1,
         givenGS: List[str] = [],
         priceBuyMethod: PricingMethod = PricingMethod.FIXED,
+        priceBuyIsServiceFee: bool = False,
         priceBuy: float = 7.0
     ):
         self._Station(
@@ -545,6 +556,7 @@ class TrafficGenerator:
             stationCount=gsCount,
             givenStations=givenGS,
             priceBuyMethod=priceBuyMethod,
+            priceBuyIsServiceFee=priceBuyIsServiceFee,
             priceBuy=priceBuy,
             allowQueue=True,
         )
@@ -553,6 +565,8 @@ class TrafficGenerator:
         slots = params.pop_int("slots", 10)
         seed = params.pop_int("seed", time.time_ns())
         pbuy = params.pop_float("pbuy", 1.5)
+        pbuy_is_service_fee = params.pop_bool("pbuy-is-service-fee")
+
         if self.__cs_file != "":
             cs_file = self.__cs_file
             if not self.__silent: print("CS file detected: ", cs_file)
@@ -587,6 +601,7 @@ class TrafficGenerator:
     
         if cs_type in ["fcs", "scs"]:
             psell = params.pop_float("psell", 1.0)
+            psell_is_service_fee = params.pop_bool("psell-is-service-fee")
             randomize_psell = params.pop_bool("randomize-psell")
             psell_method = PricingMethod.RANDOM if randomize_psell else PricingMethod.FIXED
 
@@ -605,14 +620,14 @@ class TrafficGenerator:
         
             if cs_type == "fcs":
                 self.FCS(seed, slots, file = cs_file, bus=bus_sel, busCount=n_bus, givenBus=new_buses,
-                        cs=cs_sel, csCount=n_station, givenCS=station_names, priceBuyMethod=pbuy_method, priceBuy=pbuy)
+                        cs=cs_sel, csCount=n_station, givenCS=station_names, priceBuyMethod=pbuy_method, priceBuy=pbuy, priceBuyIsServiceFee=pbuy_is_service_fee)
             else: # scs
                 self.SCS(seed, slots, file = cs_file, bus=bus_sel, busCount=n_bus, givenBus=new_buses,
-                        cs=cs_sel, csCount=n_station, givenCS=station_names, priceBuyMethod=pbuy_method, priceBuy=pbuy,
-                        priceSellMethod=psell_method, priceSell=psell)
+                        cs=cs_sel, csCount=n_station, givenCS=station_names, priceBuyMethod=pbuy_method, priceBuy=pbuy, priceBuyIsServiceFee=pbuy_is_service_fee,
+                        priceSellMethod=psell_method, priceSell=psell, priceSellIsServiceFee=psell_is_service_fee)
         elif cs_type == "gs":
             self.GS(seed, slots, file = gs_file,
-                    gs=cs_sel, gsCount=n_station, givenGS=station_names, priceBuyMethod=pbuy_method, priceBuy=pbuy)
+                    gs=cs_sel, gsCount=n_station, givenGS=station_names, priceBuyMethod=pbuy_method, priceBuy=pbuy, priceBuyIsServiceFee=pbuy_is_service_fee)
         else:
             raise Exception(Lang.ERROR_UNKNOWN_CS_TYPE.format(cs_type))
 
