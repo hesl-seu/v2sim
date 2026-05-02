@@ -282,6 +282,11 @@ class BaseStation(Generic[T_Vehicle], ABC):
         return self._name
 
     @property
+    def bind(self) -> str:
+        """The element in the road network where the station is located"""
+        return self._bind
+    
+    @property
     def slots(self) -> int:
         """Number of chargers/oil pumps in the station"""
         return self._slots
