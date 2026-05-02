@@ -7,6 +7,8 @@ The appendix of the paper seems to be lost when uploading the final manuscript. 
 
 V2Sim is a V2G simulation platform in urban power and transportation network. It is open-source under BSD license. The traffic simulation is based on either [UXsim](https://github.com/toruseo/UXsim) or [SUMO](https://eclipse.dev/sumo/)
 
+Note: Some UXsim code are integrated in this repository, which follows the license used by UXsim.
+
 **Current version of V2Sim is 1.4**. It has merged two branches: V2Sim (SUMO version) and V2Sim-UX (UXsim version) in version 1.3. Now they share the same GUI and both are included in the same package V2Sim. The cases can be reused (with slight modification), while the saved state cannot.
 
 ## Quick start

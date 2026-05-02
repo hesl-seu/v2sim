@@ -26,7 +26,7 @@ def _parse_station_params(cs_node: Element) -> Dict:
             if par_off: raise ValueError(Lang.STATIONHUB_DUPLICATE_OFFLINE)
             par_off = RangeList(cfg)
         elif cfg.tag == "owners":
-            if par_owners != "": raise ValueError(Lang.STATIONHUB_DUPLICATE_OWNERS)
+            if par_owners: raise ValueError(Lang.STATIONHUB_DUPLICATE_OWNERS)
             par_owners = OwnerGroup(cfg)
         else:
             raise ValueError(Lang.STATIONHUB_INVALID_TAG.format(cfg.tag))

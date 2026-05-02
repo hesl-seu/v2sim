@@ -13,6 +13,7 @@ def _LinearChargeRate(rate: float, ev: 'EV') -> float:
         return rate
     return rate * (3.4 - 3 * ev.soc)
 
+
 class ChargeRatePool:
     """Charging rate correction function pool"""
     _pool:'Dict[str, Callable[[float, EV], float]]' = {
@@ -30,12 +31,13 @@ class ChargeRatePool:
         """Get charging rate correction function"""
         return ChargeRatePool._pool[name]
 
+
 class EV(Vehicle):
     """Electric Vehicle Class"""
     def __init__(
         self, name: str, vtype: VehType, cap: float, pct: float, epm: float,
-        ecf: float, ecs: float, ed: float, pcf: float, pcs: float, pdv: float, omega: float,
-        kr: float, kf: float, ks: float, kv: float, 
+        ecf: float, ecs: float, ed: float, pcf: float, pcs: float, pdv: float,
+        omega: float, kr: float, kf: float, ks: float, kv: float, 
         trips: List[Trip], trip_info: Dict[str, Any], base: Optional[str] = None, rmod: str = "Linear",
         sc_time: Union[None, RangeList] = None, max_sc_cost: float = 100.0,
         v2g_time: Union[None, RangeList] = None, min_v2g_earn: float = 0.0,
@@ -48,12 +50,12 @@ class EV(Vehicle):
         :param cap: Vehicle battery capacity (kWh)
         :param pct: Initial battery percentage (0.0~1.0)
         :param epm: Energy consumption per meter (Wh/m)
-        :param ec_fast: Fast charging efficiency (0.0~1.0)
-        :param ec_slow: Slow charging efficiency (0.0~1.0)
+        :param ecf: Fast charging efficiency (0.0~1.0)
+        :param ecs: Slow charging efficiency (0.0~1.0)
         :param ed: V2G discharging efficiency (0.0~1.0)
-        :param pc_fast: Maximum fast charging power (kW)
-        :param pc_slow: Maximum slow charging power (kW)
-        :param pd_v2g: Maximum V2G power (kW)
+        :param pcf: Maximum fast charging power (kW)
+        :param pcs: Maximum slow charging power (kW)
+        :param pdv: Maximum V2G power (kW)
         :param omega: Decision parameter for selecting charging station
         :param kr: User's estimation deviation of distance. For example, if kr=0.9, it means that the user thinks that the current energy can support 90% of the actual mileage.
         :param kf: SoC threshold for user selecting fast charging (0.0~1.0)
