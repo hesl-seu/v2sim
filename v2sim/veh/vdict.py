@@ -121,6 +121,14 @@ class VDict:
         else:
             raise TypeError("veh must be an instance of EV or GV")
     
+    def __delitem__(self, name: str):
+        if name in self.evs:
+            del self.evs[name]
+        elif name in self.gvs:
+            del self.gvs[name]
+        else:
+            raise KeyError(name)
+        
     def __contains__(self, name: str):
         return name in self.evs or name in self.gvs
     
