@@ -23,31 +23,48 @@ def _largeStackExec(func, *args):
 
 
 class Node:
-    def __init__(self, node_id:str, x:float, y:float):
+    def __init__(self, node_id:str, x:float, y:float, extras:Optional[Dict[str, str]] = None):
         self.name = node_id
         self.x = x
         self.y = y
         self.incoming_edges:List[Edge] = []
+        self.attrs = extras if extras is not None else {}
         self.outgoing_edges:List[Edge] = []
     
     def get_coord(self) -> Tuple[float, float]:
+        """Get the coordinates of the node."""
         return (self.x, self.y)
 
+    def __getitem__(self, key:str) -> str:
+        return self.attrs[key]
+    
+    def __setitem__(self, key:str, value:str):
+        self.attrs[key] = value
 
-@dataclass
+
 class Edge:
-    name: str
-    from_node: Node
-    to_node: Node
-    length: float # in meters
-    lanes: int = 1
-    speed_limit: float = 13.89  # Default 50 km/h in m/s
-    world_id: int = -1
-    nickname: Optional[str] = None
+    def __init__(self, name:str, from_node:Node, to_node:Node, length:float, lanes:int, speed_limit:float = 13.89, world_id:int = -1, nickname:Optional[str] = None, extras:Optional[Dict[str, str]] = None):
+        self.name = name
+        self.from_node = from_node
+        self.to_node = to_node
+        self.length = length # in meters
+        self.lanes = lanes
+        self.speed_limit = speed_limit # Default 50 km/h in m/s
+        self.world_id = world_id
+        self.nickname = nickname
+        self.attrs = extras if extras is not None else {}
+    
     def instant_travel_time(self, t: int) -> float:
         """Get the travel time of free flowing condition. The parameter t is ignored, but kept for compatibility."""
         return self.length / self.speed_limit
     
+    def __getitem__(self, key:str) -> str:
+        return self.attrs[key]
+    
+    def __setitem__(self, key:str, value:str):
+        self.attrs[key] = value
+    
+
 @dataclass
 class SubNet:
     nodes: Set[str] = field(default_factory=set)
@@ -268,12 +285,12 @@ class RoadNet:
             self.calc_max_scc()
         return self.__scc
 
-    def add_node(self, node_id:str, x:int, y:int) -> Node:
+    def add_node(self, node_id:str, x:int, y:int, extras:Optional[Dict[str, str]] = None) -> Node:
         self.__scc = []
         self.__kdt = None
         if node_id in self.nodes:
             raise ValueError(f"Node {node_id} already exists.")
-        node = Node(node_id, x, y)
+        node = Node(node_id, x, y, extras)
         self.nodes[node_id] = node
         return node
     
@@ -414,9 +431,10 @@ class RoadNet:
             raise RuntimeError(f"Invalid xml file: {fname}")
         for node in root.findall("node"):
             ret.add_node(
-                node_id = node.attrib["id"],
-                x = int(float(node.attrib.get("x", "0"))),
-                y = int(float(node.attrib.get("y", "0")))
+                node_id = node.attrib.pop("id"),
+                x = int(float(node.attrib.pop("x", "0"))),
+                y = int(float(node.attrib.pop("y", "0"))),
+                extras = node.attrib.copy() if len(node.attrib) > 0 else None
             )
         for edge in root.findall("edge"):
             ret.add_edge(
