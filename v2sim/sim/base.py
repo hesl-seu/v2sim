@@ -306,7 +306,19 @@ class TrafficInst(ABC):
         # Get station instances
         for name in to_stations:
             s: BaseStation = hub[name]; bind = s._bind
-            score = omega * s.wait_count() * 30.0 + s.pbuy(self._ct, veh) * to_charge
+            score = s.pbuy(self._ct, veh) * to_charge
+            if isinstance(s, CS):
+                assert isinstance(veh, EV), Lang.VEH_TYPE_NOT_SUPPORTED.format(veh._name, type(veh))
+                # Assume that each vehicle spends 30 minutes on average at a CS.
+                # If the CS _pc_lim1 is larger, the average waiting time will be shorter, but it will not be shorter than 5 minutes.
+                wait_time = s.wait_count() * max(5.0, 30.0 / max(1, s._pc_lim1 / 100.0))
+                # to_charge: kWh veh._pcf: kWh/s. The time of charging is to_charge / min(s._pc_lim1, veh._pcf) / 60 (minutes)
+                charge_time = to_charge / min(s._pc_lim1, veh._pcf) / 60.0
+                score += omega * (wait_time + charge_time)
+            elif isinstance(s, GS):
+                # Assume that each vehicle spends 5 minutes on average at a GS.
+                # The time of refueling is also considered by +1.
+                score += omega * (s.wait_count() + 1) * 5.0
             if bind in Ds: # Multiple stations at the same node/.edge, keep the one with smaller wt * omega + p
                 if score < scores[bind]:
                     Ds[bind] = name; scores[bind] = score
