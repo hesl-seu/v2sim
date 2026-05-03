@@ -1,3 +1,4 @@
+import os
 import random, time
 from abc import ABC, abstractmethod
 from itertools import chain
@@ -69,10 +70,10 @@ class VehGenerator(ABC):
         Initialization
 
         :param CROOT: Trip parameter folder
-        :param PNAME: SUMO configuration folder
+        :param PNAME: Case folder
         """
         self.files = DetectFiles(PNAME)
-        self.vTypes = VehicleTypePool(CROOT + "/vtypes.xml")
+        self.vTypes = VehicleTypePool(os.path.join(CROOT, "vtypes.xml"))
         
         # Start time of first trip
         self.pdf_start_weekday = PDGamma(6.63, 65.76, 114.54)
@@ -87,7 +88,7 @@ class VehGenerator(ABC):
         self.park_cdf_we:Dict[str, CDDiscrete[int]] = {}
 
         def read_trans_pdfs(path:str) -> DictPDF:
-            tbwd = ReadOnlyTable(path, dtype=DTypeEnum.FLOAT32)
+            tbwd = ReadOnlyTable(path, dtype = DTypeEnum.FLOAT32)
             times = [int(x) for x in tbwd.head[1:]]
             values = list(map(int, tbwd.col(0)))
             ret:DictPDF = {}
@@ -101,12 +102,12 @@ class VehGenerator(ABC):
             return ret
         
         for dtype in TAZ_TYPE_LIST:
-            self.PSweekday[dtype] = read_trans_pdfs(f"{CROOT}/space_transfer_probability/{dtype[0]}_spr_weekday.csv")
-            self.PSweekend[dtype] = read_trans_pdfs(f"{CROOT}/space_transfer_probability/{dtype[0]}_spr_weekend.csv")
-            self.park_cdf_wd[dtype] = CDDiscrete(f"{CROOT}/duration_of_parking/{dtype[0]}_spr_weekday.csv", True, int)
-            self.park_cdf_we[dtype] = CDDiscrete(f"{CROOT}/duration_of_parking/{dtype[0]}_spr_weekend.csv", True, int)
+            self.PSweekday[dtype] = read_trans_pdfs(os.path.join(CROOT, "space_transfer_probability", f"{dtype[0]}_spr_weekday.csv"))
+            self.PSweekend[dtype] = read_trans_pdfs(os.path.join(CROOT, "space_transfer_probability", f"{dtype[0]}_spr_weekend.csv"))
+            self.park_cdf_wd[dtype] = CDDiscrete(os.path.join(CROOT, "duration_of_parking", f"{dtype[0]}_spr_weekday.csv"), True, int)
+            self.park_cdf_we[dtype] = CDDiscrete(os.path.join(CROOT, "duration_of_parking", f"{dtype[0]}_spr_weekend.csv"), True, int)
 
-        self.soc_pdf = PDDiscrete.fromCSVFileI(f"{CROOT}/soc_dist.csv", True)
+        self.soc_pdf = PDDiscrete.fromCSVFileI(os.path.join(CROOT, "soc_dist.csv"), True)
     
     def _getPs(self, is_weekday: bool, dtype: str, time_index:int):
         return self.PSweekday[dtype].get(time_index, None) if is_weekday else self.PSweekend[dtype].get(time_index, None)
@@ -297,6 +298,39 @@ class VehGenerator(ABC):
         if fname: vehs.save(fname)
         if seed is not None: random.setstate(rnd)
 
+@dataclass
+class _TypeNodes:
+    names:List[str]
+    weights:List[float]
+
+    def append(self, name:str, weight:float):
+        self.names.append(name)
+        self.weights.append(weight)
+
+def _readNodeTypes(fname:str):
+    dict_nodetype:Dict[str, _TypeNodes] = {}
+    with open(fname, "r") as fp:
+        for ln in fp.readlines():
+            name, lst = ln.split(":", 1)
+            name = name.strip()
+            items_str = lst.strip().split(',')
+            node_names:List[str] = []
+            node_weights:List[float] = []
+            for item_str in items_str:
+                item_str = item_str.strip()
+                if not item_str: continue
+                if ':' in item_str:
+                    node, weight = item_str.split(':', 1)
+                    node = node.strip()
+                    weight = float(weight.strip())
+                else:
+                    node = item_str
+                    weight = 1.0
+                node_names.append(node)
+                node_weights.append(weight)
+            dict_nodetype[name] = _TypeNodes(node_names, node_weights)
+    return dict_nodetype
+
 
 class UXVehGenerator(VehGenerator):
     """Class to generate trips for UXsim"""
@@ -319,27 +353,24 @@ class UXVehGenerator(VehGenerator):
             else: raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
         if mode == TripsGenMode.NODE:
             assert _fn.sumo is None and _fn.node_type, Lang.ERROR_NO_TAZ_OR_POLY
-            self.dic_nodetype = {}
-            with open(_fn.node_type, "r") as fp:
-                for ln in fp.readlines():
-                    name, lst = ln.split(":")
-                    self.dic_nodetype[name.strip()] = [x.strip() for x in lst.split(",")]
+            self.dic_nodetype:Dict[str, _TypeNodes] = _readNodeTypes(_fn.node_type)
         elif mode == TripsGenMode.POLY:
             assert _fn.poly and _fn.net and _fn.fcs, Lang.ERROR_NO_TAZ_OR_POLY
             polys = PolygonMan(_fn.poly)
-            self.dic_nodetype = {k:[] for k in TAZ_TYPE_LIST}
+            self.dic_nodetype:Dict[str, _TypeNodes] = {dtype: _TypeNodes([], []) for dtype in TAZ_TYPE_LIST}
             for poly in polys:
                 poly_type = poly.getConvertedType()
                 if poly_type:
                     dist, node = self.net.find_nearest_node_with_distance(*poly.center())
                     # Ensure the edge is in the largest strongly connected component
                     if dist < 200 and self.net.is_node_in_largest_scc(node.name):
-                        self.dic_nodetype[poly_type].append(node.name)
+                        self.dic_nodetype[poly_type].append(node.name, 1.0)
         else:
             raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
     
     def _getNextNode(self, from_node:str, next_place_type:str) -> str:
-        return random_diff(self.dic_nodetype[next_place_type], from_node)        
+        nt = self.dic_nodetype[next_place_type]
+        return random_diff2(nt.names, nt.weights, from_node)        
     
     def _genFirstTrip1(self, v:Vehicle, trip_id, weekday: bool = True):
         """
@@ -352,9 +383,10 @@ class UXVehGenerator(VehGenerator):
         from_Type = "Home"
         if v._base is not None:
             from_node = v._base
-            assert from_node in self.dic_nodetype[from_Type], f"Vehicle base node {from_node} not in Home node list"
+            assert from_node in self.dic_nodetype[from_Type].names, f"Vehicle base node {from_node} not in Home node list"
         else:
-            from_node = random.choice(self.dic_nodetype[from_Type])
+            nt = self.dic_nodetype[from_Type]
+            from_node = random.choices(nt.names, weights=nt.weights, k=1)[0]
             v._base = from_node
         # Get departure time and destination area type
         depart_time_min, to_Type = self._getDest1(from_Type, weekday)  # Minimum departure time is 0

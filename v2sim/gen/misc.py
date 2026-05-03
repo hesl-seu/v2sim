@@ -81,6 +81,15 @@ def random_diff(seq:Sequence[Any], exclude:Any):
         ret = random.choice(seq)
     return ret
 
+def random_diff2(seq:Sequence[Any], weights:List[float], exclude:Any):
+    """Choose a random element from `seq` that is not equal to `exclude`"""
+    ret = exclude
+    if len(seq) == 1 and seq[0] == exclude:
+        raise RuntimeError(Lang.ERROR_RANDOM_CANNOT_EXCLUDE)
+    while ret == exclude:
+        ret = random.choices(seq, weights=weights, k=1)[0]
+    return ret
+
 PDFuncLike = Union[None, float, PDFunc]
 def _impl_PDFuncLike(x:PDFuncLike, default:PDFunc) -> float:
     if x is None:

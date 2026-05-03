@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
-
 from ..veh import Trip
 
 
@@ -20,11 +19,13 @@ class PrivateCarTripGenerator(TripGenerator):
         self.home = home
         self.work = work
 
+
 class LLMPrivateCarTripGenerator(TripGenerator):
     def __init__(self, home: str, work: str, llm_model: str):
         self.home = home
         self.work = work
         self.llm_model = llm_model
+
 
 class BusTripGenerator(TripGenerator):
     def __init__(self, route_edges: List[str]):
