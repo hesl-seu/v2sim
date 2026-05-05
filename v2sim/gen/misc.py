@@ -70,7 +70,34 @@ class VehicleTypePool:
             return self.sample_evtype()
         else:
             return self.sample_gvtype()
+    
+    def add_evtype(self, evtype:EVType, weight:float):
+        self.__evtypes.append(evtype)
+        self.__evt_weights.append(weight)
+        self.__total_ev_weight += weight
+    
+    def add_gvtype(self, gvtype:GVType, weight:float):
+        self.__gvtypes.append(gvtype)
+        self.__gvt_weights.append(weight)
+        self.__total_gv_weight += weight
 
+    def remove_evtype(self, evtype:EVType):
+        for i, et in enumerate(self.__evtypes):
+            if et == evtype:
+                self.__total_ev_weight -= self.__evt_weights[i]
+                del self.__evtypes[i]
+                del self.__evt_weights[i]
+                return
+        raise ValueError("EVType not found in pool")
+    
+    def remove_gvtype(self, gvtype:GVType):
+        for i, gt in enumerate(self.__gvtypes):
+            if gt == gvtype:
+                self.__total_gv_weight -= self.__gvt_weights[i]
+                del self.__gvtypes[i]
+                del self.__gvt_weights[i]
+                return
+        raise ValueError("GVType not found in pool")
     
 def random_diff(seq:Sequence[Any], exclude:Any):
     """Choose a random element from `seq` that is not equal to `exclude`"""

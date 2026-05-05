@@ -6,4 +6,4 @@ from .net import *
 from .core import *
 from .wrapper import *
 
-__version__ = "1.4.2"
+__version__ = "1.4.3"
