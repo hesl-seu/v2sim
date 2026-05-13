@@ -1,5 +1,5 @@
 import dill as pickle
-from typing import Type
+from typing import Type, Union
 from ..utils import CheckPyVersion, PyVersion
 from .base import *
 from .pdn import PluginPDN
@@ -41,6 +41,71 @@ def RegPlugin(name:str, dependencies:Optional[List[str]] = None):
 
 class PluginError(Exception):
     pass
+
+
+class PluginHelper:
+    @staticmethod
+    def get_lang_file(src_path: Union[str, Path]) -> Union[Path, None]:
+        src_parent = Path(src_path).parent
+        if (src_parent / "_lang").is_dir():
+            src_lang = src_parent / "_lang"
+        elif (src_parent / (Path(src_path).stem + ".langs")).is_file():
+            src_lang = src_parent / (Path(src_path).stem + ".langs")
+        else:
+            src_lang = None
+        return src_lang
+    
+    @staticmethod
+    def has_plugin(name:str) -> bool:
+        from ..core import PLUGINS_DIR
+        dest_dir = PLUGINS_DIR
+        dest_path_link = dest_dir / (name + ".link")
+        dest_path_py = dest_dir / (name + ".py")
+        return dest_path_link.exists() or dest_path_py.exists()
+
+    @staticmethod
+    def add_plugin(file: Union[str, Path], as_link:bool = False) -> bool:
+        import shutil
+        from ..core import PLUGINS_DIR
+        dest_dir = PLUGINS_DIR
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        file = Path(file).absolute()
+        name = file.stem
+        if PluginHelper.has_plugin(name):
+            return False
+        dest_path_link = dest_dir / (name + ".link")
+        dest_path_py = dest_dir / (name + ".py")
+        
+        if as_link:
+            with open(dest_path_link, "w", encoding="utf-8") as f:
+                f.write(str(file))
+        else:
+            src_lang = PluginHelper.get_lang_file(file)
+            shutil.copy2(file, dest_path_py)
+            if src_lang is not None:
+                shutil.copy2(src_lang, dest_dir / src_lang.name)
+        return True
+
+    @staticmethod
+    def del_plugin(name:str) -> bool:
+        from ..core import PLUGINS_DIR
+        dest_dir = PLUGINS_DIR
+        dest_path_link = dest_dir / (name + ".link")
+        dest_path_py = dest_dir / (name + ".py")
+        if dest_path_link.exists():
+            dest_path_link.unlink()
+            src_lang = PluginHelper.get_lang_file(dest_path_link)
+            if src_lang is not None:
+                src_lang.unlink()
+            return True
+        elif dest_path_py.exists():
+            dest_path_py.unlink()
+            src_lang = PluginHelper.get_lang_file(dest_path_py)
+            if src_lang is not None:
+                src_lang.unlink()
+            return True
+        else:
+            return False
 
 class PluginPool:
     '''Plugin pool'''
@@ -216,4 +281,4 @@ class PluginMan:
         self._unsafe_load_states(d)
 
 
-__all__ = ['PluginPool', 'PluginMan', 'PluginError', 'RegPlugin', 'PluginExports', 'GetInternalPlugins']
+__all__ = ['PluginPool', 'PluginMan', 'PluginError', 'RegPlugin', 'PluginExports', 'GetInternalPlugins', 'PluginHelper']

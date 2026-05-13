@@ -1,3 +1,4 @@
+from pathlib import Path
 import threading, sys, logging, platform
 from typing import Optional, Union
 from v2sim import Lang, get_sim_params
@@ -82,8 +83,46 @@ def main():
         print(Lang.MAIN_HELP_STR)
         return
     
+    # Version information
+    if args.pop_bool("version"):
+        import v2sim
+        print(v2sim.__version__)
+        return
+    
+    # Add/del plugins
+    add_plg = args.pop_str_or_none("add-plugin")
+    if add_plg:
+        if not add_plg.endswith(".py") or not Path(add_plg).is_file():
+            error_exit(Lang.ERROR_MAIN_PLUGIN_FILE.format(add_plg))
+        from v2sim.plugins import PluginHelper
+        if PluginHelper.add_plugin(add_plg, as_link=False):
+            print(Lang.MAIN_ADD_PLUGIN_SUCCESS.format(add_plg))
+        else:
+            print(Lang.MAIN_ADD_PLUGIN_FAIL.format(add_plg))
+        return
+    
+    add_plg_link = args.pop_str_or_none("add-plugin-link")
+    if add_plg_link:
+        if not add_plg_link.endswith(".py") or not Path(add_plg_link).is_file():
+            error_exit(Lang.ERROR_MAIN_PLUGIN_FILE.format(add_plg_link))
+        from v2sim.plugins import PluginHelper
+        if PluginHelper.add_plugin(add_plg_link, as_link=True):
+            print(Lang.MAIN_ADD_PLUGIN_SUCCESS.format(add_plg_link))
+        else:
+            print(Lang.MAIN_ADD_PLUGIN_FAIL.format(add_plg_link))
+        return
+    
+    del_plg_name = args.pop_str_or_none("del-plugin")
+    if del_plg_name:
+        from v2sim.plugins import PluginHelper
+        if PluginHelper.del_plugin(del_plg_name):
+            print(Lang.MAIN_DEL_PLUGIN_SUCCESS.format(del_plg_name))
+        else:
+            print(Lang.MAIN_DEL_PLUGIN_NOT_FOUND.format(del_plg_name))
+        return
+    
     # List available plugins and statistics
-    if args.pop_bool("ls-com"):
+    if args.pop_bool("ls-com") or args.pop_bool("list-plugins"):
         plg_pool, sta_pool = create_pools()
         print(Lang.MAIN_LS_TITLE_PLG)
         for key, (_, deps) in plg_pool.GetAllPlugins().items():

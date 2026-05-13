@@ -17,5 +17,5 @@ IMPORT_BUTTON=Import...
 IMPORT_LINK_BUTTON=Import link...
 DELETE_BUTTON=Remove
 IMPORT_BUT_NOT_LOADED=Plugin {0} has been imported, but it does not contain plugins or statistics.
-ERROR_FILE_EXISTS=File {0} already existed.
+ERROR_FILE_EXISTS=A plugin with the same name already existed.
 INTERNAL=(Internal)

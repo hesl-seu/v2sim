@@ -1,8 +1,7 @@
 from v2sim.gui.common import *
 from collections import defaultdict
 from v2sim import load_external_components, PLUGINS_DIR, get_internal_components
-import os
-import shutil
+from v2sim.plugins import PluginHelper
 
 
 _ = LangLib.Load(__file__)
@@ -64,40 +63,15 @@ class PlgBox(Tk):
                 for v in val:
                     tree.insert(key_id, 'end', text=v)
             return confirm_have_exists
-
-        def get_lang_file(src_path: Union[str, Path]) -> Union[Path, None]:
-            src_parent = Path(src_path).parent
-            if (src_parent / "_lang").is_dir():
-                src_lang = src_parent / "_lang"
-            elif (src_parent / (Path(src_path).stem + ".langs")).is_file():
-                src_lang = src_parent / (Path(src_path).stem + ".langs")
-            else:
-                src_lang = None
-            return src_lang
         
         def on_import(link = False):
             src = filedialog.askopenfilename(title=_("IMPORT_PLUGIN_TITLE"), filetypes=[(_("Python files"), "*.py")])
             if not src: return
-            src_lang = get_lang_file(src)
-
-            dest_dir = PLUGINS_DIR
-            dest_dir.mkdir(parents=True, exist_ok=True)
-
-            dest_path_link = dest_dir / (Path(src).stem + ".link")
-            dest_path_py = dest_dir / (Path(src).stem + ".py")
             
             try:
-                if dest_path_link.exists():
-                    raise RuntimeError(_("ERROR_FILE_EXISTS").format(dest_path_link.name))
-                if dest_path_py.exists():
-                    raise RuntimeError(_("ERROR_FILE_EXISTS").format(dest_path_py.name))
-                if link:
-                    with open(dest_path_link, "w", encoding="utf-8") as f:
-                        f.write(src)
-                else:
-                    shutil.copy2(src, dest_path_py)
-                    if src_lang is not None:
-                        shutil.copy2(src_lang, dest_dir / src_lang.name)
+                success = PluginHelper.add_plugin(src, as_link=link)
+                if not success:
+                    raise RuntimeError(_("ERROR_FILE_EXISTS"))
                 plg_name = Path(src).stem
                 if refresh_tree(plg_name):
                     MB.showinfo(_("INFO"), _("IMPORT_SUCCESS").format(plg_name))
@@ -125,11 +99,8 @@ class PlgBox(Tk):
                 return
 
             file = PLUGINS_DIR / text  # keep extension
-            src_lang = get_lang_file(file)
             try:
-                os.remove(file)
-                if src_lang is not None:
-                    os.remove(src_lang)
+                PluginHelper.del_plugin(Path(file).stem)
                 MB.showinfo(_("INFO"), _("DELETE_SUCCESS"))
                 refresh_tree()
             except Exception as e:

@@ -37,6 +37,7 @@ class _locale:
     ERROR_INVALID_CACHE_ROUTE = "错误: 无效的寻路缓存模式: {0}"
     ERROR_INVALID_TRIP_GEN_MODE = "错误: 无效的行程生成模式: {0}"
     ERROR_CS_NODE_NOT_EXIST = "错误: 充电站所在节点{0}不存在"
+    ERROR_MAIN_PLUGIN_FILE = "错误: 插件文件'{}'无效."
 
     WARN_EXT_LOAD_FAILED = "警告: {0}是Python文件, 但无法作为包加载: {1}"
     WARN_EXT_INVALID_PLUGIN = "警告: {0}的plugin_exports无效, 无法作为插件导入: {1}"
@@ -72,6 +73,10 @@ class _locale:
     MAIN_SIGINT = "收到Ctrl-C退出信号, 提前退出"
     MAIN_SIM_DONE = "仿真结束. 用时: {}"
     MAIN_SIM_PROG = "进度: {0:.2f}%, {1}/{2}. 已用时: {3}, 预计剩余时间: {4}"
+    MAIN_ADD_PLUGIN_SUCCESS = "插件'{}'已成功导入."
+    MAIN_ADD_PLUGIN_FAIL = "导入插件'{}'失败."
+    MAIN_DEL_PLUGIN_SUCCESS = "插件'{}'已成功删除."
+    MAIN_DEL_PLUGIN_NOT_FOUND = "未找到插件'{}'."
 
     PARA_SIM_SKIP_LIST = "跳过: {}"
     PARA_SIM_DONE_PARA = "并行部分完成. 用时: {}"

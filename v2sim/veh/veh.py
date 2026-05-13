@@ -115,6 +115,7 @@ class Vehicle:
         # Energy storage
         self._cap = cap                 # Energy capacity, kWh for EV, L for GV
         assert 0.0 <= pct <= 1.0
+        self._init_pct = pct            # Initial energy percentage (0.0~1.0)
         self._energy = pct * cap        # Current energy stored, kWh for EV, L for GV
         self._epm = epm                 # Energy consumption per unit distance, kWh/m for EV, L/m for GV
 
@@ -235,6 +236,11 @@ class Vehicle:
         self._cost = 0.0
         self._dis = 0.0
         self._trip_index = 0
+        self._energy = self._cap * self._init_pct
+        self._cs = None
+        self._etar = self._cap
+        self._fr_on_dpt = None
+        self._dpt_rs = None
     
     def drive(self, new_dis: float):
         """

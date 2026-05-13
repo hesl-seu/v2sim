@@ -48,6 +48,7 @@ class Lang:
     ERROR_INVALID_CACHE_ROUTE = "Error: Invalid cache route: {0}"
     ERROR_INVALID_TRIP_GEN_MODE = "Error: Invalid trip generation mode: {0}"
     ERROR_CS_NODE_NOT_EXIST = "Error: CS node {0} does not exist in the road network."
+    ERROR_MAIN_PLUGIN_FILE = "Error: Plugin file '{}' is invalid."
 
     WARN_COPY_SKIPPED = "Warning: Copying case files skipped to avoid copying into itself."
     WARN_EXT_LOAD_FAILED = "Warning: {0} is a Python file, but cannot be loaded as a package: {1}"
@@ -86,6 +87,10 @@ class Lang:
     MAIN_SIGINT = "Received Ctrl-C signal, exiting prematurely."
     MAIN_SIM_DONE = "Simulation done. Duration: {}"
     MAIN_SIM_PROG = "Progress: {0:.2f}%, {1}/{2}. Elapsed: {3}, ETA: {4}"
+    MAIN_ADD_PLUGIN_SUCCESS = "Plugin '{}' has been imported successfully."
+    MAIN_ADD_PLUGIN_FAIL = "Failed to import plugin '{}'."
+    MAIN_DEL_PLUGIN_SUCCESS = "Plugin '{}' has been deleted successfully."
+    MAIN_DEL_PLUGIN_NOT_FOUND = "Plugin '{}' not found."
 
     PARA_SIM_SKIP_LIST = "Skip list: {}"
     PARA_SIM_DONE_PARA = "Parallel part done. Duration: {}"
