@@ -151,7 +151,13 @@ def readCompressed(options, conn, urlpath, query, roadTypesJSON, getShapes, file
         with open(options.query_output, "w") as outf:
             outf.write(finalQuery)
 
-    conn.request("POST", "/" + urlpath, finalQuery, headers={'Accept-Encoding': 'gzip'})
+    request_path = urlpath if urlpath.startswith('/') else '/' + urlpath
+    headers = {
+        'Accept-Encoding': 'gzip',
+        'User-Agent': 'v2sim-osmWebWizard/1.0 (+https://github.com/hesl-seu/v2sim)',
+        'Accept': '*/*'
+    }
+    conn.request("POST", request_path, finalQuery.encode('utf-8'), headers=headers)
 
     response = conn.getresponse()
     if options.verbose:
@@ -171,6 +177,10 @@ def readCompressed(options, conn, urlpath, query, roadTypesJSON, getShapes, file
                 out.write(gzip.compress(lines))
             else:
                 out.write(lines)
+    else:
+        print("Error: Overpass API returned HTTP %s (%s)" % (response.status, response.reason), file=sys.stderr)
+        error_content = response.read().decode('utf-8', errors='replace')
+        print("Response: %s" % error_content, file=sys.stderr)
 
 
 def get_options(args):
