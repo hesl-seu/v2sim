@@ -1,7 +1,7 @@
 import math, os, shutil, sys, threading
 import numpy as np
 import sumolib
-from xml.etree.ElementTree import Element, ElementTree
+from xml.etree.ElementTree import Element, ElementTree, SubElement
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Set
 from collections import defaultdict
@@ -944,4 +944,54 @@ def ConvertCase(input_dir:str, output_dir:str, part_cnt:int, auto_partition:bool
     return converted
 
 
-__all__ = ["Node", "Edge", "SubNet", "RoadNet", "ConvertCase"]
+def SplitSUMONetwork(
+    net_file:str,
+    output_file:str,
+    partitions:int
+):
+    rn = RoadNet.load_sumo(net_file, only_passenger=False)
+    rn.partition_roadnet(partitions)
+    parts = defaultdict(list)
+
+    for edge in rn.edges.values():
+        parts[edge.world_id].append(edge.name)
+    
+    root = Element("partitions")
+    for pid, edges in parts.items():
+        pnode = SubElement(root, "partition", {"id": str(pid)})
+        for eid in edges:
+            SubElement(pnode, "edge", {"id": eid})
+
+    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+    ElementTree(root).write(output_file, encoding="utf-8", xml_declaration=True)
+
+def SplitUXNetwork(
+    net_file:str,
+    output_file:str,
+    partitions:int
+):
+    rn = RoadNet.load(net_file)
+    rn.partition_roadnet(partitions)
+    rn.save(output_file)
+
+
+def SplitCase(input_dir:str, output_dir:str, partitions:int):
+    """Split a case into multiple parts by partitioning the road network.
+    
+    Args:
+        input_dir: Input directory path.
+        output_dir: Output directory path.
+        partitions: Number of partitions to split into.
+    """
+    files = DetectFiles(input_dir)
+    assert files.net is not None and files.sumo is not None, "No network file found in the input directory."
+    
+    if files.sumo:
+        output_file = str(Path(output_dir) / (Path(files.net).stem + "_partitions" + Path(files.net).suffix))
+        SplitSUMONetwork(files.net, output_file, partitions)
+    else:
+        output_file = str(Path(output_dir) / Path(files.net).name)
+        SplitUXNetwork(files.net, output_file, partitions)
+
+
+__all__ = ["Node", "Edge", "SubNet", "RoadNet", "ConvertCase", "SplitCase", "SplitSUMONetwork", "SplitUXNetwork"]
