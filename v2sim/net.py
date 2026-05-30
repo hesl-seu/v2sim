@@ -905,7 +905,7 @@ def ConvertCase(input_dir:str, output_dir:str, part_cnt:int, auto_partition:bool
             print("Extracting largest strongly connected component...")
             r.remove_items_outside_max_scc()
         if auto_partition:
-            part_cnt = min(32, os.cpu_count() or 1, r.node_count // 40)
+            part_cnt = max(1, min(32, os.cpu_count() or 1, r.node_count // 40))
             print(f"Auto partition count determined: {part_cnt}")
         if part_cnt > 1:
             print(f"Partitioning network into {part_cnt} parts...")

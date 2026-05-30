@@ -380,10 +380,14 @@ class TrafficGenerator:
             gr = Grid.fromFile(grid_file)
             use_grid = True
             for b in gr.Buses:
-                lon, lat = b.LonLat
                 try:
-                    assert lon is not None or lat is not None
-                    x, y = self.__rnet.convertLonLat2XY(lon, lat)
+                    if self.__rnet.hasGeoProj():
+                        lon, lat = b.LonLat
+                        assert lon is not None and lat is not None
+                        x, y = self.__rnet.convertLonLat2XY(lon, lat)
+                    else:
+                        x, y = b.position
+                    assert x is not None and y is not None
                 except:
                     use_grid = False
                     break
