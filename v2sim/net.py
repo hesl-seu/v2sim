@@ -8,7 +8,6 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from scipy.cluster.vq import kmeans, vq
 from scipy.spatial import KDTree
-from collections import defaultdict
 from .utils import DetectFiles, ReadXML
 from .locale import Lang
 
