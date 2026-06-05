@@ -6,6 +6,7 @@ This `uxsim.py` is the core of UXsim. It summarizes the classes and methods that
 import csv, time, math, string, warnings, copy
 from collections import deque, OrderedDict
 from collections import defaultdict as ddict
+from typing import Any, Callable
 import warnings
 import numpy as np
 from .analyzer import *
@@ -16,7 +17,7 @@ class Node:
     """
     Node in a network.
     """
-    def __init__(s, W, name, x, y, signal=[0], signal_offset=0, signal_offset_old=None, flow_capacity=None, auto_rename=False, number_of_lanes=None, attribute=None, user_attribute=None, user_function=None):
+    def __init__(s, W: "World", name: str, x: float, y: float, signal: list[float]=[0], signal_offset: float=0, signal_offset_old: float|None=None, flow_capacity: float|None=None, number_of_lanes: int|None=None, auto_rename=False, attribute=None, user_attribute=None, user_function=None):
         """
         Create a node.
 
@@ -30,7 +31,7 @@ class Node:
             The x-coordinate of the node (for visualization purposes).
         y : float
             The y-coordinate of the node (for visualization purposes).
-        signal : list of int, optional
+        signal : list of float, optional
             A list representing the signal at the node. Default is [0], representing no signal.
             If a signal is present, the list contains the green times for each group.
             For example, `signal`=[60, 10, 50, 5] means that this signal has 4 phases, and green time for the 1st group is 60 s.
@@ -77,14 +78,14 @@ class Node:
         s.user_function = user_function
         
         #incoming/outgoing links
-        s.inlinks = dict()
-        s.outlinks = dict()
+        s.inlinks: dict[str,Link] = dict()
+        s.outlinks: dict[str,Link] = dict()
 
         #request for inter-link transfer (demand for node model)
-        s.incoming_vehicles = []
+        s.incoming_vehicles: list[Vehicle] = []
 
         #vertical queue for vehicle generation
-        s.generation_queue = deque()
+        s.generation_queue: deque[Vehicle] = deque()
 
         #signal settings
         #If this node does not have a signal, set `signal=[0]`
@@ -111,8 +112,7 @@ class Node:
                 if i >= len(s.signal):
                     i = 0
 
-        # s.signal_log = []
-        # 不记录节点交通灯信号状态以节省内存
+        s.signal_log = []
 
         #flow capacity (macroscopic/continuous representation for signal)
         s.flag_lanes_automatically_determined = False
@@ -156,7 +156,7 @@ class Node:
         s.signal_t += s.W.DELTAT
         s.cycle_length = sum(s.signal)
 
-        # s.signal_log.append(s.signal_phase)
+        s.signal_log.append(s.signal_phase)
 
     def flow_capacity_update(s):
         """
@@ -364,7 +364,7 @@ class Link:
     """
     Link in a network.
     """
-    def __init__(s, W, name, start_node, end_node, length, free_flow_speed=20, jam_density=0.2, jam_density_per_lane=None, number_of_lanes=1, merge_priority=1, signal_group=[0], capacity_out=None, capacity_in=None, eular_dx=None, attribute=None, user_attribute=None, user_function=None, auto_rename=False):
+    def __init__(s, W: "World", name: str, start_node: Node|str, end_node: Node|str, length: float, free_flow_speed: float=20, jam_density: float=0.2, jam_density_per_lane: float|None=None, number_of_lanes: int=1, merge_priority: float=1, signal_group: list[int]=[0], capacity_out: float|None=None, capacity_in: float|None=None, congestion_pricing: Callable[[float],float]|None=None, eular_dx=None, attribute=None, user_attribute=None, user_function=None, auto_rename=False):
         """
         Create a link.
 
@@ -396,6 +396,8 @@ class Link:
             The capacity out of the link, default is calculated based on other parameters.
         capacity_in : float, optional
             The capacity into the link, default is calculated based on other parameters.
+        congestion_pricing : function or None
+            Dynamic congestion pricing setting. A function that takes float (time in seconds) as input and returns float (the congestion toll at that time). If None, there are no congestion toll (unless you manually specify `route_choice_penalty` - old feature).
         eular_dx : float, optional
             The space aggregation size for link traffic state computation, default is 1/10 of link length or free flow distance per simulation step, whichever is larger.
         attribute : any, optional
@@ -437,65 +439,6 @@ class Link:
             Capacity for inflow to the link.
         merge_priority : float
             The priority of the link when merging at the downstream node.
-
-        Notes
-        -----
-        Traffic Flow Model:
-
-        - The link model follows a multi-lane, single-pipe approach where FIFO is guaranteed per link and no lane changing occurs.
-        - Fundamental diagram parameters such as free_flow_speed, jam_density (or jam_density_per_lane), and number_of_lanes determine the link's flow characteristics. Reaction time of drivers `REACTION_TIME` is a global parameter.
-        - Real-time link status for external reference is maintained with attributes `speed`, `density`, `flow`, `num_vehicles`, and `num_vehicles_queue`.
-
-        Traffic Flow Model Parameters:
-
-        - Their definition is illustrated as https://toruseo.jp/UXsim/docs/_images/fundamental_diagram.png
-        - If you are not familiar to the traffic flow theory, it is recommended that you adjust only `free_flow_speed` and `number_of_lanes` for the traffic flow model parameters, leaving the other parameters at their default values.
-
-        Capacity and Bottlenecks:
-
-        - The `capacity_out` and `capacity_in` parameters set the outflow and inflow capacities of the link. If not provided, the capacities are unlimited.
-        - These capacities can represent bottlenecks at the beginning or end of the link.
-
-        Connection to Node Model:
-
-        - At the downstream end of a sending link, vehicles in all lanes have the right to be sent out, but FIFO order is maintained.
-        - At the upstream end of a receiving link, all lanes can accept vehicles.
-
-        Parameter Adjustments:
-
-        - Some traffic flow model parameters like `free_flow_speed`, `jam_density`, `capacity_out`, `capacity_in`, and `merge_priority` can be altered during simulation to reflect changing conditions.
-            
-        Details on Multi-lane model:
-
-        - Link model:
-            - Multiple lanes with single-pipe model. FIFO is guaranteed per link. No lane changing.
-            - Links have a `lanes` attribute representing the number of lanes. 
-            - Each vehicle has a `lane` attribute.
-            - Each vehicle follows the leader vehicle in the same lane, i.e., the vehicle `lanes` steps ahead on the link.
-        - Node model: 
-            - Sending links:
-                - Vehicles in all lanes at the downstream end of the link have the right to be sent out.
-                - However, to ensure link FIFO, vehicles are tried to be sent out in the order they entered the link. If a vehicle cannot be accepted, the outflow from that link stops.
-            - Receiving links:  
-                - All lanes at the upstream end of the link can accept vehicles.
-
-        Details on Fundamental diagram parameters (+: input, ++: alternative input):
-
-        - free_flow_speed (m/s)+
-        - jam_density (veh/m/LINK)+
-        - jam_density_per_lane (veh/m/lane)++
-        - lanes, number_of_lane (lane)+
-        - tau: y-intercept of link FD (s/veh*LINK)
-        - REACTION_TIME, World.reaction_time (s/veh*lane) 
-        - w (m/s)
-        - capacity (veh/s/LINK)
-        - capacity_per_lane (veh/s/lane)
-        - delta: minimum spacing (m/veh*LINK)
-        - delta_per_lane: minimum spacing in lane (m/veh*lane) 
-        - q_star: capacity (veh/s/LINK)
-        - k_star: critical density (veh/s/LINK)
-        - capacity_in, capacity_out: bottleneck capacity at beginning/end of link (veh/s/LINK)+
-        - Node.flow_capacity: node flow capacity (veh/s/LINK-LIKE)+
         """
 
         s.W = W
@@ -511,9 +454,7 @@ class Link:
         if s.number_of_lanes != number_of_lanes:
             raise ValueError(f"number_of_lanes must be an integer. Got {number_of_lanes} at {s}.")
         
-
         #フローモデルパラメータ:per link
-
         s.u = free_flow_speed
         s.kappa = jam_density
         if jam_density == 0.2 and jam_density_per_lane != None:
@@ -547,7 +488,8 @@ class Link:
         #旅行時間
         s.traveltime_instant = []
 
-        #経路選択補正
+        #経路選択補正（混雑課金）
+        s.congestion_pricing = congestion_pricing
         s.route_choice_penalty = 0
 
         #累積図関係
@@ -686,8 +628,7 @@ class Link:
         else:
             s.traveltime_instant.append(s.traveltime_instant[-1])
 
-
-    def arrival_count(s, t):
+    def arrival_count(s, t: float) -> float:
         """
         Get cumulative vehicle count of arrival to this link on time t.
 
@@ -708,7 +649,7 @@ class Link:
             return s.cum_arrival[0]
         return s.cum_arrival[tt]
 
-    def departure_count(s, t):
+    def departure_count(s, t: float) -> float:
         """
         Get cumulative vehicle count of departure from this link on time t.
 
@@ -728,8 +669,79 @@ class Link:
         if tt < 0:
             return s.cum_departure[0]
         return s.cum_departure[tt]
+    
+    def inflow_between(s, t0: float, t1: float) -> float:
+        """
+        Get inflow to this link between time t0 and t1.
 
-    def instant_travel_time(s, t):
+        Parameters
+        ----------
+        t0 : float
+            Start time in seconds.
+        t1 : float
+            End time in seconds.
+
+        Returns
+        -------
+        float
+            The inflow.
+        """
+        return (s.arrival_count(t1)-s.arrival_count(t0))/(t1-t0)
+    
+    # def average_travel_time_between(s, t0: float, t1: float) -> float:
+    #     """
+    #     Get average travel time on this link between time t0 and t1 based on the cumulative curves. More precisely, average travel time of vehicles that entered this link during [t0, t1).
+
+    #     Parameters
+    #     ----------
+    #     t0 : float
+    #         Start time in seconds.
+    #     t1 : float
+    #         End time in seconds.
+
+    #     Returns
+    #     -------
+    #     float
+    #         The average travel time.
+    #     """
+    #     t_list = [t for t in s.vehicles_enter_log.keys() if t0 <= t < t1]
+    #     if len(t_list) == 0:
+    #         return s.length/s.u
+    #     return np.average([s.actual_travel_time(t) for t in t_list])
+    
+    def num_vehicles_t(s, t: float) -> float:
+        """
+        Get number of vehicles on this link on time t.
+
+        Parameters
+        ----------
+        t : float
+            Time in seconds.
+
+        Returns
+        -------
+        float
+            The number of vehicles.
+        """
+        return s.arrival_count(t)-s.departure_count(t)
+   
+    def average_density(s, t: float) -> float:
+        """
+        Get average density of this link on time t.
+
+        Parameters
+        ----------
+        t : float
+            Time in seconds.
+
+        Returns
+        -------
+        float
+            The average density.
+        """
+        return float(s.num_vehicles_t(t)/s.length)
+
+    def instant_travel_time(s, t: float) -> float:
         """
         Get instantaneous travel time of this link on time t.
 
@@ -749,8 +761,8 @@ class Link:
         if tt < 0:
             return s.traveltime_instant[0]
         return s.traveltime_instant[tt]
-
-    def actual_travel_time(s, t):
+    
+    def actual_travel_time(s, t: float) -> float:
         """
         Get actual travel time of vehicle who enters this link on time t. Note that small error may occur due to fractional processing.
 
@@ -770,6 +782,60 @@ class Link:
         if tt < 0:
             return s.traveltime_actual[0]
         return s.traveltime_actual[tt]
+
+    def average_speed(s, t: float) -> float:
+        """
+        Get average speed (=inverse of instantaneous travel time) of this link on time t.
+
+        Parameters
+        ----------
+        t : float
+            Time in seconds.
+
+        Returns
+        -------
+        float
+            The instantaneous travel time.
+        """
+        return float(s.length/s.instant_travel_time(t))
+
+    def average_flow(s, t: float) -> float:
+        """
+        Get average flow of this link on time t.
+
+        Parameters
+        ----------
+        t : float
+            Time in seconds.
+
+        Returns
+        -------
+        float
+            The average flow.
+        """
+        return float(s.average_speed(t)*s.average_density(t))
+
+    def get_toll(s, t: float) -> float:
+        """
+        Get congestion toll of this link on time t.
+
+        Parameters
+        ----------
+        t : float
+            Time in seconds.
+
+        Returns
+        -------
+        float
+            The congestion toll.
+        """
+        if s.congestion_pricing != None:
+            return s.congestion_pricing(t)
+        else:
+            if s.route_choice_penalty != 0:
+                warnings.warn(f"{s}: route_choice_penalty is deprecated. Please use congestion_pricing instead.", DeprecationWarning)
+                return s.route_choice_penalty
+        return 0
 
     #getter/setter
     @property
@@ -862,12 +928,10 @@ class Vehicle:
     """
     Vehicle or platoon in a network.
     """
-    def __init__(s, W:'World', orig, dest, departure_time, name=None, 
-                 route_pref=None, route_choice_principle=None,
-                 mode="single_trip", links_prefer=[], links_avoid=[], 
-                 trip_abort=1, departure_time_is_time_step=0, 
-                 attribute=None, user_attribute=None, user_function=None, 
-                 auto_rename=False, end_trip_callback=None):
+    def __init__(s, W: "World", orig: Node|str, dest: Node|str, departure_time:int|float, name: str|None=None, 
+                 route_pref: dict=None, route_choice_principle=None, mode: str="single_trip", 
+                 links_prefer: list=[], links_avoid: list=[], trip_abort: int=1, departure_time_is_time_step: int=0, 
+                 attribute=None, user_attribute=None, user_function=None, auto_rename=False, end_trip_callback=None):
         """
         Create a vehicle (more precisely, platoon).
 
@@ -879,8 +943,8 @@ class Vehicle:
             The origin node.
         dest : str | Node
             The destination node.
-        departure_time : int
-            The departure time of the vehicle.
+        departure_time : int | float
+            The departure time of the vehicle. This can be timestep or time in second.
         name : str, optional
             The name of the vehicle, default is the id of the vehicle.
         route_pref : dict, optional
@@ -913,9 +977,8 @@ class Vehicle:
 
         auto_rename : bool, optional
             Whether to automatically rename the vehicle if the name is already used. Default is False.
-        
         end_trip_callback : func, optional
-            User-defined custom function that is automatically called when the vehicle ends its trip. It takes only one argument: the Vehicle object itself. Example: The following code prints a message when the vehicle ends its trip. If end_trip_callback=None (default), no functions will be executed.
+            User-defined custom function that is automatically called when the trip is ended. It takes only one argument: the Vehicle object itself. Example: The following code prints "Trip ended" when the vehicle ends its trip. If end_trip_callback=None (default), no functions will be executed.
         """
 
         s.W = W
@@ -925,30 +988,30 @@ class Vehicle:
 
         #出発・到着時刻
         if departure_time_is_time_step:#互換性のため，departure_timeは常にタイムステップ表記 -> TODO: 要訂正！
-            s.departure_time = departure_time
+            s.departure_time: int = departure_time
         else:
-            s.departure_time = int(departure_time/s.W.DELTAT)
-        s.departure_time_in_second = departure_time*s.W.DELTAT  #TODO: temporal workaround
-        s.arrival_time = -1
-        s.link_arrival_time = -1
-        s.travel_time = -1
+            s.departure_time: int = int(departure_time/s.W.DELTAT)
+        s.departure_time_in_second: float = departure_time*s.W.DELTAT  #TODO: temporal workaround
+        s.arrival_time: int = -1
+        s.link_arrival_time: float = -1
+        s.travel_time: float = -1
 
         #状態：home, wait, run，end
-        s.state = "home"
+        s.state: str = "home"
 
         #リンク内位置
-        s.link:Link = None
-        s.x = 0
-        s.x_next = 0
-        s.x_old = 0
-        s.v = 0
+        s.link: Link|None = None
+        s.x: float = 0
+        s.x_next: float = 0
+        s.x_old: float = 0
+        s.v: float = 0
 
         #走行車線
-        s.lane = 0
+        s.lane: int = 0
 
         #先行・後行車
-        s.leader = None
-        s.follower = None
+        s.leader: Vehicle|None = None
+        s.follower: Vehicle|None = None
 
         #トリップ終了準備フラグ
         s.flag_waiting_for_trip_end = 0
@@ -964,7 +1027,7 @@ class Vehicle:
 
         #private vehicle or taxi
         s.mode = mode
-        s.dest_list = []
+        s.dest_list: list[Node] = []
 
         #dict of events that are triggered when this vehicle reaches a certain node {Node: func}
         s.node_event = dict()
@@ -997,7 +1060,7 @@ class Vehicle:
         s.log_lane = [] #車線
         s.color = (s.W.rng.random(), s.W.rng.random(), s.W.rng.random())
 
-        s.log_t_link = [[int(s.departure_time*s.W.DELTAT), "home"]] #route-level log. It records the time and link when the vehicle entered new link
+        s.log_t_link : list[tuple[int,str|Link]] = [[int(s.departure_time*s.W.DELTAT), "home"]] #route-level log. It records the time and link when the vehicle entered new link. The typehint is technically incorrect; it is actually not tuple, but list
         s.link_old = None
         
         s.distance_traveled = 0
@@ -1006,7 +1069,6 @@ class Vehicle:
         s.user_attribute = user_attribute
         s.user_function = user_function
         s.end_trip_callback = end_trip_callback
-
         s.id = len(s.W.VEHICLES)
         if name != None:
             s.name = name
@@ -1222,6 +1284,12 @@ class Vehicle:
                         outlinks = sorted(set(outlinks) & set(s.links_prefer), key=lambda l:l.name)
                     if set(outlinks) & set(s.links_avoid):
                         outlinks = sorted(set(outlinks) - set(s.links_avoid), key=lambda l:l.name)
+
+                    if s.W.no_cyclic_routing and s.mode != "taxi":
+                        traveled_nodes = set([l[1].start_node for l in s.log_t_link[1:]])
+                        outlinks_no_overlapping_nodes = [l for l in outlinks if l.end_node not in traveled_nodes]
+                        if len(outlinks_no_overlapping_nodes) > 0:
+                            outlinks = outlinks_no_overlapping_nodes
 
                     preference = np.array([s.route_pref[l.id] for l in outlinks], dtype=float)
                     if s.W.hard_deterministic_mode == False:
@@ -1439,7 +1507,7 @@ class RouteChoice:
     Class for computing shortest path for all vehicles.
     """
 
-    def __init__(s, W):
+    def __init__(s, W: "World"):
         """
         Create route choice computation object.
 
@@ -1465,12 +1533,14 @@ class RouteChoice:
         #s.route_pref = {k.id: {l:0 for l in s.W.LINKS} for k in s.W.NODES} #old definition, {node_id: {link: preference}. preference of link is 1 if it is on the shortest path to node_id
         s.route_pref = np.zeros([len(W.NODES), len(W.LINKS)])
 
-    def route_search_all(s, infty=np.inf, noise=0):
+    def route_search_all(s, t:float, infty=np.inf, noise=0):
         """
         Compute the current shortest path based on instantaneous travel time.
 
         Parameters
         ----------
+        t : float
+            Time in seconds.
         infty : float
             value representing infinity.
         noise : float
@@ -1484,9 +1554,9 @@ class RouteChoice:
             j = link.end_node.id
             if s.W.ADJ_MAT[i,j]:
                 if s.W.hard_deterministic_mode == False:
-                    new_link_tt = link.traveltime_instant[-1]*s.W.rng.uniform(1, 1+noise) + link.route_choice_penalty
+                    new_link_tt = link.traveltime_instant[-1]*s.W.rng.uniform(1, 1+noise) + link.get_toll(t)
                 else:
-                    new_link_tt = link.traveltime_instant[-1] + link.route_choice_penalty
+                    new_link_tt = link.traveltime_instant[-1] + link.get_toll(t)
                 n = adj_mat_link_count[i,j]
                 s.adj_mat_time[i,j] = s.adj_mat_time[i,j]*n/(n+1) + new_link_tt/(n+1) # if there are multiple links between the same nodes, average the travel time
                 # s.adj_mat_time[i,j] = new_link_tt #if there is only one link between the nodes, this line is fine, but for generality we use the above line
@@ -1546,17 +1616,18 @@ class World:
     """
     World (i.e., simulation environment). A World object is consistently referred to as `W` in this code.
     """
-    analyzer: Analyzer
-    def __init__(W, name="", deltan=5, reaction_time=1, 
-                 duo_update_time=600, duo_update_weight=0.5, duo_noise=0.01, route_choice_principle="homogeneous_DUO", route_choice_update_gradual=False, instantaneous_TT_timestep_interval=5, 
-                 eular_dt=120, eular_dx=100, 
-                 random_seed=None, 
-                 print_mode=1, save_mode=1, show_mode=0, show_progress=1, show_progress_deltat=600, 
-                 tmax=None, 
-                 vehicle_logging_timestep_interval=1, 
-                 reduce_memory_delete_vehicle_route_pref=False,
-                 hard_deterministic_mode=False, 
-                 meta_data={}, user_attribute=None, user_function=None):
+
+    def __init__(W, name: str="", deltan: int=5, reaction_time: float=1, 
+                 duo_update_time: float=600, duo_update_weight: float=0.5, duo_noise: float=0.01, route_choice_principle: str="homogeneous_DUO", route_choice_update_gradual: bool=False, instantaneous_TT_timestep_interval: int=5, 
+                 no_cyclic_routing: bool = False,
+                 eular_dt: float=120, eular_dx: float=100, 
+                 random_seed: Any|None=None, 
+                 print_mode: bool=1, save_mode: bool=1, show_mode: bool=0, show_progress: bool=1, show_progress_deltat: float=600, 
+                 tmax: float|None=None, 
+                 vehicle_logging_timestep_interval: int=1, 
+                 reduce_memory_delete_vehicle_route_pref: bool=False,
+                 hard_deterministic_mode: bool=False, 
+                 meta_data: dict={}, user_attribute=None, user_function=None):
         """
         Create a World.
 
@@ -1600,6 +1671,8 @@ class World:
         instantaneous_TT_timestep_interval : int, optional
             The interval for computing instantaneous travel time of each link. Default is 5.
             If it is longer than the DUO update timestep interval, it is substituted by DUO update timestep interval to maintain reasonable route choice behavior.
+        no_cyclic_routing : bool, optional
+            If True, normal vehicles do not travel the same node twice. This will prevent cyclic paths, but may introduce some detours. Default is False.
         hard_deterministic_mode : bool, optional
             If True, the simulation will not use any random variables. At a merging node, a link with higher merge_priority will be always prioritized, and vehicles always choose the shortest path. This may be useful for analysis that need strict predictability. Be aware that the simulation results will be significantly different from ones with `hard_deterministic_mode=False`.
         reduce_memory_delete_vehicle_route_pref : bool, optional
@@ -1643,11 +1716,11 @@ class World:
             W.DELTAT_ROUTE = 1
 
         ## data storage
-        W.VEHICLES = OrderedDict()            #home, wait, run, end
-        W.VEHICLES_LIVING = OrderedDict()     #home, wait, run
-        W.VEHICLES_RUNNING = OrderedDict()    #run
-        W.NODES = []
-        W.LINKS = []
+        W.VEHICLES: OrderedDict[str,Vehicle] = OrderedDict()            #home, wait, run, end
+        W.VEHICLES_LIVING: OrderedDict[str,Vehicle] = OrderedDict()     #home, wait, run
+        W.VEHICLES_RUNNING: OrderedDict[str,Vehicle] = OrderedDict()    #run
+        W.NODES: list[Node] = []
+        W.LINKS: list[Link] = []
 
         W.NODES_NAME_DICT = {} #map from name to node object
         W.LINKS_NAME_DICT = {}
@@ -1662,7 +1735,9 @@ class World:
         if W.DELTAT_ROUTE < W.instantaneous_TT_timestep_interval:
             W.instantaneous_TT_timestep_interval = W.DELTAT_ROUTE
 
-        W.route_pref_for_vehs:dict = None
+        W.no_cyclic_routing = no_cyclic_routing
+
+        W.route_pref_for_vehs = None
 
         ## progress print setting
         W.show_progress = show_progress
@@ -1696,7 +1771,7 @@ class World:
         W.user_attribute = user_attribute
         W.user_function = user_function
 
-    def addNode(W, *args, **kwargs):
+    def addNode(W, name: str, x: float, y: float, signal: list[float]=[0], signal_offset: float=0, signal_offset_old: float|None=None, flow_capacity: float|None=None, number_of_lanes: int=None, auto_rename=False, attribute=None, user_attribute=None, user_function=None) -> Node:
         """
         Add a node to world.
 
@@ -1708,39 +1783,53 @@ class World:
             The x-coordinate of the node (for visualization purposes).
         y : float
             The y-coordinate of the node (for visualization purposes).
-        signal : list of int, optional
+        signal : list of float, optional
             A list representing the signal at the node. Default is [0], representing no signal.
             If a signal is present, the list contains the green times for each group.
             For example, `signal`=[60, 10, 50, 5] means that this signal has 4 phases, and green time for the 1st group is 60 s.
         signal_offset : float, optional
             The offset of the signal. Default is 0.
+        signal_offset_old : float, optional
+            The old parameter used to set offset of the signal prior to v1.8.1. This is the opposite of the usual definition of offset. Default is None, meaning `signal_offset` is used.
         flow_capacity : float, optional
             The maximum flow capacity of the node. Default is None, meaning infinite capacity.
         auto_rename : bool, optional
             Whether to automatically rename the node if the name is already used. Default is False.
         number_of_lanes : int, optional
             The number of lanes that can be green simultaneously at the node. Default is None.
+        attribute : any, optional
+            Additional (meta) attributes defined by users.
+        user_attribute : any, optional
+            Additional (meta) attributes defined by users. Same functionality to `attribute`, but with more understandable name.
+        user_function : func, optional
+            User-defined custom function that is automatically called when the timestep is incremented (more precisely, when `update()` is called). It takes only one argument: the Node object itself. Example: The following code prints the current number of incoming vehicles to the node at each timestep. If user_function=None (default), no functions will be executed.
 
-        Returns
-        -------
-        object
-            the added Node object.
+            >>> def user_function(node):
+            >>>     print(len(node.incoming_vehicles))
+            >>> W = World(...)
+            >>> W.addNode("node", 0, 0, user_function=user_function)
+            >>> ... #define your scenario
+            >>> W.exec_simulation()
 
-        Notes
-        -----
-        This function acts as a wrapper for creating a Node object and adding it to the network.
-        It passes all given arguments and keyword arguments to the Node class initialization.
+        Attributes
+        ----------
+        signal_phase : int
+            The phase of current signal. Links that have the same `signal_group` have a green signal.
+        signal_t : float
+            The elapsed time since the current signal phase started. When it is larger than `Link.signal[Link.signal_phase]`, the phase changes to the next one.
         """
-        return Node(W, *args, **kwargs)
+        return Node(W, name, x, y, signal=signal, signal_offset=signal_offset, signal_offset_old=signal_offset_old, flow_capacity=flow_capacity, number_of_lanes=number_of_lanes, auto_rename=auto_rename, attribute=attribute, user_attribute=user_attribute, user_function=user_function)
 
-    def addLink(W, *args, **kwargs):
+    def addLink(W, name: str, start_node: Node|str, end_node: Node|str, length: float, free_flow_speed: float=20, jam_density: float=0.2, jam_density_per_lane: float|None=None, number_of_lanes: int=1, merge_priority: float=1, signal_group: list[int]=[0], capacity_out: float|None=None, capacity_in: float|None=None, congestion_pricing: Callable[[float],float]|None=None, eular_dx=None, attribute=None, user_attribute=None, user_function=None, auto_rename=False):
         """
-        Add a link to world.
+        Create a link.
 
         Parameters
         ----------
-        name : str
-            The name of the link.
+        W : object
+            The world to which the link belongs.
+        name : str | None
+            The name of the link. If None, the name is automatically generated as "{start_node.name}-{end_node.name}".
         start_node : str | Node
             The name of the start node of the link.
         end_node : str | Node
@@ -1763,27 +1852,54 @@ class World:
             The capacity out of the link, default is calculated based on other parameters.
         capacity_in : float, optional
             The capacity into the link, default is calculated based on other parameters.
+        congestion_pricing : function or None
+            Dynamic congestion pricing setting. A function that takes float (time in seconds) as input and returns float (the congestion toll at that time). If None, there are no congestion toll (unless you manually specify `route_choice_penalty` - old feature).
         eular_dx : float, optional
             The space aggregation size for link traffic state computation, default is 1/10 of link length or free flow distance per simulation step, whichever is larger.
         attribute : any, optional
             Additional (meta) attributes defined by users.
+        user_attribute : any, optional
+            Additional (meta) attributes defined by users. Same functionality to `attribute`, but with more understandable name.
+        user_function : func, optional
+            User-defined custom function that is automatically called when the timestep is incremented (more precisely, when `update()` is called). It takes only one argument: the Link object itself. Example: The following code prints the current number of vehicles on the link at each timestep. If user_function=None (default), no functions will be executed.
+
+            >>> def user_function(link):
+            >>>     print(len(link.vehicles))
+            >>> W = World(...)
+            >>> W.addLink("link", "node1", "node2, 1000, user_function=user_function)
+            >>> ... #define your scenario
+            >>> W.exec_simulation()
+
         auto_rename : bool, optional
             Whether to automatically rename the link if the name is already used. Default is False (raise an exception).
 
-
-        Returns
-        -------
-        object
-            the added Link object.
-
-        Notes
-        -----
-        This function acts as a wrapper for creating a Link object and adding it to the network.
-        It passes all given arguments and keyword arguments to the Link class initialization.
+        Attributes
+        ----------
+        speed : float
+            Average speed of traffic on the link.
+        density : float
+            Density of traffic on the link.
+        flow : float
+            Flow of traffic on the link.
+        num_vehicles : float
+            Number of vehicles on the link.
+        num_vehicles_queue : float
+            Number of slow vehicles (due to congestion) on the link.
+        free_flow_speed : float
+            Free flow speed of the link.
+        jam_density : float
+            Jam density of the link.
+        capacity_out : float
+            Capacity for outflow from the link.
+        capacity_in : float
+            Capacity for inflow to the link.
+        merge_priority : float
+            The priority of the link when merging at the downstream node.
         """
-        return Link(W, *args, **kwargs)
 
-    def addVehicle(W, *args, direct_call=True, **kwargs):
+        return Link(W, name, start_node, end_node, length, free_flow_speed=free_flow_speed, jam_density=jam_density, jam_density_per_lane=jam_density_per_lane, number_of_lanes=number_of_lanes, merge_priority=merge_priority, signal_group=signal_group, capacity_out=capacity_out, capacity_in=capacity_in, congestion_pricing=congestion_pricing, eular_dx=eular_dx, attribute=attribute, user_attribute=user_attribute, user_function=user_function, auto_rename=auto_rename)
+
+    def addVehicle(W, *args, direct_call=True, **kwargs) -> Vehicle:
         """
         Add a vehicle to world.
 
@@ -1829,7 +1945,7 @@ class World:
         return Vehicle(W, *args, **kwargs)
 
     @demand_info_record
-    def adddemand(W, orig, dest, t_start, t_end, flow=-1, volume=-1, attribute=None, direct_call=True):
+    def adddemand(W, orig: str|Node, dest: str|Node, t_start: float, t_end: float, flow: float =-1, volume: float =-1, attribute=None, direct_call=True):
         """
         Generate vehicles by specifying time-dependent origin-destination demand.
 
@@ -1956,7 +2072,7 @@ class World:
                 W.adddemand(o, d, t_start, t_end, flow, volume, attribute, direct_call=False)
     
     @demand_info_record
-    def adddemand_nodes2nodes(W, origs, dests, t_start, t_end, flow=-1, volume=-1, attribute=None, direct_call=True):
+    def adddemand_nodes2nodes(W, origs: list[str|Node], dests: list[str|Node], t_start: float, t_end: float, flow: float=-1, volume: float=-1, attribute=None, direct_call=True):
         """
         Generate vehicles by specifying time-dependent origin-destination demand by specifying origin area (i.e., list of nodes) and destination one. `adddemand_nodes2nodes()` is not recommended as it may truncate demand. Consider to use new `adddemand_nodes2nodes2() which is more accurate, smooth, and fast.
 
@@ -2004,7 +2120,7 @@ class World:
                 W.adddemand(o, d, t_start, t_end, flow, volume, attribute, direct_call=False)
 
     @demand_info_record
-    def adddemand_area2area2(W, x_orig, y_orig,  radious_orig, x_dest, y_dest, radious_dest, t_start, t_end, flow=-1, volume=-1, attribute=None, direct_call=True):
+    def adddemand_area2area2(W, x_orig:float, y_orig:float,  radious_orig:float, x_dest:float, y_dest:float, radious_dest:float, t_start:float, t_end:float, flow:float=-1, volume:float=-1, attribute=None, direct_call=True):
         """
         Generate vehicles by specifying time-dependent origin-destination demand by specifying circular areas. This is new version of `adddemand_area2area`, more efficient, more smooth, and more accurate. However, it introduces some randomness.
 
@@ -2070,7 +2186,7 @@ class World:
 
 
     @demand_info_record
-    def adddemand_nodes2nodes2(W, origs, dests, t_start, t_end, flow=-1, volume=-1, attribute=None, direct_call=True):
+    def adddemand_nodes2nodes2(W, origs:list[str|Node], dests:list[str|Node], t_start:float, t_end:float, flow:float=-1, volume:float=-1, attribute=None, direct_call=True):
         """
         Generate vehicles by specifying time-dependent origin-destination demand by specifying origin area (i.e., list of nodes) and destination one. This is new version of `adddemand_nodes2nodes`, more efficient, more smooth, and more accurate. However, it introduces some randomness.
 
@@ -2119,7 +2235,7 @@ class World:
                 d2 = W.rng.choice([dd for dd in dests if dd!=d])
             W.addVehicle(o, d2, t, attribute=attribute, direct_call=False)
 
-    def finalize_scenario(W, tmax=None):
+    def finalize_scenario(W, tmax:float|None=None):
         """
         Finalizes the settings and preparations for the simulation scenario execution.
 
@@ -2201,7 +2317,7 @@ class World:
         print(" number of nodes:\t", len(W.NODES))
         print(" setup time:\t\t", f"{time.time()-W.world_start_time:.2f}", "s")
 
-    def exec_simulation(W, until_t=None, duration_t=None, duration_t2=None):
+    def exec_simulation(W, until_t:float|None=None, duration_t:float|None=None, duration_t2:float|None=None):
         """
         Execute the main loop of the simulation.
 
@@ -2253,7 +2369,7 @@ class World:
             W.simulation_terminated()
             return 1 #end of simulation
         if end_ts < start_ts:
-            raise Exception("exec_simulation error: Simulation duration is not positive ({} < {}). Check until_t or duration_t or duration_t2".format(end_ts, start_ts))
+            raise Exception("exec_simulation error: Simulation duration is not positive. Check until_t or duration_t or duration_t2")
 
         #the main loop
         #print("preping:", W.T, start_ts, end_ts, W.check_simulation_ongoing())
@@ -2281,11 +2397,11 @@ class World:
 
             if W.route_choice_update_gradual == True:
                 if W.T % W.DELTAT_ROUTE == 0:
-                    W.ROUTECHOICE.route_search_all(noise=W.DUO_NOISE)
+                    W.ROUTECHOICE.route_search_all(W.T*W.DELTAT, noise=W.DUO_NOISE)
                 W.ROUTECHOICE.homogeneous_DUO_update()
             else:
                 if W.T % W.DELTAT_ROUTE == 0:
-                    W.ROUTECHOICE.route_search_all(noise=W.DUO_NOISE)
+                    W.ROUTECHOICE.route_search_all(W.T*W.DELTAT, noise=W.DUO_NOISE)
                     W.ROUTECHOICE.homogeneous_DUO_update()
                     for veh in W.VEHICLES_LIVING.values():
                         veh.route_pref_update(weight=W.DUO_UPDATE_WEIGHT)
@@ -2313,7 +2429,7 @@ class World:
         
         return 0 #simulation not yet finished
 
-    def check_simulation_ongoing(W):
+    def check_simulation_ongoing(W) -> bool:
         """
         Check whether the simulation is has not reached its final time.
 
@@ -2323,7 +2439,7 @@ class World:
             Returns 1 if the simulation is ongoing and has not reached its final time.
         """
         if W.finalized == 0:
-            return 1
+            return True
         return W.T <= W.TSIZE-1
 
     def simulation_terminated(W):
@@ -2333,8 +2449,9 @@ class World:
         W.print(" simulation finished")
         # W.analyzer.basic_analysis()
 
-    def get_node(W, node):
-        """Get a Node instance by name or object.
+    def get_node(W, node:str|Node) -> Node:
+        """
+        Get a Node instance by name or object.
 
         Parameters
         ----------
@@ -2360,7 +2477,7 @@ class World:
                 return W.NODES_NAME_DICT[node]
         raise Exception(f"'{node}' is not Node in this World")
 
-    def get_link(W, link):
+    def get_link(W, link:str|Link) -> Link:
         """
         Get a Link instance by name or object.
 
@@ -2388,7 +2505,7 @@ class World:
                 return W.LINKS_NAME_DICT[link]
         raise Exception(f"'{link}' is not Link in this World")
 
-    def get_nearest_node(W, x, y):
+    def get_nearest_node(W, x:float, y:float) -> Node|None:
         """
         Get the nearest node to the given coordinates.
 
@@ -2413,7 +2530,7 @@ class World:
                 nearest_node = node
         return nearest_node
 
-    def get_nodes_in_area(W, x, y, r):
+    def get_nodes_in_area(W, x:float, y:float, r:float) -> list[Node]:
         """
         Get the nodes in the area defined by the center coordinates and radius.
         
@@ -2437,7 +2554,7 @@ class World:
                 nodes.append(node)
         return nodes
 
-    def defRoute(W, *args, **kwargs):
+    def defRoute(W, links:list[Link|str], name:str="", trust_input:bool=False) -> "Route":
         """
         Define Route object for this World.
 
@@ -2451,7 +2568,7 @@ class World:
             True if you trust the `links` in order to reduce the computation cost by omitting verification.
         """
 
-        return Route(W, *args, **kwargs)
+        return Route(W, links, name=name, trust_input=trust_input)
 
 
     def load_scenario_from_csv(W, fname_node, fname_link, fname_demand, tmax=None):
@@ -2612,7 +2729,8 @@ class World:
         """
         import matplotlib.pyplot as plt
         
-        os.makedirs(f"out{W.name}", exist_ok=True)
+        if W.save_mode:
+            os.makedirs(f"out{W.name}", exist_ok=True)
 
         plt.rcParams["font.family"] = get_font_for_matplotlib()
 
@@ -2662,7 +2780,7 @@ class Route:
     """
     Class for a route that stores consecutive links.
     """
-    def __init__(s, W, links, name="", trust_input=False):
+    def __init__(s, W:World, links:list[Link|str], name:str="", trust_input:bool=False):
         """
         Define a route.
 
@@ -2690,7 +2808,7 @@ class Route:
         """
         s.W = W
         s.name = name
-        s.links = []
+        s.links: list[Link] = []
         if trust_input == False:
             #入力データを検査する場合
             for i in range(0, len(links)-1):
@@ -2735,7 +2853,7 @@ class Route:
             return [l.name for l in self.links] == [l.name for l in other.links]
         return NotImplemented
 
-    def actual_travel_time(s, t, return_details=False):
+    def actual_travel_time(s, t:float, return_details:bool=False):
         """
         Actual travel time for a (hypothetical) vehicle who start traveling this route on time t.
 

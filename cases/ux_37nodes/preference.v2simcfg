@@ -21,6 +21,7 @@
         "gs",
         "gen",
         "bus",
-        "line"
+        "line",
+        "utn"
     ]
 }
