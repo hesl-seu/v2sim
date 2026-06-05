@@ -172,6 +172,7 @@ SIM_SUMO_OPTIONS=SUMO:
 SIM_SUMO_SHOW=Visualize road network
 SIM_SUMO_IGNORE_DRIVING=Deduct driving electricity only once
 SIM_SUMO_RAISE_ROUTING_ERROR=Raise routing error
+SIM_SUMO_MESOSIM=Mesoscopic simulation
 CSGUI_GEN_SEED=seed
 CSGUI_GEN_SLOTS=slots
 CSGUI_GEN_GIVENCS=given CSs

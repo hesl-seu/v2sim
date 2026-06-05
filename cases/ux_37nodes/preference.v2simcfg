@@ -15,6 +15,7 @@
     "ux_rand": false,
     "sumo_ignore_driving": false,
     "sumo_raise_routing_error": false,
+    "sumo_mesosim": false,
     "stats": [
         "fcs",
         "scs",

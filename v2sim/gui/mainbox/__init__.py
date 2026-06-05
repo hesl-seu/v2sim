@@ -31,6 +31,14 @@ class MainBox(Tk):
     def __OnPluginEnabledSet(self, itm:Tuple[Any,...]=(), v:str=""):
         plgs = self.sim_plglist.GetEnabledPlugins()
         self.sim_statistic.check_by_enabled_plugins(plgs)
+        if self.state and self.state.sumo is None:
+            self.sim_statistic.setEnabled("utn", True)
+        else:
+            self.sim_statistic.setEnabled("utn", False)
+            self.sim_statistic["utn"] = False
+        for p in plgs:
+            if p in self.sim_statistic and not self.sim_statistic.getEnabled(p):
+                self.sim_statistic[p] = False
     
     def __init__(self, to_open:str = ""):
         super().__init__()
@@ -331,6 +339,10 @@ class MainBox(Tk):
         self.sim_cb_sumo_raise_routing_error = Checkbutton(self.sim_sumo_options_panel, text=_L["SIM_SUMO_RAISE_ROUTING_ERROR"], variable=self.sim_sumo_raise_routing_error)
         self.sim_cb_sumo_raise_routing_error.grid(row=0, column=3, padx=3, pady=3, sticky="w")
 
+        self.sim_sumo_mesosim = BooleanVar(self, False)
+        self.sim_cb_sumo_mesosim = Checkbutton(self.sim_sumo_options_panel, text=_L["SIM_SUMO_MESOSIM"], variable=self.sim_sumo_mesosim)
+        self.sim_cb_sumo_mesosim.grid(row=0, column=4, padx=3, pady=3, sticky="w")
+
         #######################
         # Plugins
         #######################
@@ -577,6 +589,7 @@ class MainBox(Tk):
         vcfg.ux_rand = self.sim_ux_rand.get()
         vcfg.sumo_ignore_driving = self.sim_sumo_ignore_driving.get()
         vcfg.sumo_raise_routing_error = self.sim_sumo_raise_routing_error.get()
+        vcfg.sumo_mesosim = self.sim_sumo_mesosim.get()
         vcfg.visualize = self.sim_sumo_show.get()
         vcfg.stats = logs
         vcfg.save(self.folder + "/preference.v2simcfg")
@@ -606,6 +619,7 @@ class MainBox(Tk):
                     "--uxsim-randomize" if self.sim_ux_rand.get() else "",
                     "--sumo-ignore-driving" if self.sim_sumo_ignore_driving.get() else "",
                     "--sumo-raise-routing-error" if self.sim_sumo_raise_routing_error.get() else "",
+                    "--sumo-mesosim" if self.sim_sumo_mesosim.get() else "",
                 ]
         commands = [c for c in commands if c != ""] # remove empty strings
         if self.state.sumo:
@@ -760,6 +774,7 @@ class MainBox(Tk):
         self.update()
         
         if self.state.pref:
+            # Load preference
             vcfg = V2SimConfig.load(self.state.pref)
             self.entry_start.delete(0, END)
             self.entry_start.insert(0, str(vcfg.start_time))
@@ -782,10 +797,12 @@ class MainBox(Tk):
             self.sim_ux_rand.set(vcfg.ux_rand)
             self.sim_sumo_ignore_driving.set(vcfg.sumo_ignore_driving)
             self.sim_sumo_raise_routing_error.set(vcfg.sumo_raise_routing_error)
+            self.sim_sumo_mesosim.set(vcfg.sumo_mesosim)
+            self.sim_sumo_show.set(vcfg.visualize)
             if vcfg.stats:
                 for x in vcfg.stats:
                     if x in self.sim_statistic:
-                        self.sim_statistic[x] = True
+                        if self.sim_statistic.getEnabled(x): self.sim_statistic[x] = True
                     else:
                         showerr(_L["UKN_STA_TYPE"].format(x, ', '.join(self.sim_statistic.keys())))
         
@@ -809,15 +826,15 @@ class MainBox(Tk):
     
     def _set_uxsim_panel_enabled(self, val:bool):
         state = NORMAL if val else DISABLED
-        self.sim_cb_ux_rand.config(state=state)
-        self.sim_cb_ux_show_info.config(state=state)
-        self.sim_cb_ux_no_para.config(state=state)
+        for widget in self.sim_ux_options_panel.children.values():
+            assert isinstance(widget, (Checkbutton, Label))
+            widget.config(state=state)
     
     def _set_sumo_panel_enabled(self, val:bool):
         state = NORMAL if val else DISABLED
-        self.sim_cb_sumo_show.config(state=state)
-        self.sim_cb_sumo_ignore_driving.config(state=state)
-        self.sim_cb_sumo_raise_routing_error.config(state=state)
+        for widget in self.sim_sumo_options_panel.children.values():
+            assert isinstance(widget, (Checkbutton, Label))
+            widget.config(state=state)
     
     def _load_plugins(self):
         plg_set:Set[str] = set()

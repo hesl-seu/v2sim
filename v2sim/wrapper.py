@@ -188,16 +188,17 @@ def get_sim_params(args:Union[str, ArgChecker], check_illegal:bool = True) -> Di
     uxsim_nopara = args.pop_bool("uxsim-no-parallel")
     sumo_ignd = args.pop_bool("sumo-ignore-driving")
     sumo_raise = args.pop_bool("sumo-raise-routing-error")
+    sumo_meso = args.pop_bool("sumo-mesosim")
 
     if uxsim_show or uxsim_nopara or uxsim_rand:
         from .sim import UXsimConfig
         config = UXsimConfig(uxsim_show, uxsim_rand, uxsim_nopara)
     
-    if sumo_ignd or sumo_raise:
+    if sumo_ignd or sumo_raise or sumo_meso:
         assert config is None, "Cannot use both SUMO and UXsim configurations."
         from .sim import SUMOConfig
-        config = SUMOConfig(sumo_ignd, not sumo_raise)
-    
+        config = SUMOConfig(ignore_driving=sumo_ignd, 
+                suppress_route_not_found=not sumo_raise, mesosim=sumo_meso)
 
     if isinstance(args, ArgChecker):
         kwargs = {

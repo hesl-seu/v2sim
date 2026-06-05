@@ -238,6 +238,7 @@ class V2SimConfig:
     ux_rand: bool = False
     sumo_ignore_driving: bool = False
     sumo_raise_routing_error: bool = False
+    sumo_mesosim: bool = False
     stats: Optional[List[str]] = None
 
     @staticmethod

@@ -83,6 +83,7 @@ class TrafficSUMO(TrafficInst):
         suppress_route_not_found:bool = True,
         gui: bool = False,
         sumocfg_file: str = "",
+        mesosim: bool = False,
     ):
         super().__init__(start_time, step_len, end_time, roadnet, trip_logger, vehs, hubs, pdn, gasoline_price, seed, silent)
         self.__seed = seed
@@ -92,6 +93,7 @@ class TrafficSUMO(TrafficInst):
         self.__ignore_driving = ignore_driving
         assert self.__ralgo in ["CH", "dijkstra", "astar", "CHWrapper"], f"Invalid routing algorithm: {self.__ralgo}"
         self.__suppress_route_not_found = suppress_route_not_found
+        self.__mesosim = mesosim
         
         # Read road network
         self.__snet_file = road_net_file
@@ -354,6 +356,7 @@ class TrafficSUMO(TrafficInst):
             # Keep the vehicle in the network for a exactly one step after arriving at the destination
             "--keep-after-arrival", str(self._step),
             "--seed", str(self.__seed),
+            "--mesosim", str(self.__mesosim).lower(),
         ]
         traci.start(sumoCmd)
 

@@ -34,6 +34,9 @@ class LogItemPad(LabelFrame):
         else:
             return self._cbs[key].configure(state="disabled")
     
+    def getEnabled(self, key:str) -> bool:
+        return self._cbs[key].cget("state") == "enabled"
+    
     def getSelected(self):
         return [k for k, v in self._bvs.items() if v.get()]
     

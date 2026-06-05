@@ -26,7 +26,7 @@ class PluginEditor(ScrollableTreeView):
         return [plgname, 300, SIM_YES, ALWAYS_ONLINE, plgtype.ElemShouldHave().default_value_dict()]
     
     def GetEnabledPlugins(self):
-        enabled_plg = []
+        enabled_plg: List[str] = []
         for i in self.get_children():
             if self.item(i, 'values')[2] == SIM_YES:
                 enabled_plg.append(self.item(i, 'values')[0])

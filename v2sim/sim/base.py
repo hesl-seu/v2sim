@@ -424,6 +424,7 @@ class SUMOConfig:
     ignore_driving: bool = False
     suppress_route_not_found: bool = True
     gui: bool = False
+    mesosim: bool = False
 
 
 @dataclass

@@ -564,7 +564,7 @@ class RoadNet:
         kwargs.pop("silent", None)
         kwargs.pop("name", None)
         kwargs.pop("save_mode", None)
-        world = World(name="0", save_mode=0, **kwargs)
+        world = World(name="0", save_mode=False, **kwargs)
            
         gl: Graph = {nid: [] for nid in self.nodes}
         for edge in self.edges.values():
@@ -603,7 +603,7 @@ class RoadNet:
         for edge in self.edges.values():
             wid = edge.world_id
             if wid not in worlds:
-                worlds[wid] = World(name=str(wid), print_mode=0, save_mode=0, **kwargs)
+                worlds[wid] = World(name=str(wid), print_mode=False, save_mode=False, **kwargs)
             W = worlds[wid]
             fr = edge.from_node.name
             to = edge.to_node.name
