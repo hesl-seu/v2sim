@@ -1,9 +1,7 @@
-import subprocess
-
 from v2sim.gui.common import *
 from v2sim.gui.langhelper import *
 
-import os, sys, time, traceback
+import os, sys, time, traceback, subprocess
 from pathlib import Path
 from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, PDUniform
@@ -53,7 +51,7 @@ class MainBox(Tk):
 
             if len(warns) == 0: return
             
-            with open("CS_generation_warnings.log", "w") as fh:
+            with open(f"{self.folder}/CS_generation_warnings.log", "w") as fh:
                 for ln in warns:
                     if ln[0] == "far_poly":
                         fh.write(f"A polygon (center: {ln[1]:.1f},{ln[2]:.1f}) is far away ({ln[3]:.1f}m) from the road network.\n")
@@ -66,7 +64,7 @@ class MainBox(Tk):
                     elif ln[0] == "scc_name":
                         fh.write(f"Edge {ln[1]} disallows passenger vehicles.")
 
-            text = "Some warnings have been written in CS_generation_warnings.log:"
+            text = f"Some warnings have been written in {self.folder}/CS_generation_warnings.log:"
             if far_cnt: 
                 text += f"{far_cnt} CS(s) are abondoned since their distance to the nearest edge is greater than 200m."
             if scc_cnt: 
