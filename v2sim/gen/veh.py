@@ -1,5 +1,6 @@
 import os
 import random, time
+import concurrent.futures as cf
 from abc import ABC, abstractmethod
 from itertools import chain
 from enum import Enum
@@ -35,6 +36,105 @@ class ProgressBar:
     
     def increment(self):
         self.update(self.current + 1)
+
+
+_VEHGEN_WORKER = None
+
+
+def _init_vehgen_worker(class_name: str, croot: str, pname: str, mode_value: str):
+    """
+    Initializer for ProcessPoolExecutor workers.
+    Each process owns one generator instance and reuses it for all chunks.
+    """
+    global _VEHGEN_WORKER
+
+    mode = TripsGenMode(mode_value)
+    gen_cls = globals()[class_name]
+    _VEHGEN_WORKER = gen_cls(croot, pname, mode)
+
+
+def _gen_veh_chunk_worker(args: Tuple[Any, ...]):
+    """
+    Generate one chunk of vehicles in a worker process.
+
+    args:
+        kind: "any", "ev", or "gv"
+        start: start vehicle index
+        count: number of vehicles in this chunk
+        day_count, omega, krel, kfc, v2g_prop, ksc, kv2g
+        seed: per-chunk random seed
+    """
+    global _VEHGEN_WORKER
+    if _VEHGEN_WORKER is None:
+        raise RuntimeError("Vehicle generator worker is not initialized.")
+
+    kind, start, count, day_count, omega, krel, kfc, v2g_prop, ksc, kv2g, seed = args
+
+    if seed is not None:
+        random.seed(seed)
+
+    evs: Dict[str, EV] = {}
+    gvs: Dict[str, GV] = {}
+
+    gen = _VEHGEN_WORKER
+
+    if kind == "ev":
+        for i in range(start, start + count):
+            v = gen.gen_ev(day_count, f"ev{i}", omega, krel, kfc, v2g_prop, ksc, kv2g)
+            evs[v._name] = v
+    elif kind == "gv":
+        for i in range(start, start + count):
+            v = gen.gen_gv(day_count, f"gv{i}", omega, krel, kfc)
+            gvs[v._name] = v
+    elif kind == "any":
+        for i in range(start, start + count):
+            v = gen.gen_veh(day_count, f"v{i}", omega, krel, kfc, v2g_prop, ksc, kv2g)
+            if isinstance(v, EV):
+                evs[v._name] = v
+            elif isinstance(v, GV):
+                gvs[v._name] = v
+            else:
+                raise RuntimeError(f"Invalid vehicle type: {type(v)}")
+    else:
+        raise ValueError(f"Unknown vehicle generation chunk kind: {kind}")
+
+    return evs, gvs, count
+
+def _gen_veh_chunk_worker_local(gen, args: Tuple[Any, ...]):
+    """
+    Local fallback used when workers <= 1.
+    This avoids ProcessPoolExecutor startup overhead for small jobs.
+    """
+    kind, start, count, day_count, omega, krel, kfc, v2g_prop, ksc, kv2g, seed = args
+
+    if seed is not None:
+        random.seed(seed)
+
+    evs: Dict[str, EV] = {}
+    gvs: Dict[str, GV] = {}
+
+    if kind == "ev":
+        for i in range(start, start + count):
+            v = gen.gen_ev(day_count, f"ev{i}", omega, krel, kfc, v2g_prop, ksc, kv2g)
+            evs[v._name] = v
+    elif kind == "gv":
+        for i in range(start, start + count):
+            v = gen.gen_gv(day_count, f"gv{i}", omega, krel, kfc)
+            gvs[v._name] = v
+    elif kind == "any":
+        for i in range(start, start + count):
+            v = gen.gen_veh(day_count, f"v{i}", omega, krel, kfc, v2g_prop, ksc, kv2g)
+            if isinstance(v, EV):
+                evs[v._name] = v
+            elif isinstance(v, GV):
+                gvs[v._name] = v
+            else:
+                raise RuntimeError(f"Invalid vehicle type: {type(v)}")
+    else:
+        raise ValueError(f"Unknown vehicle generation chunk kind: {kind}")
+
+    return evs, gvs, count
+
 
 class RoutingCacheMode(Enum):
     """Routing cache mode"""
@@ -72,6 +172,10 @@ class VehGenerator(ABC):
         :param CROOT: Trip parameter folder
         :param PNAME: Case folder
         """
+        self._CROOT = CROOT
+        self._PNAME = PNAME
+        self._gen_mode = TripsGenMode.AUTO
+
         self.files = DetectFiles(PNAME)
         self.vTypes = VehicleTypePool(os.path.join(CROOT, "vtypes.xml"))
         
@@ -270,6 +374,127 @@ class VehGenerator(ABC):
         if seed is not None: random.setstate(rnd)
         return ret
     
+    def gen_vehs_parallel(self, N: Union[int, Tuple[int, int]], fname: Optional[str] = None, 
+            day_count: int = 7, silent: bool = False, omega:PDFuncLike = None, 
+            krel:PDFuncLike = None, kfc:PDFuncLike = None, v2g_prop:float = 1.0+1e-4, 
+            ksc:PDFuncLike = None, kv2g:PDFuncLike = None, seed:int = 0,
+            chunk_size: int = 1000, workers: Optional[int] = None) -> VDict:
+        """
+        Parallel version of gen_vehs.
+
+        Vehicles are generated in chunks instead of one task per vehicle.
+        The default chunk size is 1000 vehicles to reduce task scheduling overhead.
+
+        Note:
+        - Parallel generation is deterministic for a fixed seed/chunk_size/workers,
+          but the result is not identical to the sequential gen_vehs() sequence.
+        - omega/krel/kfc/ksc/kv2g must be pickleable when using multiprocessing.
+        - On Windows, this uses process-based parallelism, so each worker creates
+          its own generator instance once and reuses it for all assigned chunks.
+
+        :param N: Number of vehicles, or (num_ev, num_gv)
+        :param fname: Saved file name (if None, not saved)
+        :param day_count: Number of days
+        :param silent: Whether silent mode
+        :param omega: PDFunc | None = None
+        :param krel: PDFunc | None = None
+        :param kfc: PDFunc | None = None
+        :param v2g_prop: Proportion of users willing to participate in V2G, for EV only
+        :param ksc: PDFunc | None = None, for EV only
+        :param kv2g: PDFunc | None = None, for EV only
+        :param seed: Base random seed
+        :param chunk_size: Number of vehicles generated by each task
+        :param workers: Number of worker processes. Default: os.cpu_count()
+        """
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be positive.")
+
+        if workers is None or workers <= 0:
+            workers = os.cpu_count() or 1
+        workers = max(1, int(workers) - 1)  # Leave one CPU free
+
+        def make_tasks(kind: str, total: int) -> List[Tuple[Any, ...]]:
+            tasks: List[Tuple[Any, ...]] = []
+            if total <= 0:
+                return tasks
+
+            chunk_id = 0
+            for start in range(0, total, chunk_size):
+                count = min(chunk_size, total - start)
+
+                # Per-chunk seed. Keep it deterministic and independent of scheduling order.
+                # Different kinds are separated to avoid EV/GV seed collisions.
+                if seed is None:
+                    task_seed = None
+                else:
+                    kind_offset = 0 if kind == "any" else (10_000_000 if kind == "ev" else 20_000_000)
+                    task_seed = int(seed) + kind_offset + chunk_id
+
+                tasks.append((kind, start, count, day_count, omega, krel, kfc, v2g_prop, ksc, kv2g, task_seed))
+                chunk_id += 1
+            return tasks
+
+        if isinstance(N, tuple):
+            total = N[0] + N[1]
+            tasks = make_tasks("ev", N[0]) + make_tasks("gv", N[1])
+        else:
+            total = N
+            tasks = make_tasks("any", N)
+
+        pb = ProgressBar(total, silent)
+        evs: Dict[str, EV] = {}
+        gvs: Dict[str, GV] = {}
+
+        if total == 0:
+            ret = VDict(evs, gvs)
+            if fname:
+                ret.save(fname)
+            pb.update(0)
+            return ret
+
+        # Small jobs do not benefit from multiprocessing startup overhead.
+        if workers <= 1 or len(tasks) <= 1:
+            old_state = random.getstate()
+            try:
+                for task in tasks:
+                    ev_part, gv_part, done = _gen_veh_chunk_worker_local(
+                        self, task
+                    )
+                    evs.update(ev_part)
+                    gvs.update(gv_part)
+                    pb.update(pb.current + done)
+            finally:
+                random.setstate(old_state)
+
+            ret = VDict(evs, gvs)
+            if fname:
+                ret.save(fname)
+            return ret
+
+        class_name = self.__class__.__name__
+        croot = self._CROOT
+        pname = self._PNAME
+        mode_value = self._gen_mode.value
+
+        with cf.ProcessPoolExecutor(
+            max_workers=workers,
+            initializer=_init_vehgen_worker,
+            initargs=(class_name, croot, pname, mode_value),
+        ) as executor:
+            futures = [executor.submit(_gen_veh_chunk_worker, task) for task in tasks]
+
+            for fut in cf.as_completed(futures):
+                ev_part, gv_part, done = fut.result()
+                evs.update(ev_part)
+                gvs.update(gv_part)
+                pb.update(pb.current + done)
+
+        ret = VDict(evs, gvs)
+        if fname:
+            ret.save(fname)
+        return ret
+        
+    
     def gen_trip_for_vehs(
         self, day_count:int, vehs: VDict,
         use_buffer_day: bool = True, clear_existing: bool = False,
@@ -367,6 +592,7 @@ class UXVehGenerator(VehGenerator):
                         self.dic_nodetype[poly_type].append(node.name, 1.0)
         else:
             raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
+        self._gen_mode = mode
     
     def _getNextNode(self, from_node:str, next_place_type:str) -> str:
         nt = self.dic_nodetype[next_place_type]
@@ -551,6 +777,7 @@ class SUMOVehGenerator(VehGenerator):
                         self.taz_of_edge[eid] = taz_id
         else:
             raise RuntimeError(Lang.ERROR_NO_TAZ_OR_POLY)
+        self._gen_mode = mode
     
     def _findTAZbyEdge(self, edge_id:str) -> Optional[str]:
         return self.taz_of_edge.get(edge_id, None)

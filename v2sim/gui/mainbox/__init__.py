@@ -1051,7 +1051,7 @@ class MainBox(Tk):
         def work() -> Optional[Exception]:
             try:
                 assert self.tg
-                self.tg.VTrips(carcnt, carseed, day_count, mode = mode, **new_pars)
+                self.tg.VTrips(carcnt, carseed, day_count, mode = mode, **new_pars, workers=0 if carcnt >= 10000 else None)
                 self._load([])
                 return None
             except Exception as e:

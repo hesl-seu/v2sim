@@ -233,7 +233,7 @@ class TrafficGenerator:
     def VTrips(self, n: Union[int, Tuple[int, int]], seed: int, day_count: int = 7, save: bool = True,
             cname: str = DEFAULT_CNAME, mode: TripsGenMode = TripsGenMode.AUTO,
             omega: PDFuncLike = None, krel: PDFuncLike = None, kfc: PDFuncLike = None,
-            v2g_prop: float = 1.0, ksc: PDFuncLike = None, kv2g: PDFuncLike = None):
+            v2g_prop: float = 1.0, ksc: PDFuncLike = None, kv2g: PDFuncLike = None, workers: Optional[int] = None):
         """
         Generate trips
             n: Number of vehicles
@@ -248,14 +248,20 @@ class TrafficGenerator:
             v2g_prop: Proportion of users willing to participate in V2G, for EV only
             ksc: PDFunc | None = None, for EV only
             kv2g: PDFunc | None = None, for EV only
+            workers: Number of parallel workers, None for non-parallel (default), 0 for auto-detect
         """
         if "veh" in self.__cfg:
             self.__existing.do(self.__cfg["veh"])
         fname = f"{self.__root}/{self.__name}.veh.xml.gz" if save else None
         gtype = SUMOVehGenerator if self.__cfg.sumo else UXVehGenerator
-        return gtype(cname, self.__root, mode).gen_vehs(
-            n, fname, day_count, self.__silent, omega, krel, kfc, v2g_prop, ksc, kv2g, seed
-        )
+        if workers is not None:
+            return gtype(cname, self.__root, mode).gen_vehs_parallel(
+                n, fname, day_count, self.__silent, omega, krel, kfc, v2g_prop, ksc, kv2g, seed, workers=workers
+            )
+        else:
+            return gtype(cname, self.__root, mode).gen_vehs(
+                n, fname, day_count, self.__silent, omega, krel, kfc, v2g_prop, ksc, kv2g, seed
+            )
 
     def _Station(
         self,
