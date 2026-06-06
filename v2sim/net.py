@@ -1,3 +1,4 @@
+import subprocess
 import math, os, shutil, sys, threading
 import numpy as np
 import sumolib
@@ -952,18 +953,33 @@ def SplitSUMONetwork(
     rn = RoadNet.load_sumo(net_file, only_passenger=False)
     rn.partition_roadnet(partitions)
     parts = defaultdict(list)
+    nodes = defaultdict(set)
 
     for edge in rn.edges.values():
         parts[edge.world_id].append(edge.name)
+        nodes[edge.world_id].add(edge.from_node.name)
+        nodes[edge.world_id].add(edge.to_node.name)
     
-    root = Element("partitions")
-    for pid, edges in parts.items():
-        pnode = SubElement(root, "partition", {"id": str(pid)})
-        for eid in edges:
-            SubElement(pnode, "edge", {"id": eid})
+    case_folder = Path(output_file).parent
+    case_folder.mkdir(parents=True, exist_ok=True)
 
-    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-    ElementTree(root).write(output_file, encoding="utf-8", xml_declaration=True)
+    part_folder = case_folder / "partitions"
+    part_folder.mkdir(parents=True, exist_ok=True)
+    for wid, edges in parts.items():
+        edge_file = part_folder / f"{wid}.edges.txt"
+        with open(edge_file, "w") as f:
+            for eid in edges:
+                f.write(eid + "\n")
+        subprocess.run(["netconvert", "-s", net_file, "--keep-edges.input-file", str(edge_file), "-o", str(part_folder / f"{wid}.net.xml"), "--no-warnings", "true"], check=True)
+    
+    import json
+    with open(case_folder / "partitions.json", "w") as fp:
+        json.dump({
+            "nodes": {str(pid): list(nodes[pid]) for pid in parts},
+            "edges": {str(pid): edges for pid, edges in parts.items()},
+            "meso": {str(pid): False for pid in parts}
+        }, fp, indent=4)
+    
 
 def SplitUXNetwork(
     net_file:str,

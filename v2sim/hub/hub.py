@@ -6,6 +6,7 @@ from feasytools import RangeList
 from xml.etree.ElementTree import Element, ElementTree
 from abc import ABC, abstractmethod
 from itertools import repeat
+from concurrent.futures import Future, ThreadPoolExecutor
 from ..veh import *
 from ..locale import Lang
 from ..utils import ReadXML, PathLike
@@ -436,6 +437,36 @@ class CSHub(StationHub[CS, EV]):
                 del self._veh[ev._name]
             ret.extend(lst)
         return ret
+    
+    def update_parallel(self, sec: int, cur_time: int, pb_e:float, ps_e:float, max_workers: int) -> List[EV]:
+        """Parallel version of update() method. It may be faster when there are many charging stations."""
+        cnt = len(self._s)
+        if cnt == 0: return []
+        workers = min(max_workers, len(self._s))
+        each_size = (len(self._s) + workers - 1) // workers
+        N = len(self.__pd_dem)
+
+        def update_range(l:int, r:int):
+            ret:List[List[EV]] = []
+            for i in range(l, r):
+                cs = self._s[i]
+                pd = self.__pd_dem[i] if i < N else 0.0
+                ret.append(cs.update(sec, cur_time, pd, pb_e, ps_e))
+            return ret
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(update_range, i * each_size, min((i + 1) * each_size, len(self._s))) 
+                for i in range(workers)
+            ]
+            ret:List[EV] = []
+            for future in futures:
+                lst = future.result()
+                for evs in lst:
+                    for ev in evs:
+                        del self._veh[ev._name]
+                    ret.extend(evs)
+        return ret
 
     def __repr__(self):
         return f"CSHub[{','.join(map(str,self._s))}]"
@@ -461,6 +492,31 @@ class GSHub(StationHub[GS, GV]):
         ret:List[GV] = []
         for gs in self._s:
             ret.extend(gs.update(sec, cur_time, pb_g))
+        return ret
+    
+    def update_parallel(self, sec: int, cur_time: int, pb_g:float, max_workers: int) -> List[GV]:
+        """Parallel version of update() method. It may be faster when there are many gas stations."""
+        cnt = len(self._s)
+        if cnt == 0: return []
+
+        workers = min(max_workers, cnt)
+        each_size = (cnt + workers - 1) // workers
+
+        def update_range(l:int, r:int):
+            ret = []
+            for i in range(l, r):
+                ret.append(self._s[i].update(sec, cur_time, pb_g))
+            return ret
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(update_range, i * each_size, min((i + 1) * each_size, cnt)) 
+                for i in range(workers)
+            ]
+            ret = []
+            for future in futures:
+                for lst in future.result():
+                    ret.extend(lst)
         return ret
     
     def get_veh_count(self) -> List[int]:

@@ -16,6 +16,8 @@ token
 amap_key.txt
 v2sim/locale/lang.txt
 *.json
+!partition.json
+!partitions.json
 recent_projects.txt
 
 # Logs

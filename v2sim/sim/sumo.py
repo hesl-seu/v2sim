@@ -1,10 +1,10 @@
-import platform, pickle, gzip, heapq
+import pickle, gzip, heapq
 from dataclasses import asdict
 from feasytools import TimeFunc
 from fpowerkit import Grid
 from itertools import chain
 from pathlib import Path
-from typing import List, Tuple, Dict, Optional, Union, Iterable
+from typing import Callable, List, Tuple, Dict, Optional, Union, Iterable
 from sumolib.net import Net
 from sumolib.net.edge import Edge
 from ..net import RoadNet
@@ -16,31 +16,26 @@ from .utils import CaseData
 from .tlog import TripLogger
 from .base import CommonConfig, SUMOConfig, TrafficInst, TRAFFIC_INST_FILE_NAME
 
-SUMO_FILE_NAME = "traffic.gz"
+from .sumo_backend import (
+    Stage, SUMO_FILE_NAME, SUMOSingleBackend, SUMOParallelBackend,
+    SUMOStepResult, detect_sumo_partition,
+)
 
-if platform.system() == "Linux":
-    import libsumo as traci
-else:  # Windows & Mac
-    from .win_vis import WINDOWS_VISUALIZE
-    if WINDOWS_VISUALIZE:
-        import traci
-    else:
-        import libsumo as traci
 
-from traci._simulation import Stage
-TC = traci.constants
-        
-
-def dijMC(gl:Net, from_edge: str, omega: float, to_edges: Iterable[str], node_scores: Dict[str, float], max_length: float = float('inf')) -> Stage:
+def dijMC(
+    gl: Net, from_edge: str, omega: float, to_edges: Iterable[str],
+    node_scores: Dict[str, float], travel_time: Callable[[str], float],
+    max_length: float = float('inf')
+) -> Stage:
     """
     Find the BEST route based on score = omega * (time + waiting) + charging_cost.
     Uses time as primary key, length as secondary key.
     """
     # (time, length, edge, path, path_edges)
-    
-    heap = [(0, 0, from_edge, [from_edge], [])]
+
+    heap = [(0., 0, from_edge, [from_edge], [])]
     visited = set()
-    min_time = {from_edge: 0}
+    min_time = {from_edge: 0.}
     best_score = float('inf')
     best_stage = Stage(edges = [], travelTime=float('inf'), length=float('inf'))
 
@@ -57,18 +52,22 @@ def dijMC(gl:Net, from_edge: str, omega: float, to_edges: Iterable[str], node_sc
                 best_stage = Stage(edges=path_edges + [cur_edge], travelTime=cur_time, length=cur_len)
 
         e:Edge = gl.getEdge(cur_edge)
-        for edge_obj in e.getAllowedOutgoing("passenger").keys():
+        try:
+            outgoing = e.getAllowedOutgoing("passenger").keys()
+        except Exception:
+            outgoing = e.getOutgoing().keys()
+        for edge_obj in outgoing:
             edge_obj:Edge
             neighbor:str = edge_obj.getID()
             if neighbor in visited: continue
-            new_time = cur_time + traci.edge.getTraveltime(neighbor)
+            new_time = cur_time + travel_time(neighbor)
             new_len = cur_len + edge_obj.getLength()
             if new_len > max_length:
                 continue
             if neighbor not in min_time or new_time < min_time[neighbor]:
                 min_time[neighbor] = new_time
                 heapq.heappush(heap, (new_time, new_len, neighbor, path + [neighbor], path_edges + [cur_edge]))
-    
+
     return best_stage
 
 class TrafficSUMO(TrafficInst):
@@ -84,6 +83,7 @@ class TrafficSUMO(TrafficInst):
         gui: bool = False,
         sumocfg_file: str = "",
         mesosim: bool = False,
+        case_dir: str = "",
     ):
         super().__init__(start_time, step_len, end_time, roadnet, trip_logger, vehs, hubs, pdn, gasoline_price, seed, silent)
         self.__seed = seed
@@ -102,8 +102,45 @@ class TrafficSUMO(TrafficInst):
         # Get all road names
         self.__names: List[str] = [e.getID() for e in self.__edges]
 
+        # Create SUMO backend.  A case is partitioned when its case folder
+        # contains partition/partition.json (also accepts legacy
+        # partitions/partitions.json used by the provided sample case).
+        case_folder = case_dir or str(Path(sumocfg_file).parent)
+        partition = detect_sumo_partition(case_folder, default_meso=mesosim)
+        if partition is None:
+            self.__sumo = SUMOSingleBackend(
+                snet=self.__snet,
+                sumocfg_file=sumocfg_file,
+                net_file=road_net_file,
+                start_time=start_time,
+                end_time=end_time,
+                step_length=step_len,
+                routing_algo=routing_algo,
+                seed=seed,
+                gui=gui,
+                mesosim=mesosim,
+            )
+        else:
+            if gui and not silent:
+                print("SUMO partition mode uses headless libsumo worker processes; GUI is disabled.")
+            self.__sumo = SUMOParallelBackend(
+                snet=self.__snet,
+                partition=partition,
+                start_time=start_time,
+                end_time=end_time,
+                step_length=step_len,
+                routing_algo=routing_algo,
+                seed=seed,
+                gui=False,
+            )
+            if not silent:
+                micro = sum(1 for pid, meso in partition.meso.items() if not meso)
+                meso = sum(1 for pid, meso in partition.meso.items() if meso)
+                print(f"SUMO partition mode: {partition.part_count} libsumo processes ({micro} micro, {meso} meso).")
+
         # Load static shortest paths
         self.__shortest_paths: Dict[Tuple[str,str], Stage] = {}
+        self.__backend_state_meta = None
 
         self.__istate_folder = initial_state_folder
 
@@ -114,16 +151,10 @@ class TrafficSUMO(TrafficInst):
         super()._prepare_trips_and_scs()
 
     def get_veh_pos(self, veh_id: str) -> Tuple[float, float]:
-        return traci.vehicle.getPosition(veh_id)
+        return self.__sumo.get_vehicle_position(veh_id)
     
     def get_average_vcr(self) -> float:
-        speed_prop_sum = 0.0
-        edge_cnt = 0
-        for edge in self.__edges:
-            speed_prop_sum += traci.edge.getLastStepMeanSpeed(edge.getID()) / edge.getSpeed()
-            edge_cnt += 1
-        speed_prop = 1.0 if edge_cnt == 0 else speed_prop_sum / edge_cnt
-        return speed_prop
+        return self.__sumo.get_average_vcr(self.__edges)
     
     def find_route(self, O: str, D: str, use_cache:bool = False) -> Stage:
         """
@@ -135,9 +166,7 @@ class TrafficSUMO(TrafficInst):
         """
         if use_cache and (O, D) in self.__shortest_paths:
             return self.__shortest_paths[(O, D)]
-        ret:Stage = traci.simulation.findRoute(
-            O, D, routingMode=TC.ROUTING_MODE_AGGREGATED
-        )
+        ret:Stage = self.__sumo.find_route(O, D)
         if len(ret.edges) == 0:
             if self.__suppress_route_not_found:
                 ret = Stage(edges=[O, D], length=1e9, travelTime=1e9)
@@ -163,7 +192,7 @@ class TrafficSUMO(TrafficInst):
         """
         Ds, scores = self._prepare_stations(veh, to_stations, omega, to_charge, hub)
         
-        ret = dijMC(self.__snet, O, omega, Ds.keys(), scores, max_length=max_dist)
+        ret = dijMC(self.__snet, O, omega, Ds.keys(), scores, self.__sumo.get_traveltime, max_length=max_dist)
         
         if len(ret.edges) == 0:  # No available station within range
             return "", ret
@@ -176,17 +205,12 @@ class TrafficSUMO(TrafficInst):
     
     def _add_veh(self, veh_id: str, route: List[str]):
         self._vehs[veh_id].clear_odometer()
-        traci.vehicle.add(veh_id, "")
-        traci.vehicle.setRoute(veh_id, route)
+        self.__sumo.add_vehicle_route(veh_id, route)
     
     def _add_veh2(self, veh_id:str, st_edge:str, ed_edge:str, agg_routing:bool = False):
         self._vehs[veh_id].clear_odometer()
         try:
-            traci.vehicle.add(veh_id, "")
-            traci.vehicle.setRoute(veh_id, [st_edge])
-            if agg_routing:
-                traci.vehicle.setRoutingMode(veh_id, TC.ROUTING_MODE_AGGREGATED)
-            traci.vehicle.changeTarget(veh_id, ed_edge)
+            self.__sumo.add_vehicle_od(veh_id, st_edge, ed_edge, agg_routing)
         except Exception as e:
             raise RuntimeError(f"(Time = {self._ct})Fail to add vehicle '{veh_id}' into SUMO: {st_edge}->{ed_edge}") from e
 
@@ -210,8 +234,8 @@ class TrafficSUMO(TrafficInst):
         :return: The best station name and the route to the selected station
         """
         to_charge = veh._etar - veh._energy
-        cur_edge = traci.vehicle.getRoadID(veh._name) if cur_edge is None else cur_edge
-        cur_pos = traci.vehicle.getPosition(veh._name) if cur_pos is None else cur_pos
+        cur_edge = self.__sumo.get_vehicle_road(veh._name) if cur_edge is None else cur_edge
+        cur_pos = self.__sumo.get_vehicle_position(veh._name) if cur_pos is None else cur_pos
 
         # Distance check
         if isinstance(veh, EV): hub = self._hubs.fcs
@@ -339,42 +363,25 @@ class TrafficSUMO(TrafficInst):
     
     def simulation_start(self):
         """
-        Start simulation
-            sumocfg_file: SUMO configuration file path
-            start_time: Start time (seconds), if not specified, provided by the SUMO configuration file
-            gui: Whether to display the graphical interface
+        Start simulation.
         """
-        sumoCmd = [
-            "sumo-gui" if self.__gui else "sumo",
-            "-c", self.__sumocfg_file,
-            "-n", self.__snet_file,
-            "-b", str(self._st),
-            "-e", str(self._et),
-            "--step-length", str(self._step),
-            "--no-warnings",
-            "--routing-algorithm", self.__ralgo,
-            # Keep the vehicle in the network for a exactly one step after arriving at the destination
-            "--keep-after-arrival", str(self._step),
-            "--seed", str(self.__seed),
-            "--mesosim", str(self.__mesosim).lower(),
-        ]
-        traci.start(sumoCmd)
+        self.__sumo.start()
 
         if self.__istate_folder:
             self.__load_sumo_state(self.__istate_folder)
             self.__istate_folder = ""
-        
-        self._ct = int(traci.simulation.getTime())
+
+        self._ct = int(self.__sumo.get_time())
         self.__batch_depart()
 
         for cs in chain(self.FCSList, self.SCSList):
             if cs._x == float('inf') or cs._y == float('inf'):
                 cs._x, cs._y = self.__get_edge_pos(cs._bind)
-        
+
         from scipy.spatial import KDTree
         if self.FCSList._kdtree == None:
             self.FCSList._kdtree = KDTree([(cs._x, cs._y) for cs in self.FCSList])
-        
+
         if self.SCSList._kdtree == None:
             self.SCSList._kdtree = KDTree([(cs._x, cs._y) for cs in self.SCSList])
 
@@ -384,47 +391,52 @@ class TrafficSUMO(TrafficInst):
             step_len: Step length (seconds)
             v2g_demand: V2G demand list (kWh/s)
         """
-        traci.simulationStep(float(self._ct + step_len))
-        new_time = int(traci.simulation.getTime())
+        step_result: SUMOStepResult = self.__sumo.simulation_step(self._ct + step_len)
+        new_time = int(step_result.time)
         deltaT = new_time - self._ct
         self._ct = new_time
-        
-        # Depart vehicles before processing arrivals
-        # If a vehicle arrives and departs in the same step, performing departure after arrival immediately will cause the vehicle to be unable to depart
-        # Therefore, all departures are processed first can delay the departure to the next step and cause no problem
+
+        # Depart vehicles before processing arrivals.
+        # If a vehicle arrives and departs in the same step, performing departure after arrival immediately will cause the vehicle to be unable to depart.
+        # Therefore, all departures are processed first and can be delayed to the next step without changing the V2Sim state semantics.
         self.__batch_depart()
 
-        # Process arrived vehicles
-        arr_vehs: List[str] = traci.simulation.getArrivedIDList()
-        for v in arr_vehs:
+        # Process arrived vehicles.  In partitioned SUMO this list only contains
+        # vehicles that have completed the whole V2Sim trip; arrivals at
+        # partition boundaries are transferred internally by the backend.
+        for v, snap in step_result.arrived.items():
+            if v not in self._vehs:
+                continue
             veh = self._vehs[v]
-            dist = traci.vehicle.getDistance(v)
+            dist = snap.distance
             veh.drive(dist)
             if veh._cs is None: self._end_trip(veh, dist)
             else: self._start_restore(veh, dist)
 
         if self.__ignore_driving:
             # Process departed vehicles
-            dep_vehs: List[str] = traci.simulation.getDepartedIDList()
-            for v in dep_vehs:
+            for v in step_result.departed:
+                if v not in self._vehs:
+                    continue
                 veh = self._vehs[v]
                 if veh._sta == VehStatus.Pending:
                     veh._sta = VehStatus.Driving
         else:
             # Process driving vehicles
-            cur_vehs: List[str] = traci.vehicle.getIDList()
-            for veh_id in cur_vehs:
+            for veh_id, snap in step_result.running.items():
+                if veh_id not in self._vehs:
+                    continue
                 veh = self._vehs[veh_id]
-                veh.drive(traci.vehicle.getDistance(veh_id))
+                veh.drive(snap.distance)
                 if veh._energy <= 0:
                     # Vehicles with depleted batteries will be sent to the nearest fast charging station (time * 2)
                     veh._sta = VehStatus.Depleted
-                    cur_edge = traci.vehicle.getRoadID(veh_id)
+                    cur_edge = snap.road or self.__sumo.get_vehicle_road(veh_id)
                     veh._cs, _, cs_stage = self.__get_nearest_CS(cur_edge)
                     assert cs_stage is not None and veh._cs is not None
                     trT = int(self._ct + 2 * cs_stage.travelTime)
                     self._fQ.push(trT, veh_id)
-                    traci.vehicle.remove(veh_id)
+                    self.__sumo.remove_vehicle(veh_id)
                     self._log.fault_deplete(self._ct, veh, veh._cs, trT)
                     continue
                 if veh._sta == VehStatus.Pending:
@@ -433,38 +445,39 @@ class TrafficSUMO(TrafficInst):
                     if veh._cs is not None and self._hubs[veh._cs].is_offline(self._ct):
                         # Target FCS is offline, redirected to the nearest FCS
                         station, route = self.__sel_best_station(veh)
-                        if len(route.edges) == 0:  
+                        if len(route.edges) == 0:
                             # The power is not enough to drive to any charging station, remove from the network
                             veh._sta = VehStatus.Depleted
-                            traci.vehicle.remove(veh_id)
+                            self.__sumo.remove_vehicle(veh_id)
                             self._fQ.push(self._ct, veh_id)
                             self._log.fault_nocharge(self._ct, veh, veh._cs)
                             veh.target_CS = None
                         else:  # Found the charging station
                             new_cs = route.edges[-1]
-                            traci.vehicle.setRoute(veh_id, route)
+                            self.__sumo.set_route(veh_id, route)
                             self._log.fault_redirect(self._ct, veh, veh._cs, new_cs)
                             veh.target_CS = new_cs
                 else:
                     print(f"Error: {veh.brief()}, {veh._sta}")
-                    
+
         super().post_simulation_step(deltaT)
 
     def simulation_stop(self):
-        traci.close()
+        self.__sumo.close()
         self._log.close()
 
     def save(self, folder: Union[str, Path]):
         """Save the current state of the simulation to a folder"""
         f = Path(folder) if isinstance(folder, str) else folder
         f.mkdir(parents=True, exist_ok=True)
-        traci.simulation.saveState(str(f / SUMO_FILE_NAME))
+        backend_meta = self.__sumo.save_state(f)
         obj = {
             "ctime":self._ct,
             "fQ":self._fQ,
             "que":self._que,
             "VEHs":self._vehs,
             "hubs":self._hubs,
+            "sumo_backend": backend_meta,
         }
         with gzip.open(str(f / TRAFFIC_INST_FILE_NAME), "wb") as f:
             pickle.dump({
@@ -472,9 +485,9 @@ class TrafficSUMO(TrafficInst):
                 "version": PyVersion(),
                 "pickler": pickle.__name__,
             }, f)
-    
-    save_state = save  # Alias        
-    
+
+    save_state = save  # Alias
+
     def __load_v2sim_state(self, folder: str):
         inst = Path(folder) / TRAFFIC_INST_FILE_NAME
         if not inst.exists():
@@ -483,21 +496,19 @@ class TrafficSUMO(TrafficInst):
             d = pickle.load(f)
         assert isinstance(d, dict) and "obj" in d and "pickler" in d and "version" in d, "Invalid TrafficInst state file."
         if not CheckPyVersion(d["version"]):
-            raise RuntimeError(f"Python version mismatch for TrafficInst: Expect {PyVersion()}, got {d["version"]}")
+            raise RuntimeError(f"Python version mismatch for TrafficInst: Expect {PyVersion()}, got {d['version']}")
         if d["pickler"] != pickle.__name__:
-            raise RuntimeError(f"Pickler mismatch for TrafficInst: Expect {pickle.__name__}, got {d["pickler"]}")
+            raise RuntimeError(f"Pickler mismatch for TrafficInst: Expect {pickle.__name__}, got {d['pickler']}")
         d = d["obj"]
         self._ct = d["ctime"]
         self._fQ = d["fQ"]
         self._que = d["que"]
         self._vehs: VDict = d["VEHs"]
         self._hubs: MixedHub = d["hubs"]
-    
+        self.__backend_state_meta = d.get("sumo_backend")
+
     def __load_sumo_state(self, folder: str):
-        traffic = Path(folder) / SUMO_FILE_NAME
-        if not traffic.exists():
-            raise FileNotFoundError(Lang.ERROR_STATE_FILE_NOT_FOUND.format(traffic))
-        traci.simulation.loadState(str(traffic))
+        self.__sumo.load_state(folder, self.__backend_state_meta)
 
     def load_state(self, folder: str):
         """
@@ -506,7 +517,7 @@ class TrafficSUMO(TrafficInst):
         """
         self.__load_v2sim_state(folder)
         self.__load_sumo_state(folder)
-    
+
     @staticmethod
     def create(
         case: CaseData,
@@ -529,6 +540,7 @@ class TrafficSUMO(TrafficInst):
             road_net_file = net,
             sumocfg_file = sumo,
             routing_algo = vscfg.routing_algorithm,
+            case_dir = case.case_dir,
             **asdict(config)
         )
     
@@ -556,6 +568,7 @@ class TrafficSUMO(TrafficInst):
             sumocfg_file = sumo,
             initial_state_folder = folder,
             routing_algo = vscfg.routing_algorithm,
+            case_dir = case.case_dir,
             **asdict(config)
         )
 

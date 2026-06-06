@@ -30,7 +30,8 @@ _locale.SetLangLib("zh_CN",
     DESC_SOURCE_BUS = "电网的源母线，仅在使用OpenDSS计算器时有效",
     DESC_DECBUSES = "参与负荷削减的母线列表，逗号分隔，或使用%all%表示全部母线",
     DESC_SMARTCHARGE = "是否启用有序充电，YES或NO",
-    DESC_CVXPYSOLVER = f"当估计器为LinDistFlow或DistFlow时使用的cvxpy求解器，必须是{SOLVER}之一"
+    DESC_CVXPYSOLVER = f"当估计器为LinDistFlow或DistFlow时使用的cvxpy求解器，必须是{SOLVER}之一",
+    DESC_MAX_WORKERS = "并行求解的最大工作线程数，正整数"
 )
 _locale.SetLangLib("en",
     DESCRIPTION = "Power distribution network model",
@@ -47,7 +48,8 @@ _locale.SetLangLib("en",
     DESC_SOURCE_BUS = "Source bus of the grid, only effective when using OpenDSS calculator",
     DESC_DECBUSES = "List of buses for load reduction, separated by commas, or use %all% for all buses",
     DESC_SMARTCHARGE = "Whether to enable smart charging, YES or NO",
-    DESC_CVXPYSOLVER = f"cvxpy solver used when the estimator is LinDistFlow or DistFlow, must be one of {SOLVER}"
+    DESC_CVXPYSOLVER = f"cvxpy solver used when the estimator is LinDistFlow or DistFlow, must be one of {SOLVER}",
+    DESC_MAX_WORKERS = "Maximum number of workers for parallel solving, a positive integer"
 )
 
 def _sv(x)->float:
@@ -82,7 +84,8 @@ class PluginPDN(PluginBase[float], IGridPlugin):
             ConfigItem("source_bus", EditMode.ENTRY, _locale("DESC_SOURCE_BUS"), ""),
             ConfigItem("DecBuses", EditMode.ENTRY, _locale("DESC_DECBUSES"), ""),
             ConfigItem("SmartCharge", EditMode.COMBO, _locale("DESC_SMARTCHARGE"), "NO", combo_values=['YES', 'NO']),
-            ConfigItem("solver", EditMode.COMBO, _locale("DESC_CVXPYSOLVER"), "ECOS", combo_values=SOLVER)
+            ConfigItem("solver", EditMode.COMBO, _locale("DESC_CVXPYSOLVER"), "ECOS", combo_values=SOLVER),
+            ConfigItem("max_workers", EditMode.ENTRY, _locale("DESC_MAX_WORKERS"), "1")
         ])
     
     def Init(self, elem:Element, inst:TrafficInst, work_dir:Path, res_dir:Path, plg_deps:'List[PluginBase]') -> float:
@@ -127,6 +130,7 @@ class PluginPDN(PluginBase[float], IGridPlugin):
             mlrp = float(elem.get("MLRP", "0.5")),
             source_bus = source_bus,
             default_saveto = self.__save_to,
+            max_workers = int(elem.get("max_workers", "1"))
         )
 
         self.__sol.SetErrorSaveTo(self.__save_to)

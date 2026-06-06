@@ -1,5 +1,5 @@
 import subprocess
-import os, sys
+import sys
 
 MODE_LIST = [".dev", "a", "b", "rc", "", ".post"]
 MODE_MAP = {m: i for i, m in enumerate(MODE_LIST)}

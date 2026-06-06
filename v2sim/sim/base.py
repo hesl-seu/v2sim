@@ -1,8 +1,10 @@
+import os
 import random
 from dataclasses import dataclass
 from itertools import chain
 from abc import ABC, abstractmethod
 from pathlib import Path
+import time
 from typing import Any, Callable, Dict, Optional, Protocol, TypeVar, List, Tuple, Union
 from feasytools import TimeFunc, ConstFunc
 from fpowerkit import Grid
@@ -45,6 +47,11 @@ class TrafficInst(ABC):
         self._pdn = pdn
         self._gp = gasoline_price
         self._step_cb = step_callback
+        self.__max_workers = max(1, (os.cpu_count() or 1) - 1)
+        self.__pyver = PyVersion()
+        self.__has_gil = self.__pyver[3]
+        self.__last_station_upd = 0
+        self.__last_station_para_upd = 0
         random.seed(seed)
 
     def _prepare_trips_and_scs(self):
@@ -167,11 +174,26 @@ class TrafficInst(ABC):
         # Electricity price is $/puh. Convert to $/kWh
         pb_e = self._pdn._cp(self._ct) / Sb_kVA
         ps_e = self._pdn._dp(self._ct) / Sb_kVA
-        gvs = self._hubs.gs.update(deltaT, self._ct, pb_g)
-        for gv in gvs: self._end_restore(gv)
-        evs = self._hubs.fcs.update(deltaT, self._ct, pb_e, ps_e)
-        for ev in evs: self._end_restore(ev)
-        evs = self._hubs.scs.update(deltaT, self._ct, pb_e, ps_e)
+        if self.__has_gil or self.__last_station_upd < 0.01:
+            t = time.time()
+            gvs = self._hubs.gs.update(deltaT, self._ct, pb_g)
+            for gv in gvs: self._end_restore(gv)
+            evs = self._hubs.fcs.update(deltaT, self._ct, pb_e, ps_e)
+            for ev in evs: self._end_restore(ev)
+            evs = self._hubs.scs.update(deltaT, self._ct, pb_e, ps_e)
+            self.__last_station_upd = time.time() - t if self.__last_station_upd >= 0 else -1
+        else:
+            t = time.time()
+            gvs = self._hubs.gs.update_parallel(deltaT, self._ct, pb_g, self.__max_workers)
+            for gv in gvs: self._end_restore(gv)
+            evs = self._hubs.fcs.update_parallel(deltaT, self._ct, pb_e, ps_e, self.__max_workers)
+            for ev in evs: self._end_restore(ev)
+            evs = self._hubs.scs.update_parallel(deltaT, self._ct, pb_e, ps_e, self.__max_workers)
+            self.__last_station_para_upd = time.time() - t
+            if self.__last_station_para_upd > self.__last_station_upd * 1.2:
+                # Parallel version is slower than single-threaded version, probably due to the overhead of multi-threading and GIL. Use single-threaded version in the future.
+                self.__last_station_upd = -1
+        
         assert len(evs) == 0, f"SCS should not release vehicles automatically, but got {len(evs)} vehicles."
 
         # Process faulty vehicles
