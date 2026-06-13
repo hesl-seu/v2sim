@@ -22,7 +22,11 @@ class ScrollableTreeView(Frame):
                  allowMove:bool = False, addgetter:Optional[Callable[[], Optional[List[Any]]]] = None, **kwargs):
         super().__init__(master, **kwargs)
         self.post_func = empty_postfunc
-        self._afterf = None
+        self.__onItemChanged = None
+        self.__onItemAdded = None
+        self.__onItemDeleted = None
+        self.__onItemMovedUp = None
+        self.__onItemMovedDown = None
         self.lb_title = Label(self, text=_L["NOT_OPEN"])
         self.tree = Treeview(self)
         self.tree.grid(row=1,column=0,sticky='nsew')
@@ -82,7 +86,8 @@ class ScrollableTreeView(Frame):
                 return
             self.tree.insert("", "end", values=cols)
             self.lb_save.config(text=_L["UNSAVED"],foreground="red")
-            if self._afterf: self._afterf()
+            if self.__onItemChanged: self.__onItemChanged()
+            if self.__onItemAdded: self.__onItemAdded(cols)
     
     def delitm(self):
         dlist = [self.tree.item(x, "values")[0] for x in self.tree.selection()]
@@ -90,21 +95,24 @@ class ScrollableTreeView(Frame):
             for i in self.tree.selection():
                 self.tree.delete(i)
             self.lb_save.config(text=_L["UNSAVED"],foreground="red")
-            if self._afterf: self._afterf()
+            if self.__onItemChanged: self.__onItemChanged()
+            if self.__onItemDeleted: self.__onItemDeleted(dlist)
 
     def moveup(self):
         for i in self.tree.selection():
             p = self.tree.index(i)
             self.tree.move(i, "", p-1)
         self.lb_save.config(text=_L["UNSAVED"],foreground="red")
-        if self._afterf: self._afterf()
+        if self.__onItemChanged: self.__onItemChanged()
+        if self.__onItemMovedUp: self.__onItemMovedUp()
     
     def movedown(self):
         for i in self.tree.selection():
             p = self.tree.index(i)
             self.tree.move(i, "", p+1)
         self.lb_save.config(text=_L["UNSAVED"],foreground="red")
-        if self._afterf: self._afterf()
+        if self.__onItemChanged: self.__onItemChanged()
+        if self.__onItemMovedDown: self.__onItemMovedDown()
     
     def save(self):
         if self.onSave:
@@ -113,7 +121,31 @@ class ScrollableTreeView(Frame):
     
     def setOnSave(self, onSave:Callable[[List[tuple]], bool]):
         self.onSave = onSave
+
+    @property
+    def AfterFunc(self):
+        '''Function to be executed when an item is editted'''
+        return self.__onItemChanged
     
+    @AfterFunc.setter
+    def AfterFunc(self, v):
+        self.__onItemChanged = v
+    
+    def setOnItemChanged(self, onItemChanged:Callable[[], None]):
+        self.__onItemChanged = onItemChanged
+        
+    def setOnItemAdded(self, onItemAdded:Callable[[List[Any]], None]):
+        self.__onItemAdded = onItemAdded
+
+    def setOnItemDeleted(self, onItemDeleted:Callable[[List[str]], None]):
+        self.__onItemDeleted = onItemDeleted
+
+    def setOnItemMovedUp(self, onItemMovedUp:Callable[[], None]):
+        self.__onItemMovedUp = onItemMovedUp
+
+    def setOnItemMovedDown(self, onItemMovedDown:Callable[[], None]):
+        self.__onItemMovedDown = onItemMovedDown
+
     def item(self, item, option=None, **kw):
         return self.tree.item(item, option, **kw)
     
@@ -254,16 +286,7 @@ class ScrollableTreeView(Frame):
             self.tree.item(self.selected_item, text=v)
         else:
             self.tree.set(self.selected_item, self.selected_column, v)
-        if self._afterf: self._afterf()
-    
-    @property
-    def AfterFunc(self):
-        '''Function to be executed when an item is editted'''
-        return self._afterf
-    
-    @AfterFunc.setter
-    def AfterFunc(self, v):
-        self._afterf = v
+        if self.__onItemChanged: self.__onItemChanged()
     
     def __setitem__(self, key, val):
         self.tree[key] = val
