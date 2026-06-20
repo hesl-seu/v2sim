@@ -21,23 +21,24 @@ class TimeConfig:
     step_length:int
     end_time:int
     
-    def sumocfg_update(self, sumocfg_file:str):
+    def sumocfg_update(self, sumocfg_file:str, update_time:bool = False):
         """Load from SUMO configuration file and update time settings. Return network file in the configuration."""
         from xml.etree.ElementTree import Element
         root = ReadXML(sumocfg_file, compressed=False).getroot()
         if root is None:
             raise RuntimeError(Lang.ERROR_FILE_TYPE_NOT_SUPPORTED.format(sumocfg_file))
         
-        tnode = root.find("time")
-        if isinstance(tnode, Element):
-            bnode = tnode.find("begin")
-            enode = tnode.find("end")
-            if isinstance(bnode, Element):
-                bt = int(bnode.get("value", "-1"))
-                if bt >= 0: self.start_time = bt
-            if isinstance(enode, Element):
-                et = int(enode.get("value", "-1"))
-                if et >= 0: self.end_time = et
+        if update_time:
+            tnode = root.find("time")
+            if isinstance(tnode, Element):
+                bnode = tnode.find("begin")
+                enode = tnode.find("end")
+                if isinstance(bnode, Element):
+                    bt = int(bnode.get("value", "-1"))
+                    if bt >= 0: self.start_time = bt
+                if isinstance(enode, Element):
+                    et = int(enode.get("value", "-1"))
+                    if et >= 0: self.end_time = et
         
         nf = None
         inode = root.find("input")

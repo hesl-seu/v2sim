@@ -1,7 +1,7 @@
 {
     "start_time": 0,
-    "end_time": 172800,
-    "break_time": 172800,
+    "end_time": 691200,
+    "break_time": 691200,
     "traffic_step": 10,
     "seed": 0,
     "routing_method": "astar",
@@ -13,7 +13,7 @@
     "ux_no_para": false,
     "ux_show_info": false,
     "ux_rand": false,
-    "sumo_ignore_driving": false,
+    "sumo_ignore_driving": true,
     "sumo_raise_routing_error": false,
     "sumo_mesosim": true,
     "stats": [

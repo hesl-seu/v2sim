@@ -735,7 +735,7 @@ class SUMOVehGenerator(VehGenerator):
         import sumolib
         self.dic_taz = {} # taz_id -> [edge_id, edge_id, ...]
         self.taz_of_edge = {} # edge_id -> taz_id
-        self.taz_pos = {} # taz_id -> SUMO edge position; only used by POLY mode
+        self.taz_pos = {} # taz_id -> SUMO edge position; POLY uses fixed POI position, TAZ uses random positions
         self.net:sumolib.net.Net = sumolib.net.readNet(_fn["net"])
         if mode == TripsGenMode.AUTO:
             if _fn.sumo and _fn.taz and _fn.taz_type: mode = TripsGenMode.TAZ
@@ -759,7 +759,7 @@ class SUMOVehGenerator(VehGenerator):
                     self.dic_taz[taz_id] = [edge.attrib["id"] for edge in taz.findall("tazSource")]
                 self.taz_pos[taz_id] = None
                 for edge_id in self.dic_taz[taz_id]:
-                        self.taz_of_edge[edge_id] = taz_id
+                    self.taz_of_edge[edge_id] = taz_id
         elif mode == TripsGenMode.POLY:
             assert _fn.poly and _fn.net and _fn.fcs, Lang.ERROR_NO_TAZ_OR_POLY
             self._mode = "poly"
@@ -785,20 +785,35 @@ class SUMOVehGenerator(VehGenerator):
     def _findTAZbyEdge(self, edge_id:str) -> Optional[str]:
         return self.taz_of_edge.get(edge_id, None)
     
-    def _getTAZPos(self, taz_id: str) -> Optional[float]:
+    def _getEdgeLength(self, edge_id: str) -> float:
+        return float(self.net.getEdge(edge_id).getLength())
+
+    def _getRandomEdgePos(self, edge_id: str) -> float:
+        return random.uniform(0.0, self._getEdgeLength(edge_id))
+
+    def _getTAZPos(self, taz_id: str, edge_id: Optional[str] = None) -> Optional[float]:
         pos = self.taz_pos.get(taz_id, None)
-        return None if pos is None else float(pos)
+        if pos is not None:
+            return float(pos)
+        if self._mode == "taz" and edge_id is not None:
+            return self._getRandomEdgePos(edge_id)
+        return None
 
     def _makeTrip(
         self, trip_id: str, depart_time: int, from_edge: str, to_edge: str,
-        edges: Optional[List[str]], from_type: str, to_type: str, from_taz: str, to_taz: str
+        edges: Optional[List[str]], from_type: str, to_type: str, from_taz: str, to_taz: str,
+        from_pos: Optional[float] = None, to_pos: Optional[float] = None
     ) -> Trip:
+        if from_pos is None:
+            from_pos = self._getTAZPos(from_taz, from_edge)
+        if to_pos is None:
+            to_pos = self._getTAZPos(to_taz, to_edge)
         return Trip(
             trip_id, depart_time, from_edge, to_edge, edges, from_type, to_type, from_taz, to_taz,
-            OPos=self._getTAZPos(from_taz), DPos=self._getTAZPos(to_taz)
+            OPos=from_pos, DPos=to_pos
         )
 
-    def _getNextTAZandPlace(self, from_TAZ:str, from_EDGE:str, next_place_type:str) -> Tuple[str, str]:
+    def _getNextTAZandPlace(self, from_TAZ:str, from_EDGE:str, next_place_type:str) -> Tuple[str, str, Optional[float]]:
         trial = 0
         while True:
             if self._mode == "taz":
@@ -810,7 +825,7 @@ class SUMOVehGenerator(VehGenerator):
                 assert to_TAZ in self.dic_taz, f"TAZ {to_TAZ} not found in TAZ dictionary"
                 to_EDGE = random.choice(self.dic_taz[to_TAZ])
             if from_EDGE != to_EDGE:
-                return to_TAZ, to_EDGE
+                return to_TAZ, to_EDGE, self._getTAZPos(to_TAZ, to_EDGE)
             trial += 1
             if trial >= 5:
                 raise RuntimeError("from_EDGE == to_EDGE")
@@ -829,19 +844,22 @@ class SUMOVehGenerator(VehGenerator):
             from_EDGE = v._base
             from_TAZ = self._findTAZbyEdge(from_EDGE)
             if from_TAZ is None: raise RuntimeError(f"Vehicle base edge {from_EDGE} not in any TAZ edge list")
+            from_pos = self._getTAZPos(from_TAZ, from_EDGE)
         else:
             from_TAZ = random.choice(self.dic_taztype[from_Type])
             from_EDGE = random.choice(self.dic_taz[from_TAZ])
+            from_pos = self._getTAZPos(from_TAZ, from_EDGE)
             v._base = from_EDGE
         # Get departure time and destination area type
         depart_time_min, to_Type = self._getDest1(from_Type, weekday)  
         while depart_time_min * 60 >= 86400 - 3600:  # Ensure that there is enough time for subsequent trips
             depart_time_min, to_Type = self._getDest1(from_Type, weekday)  
-        to_TAZ, to_EDGE = self._getNextTAZandPlace(from_TAZ, from_EDGE, to_Type)
-        return self._makeTrip(trip_id, depart_time_min * 60, from_EDGE, to_EDGE, None, from_Type, to_Type, from_TAZ, to_TAZ)
+        to_TAZ, to_EDGE, to_pos = self._getNextTAZandPlace(from_TAZ, from_EDGE, to_Type)
+        return self._makeTrip(trip_id, depart_time_min * 60, from_EDGE, to_EDGE, None, from_Type, to_Type, from_TAZ, to_TAZ, from_pos, to_pos)
 
     def _genTripA(
-        self, trip_id:str, from_TAZ:str, from_type:str, from_edge:str, start_time:int, weekday: bool = True
+        self, trip_id:str, from_TAZ:str, from_type:str, from_edge:str, start_time:int, weekday: bool = True,
+        from_pos: Optional[float] = None
     ):
         """
         Generate the second trip
@@ -863,12 +881,13 @@ class SUMOVehGenerator(VehGenerator):
                 depart_time_min = start_time // 60 + 1
                 break
         to_type = self._getDestA(from_type, stop_time_idx, weekday)
-        to_TAZ, to_edge = self._getNextTAZandPlace(from_TAZ, from_edge, to_type)
-        return self._makeTrip(trip_id, depart_time_min * 60, from_edge, to_edge, None, from_type, to_type, from_TAZ, to_TAZ)
+        to_TAZ, to_edge, to_pos = self._getNextTAZandPlace(from_TAZ, from_edge, to_type)
+        return self._makeTrip(trip_id, depart_time_min * 60, from_edge, to_edge, None, from_type, to_type, from_TAZ, to_TAZ, from_pos, to_pos)
 
     def _genTripF(
         self, trip_id:str, from_TAZ:str, from_type, from_EDGE:str,
         start_time:int, first_TAZ:str, first_EDGE:str, weekday: bool = True,
+        from_pos: Optional[float] = None, first_pos: Optional[float] = None,
     ):
         """
         Generate the third trip
@@ -892,7 +911,7 @@ class SUMOVehGenerator(VehGenerator):
             cnt += 1
             if cnt > 10:
                 return None
-        return self._makeTrip(trip_id, depart_time_min * 60, from_EDGE, first_EDGE, None, from_type, "Home", from_TAZ, first_TAZ)
+        return self._makeTrip(trip_id, depart_time_min * 60, from_EDGE, first_EDGE, None, from_type, "Home", from_TAZ, first_TAZ, from_pos, first_pos)
 
     def _genTripsChain1(self, v: Vehicle):  # vehicle_trip
         """
@@ -904,10 +923,10 @@ class SUMOVehGenerator(VehGenerator):
         weekday = True
         trip_1 = self._genFirstTrip1(v, "trip0_1", weekday)
         trip_2 = self._genTripA("trip0_2",trip_1.DTaz,
-            trip_1.DType,trip_1.D,trip_1.depart_time,weekday)
+            trip_1.DType,trip_1.D,trip_1.depart_time,weekday,trip_1.DPos)
         trip_3 = self._genTripF("trip0_3",trip_2.DTaz,
             trip_2.DType,trip_2.D,trip_2.depart_time,
-            trip_1.OTaz,trip_1.O,weekday)
+            trip_1.OTaz,trip_1.O,weekday,trip_2.DPos,trip_1.OPos)
         
         v.add_trip(trip_1, daynum)
         v.add_trip(trip_2, daynum)
@@ -932,29 +951,31 @@ class SUMOVehGenerator(VehGenerator):
             trip_last = v.trips[-1]
             from_EDGE = trip_last.D
             from_TAZ = trip_last.DTaz
+            from_pos = trip_last.DPos
         else:
             assert v._base is not None, "Vehicle base node is not defined and no previous trips exist."
             from_EDGE = v._base
             from_TAZ = self._findTAZbyEdge(from_EDGE)
             if from_TAZ is None: raise RuntimeError(f"Vehicle base edge {from_EDGE} not in any TAZ edge list")
+            from_pos = self._getTAZPos(from_TAZ, from_EDGE)
         
         # Get departure time and destination area type
         from_Type = "Home"
         depart_time_min, to_Type = self._getDest1(from_Type, weekday)
         while depart_time_min * 60 >= 86400 - 3600:  # Ensure that there is enough time for subsequent trips
             depart_time_min, to_Type = self._getDest1(from_Type, weekday)
-        to_TAZ, to_EDGE = self._getNextTAZandPlace(from_TAZ, from_EDGE, to_Type)
-        return self._makeTrip(trip_id, depart_time_min * 60, from_EDGE, to_EDGE, [], from_Type, to_Type, from_TAZ, to_TAZ)
+        to_TAZ, to_EDGE, to_pos = self._getNextTAZandPlace(from_TAZ, from_EDGE, to_Type)
+        return self._makeTrip(trip_id, depart_time_min * 60, from_EDGE, to_EDGE, [], from_Type, to_Type, from_TAZ, to_TAZ, from_pos, to_pos)
 
     def _genTripsChainA(self, v: Vehicle, daynum: int = 1):  # vehicle_trip
         """Generate a full day of trips on a non-first day"""
         weekday = (daynum - 1) % 7 + 1 in [1, 2, 3, 4, 5]
         trip2_1 = self._genFirstTripA(f"trip{daynum}_1", v, weekday)
         trip2_2 = self._genTripA(f"trip{daynum}_2",trip2_1.DTaz,
-            trip2_1.DType,trip2_1.D,trip2_1.depart_time,weekday)
+            trip2_1.DType,trip2_1.D,trip2_1.depart_time,weekday,trip2_1.DPos)
         trip2_3 = self._genTripF(f"trip{daynum}_3",
             trip2_2.DTaz,trip2_2.DType,trip2_2.D,
-            trip2_2.depart_time,trip2_1.OTaz,trip2_1.O,weekday)
+            trip2_2.depart_time,trip2_1.OTaz,trip2_1.O,weekday,trip2_2.DPos,trip2_1.OPos)
                     
         v.add_trip(trip2_1, daynum)
         v.add_trip(trip2_2, daynum)
