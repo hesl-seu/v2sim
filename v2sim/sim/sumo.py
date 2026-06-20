@@ -203,16 +203,60 @@ class TrafficSUMO(TrafficInst):
         """Get the current routing algorithm"""
         return self.__ralgo
     
-    def _add_veh(self, veh_id: str, route: List[str]):
+    def _add_veh(
+        self,
+        veh_id: str,
+        route: List[str],
+        depart_pos: Optional[float] = None,
+        arrival_pos: Optional[float] = None,
+    ):
         self._vehs[veh_id].clear_odometer()
-        self.__sumo.add_vehicle_route(veh_id, route)
+        self.__sumo.add_vehicle_route(veh_id, route, depart_pos=depart_pos, arrival_pos=arrival_pos)
     
-    def _add_veh2(self, veh_id:str, st_edge:str, ed_edge:str, agg_routing:bool = False):
+    def _add_veh2(
+        self,
+        veh_id: str,
+        st_edge: str,
+        ed_edge: str,
+        agg_routing: bool = False,
+        depart_pos: Optional[float] = None,
+        arrival_pos: Optional[float] = None,
+    ):
         self._vehs[veh_id].clear_odometer()
         try:
-            self.__sumo.add_vehicle_od(veh_id, st_edge, ed_edge, agg_routing)
+            self.__sumo.add_vehicle_od(
+                veh_id, st_edge, ed_edge, agg_routing,
+                depart_pos=depart_pos, arrival_pos=arrival_pos,
+            )
         except Exception as e:
             raise RuntimeError(f"(Time = {self._ct})Fail to add vehicle '{veh_id}' into SUMO: {st_edge}->{ed_edge}") from e
+
+    def _end_restore(self, veh: Vehicle):
+        if veh._cs is None:
+            raise RuntimeError(f"Runtime error: {self._ct}, {veh.brief()}, {veh.status}")
+        trip = veh.trip
+        if isinstance(veh, EV):
+            self._log.depart_FCS(self._ct, veh, veh._cs)
+            self._add_veh2(
+                veh._name,
+                self._hubs.fcs.get_bind_of(veh._cs),
+                trip.D,
+                arrival_pos=trip.DPos,
+            )
+        elif isinstance(veh, GV):
+            self._log.depart_GS(self._ct, veh, veh._cs)
+            self._add_veh2(
+                veh._name,
+                self._hubs.gs.get_bind_of(veh._cs),
+                trip.D,
+                arrival_pos=trip.DPos,
+            )
+        else:
+            raise RuntimeError(Lang.VEH_TYPE_NOT_SUPPORTED.format(veh._name, type(veh)))
+
+        veh._cs = None
+        veh._etar = veh._cap
+        veh.status = VehStatus.Pending
 
     @property
     def edges(self):
@@ -275,14 +319,14 @@ class TrafficSUMO(TrafficInst):
             veh._cs = None
             veh._etar = veh._cap
             if stage:
-                self._add_veh(veh._name, stage.edges)
+                self._add_veh(veh._name, stage.edges, trip.OPos, trip.DPos)
             else:
-                self._add_veh2(veh._name, trip.O, trip.D)
+                self._add_veh2(veh._name, trip.O, trip.D, depart_pos=trip.OPos, arrival_pos=trip.DPos)
         else:  # Charge once on the way
             if veh._fr_on_dpt is not None and veh._dpt_rs is not None:
                 # Forced to a specified fast charging station
                 veh._cs = veh._dpt_rs
-                self._add_veh2(veh._name, trip.O, self._hubs.get_bind_of(veh._dpt_rs))
+                self._add_veh2(veh._name, trip.O, self._hubs.get_bind_of(veh._dpt_rs), depart_pos=trip.OPos)
             else:
                 x, y = self.__get_edge_pos(trip.O)
                 station, route = self.__sel_best_station(veh, trip.O, (x, y))
@@ -294,7 +338,7 @@ class TrafficSUMO(TrafficInst):
                     return False
                 else: # Found a charging station
                     veh.target_CS = station
-                    self._add_veh(veh._name, route.edges)
+                    self._add_veh(veh._name, route.edges, trip.OPos)
         if isinstance(veh, EV):
             # Stop slow charging of the vehicle and add it to the waiting to depart set
             if self._hubs.scs.pop_veh(veh):

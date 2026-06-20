@@ -50,10 +50,21 @@ def LoadVehicles(file_path: str, node_mode:bool = True):
                 if D == "": 
                     assert route is not None and len(route) > 0
                     D = route[-1]
+            def _pop_pos(*names: str) -> Optional[float]:
+                for name in names:
+                    if name in trip.attrib:
+                        val = trip.attrib.pop(name)
+                        if val == "" or val.lower() in ("none", "default"):
+                            return None
+                        return float(val)
+                return None
+
             new_trip = Trip(
                 trip.attrib.pop("id"),
                 int(float(trip.attrib.pop("depart"))),
-                O, D, route
+                O, D, route,
+                OPos=_pop_pos("departPos", "fromPos", "originPos", "OPos", "opos", "startPos", "start_pos"),
+                DPos=_pop_pos("arrivalPos", "toPos", "destPos", "DPos", "dpos", "endPos", "end_pos"),
             )
             if len(trips) > 0:
                 if new_trip.depart_time <= trips[-1].depart_time:

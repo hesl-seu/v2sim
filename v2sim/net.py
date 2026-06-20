@@ -215,6 +215,67 @@ class RoadNet:
         i, dist, _ = self.__kdst.find_closest_segment(np.array([x, y]))
         return dist, self.__edgeL[i].name
     
+    def get_edge_pos_from_point(self, edge_id:str, x:float, y:float) -> Tuple[float, float, Tuple[float, float]]:
+        """
+        Project a point onto an edge and return its SUMO longitudinal position.
+
+        Returns:
+            pos: position along the edge in meters, clamped to [0, edge.length]
+            dist: Euclidean distance from the point to the edge shape
+            closest_point: the closest point on the edge shape
+        """
+        e = self.sumo.getEdge(edge_id)
+        shape = e.getShape()
+        if shape is None or len(shape) == 0:
+            return 0.0, math.inf, (x, y)
+        if len(shape) == 1:
+            px, py = shape[0]
+            return 0.0, math.hypot(x - px, y - py), (px, py)
+
+        best_dist = math.inf
+        best_shape_pos = 0.0
+        best_point = shape[0]
+        shape_pos = 0.0
+        total_shape_len = 0.0
+
+        for i in range(1, len(shape)):
+            x0, y0 = shape[i - 1]
+            x1, y1 = shape[i]
+            dx = x1 - x0
+            dy = y1 - y0
+            seg_len = math.hypot(dx, dy)
+            if seg_len <= 0:
+                continue
+            total_shape_len += seg_len
+            t = ((x - x0) * dx + (y - y0) * dy) / (seg_len * seg_len)
+            t = max(0.0, min(1.0, t))
+            px = x0 + t * dx
+            py = y0 + t * dy
+            dist = math.hypot(x - px, y - py)
+            if dist < best_dist:
+                best_dist = dist
+                best_shape_pos = shape_pos + t * seg_len
+                best_point = (px, py)
+            shape_pos += seg_len
+
+        if total_shape_len <= 0:
+            edge_len = float(e.getLength())
+            return max(0.0, min(edge_len, 0.0)), best_dist, best_point
+
+        edge_len = float(e.getLength())
+        pos = best_shape_pos / total_shape_len * edge_len
+        pos = max(0.0, min(edge_len, pos))
+        return pos, best_dist, best_point
+
+    def find_nearest_edge_id_with_pos(self, x:float, y:float) -> Tuple[float, str, float]:
+        """
+        Find the nearest edge and the closest longitudinal position on that edge.
+        The position is suitable for SUMO departPos/arrivalPos.
+        """
+        dist, edge_id = self.find_nearest_edge_id(x, y)
+        pos, refined_dist, _ = self.get_edge_pos_from_point(edge_id, x, y)
+        return min(dist, refined_dist), edge_id, pos
+    
     def find_nearest_node(self, x:float, y:float) -> Node:
         """
         Find the nearest node to the given coordinates.

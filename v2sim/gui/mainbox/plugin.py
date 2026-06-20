@@ -70,7 +70,6 @@ class PluginEditor(ScrollableTreeView):
         plg_type = self.plg_pool.GetPluginType(name)
         assert issubclass(plg_type, PluginBase)
         self.setCellEditMode(name, "Extra", ConfigItem("Extra", EditMode.PROP, "Extra properties", prop_config=plg_type.ElemShouldHave()))
-        print(f"Added plugin {name} with properties {extra}")
         self.__elements[name] = ET.Element(name)
         self.__onEnabledSet((name, interval, enabled, online, extra), name)
     
@@ -98,7 +97,6 @@ class PluginEditor(ScrollableTreeView):
                 for k,v in attr.items():
                     if not isinstance(v, str):
                         attr[k] = str(v)
-                print(self.__elements)
                 e = self.__elements[d[0]]
                 e.attrib.update(attr)
                 if d[3] != ALWAYS_ONLINE:

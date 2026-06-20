@@ -43,6 +43,47 @@ class Stage:
 SUMO_FILE_NAME = "traffic.gz"
 
 
+def _sumo_pos(pos: Optional[float], default: str) -> str:
+    """Convert an optional edge position to the string values expected by TraCI."""
+    return default if pos is None else f"{float(pos):g}"
+
+
+def _route_id_for_vehicle(veh_id: str) -> str:
+    """Return the per-vehicle temporary route id used for dynamic insertion."""
+    return f"__v2sim_route_{veh_id}"
+
+
+def _add_vehicle_with_route(
+    api: Any,
+    veh_id: str,
+    route_edges: Sequence[str],
+    depart_pos: Optional[float] = None,
+    arrival_pos: Optional[float] = None,
+):
+    """Add a vehicle on an explicit route so depart/arrival positions are meaningful.
+
+    SUMO interprets ``departPos`` on the first edge of ``routeID`` and
+    ``arrivalPos`` on the last edge of ``routeID``.  Adding a vehicle with an
+    empty route id asks SUMO to place it on a random edge, so positions cannot
+    describe the requested OD pair.
+    """
+    edges = list(route_edges)
+    if len(edges) == 0:
+        raise RuntimeError(f"Cannot add vehicle {veh_id}: empty route")
+    route_id = _route_id_for_vehicle(veh_id)
+    try:
+        api.route.remove(route_id)
+    except Exception:
+        pass
+    api.route.add(route_id, edges)
+    api.vehicle.add(
+        veh_id,
+        route_id,
+        departPos=_sumo_pos(depart_pos, "base"),
+        arrivalPos=_sumo_pos(arrival_pos, "max"),
+    )
+
+
 @dataclass
 class SUMOVehicleSnapshot:
     """Cached vehicle state returned by a SUMO backend after a step."""
@@ -89,6 +130,7 @@ class _ActiveRoute:
     segment_index: int
     distance_offset: float
     part_id: int
+    arrival_pos: Optional[float] = None
 
 
 def _as_bool(value: Any, default: bool = False) -> bool:
@@ -406,21 +448,37 @@ class SUMOSingleBackend(_RouteFinderMixin):
             pos = (math.nan, math.nan)
         return SUMOVehicleSnapshot(veh_id, dist, road, pos)  # type: ignore[arg-type]
 
-    def add_vehicle_route(self, veh_id: str, route: Union[Stage, Sequence[str]], agg_routing: bool = False):
+    def add_vehicle_route(
+        self,
+        veh_id: str,
+        route: Union[Stage, Sequence[str]],
+        agg_routing: bool = False,
+        depart_pos: Optional[float] = None,
+        arrival_pos: Optional[float] = None,
+    ):
         route_edges = _edge_list(route)
         if len(route_edges) == 0:
             raise RuntimeError(f"Cannot add vehicle {veh_id}: empty route")
-        self._api.vehicle.add(veh_id, "")
-        self._api.vehicle.setRoute(veh_id, route_edges)
+        _add_vehicle_with_route(self._api, veh_id, route_edges, depart_pos, arrival_pos)
         if agg_routing:
             self._api.vehicle.setRoutingMode(veh_id, self._tc.ROUTING_MODE_AGGREGATED)
 
-    def add_vehicle_od(self, veh_id: str, st_edge: str, ed_edge: str, agg_routing: bool = False):
-        self._api.vehicle.add(veh_id, "")
-        self._api.vehicle.setRoute(veh_id, [st_edge])
-        if agg_routing:
-            self._api.vehicle.setRoutingMode(veh_id, self._tc.ROUTING_MODE_AGGREGATED)
-        self._api.vehicle.changeTarget(veh_id, ed_edge)
+    def add_vehicle_od(
+        self,
+        veh_id: str,
+        st_edge: str,
+        ed_edge: str,
+        agg_routing: bool = False,
+        depart_pos: Optional[float] = None,
+        arrival_pos: Optional[float] = None,
+    ):
+        stage = self.find_route(st_edge, ed_edge)
+        if len(stage.edges) == 0:
+            raise RuntimeError(f"Route not found for vehicle {veh_id}: {st_edge}->{ed_edge}")
+        self.add_vehicle_route(
+            veh_id, stage.edges, agg_routing,
+            depart_pos=depart_pos, arrival_pos=arrival_pos,
+        )
 
     def set_route(self, veh_id: str, route: Union[Stage, Sequence[str]]):
         self._api.vehicle.setRoute(veh_id, _edge_list(route))
@@ -607,9 +665,8 @@ def _sumo_partition_worker_main(conn: Any, part_id: int, cmd: List[str], edge_sp
                         pass
                 conn.send(("ok", (speed_sum, speed_count)))
             elif op == "add_route":
-                veh_id, route_edges, agg_routing = args
-                api.vehicle.add(veh_id, "")
-                api.vehicle.setRoute(veh_id, list(route_edges))
+                veh_id, route_edges, agg_routing, depart_pos, arrival_pos = args
+                _add_vehicle_with_route(api, veh_id, route_edges, depart_pos, arrival_pos)
                 if agg_routing:
                     api.vehicle.setRoutingMode(veh_id, api.constants.ROUTING_MODE_AGGREGATED)
                 conn.send(("ok", None))
@@ -618,9 +675,8 @@ def _sumo_partition_worker_main(conn: Any, part_id: int, cmd: List[str], edge_sp
                 # burst of vehicles crossing a boundary creates one blocking
                 # IPC round-trip per vehicle.
                 items = args[0]
-                for veh_id, route_edges, agg_routing in items:
-                    api.vehicle.add(veh_id, "")
-                    api.vehicle.setRoute(veh_id, list(route_edges))
+                for veh_id, route_edges, agg_routing, depart_pos, arrival_pos in items:
+                    _add_vehicle_with_route(api, veh_id, route_edges, depart_pos, arrival_pos)
                     if agg_routing:
                         api.vehicle.setRoutingMode(veh_id, api.constants.ROUTING_MODE_AGGREGATED)
                 conn.send(("ok", None))
@@ -692,7 +748,7 @@ class SUMOParallelBackend(_RouteFinderMixin):
         # worker in batches.  This avoids one blocking Pipe round-trip per
         # departing vehicle, which can otherwise keep libsumo workers idle while
         # the parent process is busy injecting tens of thousands of vehicles.
-        self._pending_adds: Dict[int, List[Tuple[str, List[str], bool]]] = {}
+        self._pending_adds: Dict[int, List[Tuple[str, List[str], bool, Optional[float], Optional[float]]]] = {}
         self._last = SUMOStepResult(start_time, {}, [], {})
         self._last_speed_sum = 0.0
         self._last_speed_count = 0
@@ -789,10 +845,19 @@ class SUMOParallelBackend(_RouteFinderMixin):
         segments.append(_RouteSegment(cur_pid, cur_edges))
         return segments
 
-    def _queue_vehicle_on_segment(self, veh_id: str, active: _ActiveRoute, agg_routing: bool = False):
+    def _queue_vehicle_on_segment(
+        self,
+        veh_id: str,
+        active: _ActiveRoute,
+        agg_routing: bool = False,
+        depart_pos: Optional[float] = None,
+    ):
         seg = active.segments[active.segment_index]
         active.part_id = seg.part_id
-        self._pending_adds.setdefault(seg.part_id, []).append((veh_id, list(seg.edges), bool(agg_routing)))
+        arrival_pos = active.arrival_pos if active.segment_index == len(active.segments) - 1 else None
+        self._pending_adds.setdefault(seg.part_id, []).append(
+            (veh_id, list(seg.edges), bool(agg_routing), depart_pos, arrival_pos)
+        )
 
     def _flush_pending_adds(self):
         if not self._pending_adds:
@@ -815,25 +880,47 @@ class SUMOParallelBackend(_RouteFinderMixin):
             for veh_id, active, agg_routing in rows:
                 seg = active.segments[active.segment_index]
                 active.part_id = seg.part_id
-                payload.append((veh_id, list(seg.edges), bool(agg_routing)))
+                arrival_pos = active.arrival_pos if active.segment_index == len(active.segments) - 1 else None
+                payload.append((veh_id, list(seg.edges), bool(agg_routing), None, arrival_pos))
             if payload:
                 self._workers[pid].send("add_routes", payload)
         for pid, rows in items.items():
             if rows:
                 self._workers[pid].recv()
 
-    def add_vehicle_route(self, veh_id: str, route: Union[Stage, Sequence[str]], agg_routing: bool = False):
+    def add_vehicle_route(
+        self,
+        veh_id: str,
+        route: Union[Stage, Sequence[str]],
+        agg_routing: bool = False,
+        depart_pos: Optional[float] = None,
+        arrival_pos: Optional[float] = None,
+    ):
         route_edges = _edge_list(route)
         segments = self._split_route(route_edges)
-        active = _ActiveRoute(segments=segments, segment_index=0, distance_offset=0.0, part_id=segments[0].part_id)
+        active = _ActiveRoute(
+            segments=segments,
+            segment_index=0,
+            distance_offset=0.0,
+            part_id=segments[0].part_id,
+            arrival_pos=arrival_pos,
+        )
         self._active[veh_id] = active
-        self._queue_vehicle_on_segment(veh_id, active, agg_routing)
+        self._queue_vehicle_on_segment(veh_id, active, agg_routing, depart_pos)
 
-    def add_vehicle_od(self, veh_id: str, st_edge: str, ed_edge: str, agg_routing: bool = False):
+    def add_vehicle_od(
+        self,
+        veh_id: str,
+        st_edge: str,
+        ed_edge: str,
+        agg_routing: bool = False,
+        depart_pos: Optional[float] = None,
+        arrival_pos: Optional[float] = None,
+    ):
         stage = self.find_route(st_edge, ed_edge)
         if len(stage.edges) == 0:
             raise RuntimeError(f"Route not found for vehicle {veh_id}: {st_edge}->{ed_edge}")
-        self.add_vehicle_route(veh_id, stage.edges, agg_routing)
+        self.add_vehicle_route(veh_id, stage.edges, agg_routing, depart_pos, arrival_pos)
 
     def set_route(self, veh_id: str, route: Union[Stage, Sequence[str]]):
         route_edges = _edge_list(route)

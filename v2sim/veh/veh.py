@@ -16,6 +16,12 @@ class Trip:
     DType:str = ""
     OTaz:str = ""
     DTaz:str = ""
+    OPos: Optional[float] = None
+    DPos: Optional[float] = None
+
+    @staticmethod
+    def _format_pos(pos: Optional[float]) -> str:
+        return f"{pos:g}" if pos is not None else ""
 
     def __repr__(self):
         return str(self)
@@ -32,6 +38,10 @@ class Trip:
         })
         if self.edges is not None:
             e.attrib["route_edges"] = ' '.join(self.edges)
+        if self.OPos is not None:
+            e.attrib["OPos"] = self._format_pos(self.OPos)
+        if self.DPos is not None:
+            e.attrib["DPos"] = self._format_pos(self.DPos)
         if self.OType is not None:
             e.attrib["OType"] = self.OType
         if self.DType is not None:
