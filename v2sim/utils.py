@@ -112,6 +112,7 @@ class FileDetectResult:
     gscsv: Optional[str] = None
     pref: Optional[str] = None
     poi: Optional[str] = None
+    vtypes: Optional[str] = None
     saved_state: Optional[str] = None
     last_result_state: Optional[str] = None
     
@@ -191,6 +192,8 @@ def DetectFiles(dir: PathLike) -> FileDetectResult:
             add("gscsv", filename)
         elif filenamel.endswith(".v2simcfg"):
             add("pref", filename)
+        elif filenamel == "vtypes.xml":
+            add("vtypes", filename)
         elif (filenamel.endswith(".add.xml") or filenamel.endswith(".add.xml.gz") or
             filenamel.endswith(".poly.xml") or filenamel.endswith(".poly.xml.gz") or
             filenamel.endswith(".taz.xml") or filenamel.endswith(".taz.xml.gz")):

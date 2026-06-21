@@ -41,8 +41,8 @@ class PropertyPanel(Frame):
         self.tree = ScrollableTreeView(self, allowSave=False)
         self.tree['show'] = 'headings'
         self.tree["columns"] = ("t", "d")
-        self.tree.column("t", width=150, stretch=NO)
-        self.tree.column("d", width=150, stretch=YES)
+        self.tree.column("t", width=100, stretch=NO)
+        self.tree.column("d", width=120, stretch=YES)
         self.tree.heading("t", text=_L["PROPERTY"])
         self.tree.heading("d", text=_L["VALUE"])
         self.tree.tree.bind("<<TreeviewSelect>>", self.__onclick)

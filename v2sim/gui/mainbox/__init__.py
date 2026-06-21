@@ -7,13 +7,13 @@ from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, PDUniform
 from v2sim import FileDetectResult, V2SimConfig, DetectFiles, ReadXML, RoadNet
 from v2sim.plugins import PluginBase, PluginPDN
-from v2sim.gen import TrafficGenerator, StationQuery, TripsGenMode
+from v2sim.gen import TrafficGenerator, StationQuery, TripsGenMode, DEFAULT_CNAME
 from .utils import *
 from .loadingbox import LoadingBox
 from .plugin import PluginEditor
 from .sedit import StationEditor, StationEditorMode
 from .cscsveditor import CSCSVEditor
-from .controls import LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, NetworkPanel, OAfter
+from .controls import LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, NetworkPanel, OAfter, VehicleTypeEditor
 
 
 _L = LangLib.Load(__file__)
@@ -42,6 +42,7 @@ class MainBox(Tk):
     
     def __init__(self, to_open:str = ""):
         super().__init__()
+        self.geometry("1200x750")
         self._Q = EventQueue(self)
         
         def proc_exception(e: Optional[Exception] = None):
@@ -436,6 +437,10 @@ class MainBox(Tk):
         self.entry_carseed.insert(0, "0")
         self.entry_carseed.grid(row=3, column=1, padx=3, pady=3, sticky="w")
 
+        self.veh_type_editor = VehicleTypeEditor(self.tab_Veh)
+        self.veh_type_editor.tree["height"] = 8
+        self.veh_type_editor.pack(fill="x", expand=False, pady=6)
+
         self.veh_pars = PropertyPanel(self.tab_Veh, {
             "Omega":repr(PDUniform(5.0, 10.0)),
             "KRel":repr(PDUniform(1.0, 1.2)),
@@ -449,6 +454,7 @@ class MainBox(Tk):
             ConfigItem("KFC", EditMode.PDFUNC, _L["VEH_KFC_DESC"]),
             ConfigItem("KV2G", EditMode.PDFUNC, _L["VEH_KV2G_DESC"]),
         )))
+        self.veh_pars.tree["height"] = 5
         self.veh_pars.pack(fill="x", expand=False, pady=10)
 
         self.veh_gen_src = IntVar(self, 0)
@@ -457,9 +463,9 @@ class MainBox(Tk):
         self.rb_veh_src0 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODAUTO"], value=0, variable=self.veh_gen_src)
         self.rb_veh_src0.grid(row=0, column=0, padx=3, pady=3, sticky="w")
         self.rb_veh_src1 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODTYPE"], value=1, variable=self.veh_gen_src)
-        self.rb_veh_src1.grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.rb_veh_src1.grid(row=0, column=1, padx=3, pady=3, sticky="w")
         self.rb_veh_src2 = Radiobutton(self.fr_veh_src, text=_L["VEH_ODPOLY"], value=2, variable=self.veh_gen_src)
-        self.rb_veh_src2.grid(row=2, column=0, padx=3, pady=3, sticky="w")
+        self.rb_veh_src2.grid(row=0, column=2, padx=3, pady=3, sticky="w")
 
         self.btn_genveh = Button(self.tab_Veh, text=_L["VEH_GEN"], command=self.generateVeh)
         self.btn_genveh.pack(anchor="w")
@@ -666,6 +672,10 @@ class MainBox(Tk):
     def _load_tg(self, after:OAfter=None):
         try:
             self.tg = TrafficGenerator(self.folder)
+            if self.state and self.state.vtypes:
+                self.veh_type_editor.load(self.state.vtypes, is_global=False)
+            else:
+                self.veh_type_editor.load(str(Path(DEFAULT_CNAME) / "vtypes.xml"), is_global=True)
         except Exception as e:
             traceback.print_exc()
             showerr(f"Error loading traffic generator: {e}")
@@ -1043,6 +1053,9 @@ class MainBox(Tk):
         carseed = try_int(self.entry_carseed.get(), "Vehicle seed")
         day_count = try_int(self.entry_daycnt.get(), "Vehicle day count")
         
+        self.veh_type_editor.save()
+        self.tg = TrafficGenerator(self.folder) # Reload traffic generator to ensure vehicle types are up to date
+
         try:
             pars = self.veh_pars.getAllData()
             new_pars = {

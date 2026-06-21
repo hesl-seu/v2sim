@@ -7,3 +7,4 @@ from .sfe import *
 from .sid import *
 from .lipad import *
 from .network import *
+from .vtype import *

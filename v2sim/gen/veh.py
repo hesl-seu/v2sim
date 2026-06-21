@@ -177,7 +177,10 @@ class VehGenerator(ABC):
         self._gen_mode = TripsGenMode.AUTO
 
         self.files = DetectFiles(PNAME)
-        self.vTypes = VehicleTypePool(os.path.join(CROOT, "vtypes.xml"))
+        if not self.files.vtypes:
+            self.vTypes = VehicleTypePool(os.path.join(CROOT, "vtypes.xml"))
+        else:
+            self.vTypes = VehicleTypePool(self.files.vtypes)
         
         # Start time of first trip
         self.pdf_start_weekday = PDGamma(6.63, 65.76, 114.54)
