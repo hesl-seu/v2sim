@@ -542,6 +542,28 @@ class RoadNet:
                 speed_limit = edge.getSpeed(),
                 world_id = -1
             )
+        import json
+        proj_dir = Path(fname).parent
+        part_json = None
+        for base in (proj_dir, proj_dir / "partition", proj_dir / "partitions"):
+            if not base.is_dir(): continue
+            for name in ("partition.json", "partitions.json"):
+                if (base / name).is_file():
+                    part_json = base / name
+                    break
+            if part_json: break
+            
+        if part_json:
+            try:
+                with open(part_json, "r", encoding="utf-8") as f:
+                    part_data = json.load(f)
+                for pid, edges in part_data.get("edges", {}).items():
+                    for eid in edges:
+                        if eid in ret.edges:
+                            ret.edges[eid].world_id = int(pid)
+            except Exception as e:
+                print(f"Failed to load partition info: {e}")
+
         if len(r._location) > 0:
             ret.netOffset = tuple(r.getLocationOffset())
             ret.convBoundary = tuple(r.getBoundary())
