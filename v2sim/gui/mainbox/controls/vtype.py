@@ -48,13 +48,32 @@ class VehicleTypeEditor(LabelFrame):
         self.tree.pack(fill="x", expand=False)
         self.tree.setOnItemChanged(self.on_item_changed)
 
-        for c in self.tree["columns"]:
+        self.tree.setColEditMode("kind", ConfigItem(
+            name="kind",
+            editor=EditMode.COMBO,
+            desc=texts["kind"],
+            combo_values=["ev", "gv"],
+        ))
+        self.tree.setColEditMode("vtype", ConfigItem(
+            name="vtype",
+            editor=EditMode.COMBO,
+            desc=texts["vtype"],
+            combo_values=["private", "taxi", "bus", "truck", "van", "sanitation", "emergency"],
+        ))
+        for c in ["cap", "range", "pcf", "pcs", "pdv"]:
             self.tree.setColEditMode(c, ConfigItem(
                 name=c,
                 editor=EditMode.ENTRY,
                 desc=texts[c],
                 default_value=""
             ))
+        self.tree.setColEditMode("weight", ConfigItem(
+            name="weight",
+            editor=EditMode.SPIN,
+            desc=texts["weight"],
+            default_value=1,
+            spin_range=(1, 1000)
+        ))
 
         fr = Frame(self)
         fr.pack(fill="x", expand=False)
