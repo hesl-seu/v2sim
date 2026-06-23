@@ -107,6 +107,11 @@ class TrafficSUMO(TrafficInst):
         # partitions/partitions.json used by the provided sample case).
         case_folder = case_dir or str(Path(sumocfg_file).parent)
         partition = detect_sumo_partition(case_folder, default_meso=mesosim)
+        if partition is not None:
+            # Partitioned SUMO no longer reports every running vehicle distance
+            # each step.  Force the existing end-of-trip energy accounting mode
+            # so worker processes only need to query distance for arrivals.
+            self.__ignore_driving = True
         if partition is None:
             self.__sumo = SUMOSingleBackend(
                 snet=self.__snet,
@@ -348,23 +353,23 @@ class TrafficSUMO(TrafficInst):
         veh._dpt_rs = None  # Clear the fast charge target flag
         return True
 
-    def __get_nearest_CS(
-        self, cur_edge: str
+    def __get_nearest_station(
+        self, cur_edge: str, hub: StationHub
     ) -> Tuple[Optional[str], float, Optional[Stage]]:
         """
         Find the nearest charging station
             cur_edge: Current road
         """
-        min_cs_name = None
-        min_cs_dist = 1e400
-        min_cs_stage = None
-        for cs in self._hubs.fcs.get_online_names(self._ct):
-            route = self.find_route(cur_edge, self._hubs.get_bind_of(cs))
-            if route.length < min_cs_dist:
-                min_cs_dist = route.length
-                min_cs_name = cs
-                min_cs_stage = route
-        return min_cs_name, min_cs_dist, min_cs_stage
+        min_s_name = None
+        min_s_dist = 1e400
+        min_s_stage = None
+        for s in hub.get_online_names(self._ct):
+            route = self.find_route(cur_edge, hub.get_bind_of(s))
+            if route.length < min_s_dist:
+                min_s_dist = route.length
+                min_s_name = s
+                min_s_stage = route
+        return min_s_name, min_s_dist, min_s_stage
 
     def __batch_depart(self):
         """Sent out all vehicles that reaching the departure time"""
@@ -389,7 +394,7 @@ class TrafficSUMO(TrafficInst):
                     available_s = self._hubs.fcs.get_online_names(self._ct)
                 if len(available_s) == 0: raise RuntimeError(Lang.NO_AVAILABLE_FCS)
 
-                cs_name, cs_dist, cs_stage = self.__get_nearest_CS(trip.O)
+                cs_name, cs_dist, cs_stage = self.__get_nearest_station(trip.O, self._hubs.fcs if isinstance(veh, EV) else self._hubs.gs)
                 batt_req = cs_dist * veh._epm * veh._kr
                 if isinstance(veh, EV) and  self._hubs.scs.has_veh(veh._name):
                     # Plugged in the charging pile, you can wait
@@ -476,7 +481,7 @@ class TrafficSUMO(TrafficInst):
                     # Vehicles with depleted batteries will be sent to the nearest fast charging station (time * 2)
                     veh._sta = VehStatus.Depleted
                     cur_edge = snap.road or self.__sumo.get_vehicle_road(veh_id)
-                    veh._cs, _, cs_stage = self.__get_nearest_CS(cur_edge)
+                    veh._cs, _, cs_stage = self.__get_nearest_station(cur_edge, self._hubs.fcs if isinstance(veh, EV) else self._hubs.gs)
                     assert cs_stage is not None and veh._cs is not None
                     trT = int(self._ct + 2 * cs_stage.travelTime)
                     self._fQ.push(trT, veh_id)

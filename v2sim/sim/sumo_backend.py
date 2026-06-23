@@ -631,25 +631,15 @@ def _sumo_partition_worker_main(conn: Any, part_id: int, cmd: List[str], edge_sp
                 arrived: Dict[str, Tuple[str, float, str, Tuple[float, float]]] = {}
                 for vid in api.simulation.getArrivedIDList():
                     arrived[vid] = snapshot(vid)
-                arrived_ids = set(arrived)
-                # For normal energy accounting V2Sim only needs cumulative
-                # distance for running vehicles.  Road/position are requested
-                # lazily only for exceptional paths (depletion, offline charging
-                # station redirection, GUI queries).  Returning just a float per
-                # running vehicle cuts IPC serialization dramatically on 100k+
-                # vehicle cases and keeps the workers doing useful SUMO work.
-                running: Dict[str, float] = {}
-                for vid in api.vehicle.getIDList():
-                    if vid not in arrived_ids:
-                        try:
-                            running[vid] = float(api.vehicle.getDistance(vid))
-                        except Exception:
-                            running[vid] = 0.0
+                # Partition mode forces SUMO ignore-driving semantics at the
+                # TrafficSUMO layer, so energy is accounted only when a V2Sim
+                # trip actually ends.  Do not query or transfer distances for
+                # every still-running vehicle; only final/segment arrivals need
+                # snapshots so route transfer and trip completion stay exact.
                 conn.send(("ok", {
                     "time": int(api.simulation.getTime()),
                     "arrived": arrived,
                     "departed": list(api.simulation.getDepartedIDList()),
-                    "running": running,
                 }))
             elif op == "vcr":
                 # Average VCR is rarely requested in core V2Sim.  Computing it
@@ -982,17 +972,8 @@ class SUMOParallelBackend(_RouteFinderMixin):
         transferred: Dict[str, SUMOVehicleSnapshot] = {}
         transfer_batches: Dict[int, List[Tuple[str, _ActiveRoute, bool]]] = {}
 
-        for pid, result in raw_results.items():
+        for result in raw_results.values():
             departed.extend(result.get("departed", []))
-
-            for veh_id, data in result.get("running", {}).items():
-                active = self._active.get(veh_id)
-                if active is None:
-                    continue
-                if isinstance(data, (int, float)):
-                    running[veh_id] = SUMOVehicleSnapshot(veh_id, active.distance_offset + float(data))
-                else:
-                    running[veh_id] = self._snapshot_from_tuple(data, active.distance_offset)
 
         # Process arrivals after all workers have advanced to the same time.
         for pid, result in raw_results.items():
@@ -1020,9 +1001,10 @@ class SUMOParallelBackend(_RouteFinderMixin):
         if transfer_batches:
             self._put_vehicles_on_segments_batch(transfer_batches)
 
-        # A transferred vehicle has completed a segment in this step.  It has
-        # not moved in its new worker yet, but V2Sim must see the cumulative
-        # distance so that energy is deducted before the next step.
+        # Keep only boundary-transfer snapshots in ``running``.  This is a small
+        # event-sized payload, not a full running-vehicle distance report, and it
+        # lets lazy road/position/distance queries observe vehicles immediately
+        # after they cross into the next partition.
         running.update(transferred)
 
         new_time = max(int(r.get("time", until_s)) for r in raw_results.values()) if raw_results else until_s
