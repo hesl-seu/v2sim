@@ -21,6 +21,9 @@ from .sumo_backend import (
     SUMOStepResult, detect_sumo_partition,
 )
 
+ATTR_SUMO_DEST_SCS = "_sumo_dest_scs"
+SUMO_SCS_SEARCH_RADIUS_M = 200.0
+
 
 def dijMC(
     gl: Net, from_edge: str, omega: float, to_edges: Iterable[str],
@@ -390,6 +393,127 @@ class TrafficSUMO(TrafficInst):
         else:
             station._pos = float(edge.getLength()) * 0.5
             station._x, station._y = self._rnet.get_edge_xy_from_pos(station._bind, station._pos)
+
+    def __arrival_xy(self, edge_id: str, pos: Optional[float]) -> Tuple[float, float]:
+        if pos is None or not math.isfinite(float(pos)):
+            return self._rnet.get_edge_pos(edge_id)
+        return self._rnet.get_edge_xy_from_pos(edge_id, float(pos))
+
+    def __planned_stage_and_length(
+        self,
+        O: str,
+        D: str,
+        OPos: Optional[float],
+        DPos: Optional[float],
+    ) -> Tuple[Stage, float]:
+        stage = self.find_route(O, D)
+        planned_length = self.__route_length(stage.edges, OPos, DPos)
+        return stage, planned_length
+
+    @staticmethod
+    def __estimated_soc_after(veh: EV, distance: float) -> float:
+        return (veh._energy - distance * veh._epm) / veh._cap
+
+    def __select_scs_near_destination(
+        self, veh: EV, trip: Trip
+    ) -> Tuple[Optional[CS], Optional[Stage], float]:
+        dx, dy = self.__arrival_xy(trip.D, trip.DPos)
+        best_scs: Optional[CS] = None
+        best_stage: Optional[Stage] = None
+        best_length = 0.0
+        best_score = (1, float("inf"), float("inf"))
+
+        for scs in self.SCSList:
+            if not scs.is_online(self._ct):
+                continue
+            if not (math.isfinite(scs._x) and math.isfinite(scs._y) and math.isfinite(scs._pos)):
+                continue
+            dist = math.hypot(scs._x - dx, scs._y - dy)
+            if dist > SUMO_SCS_SEARCH_RADIUS_M:
+                continue
+            try:
+                stage, planned_length = self.__planned_stage_and_length(
+                    trip.O, scs._bind, trip.OPos, scs._pos
+                )
+            except Exception:
+                continue
+            if len(stage.edges) == 0:
+                continue
+            owner_rank = 0 if scs._owners is not None and veh._name in scs._owners else 1
+            score = (owner_rank, scs.wait_count(), dist)
+            if score < best_score:
+                best_score = score
+                best_scs = scs
+                best_stage = stage
+                best_length = planned_length
+        return best_scs, best_stage, best_length
+
+    def __maybe_redirect_trip_to_scs(
+        self, veh: Vehicle, base_stage: Stage, base_length: float
+    ) -> Tuple[Stage, float]:
+        if not isinstance(veh, EV):
+            return base_stage, base_length
+
+        trip = veh.trip
+        estimated_soc = self.__estimated_soc_after(veh, base_length)
+        if estimated_soc > veh._ks:
+            return base_stage, base_length
+
+        scs, scs_stage, scs_length = self.__select_scs_near_destination(veh, trip)
+        if scs is None or scs_stage is None:
+            return base_stage, base_length
+
+        trip.D = scs._bind
+        trip.DPos = scs._pos
+        trip.edges = None
+        veh._force_sc = True
+        setattr(veh, ATTR_SUMO_DEST_SCS, scs._name)
+
+        next_idx = veh.trip_id + 1
+        if next_idx < len(veh.trips):
+            next_trip = veh.trips[next_idx]
+            next_trip.O = scs._bind
+            next_trip.OPos = scs._pos
+            next_trip.edges = None
+
+        return scs_stage, scs_length
+
+    def __start_charging_SCS_by_name(self, veh: EV, scs_name: str) -> bool:
+        if scs_name not in self._hubs.scs:
+            return False
+        scs = self._hubs.scs[scs_name]
+        if not scs.is_online(self._ct):
+            return False
+        if self.scs.add_veh(veh, scs_name):
+            self._log.join_SCS(self._ct, veh, scs_name)
+            return True
+        return False
+
+    def _end_trip(self, veh: Vehicle, dist: float):
+        veh.status = VehStatus.Parking
+        arr_sta = TripLogger.ARRIVAL_NO_CHARGE
+        if isinstance(veh, EV):
+            target_scs = getattr(veh, ATTR_SUMO_DEST_SCS, None)
+            if target_scs is not None:
+                veh._force_sc = False
+                if self.__start_charging_SCS_by_name(veh, target_scs):
+                    arr_sta = TripLogger.ARRIVAL_CHARGE_SUCCESSFULLY
+                else:
+                    arr_sta = TripLogger.ARRIVAL_CHARGE_FAILED
+                delattr(veh, ATTR_SUMO_DEST_SCS)
+            elif veh.soc < veh._ks or veh._force_sc:
+                veh._force_sc = False
+                if self._start_charging_SCS(veh, veh.trip.D):
+                    arr_sta = TripLogger.ARRIVAL_CHARGE_SUCCESSFULLY
+                else:
+                    arr_sta = TripLogger.ARRIVAL_CHARGE_FAILED
+            else:
+                arr_sta = TripLogger.ARRIVAL_NO_CHARGE
+        self._log.arrive(self._ct, veh, arr_sta, dist)
+        tid = veh.next_trip()
+        if tid != -1:
+            ntrip = veh.trip
+            self._que.push(ntrip.depart_time, (veh._name, None))
     
     def __start_trip(self, veh:Vehicle) -> bool:
         """
@@ -401,22 +525,25 @@ class TrafficSUMO(TrafficInst):
         """
         trip = veh.trip
         direct_depart = True
+        base_stage, base_length = self.__planned_stage_and_length(
+            trip.O, trip.D, trip.OPos, trip.DPos
+        )
+        stage, planned_length = self.__maybe_redirect_trip_to_scs(veh, base_stage, base_length)
+        trip = veh.trip
 
         if self._dist_based_restoration:
-            stage = self.find_route(trip.O, trip.D)
-            # Determine whether the battery is sufficient
-            direct_depart = (not veh._fr_on_dpt) and veh.is_energy_enough(stage.length)
+            # Determine whether the battery is sufficient for the actual destination.
+            direct_depart = (not veh._fr_on_dpt) and veh.is_energy_enough(planned_length)
         else:
-            # Determine whether the EV needs to be fast charged
-            stage = None
+            # Determine whether the EV needs to be fast charged.
             direct_depart = (not veh._fr_on_dpt) and veh.soc >= veh._kf
         if direct_depart:  # Direct departure
             veh._cs = None
             veh._etar = veh._cap
-            if stage:
-                self._add_veh(veh._name, stage.edges, trip.OPos, trip.DPos)
-            else:
-                self._add_veh2(veh._name, trip.O, trip.D, depart_pos=trip.OPos, arrival_pos=trip.DPos)
+            self._add_veh(
+                veh._name, stage.edges, trip.OPos, trip.DPos,
+                planned_length=planned_length,
+            )
         else:  # Charge once on the way
             if veh._fr_on_dpt is not None and veh._dpt_rs is not None:
                 # Forced to a specified fast charging station
@@ -514,7 +641,6 @@ class TrafficSUMO(TrafficInst):
             self.__istate_folder = ""
 
         self._ct = int(self.__sumo.get_time())
-        self.__batch_depart()
 
         for cs in chain(self.FCSList, self.SCSList, self.GSList):
             self.__fix_sumo_station_location(cs)
@@ -525,6 +651,8 @@ class TrafficSUMO(TrafficInst):
 
         if self.SCSList._kdtree == None:
             self.SCSList._kdtree = KDTree([(cs._x, cs._y) for cs in self.SCSList])
+
+        self.__batch_depart()
 
     def simulation_step(self, step_len: int):
         """
