@@ -306,6 +306,50 @@ class RoadNet:
         assert isinstance(sy, (float,int))
         return sx, sy
 
+    def get_edge_xy_from_pos(self, edge_id: str, pos: float) -> Tuple[float, float]:
+        """
+        Get the XY coordinate of a SUMO longitudinal position on an edge.
+        """
+        e:sumolib.net.edge.Edge = self.sumo.getEdge(edge_id)
+        shape = e.getShape()
+        if shape is None or len(shape) == 0:
+            return self.get_edge_pos(edge_id)
+        if len(shape) == 1:
+            return shape[0]
+        edge_len = float(e.getLength())
+        pos = max(0.0, min(edge_len, float(pos)))
+        seg_lens: List[float] = []
+        shape_len = 0.0
+        for i in range(1, len(shape)):
+            x0, y0 = shape[i - 1]
+            x1, y1 = shape[i]
+            seg_len = math.hypot(x1 - x0, y1 - y0)
+            seg_lens.append(seg_len)
+            shape_len += seg_len
+        if shape_len <= 0.0 or edge_len <= 0.0:
+            return shape[0]
+        target = pos / edge_len * shape_len
+        acc = 0.0
+        for i, seg_len in enumerate(seg_lens, start=1):
+            if seg_len <= 0.0:
+                continue
+            if acc + seg_len >= target:
+                x0, y0 = shape[i - 1]
+                x1, y1 = shape[i]
+                t = (target - acc) / seg_len
+                return x0 + t * (x1 - x0), y0 + t * (y1 - y0)
+            acc += seg_len
+        return shape[-1]
+
+    def get_random_edge_pos(self, edge_id: str) -> Tuple[float, Tuple[float, float]]:
+        """
+        Pick a random longitudinal position on a SUMO edge and return both
+        the SUMO pos and the corresponding XY coordinate.
+        """
+        e:sumolib.net.edge.Edge = self.sumo.getEdge(edge_id)
+        pos = np.random.random() * float(e.getLength())
+        return pos, self.get_edge_xy_from_pos(edge_id, pos)
+
     def allows_passengers(self, edge_id:str) -> bool:
         return self.sumo.getEdge(edge_id).allows("passenger")
     

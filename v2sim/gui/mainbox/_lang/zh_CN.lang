@@ -31,6 +31,7 @@ BAR_GSCSV=下载的加油站：
 BAR_TRAFFIC=交通仿真器：
 CSE_NAME=名称
 CSE_BIND=所在节点/道路
+CSE_POS=SUMO道路位置
 CSE_SLOTS_CS=充电桩数量
 CSE_SLOTS_GS=加油机数量
 CSE_BUS=所在母线

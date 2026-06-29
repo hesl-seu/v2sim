@@ -1,4 +1,4 @@
-import pickle, gzip, heapq
+import pickle, gzip, heapq, math
 from dataclasses import asdict
 from feasytools import TimeFunc
 from fpowerkit import Grid
@@ -296,6 +296,7 @@ class TrafficSUMO(TrafficInst):
                 veh._name,
                 self._hubs.fcs.get_bind_of(veh._cs),
                 trip.D,
+                depart_pos=self.__station_pos(veh._cs),
                 arrival_pos=trip.DPos,
             )
         elif isinstance(veh, GV):
@@ -304,6 +305,7 @@ class TrafficSUMO(TrafficInst):
                 veh._name,
                 self._hubs.gs.get_bind_of(veh._cs),
                 trip.D,
+                depart_pos=self.__station_pos(veh._cs),
                 arrival_pos=trip.DPos,
             )
         else:
@@ -350,6 +352,44 @@ class TrafficSUMO(TrafficInst):
         sp = e.getShape()
         assert isinstance(sp, list) and len(sp) > 0
         return sp[0][0], sp[0][1]
+
+    def __station_pos(self, station_name: Optional[str]) -> Optional[float]:
+        """Return SUMO longitudinal position for a station, if available."""
+        if station_name is None:
+            return None
+        try:
+            pos = self._hubs.get_pos_of(station_name)
+        except Exception:
+            return None
+        if not math.isfinite(pos):
+            return None
+        return float(pos)
+
+    def __fix_sumo_station_location(self, station: BaseStation):
+        """
+        Normalize a SUMO station location.
+
+        New station XML may provide bind + pos + x/y. Old files may only have
+        bind or bind + x/y. This method fills the missing representation and
+        snaps x/y onto the bound edge in SUMO mode.
+        """
+        try:
+            edge = self.__snet.getEdge(station._bind)
+        except Exception:
+            return
+
+        if math.isfinite(station._pos):
+            station._pos = max(0.0, min(float(edge.getLength()), station._pos))
+            if not (math.isfinite(station._x) and math.isfinite(station._y)):
+                station._x, station._y = self._rnet.get_edge_xy_from_pos(station._bind, station._pos)
+            return
+
+        if math.isfinite(station._x) and math.isfinite(station._y):
+            station._pos, _, closest = self._rnet.get_edge_pos_from_point(station._bind, station._x, station._y)
+            station._x, station._y = closest
+        else:
+            station._pos = float(edge.getLength()) * 0.5
+            station._x, station._y = self._rnet.get_edge_xy_from_pos(station._bind, station._pos)
     
     def __start_trip(self, veh:Vehicle) -> bool:
         """
@@ -381,7 +421,10 @@ class TrafficSUMO(TrafficInst):
             if veh._fr_on_dpt is not None and veh._dpt_rs is not None:
                 # Forced to a specified fast charging station
                 veh._cs = veh._dpt_rs
-                self._add_veh2(veh._name, trip.O, self._hubs.get_bind_of(veh._dpt_rs), depart_pos=trip.OPos)
+                self._add_veh2(
+                    veh._name, trip.O, self._hubs.get_bind_of(veh._dpt_rs),
+                    depart_pos=trip.OPos, arrival_pos=self.__station_pos(veh._dpt_rs),
+                )
             else:
                 x, y = self.__get_edge_pos(trip.O)
                 station, route = self.__sel_best_station(veh, trip.O, (x, y))
@@ -393,7 +436,7 @@ class TrafficSUMO(TrafficInst):
                     return False
                 else: # Found a charging station
                     veh.target_CS = station
-                    self._add_veh(veh._name, route.edges, trip.OPos)
+                    self._add_veh(veh._name, route.edges, trip.OPos, self.__station_pos(station))
         if isinstance(veh, EV):
             # Stop slow charging of the vehicle and add it to the waiting to depart set
             if self._hubs.scs.pop_veh(veh):
@@ -473,9 +516,8 @@ class TrafficSUMO(TrafficInst):
         self._ct = int(self.__sumo.get_time())
         self.__batch_depart()
 
-        for cs in chain(self.FCSList, self.SCSList):
-            if cs._x == float('inf') or cs._y == float('inf'):
-                cs._x, cs._y = self.__get_edge_pos(cs._bind)
+        for cs in chain(self.FCSList, self.SCSList, self.GSList):
+            self.__fix_sumo_station_location(cs)
 
         from scipy.spatial import KDTree
         if self.FCSList._kdtree == None:

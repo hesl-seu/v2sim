@@ -32,6 +32,7 @@ BAR_GSCSV=Downloaded GS:
 BAR_TRAFFIC=Traffic Engine: 
 CSE_NAME=Name
 CSE_BIND=Node/Edge
+CSE_POS=SUMO Edge Position
 CSE_SLOTS_CS=# Chargers
 CSE_SLOTS_GS=# Pumps
 CSE_BUS=Bus

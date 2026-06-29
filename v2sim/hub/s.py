@@ -208,7 +208,8 @@ def _pget_from_like(like: PriceGetterLike) -> PriceGetter:
 
 class BaseStation(Generic[T_Vehicle], ABC):
     def __init__(self, name: str, bind: str, slots: int, x: float, y: float, price_buy: PriceGetterLike, 
-            price_buy_is_service_fee:bool = False, offline: Optional[RangeList] = None, allow_queuing: bool=True):
+            price_buy_is_service_fee:bool = False, offline: Optional[RangeList] = None,
+            allow_queuing: bool=True, pos: float = float("inf")):
         """
         Initialize the station
 
@@ -224,6 +225,9 @@ class BaseStation(Generic[T_Vehicle], ABC):
         """
         self._name: str = name
         self._bind: str = bind
+        # SUMO mode: longitudinal position on the bound edge, in meters.
+        # UXsim mode keeps inf and continues to use bind as a node.
+        self._pos: float = pos
         self._slots: int = slots
         self._x: float = x
         self._y: float = y
@@ -286,6 +290,11 @@ class BaseStation(Generic[T_Vehicle], ABC):
         """The element in the road network where the station is located"""
         return self._bind
     
+    @property
+    def pos(self) -> float:
+        """SUMO longitudinal position on the bound edge. UXsim stations keep inf."""
+        return self._pos
+
     @property
     def slots(self) -> int:
         """Number of chargers/oil pumps in the station"""
@@ -368,7 +377,8 @@ class BaseStation(Generic[T_Vehicle], ABC):
 class GS(BaseStation[GV]):
     def __init__(self, name: str, bind: str, slots: int, x: float, y: float, 
                  price_buy: PriceGetterLike, price_buy_is_service_fee:bool = False,
-                 offline: Optional[RangeList] = None, flow: float = 0.7):
+                 offline: Optional[RangeList] = None, flow: float = 0.7,
+                 pos: float = float("inf")):
         """
         Initialize the gas station
         
@@ -385,7 +395,7 @@ class GS(BaseStation[GV]):
         :param price_buy_is_service_fee: Whether the price_buy is a service fee (added on top of the cost) rather than the actual price of energy.
         :param flow: Refueling flow rate, L/s
         """
-        super().__init__(name, bind, slots, x, y, price_buy, price_buy_is_service_fee, offline, True)
+        super().__init__(name, bind, slots, x, y, price_buy, price_buy_is_service_fee, offline, True, pos)
         self._flow: float = flow  # L/s
 
     def __contains__(self, veh: GV) -> bool:
@@ -406,6 +416,8 @@ class GS(BaseStation[GV]):
             "slots": str(self._slots),
             "pbuy_is_service_fee": str(self._pbuy_is_serv_fee),
         })
+        if self._pos != float("inf"):
+            ret.attrib["pos"] = str(self._pos)
         ret.append(self._pbuy.to_xml("pbuy"))
         if len(self._offline) > 0: ret.append(self._offline.toXMLNode("offline"))
         return ret

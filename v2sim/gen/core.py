@@ -293,6 +293,7 @@ class TrafficGenerator:
             self.__existing.do(self.__cfg[mode])
         fname = f"{self.__root}/{self.__name}.{mode}.xml"
         cs_pos:Dict[str, Tuple[float, float]] = {}
+        cs_sumo_pos:Dict[str, float] = {}
         if csv_file != "":
             with open(csv_file, "r", encoding="utf-8") as f:
                 con = f.readlines()
@@ -309,19 +310,26 @@ class TrafficGenerator:
                     x, y = self.__rnet.convertLonLat2XY(float(lng), float(lat))
                     if self.__cfg.sumo:
                         dist, ename = self.__rnet.find_nearest_edge_id(x, y)
+                        epos, refined_dist, closest = self.__rnet.get_edge_pos_from_point(ename, x, y)
+                        dist = min(dist, refined_dist)
                     else:
                         dist, node = self.__rnet.find_nearest_node_with_distance(x, y)
                     if dist > 200:
                         warns.append(("far_down", lat, lng, x, y, dist))
                         far_cnt += 1
                         continue
-                    if not self.__rnet.is_node_in_largest_scc(node.name):
-                        warns.append(("scc_down", lat, lng, x, y))
-                        scc_cnt += 1
-                        continue
                     if self.__cfg.sumo:
-                        cs_pos[ename] = (x, y)
+                        if not self.__rnet.is_edge_in_largest_scc(ename):
+                            warns.append(("scc_down", lat, lng, x, y))
+                            scc_cnt += 1
+                            continue
+                        cs_pos[ename] = closest
+                        cs_sumo_pos[ename] = epos
                     else:
+                        if not self.__rnet.is_node_in_largest_scc(node.name):
+                            warns.append(("scc_down", lat, lng, x, y))
+                            scc_cnt += 1
+                            continue
                         cs_pos[node.name] = (x, y)
             station_names = station.select(sorted(cs_pos.keys()), stationCount, givenStations)
             cs_slots = repeat(slots, len(con) - 1)
@@ -334,20 +342,27 @@ class TrafficGenerator:
                 p = poly.center()
                 if self.__cfg.sumo:
                     dist, ename = self.__rnet.find_nearest_edge_id(*p)
+                    epos, refined_dist, closest = self.__rnet.get_edge_pos_from_point(ename, p[0], p[1])
+                    dist = min(dist, refined_dist)
                 else:
                     dist, node = self.__rnet.find_nearest_node_with_distance(*p)
                 if dist > 200:
                     warns.append(("far_poly", p[0], p[1], dist))
                     far_cnt += 1
                     continue
-                if not self.__rnet.is_node_in_largest_scc(node.name):
-                    warns.append(("scc_poly", p[0], p[1]))
-                    scc_cnt += 1
-                    continue
                 if self.__cfg.sumo:
-                    cs_pos[ename] = p
+                    if not self.__rnet.is_edge_in_largest_scc(ename):
+                        warns.append(("scc_poly", p[0], p[1]))
+                        scc_cnt += 1
+                        continue
+                    cs_pos[ename] = closest
+                    cs_sumo_pos[ename] = epos
                     cs_type[ename] = t
                 else:
+                    if not self.__rnet.is_node_in_largest_scc(node.name):
+                        warns.append(("scc_poly", p[0], p[1]))
+                        scc_cnt += 1
+                        continue
                     cs_pos[node.name] = p
                     cs_type[node.name] = t
             station_names = station.select(sorted(cs_type.keys()), stationCount, givenStations)
@@ -377,7 +392,11 @@ class TrafficGenerator:
             station_names = station.select(cs_candidates, stationCount, givenStations)
             cs_slots = repeat(slots, len(station_names))
             if self.__cfg.sumo:
-                cs_pos = {name: self.__rnet.get_edge_pos(name) for name in station_names}
+                cs_pos = {}
+                for name in station_names:
+                    epos = random.random() * float(self.__rnet.sumo.getEdge(name).getLength())
+                    cs_sumo_pos[name] = epos
+                    cs_pos[name] = self.__rnet.get_edge_xy_from_pos(name, epos)
             else:
                 cs_pos = {name: self.__rnet.get_node(name).get_coord() for name in station_names}
         use_grid = False
@@ -403,7 +422,7 @@ class TrafficGenerator:
             from scipy.spatial import KDTree
             bkdt = KDTree(bus_pos)
             if self.__cfg.sumo:
-                selector = lambda cname: bus_names[bkdt.query([self.__rnet.get_edge_pos(cname)], k=1)[1].item()]
+                selector = lambda cname: bus_names[bkdt.query([cs_pos.get(cname, self.__rnet.get_edge_pos(cname))], k=1)[1].item()]
             else:
                 selector = lambda cname: bus_names[bkdt.query([self.__rnet.get_node(cname).get_coord()], k=1)[1].item()]
         else:
@@ -423,6 +442,8 @@ class TrafficGenerator:
                 x, y = cs_pos[cname]
                 e.attrib["x"] = f"{x:.1f}"
                 e.attrib["y"] = f"{y:.1f}"
+            if cname in cs_sumo_pos:
+                e.attrib["pos"] = f"{cs_sumo_pos[cname]:.3f}"
             if mode != "gs": 
                 e.attrib["bus"] = selector(cname)
                 if hasSell: e.attrib["pd_alloc"] = "Average"

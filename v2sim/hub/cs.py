@@ -139,7 +139,8 @@ class CS(BaseStation[EV], ABC):
         max_pc: float, max_pd: float, price_buy: PriceGetterLike, price_buy_is_service_fee:bool = False,
         price_sell: Optional[PriceGetterLike] = None, price_sell_is_service_fee:bool = False,
         offline: Optional[RangeList] = None, owners: Optional[OwnerGroup] = None,
-        pc_alloc: str="Average", pd_alloc: str="Average", allow_queuing: bool=True
+        pc_alloc: str="Average", pd_alloc: str="Average", allow_queuing: bool=True,
+        pos: float = float("inf")
     ):
         """
         Initialize the CS
@@ -168,7 +169,7 @@ class CS(BaseStation[EV], ABC):
         :param allow_queuing:
                 Whether to allow vehicles to queue when all charging piles are occupied.
         """
-        super().__init__(name, bind, slots, x, y, price_buy, price_buy_is_service_fee, offline, allow_queuing)
+        super().__init__(name, bind, slots, x, y, price_buy, price_buy_is_service_fee, offline, allow_queuing, pos)
         self._owners: Optional[OwnerGroup] = owners
         self._bus: str = bus
         self._cs_type: CSType = cs_type
@@ -260,6 +261,8 @@ class CS(BaseStation[EV], ABC):
             "pc_alloc": self._pc_alloc_str,
             "pbuy_is_service_fee": str(self._pbuy_is_serv_fee),
         }
+        if self._pos != float("inf"):
+            attrib["pos"] = str(self._pos)
         if v2g:
             attrib["max_pd"] = f"{self._pd_lim1 * 3600:.2f}"
             attrib["pd_alloc"] = self._pd_alloc_str

@@ -47,6 +47,7 @@ def _parse_station_params(cs_node: Element) -> Dict:
         "slots": int(cs_node.attrib["slots"]),
         "x": float(cs_node.attrib.get("x", "inf")),
         "y": float(cs_node.attrib.get("y", "inf")),
+        "pos": float(cs_node.attrib.get("pos", "inf")),
         "offline": par_off,
         "price_buy": par_pbuy,
         "price_buy_is_service_fee": cs_node.attrib.get("pbuy_is_service_fee", "False").lower() == "true",
@@ -232,6 +233,12 @@ class StationHub(Generic[T_Station, T_Vehicle], ABC):
         idx = self._remap.get(name, -1)
         if idx == -1: raise KeyError(f"{name} not found in station hub.")
         return self._s[idx]._bind
+
+    def get_pos_of(self, name: str) -> float:
+        """Get the SUMO longitudinal position of the specified station."""
+        idx = self._remap.get(name, -1)
+        if idx == -1: raise KeyError(f"{name} not found in station hub.")
+        return self._s[idx]._pos
     
     def __getitem__(self, index: Union[str, int]) -> T_Station:
         """
@@ -586,6 +593,16 @@ class MixedHub:
             return self.scs._s[self.scs._remap[name]]._bind
         elif name in self.gs._remap:
             return self.gs._s[self.gs._remap[name]]._bind
+        else:
+            raise KeyError(name)
+
+    def get_pos_of(self, name: str) -> float:
+        if name in self.fcs._remap:
+            return self.fcs._s[self.fcs._remap[name]]._pos
+        elif name in self.scs._remap:
+            return self.scs._s[self.scs._remap[name]]._pos
+        elif name in self.gs._remap:
+            return self.gs._s[self.gs._remap[name]]._pos
         else:
             raise KeyError(name)
     

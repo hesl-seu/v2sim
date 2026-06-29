@@ -30,6 +30,7 @@ class StationEditor(Frame):
         headings = [
             ("Name", 120, _L["CSE_NAME"], EM.entry()),
             ("Bind", 120, _L["CSE_BIND"], EM.entry()),
+            ("Pos", 80, _L["CSE_POS"], EM.entry()),
             ("Slots", 120, _L["CSE_SLOTS_GS"] if mode == StationEditorMode.GS else _L["CSE_SLOTS_CS"], EM.spin(0, 100)),
             ("x", 60, _L["CSE_X"], EM.entry()),
             ("y", 60, _L["CSE_Y"], EM.entry()),
@@ -174,13 +175,13 @@ class StationEditor(Frame):
             root = Element("root")
             for i, d in enumerate(data):
                 if self.__mode == StationEditorMode.GS:
-                    assert len(d) == 8
-                    name, bind, slots, x, y, ol, pbuy, pbuy_sf = d
+                    assert len(d) == 9
+                    name, bind, pos, slots, x, y, ol, pbuy, pbuy_sf = d
                     c = self.cslist[i]
                     assert isinstance(c, GS)
                 else:
-                    assert len(d) == 15
-                    name, bind, slots, x, y, ol, pbuy, pbuy_sf, psell, psell_sf, bus, maxpc, maxpd, pcalloc, pdalloc = d
+                    assert len(d) == 16
+                    name, bind, pos, slots, x, y, ol, pbuy, pbuy_sf, psell, psell_sf, bus, maxpc, maxpd, pcalloc, pdalloc = d
                     c = self.cslist[i]
                     assert isinstance(c, CS)
                     c._bus = bus
@@ -192,13 +193,14 @@ class StationEditor(Frame):
                     c._pd_alloc_str = pdalloc
                 c._name = name
                 c._bind = bind
-                c._slots = slots
+                c._pos = float(pos)
+                c._slots = int(slots)
                 c._x = float(x)
                 c._y = float(y)
                 if ol == ALWAYS_ONLINE: ol = "[]"
                 c._offline = RangeList(eval(ol))
                 c._pbuy = mkFunc(pbuy)
-                c._pbuy = pbuy_sf
+                c._pbuy_is_serv_fee = str(pbuy_sf).lower() == "true"
                 root.append(c.to_xml())
 
             ElementTree(root).write(self.file, encoding="utf-8", xml_declaration=True)
@@ -367,9 +369,9 @@ class StationEditor(Frame):
         for cs in self.cslist:
             ol = str(cs._offline) if len(cs._offline)>0 else ALWAYS_ONLINE
             if self.__mode == StationEditorMode.GS:
-                v = (cs._name, cs._bind, cs._slots, cs._x, cs._y, ol, cs._pbuy, cs._pbuy_is_serv_fee)
+                v = (cs._name, cs._bind, cs._pos, cs._slots, cs._x, cs._y, ol, cs._pbuy, cs._pbuy_is_serv_fee)
             else:
                 assert isinstance(cs, CS)
-                v = (cs._name, cs._bind, cs._slots, cs._x, cs._y, ol, cs._pbuy, cs._pbuy_is_serv_fee, cs._psell, 
+                v = (cs._name, cs._bind, cs._pos, cs._slots, cs._x, cs._y, ol, cs._pbuy, cs._pbuy_is_serv_fee, cs._psell, 
                     cs._psell_is_serv_fee, cs.bus, cs._pc_lim1 * 3600, cs._pd_lim1 * 3600, cs._pc_alloc_str, cs._pd_alloc_str)
             self._Q.delegate(self.tree.insert, "", "end", values=v)
