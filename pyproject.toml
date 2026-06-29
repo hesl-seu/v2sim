@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "v2sim"
-version = "1.5.0b2"
+version = "1.5.0"
 dependencies = [ "feasytools>=0.1.4", "fpowerkit>=0.4.3", "networkx>=3.2.1", "numpy", "matplotlib", "pyproj", "requests", "cloudpickle", "sumolib", "dill", "libsumo", "scipy",]
 requires-python = ">= 3.9"
 license = "BSD-3-Clause"
@@ -23,6 +23,7 @@ v2sim-gen-trip = "v2sim.app.cmd_gen_trip:main"
 v2sim-plot = "v2sim.app.cmd_plot:main"
 v2sim-osm = "v2sim.app.gui_osm:entry"
 v2sim-split = "v2sim.app.cmd_split:main"
+v2sim-cmp = "v2sim.app.gui_cmp:main"
 
 [project.readme]
 file = "README.md"

@@ -1,6 +1,8 @@
 from v2sim.gui.cmpbox import CmpBox
 
-    
-if __name__ == "__main__":
+def main():
     app = CmpBox()
     app.mainloop()
+    
+if __name__ == "__main__":
+    main()

@@ -135,7 +135,8 @@ class Vehicle:
         self._w = omega                 # Decision parameter for selecting charging station/gas station
 
         # Trips and distance
-        self._dis = 0.0                 # Distance traveled, m
+        self._dis = 0.0                 # Distance traveled in the current simulator trip, m
+        self._ctpl = 0.0                # Current trip planned length, m. Used as the canonical energy accounting distance.
         self._kr = kr                   # Tolerance coefficient
         self._kf = kf                   # Minimum energy percentage required for direct departure without charging/refueling
         self._trips = trips      # Vehicle trip list
@@ -236,15 +237,33 @@ class Vehicle:
         """Distance traveled by the vehicle in this trip (m), note that leaving a CS is considered a new trip"""
         return self._dis
 
+    @property
+    def current_trip_planned_length(self) -> float:
+        """Planned length of the current simulator trip, m.
+
+        This value is set by the traffic backend when a vehicle is inserted
+        into SUMO/UXsim and is used as the canonical distance for energy
+        accounting when the vehicle arrives.
+        """
+        return self._ctpl
+
+    @current_trip_planned_length.setter
+    def current_trip_planned_length(self, val: float):
+        self._ctpl = max(0.0, float(val))
+
+    ctpl = current_trip_planned_length  # short alias
+
     def clear_odometer(self):
-        """Set the distance traveled to 0 before the trip starts"""
+        """Set the distance traveled and planned trip length to 0 before the trip starts"""
         self._dis = 0
+        self._ctpl = 0.0
 
     def reset(self):
         """Reset the vehicle to the initial state"""
         self._sta = VehStatus.Parking
         self._cost = 0.0
         self._dis = 0.0
+        self._ctpl = 0.0
         self._trip_index = 0
         self._energy = self._cap * self._init_pct
         self._cs = None
@@ -413,4 +432,4 @@ class GV(Vehicle):
         return e
 
 
-__all__ = ['Trip', 'VehStatus', 'VehType', 'Vehicle', 'GV']
+__all__ = ['Trip', 'VehStatus', 'VehType', 'Vehicle', 'GV', 'EPS']

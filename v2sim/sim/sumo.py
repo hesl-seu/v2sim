@@ -208,14 +208,58 @@ class TrafficSUMO(TrafficInst):
         """Get the current routing algorithm"""
         return self.__ralgo
     
+    def __route_length(
+        self,
+        route: Iterable[str],
+        depart_pos: Optional[float] = None,
+        arrival_pos: Optional[float] = None,
+    ) -> float:
+        """Return a V2Sim-planned route length for canonical energy accounting.
+
+        SUMO's vehicle.getDistance() may have different semantics in micro and
+        meso modes, and partition workers may only know segment-local distance.
+        We therefore use the route planned by V2Sim as the canonical trip length
+        for vehicle energy accounting.
+        """
+        edges = list(route)
+        if not edges:
+            return 0.0
+        length = 0.0
+        for edge_id in edges:
+            try:
+                length += float(self.__snet.getEdge(edge_id).getLength())
+            except Exception:
+                pass
+        try:
+            first_len = float(self.__snet.getEdge(edges[0]).getLength())
+            if depart_pos is not None:
+                length -= max(0.0, min(first_len, float(depart_pos)))
+            last_len = float(self.__snet.getEdge(edges[-1]).getLength())
+            if arrival_pos is not None:
+                length -= max(0.0, last_len - max(0.0, min(last_len, float(arrival_pos))))
+        except Exception:
+            pass
+        return max(0.0, length)
+
+    @staticmethod
+    def __ctpl_or(measured_distance: float, veh: Vehicle) -> float:
+        ctpl = getattr(veh, "current_trip_planned_length", 0.0)
+        return ctpl if ctpl > EPS else measured_distance
+
     def _add_veh(
         self,
         veh_id: str,
         route: List[str],
         depart_pos: Optional[float] = None,
         arrival_pos: Optional[float] = None,
+        planned_length: Optional[float] = None,
     ):
-        self._vehs[veh_id].clear_odometer()
+        veh = self._vehs[veh_id]
+        veh.clear_odometer()
+        veh.current_trip_planned_length = (
+            self.__route_length(route, depart_pos, arrival_pos)
+            if planned_length is None else planned_length
+        )
         self.__sumo.add_vehicle_route(veh_id, route, depart_pos=depart_pos, arrival_pos=arrival_pos)
     
     def _add_veh2(
@@ -226,8 +270,14 @@ class TrafficSUMO(TrafficInst):
         agg_routing: bool = False,
         depart_pos: Optional[float] = None,
         arrival_pos: Optional[float] = None,
+        planned_length: Optional[float] = None,
     ):
-        self._vehs[veh_id].clear_odometer()
+        veh = self._vehs[veh_id]
+        veh.clear_odometer()
+        if planned_length is None:
+            stage = self.find_route(st_edge, ed_edge)
+            planned_length = self.__route_length(stage.edges, depart_pos, arrival_pos)
+        veh.current_trip_planned_length = planned_length
         try:
             self.__sumo.add_vehicle_od(
                 veh_id, st_edge, ed_edge, agg_routing,
@@ -457,7 +507,7 @@ class TrafficSUMO(TrafficInst):
             if v not in self._vehs:
                 continue
             veh = self._vehs[v]
-            dist = snap.distance
+            dist = self.__ctpl_or(snap.distance, veh)
             veh.drive(dist)
             if veh._cs is None: self._end_trip(veh, dist)
             else: self._start_restore(veh, dist)
@@ -476,7 +526,10 @@ class TrafficSUMO(TrafficInst):
                 if veh_id not in self._vehs:
                     continue
                 veh = self._vehs[veh_id]
-                veh.drive(snap.distance)
+                running_dist = snap.distance
+                if veh.current_trip_planned_length > EPS:
+                    running_dist = min(running_dist, veh.current_trip_planned_length)
+                veh.drive(running_dist)
                 if veh._energy <= 0:
                     # Vehicles with depleted batteries will be sent to the nearest fast charging station (time * 2)
                     veh._sta = VehStatus.Depleted
@@ -504,6 +557,7 @@ class TrafficSUMO(TrafficInst):
                         else:  # Found the charging station
                             new_cs = route.edges[-1]
                             self.__sumo.set_route(veh_id, route)
+                            veh.current_trip_planned_length = veh.odometer + route.length
                             self._log.fault_redirect(self._ct, veh, veh._cs, new_cs)
                             veh.target_CS = new_cs
                 else:

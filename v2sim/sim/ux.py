@@ -155,12 +155,50 @@ class TrafficUX(TrafficInst):
         """Whether to display uxsim information"""
         return self.__show_uxsim_info
 
-    def _add_veh(self, veh_id:str, from_node:str, to_node:str, route:Union[Stage, List[str]]):
-        self._vehs[veh_id].clear_odometer()
+    def __route_length(self, route: Union[Stage, List[str]]) -> float:
+        """Return a V2Sim-planned route length for canonical energy accounting."""
+        if isinstance(route, Stage):
+            return max(0.0, float(route.length))
+        length = 0.0
+        for edge_id in route:
+            try:
+                length += float(self._rnet.get_edge(edge_id).length)
+            except Exception:
+                pass
+        return max(0.0, length)
+
+    @staticmethod
+    def __ctpl_or(measured_distance: float, veh: Vehicle) -> float:
+        ctpl = getattr(veh, "current_trip_planned_length", 0.0)
+        return ctpl if ctpl > EPS else measured_distance
+
+    def _add_veh(
+        self,
+        veh_id: str,
+        from_node: str,
+        to_node: str,
+        route: Union[Stage, List[str]],
+        planned_length: Optional[float] = None,
+    ):
+        veh = self._vehs[veh_id]
+        veh.clear_odometer()
+        veh.current_trip_planned_length = (
+            self.__route_length(route) if planned_length is None else planned_length
+        )
         self.W.add_vehicle(veh_id, from_node, to_node, route)
 
-    def _add_veh2(self, veh_id:str, O:str, D:str):
-        self._vehs[veh_id].clear_odometer()
+    def _add_veh2(
+        self,
+        veh_id: str,
+        O: str,
+        D: str,
+        planned_length: Optional[float] = None,
+    ):
+        veh = self._vehs[veh_id]
+        veh.clear_odometer()
+        if planned_length is None:
+            planned_length = self.find_route(O, D).length
+        veh.current_trip_planned_length = planned_length
         self.W.add_vehicle(veh_id, O, D)
 
     @property
@@ -355,8 +393,11 @@ class TrafficUX(TrafficInst):
         # Process arrived vehicles
         for v, v0 in self.W.get_arrived_vehicles():
             veh = self._vehs[v]
-            route, timepoint = v0.traveled_route()
-            dist = sum(link.length for link in route.links)
+            dist = veh.current_trip_planned_length
+            if dist <= EPS:
+                route, timepoint = v0.traveled_route()
+                dist = sum(link.length for link in route.links)
+            dist = self.__ctpl_or(dist, veh)
             veh.drive(dist)
             if veh._cs is None:
                 self._end_trip(veh, dist)
