@@ -288,6 +288,13 @@ def _safe_outgoing(edge: Any) -> Iterable[Any]:
         except Exception:
             return []
 
+def _is_station_stop_reached(api, veh_id: str) -> bool:
+    try:
+        stop_state = api.vehicle.getStopState(veh_id)
+        speed = api.vehicle.getSpeed(veh_id)
+        return stop_state != 0 and speed < 0.1
+    except Exception:
+        return False
 
 class _RouteFinderMixin:
     """Dijkstra route finding on the full SUMO network.
@@ -385,6 +392,7 @@ class SUMOSingleBackend(_RouteFinderMixin):
         self._gui = gui
         self._mesosim = mesosim
         self._edge_time_cache: Dict[str, float] = {}
+        self._managed_stops: Dict[str, Tuple[str, float]] = {}
         self._last = SUMOStepResult(start_time, {}, [], {})
 
     @property
@@ -416,13 +424,34 @@ class SUMOSingleBackend(_RouteFinderMixin):
 
     def get_time(self) -> int:
         return int(self._api.simulation.getTime())
-
+    
     def simulation_step(self, until_s: int) -> SUMOStepResult:
         self._api.simulationStep(float(until_s))
         new_time = int(self._api.simulation.getTime())
         arrived: Dict[str, SUMOVehicleSnapshot] = {}
         for veh_id in self._api.simulation.getArrivedIDList():
             arrived[veh_id] = self._snapshot(veh_id)
+            self._managed_stops.pop(veh_id, None)
+
+        # Managed station stops are used when V2Sim reroutes an already-running
+        # vehicle to a specific station position.  setRoute can only change the
+        # edge sequence; setStop provides the exact position.  Once SUMO reports
+        # that the vehicle is stopped at the requested stop, remove it from SUMO
+        # immediately and report it as an arrival to the upper V2Sim state machine.
+        for veh_id in list(self._managed_stops.keys()):
+            if veh_id in arrived:
+                continue
+            try:
+                if veh_id in self._api.vehicle.getIDList() and _is_station_stop_reached(self._api, veh_id):
+                    arrived[veh_id] = self._snapshot(veh_id)
+                    try:
+                        self._api.vehicle.remove(veh_id)
+                    except Exception:
+                        pass
+                    self._managed_stops.pop(veh_id, None)
+            except Exception:
+                self._managed_stops.pop(veh_id, None)
+
         arrived_ids = set(arrived)
         running: Dict[str, SUMOVehicleSnapshot] = {}
         for veh_id in self._api.vehicle.getIDList():
@@ -482,8 +511,22 @@ class SUMOSingleBackend(_RouteFinderMixin):
 
     def set_route(self, veh_id: str, route: Union[Stage, Sequence[str]]):
         self._api.vehicle.setRoute(veh_id, _edge_list(route))
+        self._managed_stops.pop(veh_id, None)
+
+    def set_station_stop(self, veh_id: str, route: Union[Stage, Sequence[str]], edge_id: str, pos: Optional[float]):
+        route_edges = _edge_list(route)
+        if len(route_edges) == 0:
+            raise RuntimeError(f"Cannot set station stop for vehicle {veh_id}: empty route")
+        self._api.vehicle.setRoute(veh_id, route_edges)
+        stop_pos = 0.0 if pos is None else float(pos)
+        # Use a very long duration so the stop cannot start and finish inside
+        # one simulation step before V2Sim observes it.  V2Sim removes the
+        # vehicle as soon as the stop starts.
+        self._api.vehicle.setStop(veh_id, edge_id, pos=stop_pos, laneIndex=0, duration=10**9)
+        self._managed_stops[veh_id] = (edge_id, stop_pos)
 
     def remove_vehicle(self, veh_id: str):
+        self._managed_stops.pop(veh_id, None)
         try:
             self._api.vehicle.remove(veh_id)
         except Exception:
@@ -619,6 +662,8 @@ def _sumo_partition_worker_main(conn: Any, part_id: int, cmd: List[str], edge_sp
             pos = (math.nan, math.nan)
         return veh_id, dist, road, pos
 
+    managed_stops: Dict[str, Tuple[str, float]] = {}
+
     while True:
         try:
             op, args = conn.recv()
@@ -631,6 +676,20 @@ def _sumo_partition_worker_main(conn: Any, part_id: int, cmd: List[str], edge_sp
                 arrived: Dict[str, Tuple[str, float, str, Tuple[float, float]]] = {}
                 for vid in api.simulation.getArrivedIDList():
                     arrived[vid] = snapshot(vid)
+                    managed_stops.pop(vid, None)
+                for vid in list(managed_stops.keys()):
+                    if vid in arrived:
+                        continue
+                    try:
+                        if vid in api.vehicle.getIDList() and _is_station_stop_reached(api, vid):
+                            arrived[vid] = snapshot(vid)
+                            try:
+                                api.vehicle.remove(vid)
+                            except Exception:
+                                pass
+                            managed_stops.pop(vid, None)
+                    except Exception:
+                        managed_stops.pop(vid, None)
                 # Partition mode forces SUMO ignore-driving semantics at the
                 # TrafficSUMO layer, so energy is accounted only when a V2Sim
                 # trip actually ends.  Do not query or transfer distances for
@@ -673,9 +732,18 @@ def _sumo_partition_worker_main(conn: Any, part_id: int, cmd: List[str], edge_sp
             elif op == "set_route":
                 veh_id, route_edges = args
                 api.vehicle.setRoute(veh_id, list(route_edges))
+                managed_stops.pop(veh_id, None)
+                conn.send(("ok", None))
+            elif op == "set_station_stop":
+                veh_id, route_edges, edge_id, pos = args
+                api.vehicle.setRoute(veh_id, list(route_edges))
+                stop_pos = 0.0 if pos is None else float(pos)
+                api.vehicle.setStop(veh_id, edge_id, pos=stop_pos, laneIndex=0, duration=10**9)
+                managed_stops[veh_id] = (edge_id, stop_pos)
                 conn.send(("ok", None))
             elif op == "remove":
                 veh_id = args[0]
+                managed_stops.pop(veh_id, None)
                 try:
                     api.vehicle.remove(veh_id)
                 except Exception:
@@ -920,6 +988,7 @@ class SUMOParallelBackend(_RouteFinderMixin):
             self.add_vehicle_route(veh_id, route_edges)
             return
         active = self._active[veh_id]
+        active.arrival_pos = None
         snap = self._last.running.get(veh_id)
         current_road = snap.road if snap is not None else ""
         if not current_road:
@@ -947,6 +1016,49 @@ class SUMOParallelBackend(_RouteFinderMixin):
         else:
             active.segments = segments
             active.segment_index = 0
+            self._workers[active.part_id].call("set_route", veh_id, segments[0].edges)
+
+    def set_station_stop(self, veh_id: str, route: Union[Stage, Sequence[str]], edge_id: str, pos: Optional[float]):
+        route_edges = _edge_list(route)
+        if len(route_edges) == 0:
+            raise RuntimeError(f"Cannot set station stop for vehicle {veh_id}: empty route")
+        if veh_id not in self._active:
+            self.add_vehicle_route(veh_id, route_edges, arrival_pos=pos)
+            return
+        active = self._active[veh_id]
+        snap = self._last.running.get(veh_id)
+        current_road = snap.road if snap is not None else ""
+        if not current_road:
+            try:
+                raw = self._workers[active.part_id].call("get_snapshot", veh_id)
+                current_road = str(raw[2])
+            except Exception:
+                current_road = route_edges[0]
+        if current_road in route_edges:
+            route_edges = route_edges[route_edges.index(current_road):]
+        segments = self._split_route(route_edges)
+        active.segments = segments
+        active.segment_index = 0
+        active.arrival_pos = pos
+        if segments[0].part_id != active.part_id:
+            try:
+                self._workers[active.part_id].call("remove", veh_id)
+            except Exception:
+                pass
+            active.part_id = segments[0].part_id
+            self._queue_vehicle_on_segment(veh_id, active)
+            self._flush_pending_adds()
+            return
+        active.part_id = segments[0].part_id
+        if len(segments) == 1:
+            self._workers[active.part_id].call("set_station_stop", veh_id, segments[0].edges, edge_id, pos)
+        else:
+            # The stop is on a later partition.  Route to the boundary now;
+            # _put_vehicles_on_segments_batch will use arrival_pos on the final
+            # segment, and the final worker will then receive the normal add_route
+            # with arrival_pos.  This path cannot use setStop until the vehicle
+            # enters the final partition, but it still keeps final-position
+            # semantics via arrival_pos.
             self._workers[active.part_id].call("set_route", veh_id, segments[0].edges)
 
     def remove_vehicle(self, veh_id: str):

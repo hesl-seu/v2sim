@@ -725,10 +725,21 @@ class TrafficSUMO(TrafficInst):
                             self._log.fault_nocharge(self._ct, veh, veh._cs)
                             veh.target_CS = None
                         else:  # Found the charging station
-                            new_cs = route.edges[-1]
-                            self.__sumo.set_route(veh_id, route)
-                            veh.current_trip_planned_length = veh.odometer + route.length
-                            self._log.fault_redirect(self._ct, veh, veh._cs, new_cs)
+                            new_cs = station
+                            old_cs = veh._cs
+                            new_pos = self.__station_pos(new_cs)
+                            # setRoute can only change the remaining edge list.
+                            # It cannot set an arrivalPos, so use a managed SUMO
+                            # stop at the station's exact bind+pos.  The backend
+                            # removes the vehicle immediately when the stop starts
+                            # and reports it as an arrival to V2Sim.
+                            self.__sumo.set_station_stop(
+                                veh_id, route, self._hubs.get_bind_of(new_cs), new_pos
+                            )
+                            veh.current_trip_planned_length = veh.odometer + self.__route_length(
+                                route.edges, arrival_pos=new_pos
+                            )
+                            self._log.fault_redirect(self._ct, veh, old_cs, new_cs)
                             veh.target_CS = new_cs
                 else:
                     print(f"Error: {veh.brief()}, {veh._sta}")
