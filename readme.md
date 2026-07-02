@@ -9,8 +9,6 @@ V2Sim is a V2G simulation platform in urban power and transportation network. It
 
 Note: Some UXsim code are integrated in this repository, which follows the license used by UXsim.
 
-**Current version of V2Sim is 1.4**. It has merged two branches: V2Sim (SUMO version) and V2Sim-UX (UXsim version) in version 1.3. Now they share the same GUI and both are included in the same package V2Sim. The cases can be reused (with slight modification), while the saved state cannot.
-
 ## Quick start
 Visit our documents to see the quick start guide. Links:
 + http://v2sim.heslab.wiki/ (English)  

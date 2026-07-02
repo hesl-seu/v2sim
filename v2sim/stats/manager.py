@@ -147,6 +147,20 @@ class _CSVTable:
         self.__lt = lt
         self.__f.close()
         self.__loaded = True
+    
+    def __load_as_whole(self, header:List[str]):
+        self.__head = header[1:]
+        data = self.__f.readlines()
+        for i, line in enumerate(data, 1):
+            items = line.strip().split(",")
+            if len(items) != len(header):
+                raise ValueError(f"Line {i}: Number of items ({len(items)}) does not match header ({len(header)})")
+            time = int(items[0])
+            for j, item in enumerate(self.__head, 1):
+                self.__data[item].add(time, float(items[j]))
+        self.__lt = time
+        self.__f.close()
+        self.__loaded = True
 
     def __init__(self, filename:str, preload:bool=False):
         self.__data:Dict[str, SegFunc] = defaultdict(SegFunc)
@@ -162,15 +176,17 @@ class _CSVTable:
         else:
             self.__head = None
         header = head.split(",")
-        assert len(header) == 3 and header[0] == "Time" and header[1] == "Item" and header[2] == "Value"
         self.__lt = -1
-        if preload: self.force_load()
+        if len(header) == 3 and header[0] == "Time" and header[1] == "Item" and header[2] == "Value":
+            if preload: self.force_load()
+        else: # Not differential format, try to load as a whole
+            self.__load_as_whole(header)
     
-    def __getitem__(self, key:str)->SegFunc:
+    def __getitem__(self, key:str) -> SegFunc:
         if not self.__loaded: self.force_load()
         return self.__data[key]
     
-    def __contains__(self, key:str)->bool:
+    def __contains__(self, key:str) -> bool:
         if not self.__loaded: self.force_load()
         return key in self.__data
     
@@ -215,7 +231,7 @@ class StaReader:
     def __getitem__(self, table_name: str) -> _CSVTable:
         return self.__items[table_name]
     
-    def GetColumn(self, table_name:str, item:str)->SegFunc:
+    def GetColumn(self, table_name:str, item:str) -> SegFunc:
         if table_name not in self.__items:
             raise ValueError(f"Table '{table_name}' not found")
         if item not in self.__items[table_name]:
@@ -223,7 +239,7 @@ class StaReader:
             #raise ValueError(f"Item '{item}' not found in table '{table_name}'")
         return self.__items[table_name][item]
     
-    def GetTable(self, table_name:str)->_CSVTable:
+    def GetTable(self, table_name:str) -> _CSVTable:
         if table_name not in self.__items:
             raise ValueError(f"Table '{table_name}' not found")
         return self.__items[table_name]

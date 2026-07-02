@@ -260,6 +260,8 @@ class TripLogItem:
                 pos2 = Lang.CPROC_INFO_ARRIVE_1
             elif self.additional['status'] == '2':
                 pos2 = Lang.CPROC_INFO_ARRIVE_2
+            else:
+                raise ValueError(f"Unknown arrival status {self.additional['status']}")
             ret += Lang.CPROC_INFO_ARRIVE.format(
                 veh, 
                 self.additional['arrive_edge'],
