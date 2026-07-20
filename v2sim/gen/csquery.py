@@ -91,13 +91,17 @@ class _Rect:
 
 
 class AMapPOIReader:
-    def __init__(self, key:str, limit:int=100, allyes:bool=False):
+    def __init__(self, root:str, key:str, limit:int=100, allyes:bool=False):
+        self.root = root
         self.key = key
         self.offset = 25
         self.limit = limit
         self.all_yes = allyes
-        self.buf = open("buf.csv","w", encoding='utf-8')
+        self.buf = open(Path(self.root) / "buf.csv", "w", encoding='utf-8')
 
+    def __del__(self):
+        self.buf.close()
+        
     def get_raw(self, rect:_Rect, keyword:str, qtype:Literal['cs', 'gs'] = 'cs') -> Tuple[List[Dict[str,Any]], List[_StationItem]]:
         first_page = self.__get0(rect, keyword, 1, qtype)
 
@@ -202,7 +206,7 @@ def StationQuery(root:str, new_loc:str, ak:str, allyes:bool, qtype:Literal['cs',
         raise Exception("No location specified. It can be specified by -p or by the net file.")
     else:
         print(f"Location: {tlbr}")
-    reader = AMapPOIReader(ak,allyes = allyes)
+    reader = AMapPOIReader(root, ak, allyes = allyes)
     if qtype == 'cs':
         results, cslist = reader.get_raw(tlbr, "充电站", qtype)
     elif qtype == 'gs':
