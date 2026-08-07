@@ -6,6 +6,7 @@ from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
 from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy, Grid as fGrid, PositionBase
 from v2sim import RoadNet
 from v2sim.net import Edge, Node
+from v2sim.gui.network_render import RoadEdgeVisual, RoadNodeVisual, RoadScene
 from .prope import PropertyPanel
 
 
@@ -42,11 +43,18 @@ class BIDC:
         self._rv[(item, cls)] = id
     
     def pop(self, id:int):
-        item = self._mp.pop(id)[1]
-        self._rv.pop(item)
+        cls, item = self._mp.pop(id)
+        self._rv.pop((item, cls))
     
-    def remove(self, item:Any):
-        id = self._rv.pop(item)
+    def remove(self, item:Any, cls:Optional[str]=None):
+        if cls is None:
+            keys = [key for key in self._rv if key[0] == item]
+            if len(keys) != 1:
+                raise KeyError(f"Item {item} is missing or ambiguous in BIDC")
+            key = keys[0]
+        else:
+            key = (item, cls)
+        id = self._rv.pop(key)
         self._mp.pop(id)
     
     def get(self, id:int):
@@ -71,8 +79,15 @@ class BIDC:
     
     def queryID(self, item:Any, cls:str):
         return self._rv[(item, cls)]
+
+    def getID(self, item:Any, cls:str):
+        return self._rv.get((item, cls))
     
 class NetworkPanel(Frame):
+    ROAD_EDGE_CANVAS_LIMIT = 8000
+    ROAD_NODE_CANVAS_LIMIT = 2000
+    VIEWPORT_RENDER_DELAY_MS = 50
+
     def _draw_done_center(self):
         self._center()
         self.__en = True
@@ -85,6 +100,7 @@ class NetworkPanel(Frame):
         self._Q.register("draw_done", lambda: None)
         self._Q.register("draw_done_center", self._draw_done_center)
         self._Q.register("loaded", lambda: None)
+        self._Q.register("road_scene_ready", self._on_road_scene_ready)
         
         self._item_editing = None
         self._item_editing_id = -1
@@ -97,6 +113,7 @@ class NetworkPanel(Frame):
         self._cv.bind("<B3-Motion>", self._onMotion)
         self._cv.bind("<ButtonRelease-1>", self._onRelease)
         self._cv.bind("<ButtonRelease-3>", self._onRelease)
+        self._cv.bind("<Configure>", self._onCanvasConfigure)
 
         self._pr = PropertyPanel(self, {}, ConfigItemDict())
         self._pr.tree.AfterFunc = self.__finish_edit
@@ -127,21 +144,35 @@ class NetworkPanel(Frame):
 
     def savefig(self, save_to:str):
         if save_to.lower().endswith(".eps"):
-            self._cv.postscript(file = save_to)
+            if self._road_scene is None:
+                self._cv.postscript(file = save_to)
+                return
+            old_limits = self._max_visible_road_edges, self._max_visible_road_nodes
+            try:
+                self._max_visible_road_edges = len(self._road_scene.edges)
+                self._max_visible_road_nodes = len(self._road_scene.nodes)
+                self._render_viewport()
+                self._cv.postscript(file = save_to)
+            finally:
+                self._max_visible_road_edges, self._max_visible_road_nodes = old_limits
+                self._schedule_viewport_render(0)
             return
         raise RuntimeError("Only .eps format is supported")
     
     def scale(self, x:float, y:float, s:float, item = 'all'):
         self._cv.scale(item, x, y, s, s)
-        self._scale['k'] *= s
-        self._scale['x'] = (1 - s) * x + self._scale['x'] * s
-        self._scale['y'] = (1 - s) * y + self._scale['y'] * s
+        if item == 'all':
+            self._scale['k'] *= s
+            self._scale['x'] = (1 - s) * x + self._scale['x'] * s
+            self._scale['y'] = (1 - s) * y + self._scale['y'] * s
+            self._schedule_viewport_render()
     
     def move(self, dx:float, dy:float, item = 'all'):
         self._cv.move(item, dx, dy)
         if item == 'all':
             self._scale['x'] += dx
             self._scale['y'] += dy
+            self._schedule_viewport_render()
     
     def convRealXY2PlotXY(self, realX:float, realY:float):
         return realX * self._scale['k'] + self._scale['x'], (-realY) * self._scale['k'] + self._scale['y']
@@ -173,6 +204,10 @@ class NetworkPanel(Frame):
             return (x, y)
     
     def clear(self):
+        pending = getattr(self, '_viewport_after_id', None)
+        if pending is not None:
+            try: self.after_cancel(pending)
+            except: pass
         self._cv.delete('all')
         self._scale_cnt = 0
         self._items:BIDC = BIDC(["bus", "bustext", "gen", "gentext", "genconn", "line", "edge", "node"])
@@ -184,6 +219,15 @@ class NetworkPanel(Frame):
         self._g = None
         self.__en = False
         self._world_colors = None
+        self._road_scene:Optional[RoadScene] = None
+        self._scene_generation = getattr(self, '_scene_generation', 0) + 1
+        self._draw_callbacks:List[Callable[[], None]] = []
+        self._viewport_after_id = None
+        self._last_canvas_size = (0, 0)
+        # Tk Canvas remains responsive with this bounded number of road items.
+        self._max_visible_road_edges = self.ROAD_EDGE_CANVAS_LIMIT
+        self._max_visible_road_nodes = self.ROAD_NODE_CANVAS_LIMIT
+        self._node_radius = 3.0
     
     def setRoadNet(self, roadnet:RoadNet, repaint:bool=True, after:OAfter=None):
         '''
@@ -197,7 +241,7 @@ class NetworkPanel(Frame):
         self._r = roadnet
         self._world_colors = self._r.create_color_map()
         if repaint: 
-            self._draw_async(after=after)
+            self._draw_async(after=after, rebuild_road=True)
         self.__rnet_editable = not self._r.is_from_sumo()
     
     @property
@@ -222,7 +266,7 @@ class NetworkPanel(Frame):
         assert isinstance(grid, fGrid)
         self._g = grid
         if repaint: 
-            self._draw_async()
+            self._draw_async(rebuild_road=self._road_scene is None)
     
     def _onLClick(self, event):
         if not self.__en: return
@@ -443,8 +487,9 @@ class NetworkPanel(Frame):
             self._cv.move(i, dx, dy)
         assert self._r is not None
         for l in chain(e.incoming_edges, e.outgoing_edges):
-            lid = self._items.queryID(l.name, "edge")
-            self.__move_edge(lid, l)
+            lid = self._items.getID(l.name, "edge")
+            if lid is not None:
+                self.__move_edge(lid, l)
 
     def __move_bus(self, i:int, e:Bus, newLL:Tuple[float, float] = (-1, -1), newPlotXY:Tuple[float, float] = (0, 0), move_bus:bool=True):
         assert self._r is not None
@@ -478,6 +523,7 @@ class NetworkPanel(Frame):
         ret = self._pr.getAllData()
         e = self._item_editing
         i = self._item_editing_id
+        road_geometry_changed = False
         
         if isinstance(e, Edge):
             assert self._r is not None
@@ -494,6 +540,7 @@ class NetworkPanel(Frame):
                 self._items.set_desc(i, ret['Name'])
                 self._Redges[e.name] = i
                 self.LocateEdge(e.name, 'purple')
+                road_geometry_changed = True
             if ret["From"] != e.from_node.name or ret["To"] != e.to_node.name:
                 node_ids = set(self._r.node_ids)
                 if ret["From"] not in node_ids:
@@ -504,6 +551,7 @@ class NetworkPanel(Frame):
                     return
                 self._r.update_edge(e.name, ret["From"], ret["To"])
                 self.__move_edge(i, e)
+                road_geometry_changed = True
         elif isinstance(e, Node):
             assert self._r is not None
             if ret['Name'] != e.name and ret['Name'] in self._r.node_ids:
@@ -517,6 +565,7 @@ class NetworkPanel(Frame):
                 x, y = float(ret['X']), float(ret['Y'])
                 plotX, plotY = self.convRealXY2PlotXY(x, y)
             self.__move_node(i, e, plotX, plotY)
+            road_geometry_changed = True
             if e.name != ret['Name']:
                 self._r.update_node(e.name, ret['Name'])
                 self._items.set_desc(i, ret['Name'])
@@ -636,6 +685,8 @@ class NetworkPanel(Frame):
             self._g.ChangeESSID(e.ID, ret['Name'])
             self._items.set_desc(i, ret['Name'])
         self.saved = False
+        if road_geometry_changed:
+            self._draw_async(center=False, rebuild_road=True)
 
     def _onRClick(self, event):
         if not self.__en: return
@@ -692,7 +743,10 @@ class NetworkPanel(Frame):
                 assert self._r is not None
                 e = self._r.nodes[self._items[i].desc]
                 self.__move_node(i, e, cx, cy, False)
+                self._draw_async(center=False, rebuild_road=True)
             self._onLClick(event)
+        elif i == 'all':
+            self._schedule_viewport_render(0)
         self._drag["item"] = None
         
     def _onMouseWheel(self, event):
@@ -706,26 +760,74 @@ class NetworkPanel(Frame):
         else:
             s = 1
         self.scale(event.x, event.y, s)
+
+    def _onCanvasConfigure(self, event):
+        size = (event.width, event.height)
+        if size != self._last_canvas_size:
+            self._last_canvas_size = size
+            self._schedule_viewport_render(40)
+
+    def _schedule_viewport_render(self, delay_ms:Optional[int]=None):
+        if self._road_scene is None:
+            return
+        if delay_ms is None:
+            delay_ms = self.VIEWPORT_RENDER_DELAY_MS
+        if self._viewport_after_id is not None:
+            try: self.after_cancel(self._viewport_after_id)
+            except: pass
+        self._viewport_after_id = self.after(delay_ms, self._render_viewport)
+
+    def _viewport_bbox(self):
+        k = max(self._scale['k'], 1e-12)
+        width = max(self._cv.winfo_width(), 1)
+        height = max(self._cv.winfo_height(), 1)
+        pad = 12.0 / k
+        x0 = (0.0 - self._scale['x']) / k - pad
+        y0 = (0.0 - self._scale['y']) / k - pad
+        x1 = (width - self._scale['x']) / k + pad
+        y1 = (height - self._scale['y']) / k + pad
+        return min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)
+
+    def _content_bounds(self):
+        if self._road_scene is None:
+            return None
+        minx, miny, maxx, maxy = self._road_scene.bounds
+        if self._g is not None:
+            positions = [(b.x, -b.y) for b in self._g.Buses]
+            positions.extend((g.x, -g.y) for g in chain(self._g.Gens, self._g.PVWinds, self._g.ESSs))
+            if positions:
+                minx = min(minx, min(p[0] for p in positions))
+                miny = min(miny, min(p[1] for p in positions))
+                maxx = max(maxx, max(p[0] for p in positions))
+                maxy = max(maxy, max(p[1] for p in positions))
+        return minx, miny, maxx, maxy
     
     def _center(self):
-        bbox = self._cv.bbox("all")
-        if not bbox: return
-        cw = bbox[2] - bbox[0]
-        ch = bbox[3] - bbox[1]
-        ww = self._cv.winfo_width()
-        wh = self._cv.winfo_height()
-        dx = (ww - cw) / 2 - bbox[0]
-        dy = (wh - ch) / 2 - bbox[1]
-        self.move(dx, dy)
-        s = min(max(ww-50, 100)/cw, max(wh-50, 100)/ch)
-        self.scale(ww//2, wh//2, s)
+        bbox = self._content_bounds()
+        if bbox is None: return
+        minx, miny, maxx, maxy = bbox
+        cw = max(maxx - minx, 1.0)
+        ch = max(maxy - miny, 1.0)
+        ww = max(self._cv.winfo_width(), 100)
+        wh = max(self._cv.winfo_height(), 100)
+        k = min(max(ww - 50, 100) / cw, max(wh - 50, 100) / ch)
+        self._scale['k'] = k
+        self._scale['x'] = (ww - (minx + maxx) * k) / 2
+        self._scale['y'] = (wh - (miny + maxy) * k) / 2
+        self._scale_cnt = 0
+        self._render_viewport()
     
     def LocateEdge(self, edge:str, color:str='red'):
         '''Locate an edge by highlighting it in given color, red by default'''
+        self._located_edges.add(edge)
+        if edge not in self._Redges and self._road_scene is not None:
+            visual = self._road_scene.edge_by_name.get(edge)
+            if visual is not None:
+                pid = self._draw_road_edge_visual(visual, color=color, width=5)
+                self._Redges[edge] = pid
         if edge in self._Redges:
             pid = self._Redges[edge]
             self._cv.itemconfig(pid, fill=color, width=5)
-            self._located_edges.add(edge)
     
     def LocateEdges(self, edges:Iterable[str], color:str='red'):
         '''Locate a set of edges by highlighting them in given color, red by default'''
@@ -734,12 +836,13 @@ class NetworkPanel(Frame):
     
     def UnlocateAllEdges(self):
         '''Unlocate all edges that are located'''
-        for edge in self._located_edges:
+        for edge in tuple(self._located_edges):
             self.UnlocateEdge(edge)
         self._located_edges.clear()
     
     def UnlocateEdge(self, edge:str):
         '''Unlocate an edge by restoring its color'''
+        self._located_edges.discard(edge)
         if edge in self._Redges:
             pid = self._Redges[edge]
             c, lw = self.__get_edge_prop(edge)
@@ -753,79 +856,174 @@ class NetworkPanel(Frame):
             return self._world_colors[e.world_id], 2
         return ("blue", 2)
 
-    def _draw_node(self, x:float, y:float, r, color, name:str):
-        pid = self._cv.create_oval(x-r, y-r, x+r, y+r, fill=color, width=1)
-        self._items[pid] = itemdesc("node", name)
+    def _draw_road_node_visual(self, node:RoadNodeVisual, radius:float):
+        x = node.x * self._scale['k'] + self._scale['x']
+        y = node.y * self._scale['k'] + self._scale['y']
+        pid = self._cv.create_oval(
+            x-radius, y-radius, x+radius, y+radius,
+            fill='gray', width=1, tags=('road', 'road-node')
+        )
+        self._items[pid] = itemdesc("node", node.name)
+        return pid
 
-    def _draw_edge(self, shape:PointList, color:str, lw:float, ename:str):
-        shape = [(p[0], -p[1]) for p in shape]
-        pid = self._cv.create_line(shape, fill=color, width=lw)
-        self._items[pid] = itemdesc("edge", ename)
-        self._Redges[ename] = pid
-    
-    def _draw_async(self, scale:float=1.0, dx:float=0.0, dy:float=0.0, center:bool=True, after:OAfter=None):
+    def _draw_road_edge_visual(
+            self, edge:RoadEdgeVisual, color:Optional[str]=None,
+            width:Optional[float]=None):
+        k = self._scale['k']; ox = self._scale['x']; oy = self._scale['y']
+        pid = self._cv.create_line(
+            edge.x0*k+ox, edge.y0*k+oy, edge.x1*k+ox, edge.y1*k+oy,
+            fill=color or edge.color, width=width or edge.width,
+            tags=('road', 'road-edge')
+        )
+        self._items[pid] = itemdesc("edge", edge.name)
+        self._Redges[edge.name] = pid
+        return pid
+
+    @staticmethod
+    def _prepare_road_scene(generation:int, roadnet:RoadNet,
+            world_colors, center:bool):
+        return generation, RoadScene.build(roadnet, world_colors), center
+
+    def _draw_async(self, scale:float=1.0, dx:float=0.0, dy:float=0.0,
+            center:bool=True, after:OAfter=None, rebuild_road:bool=True):
+        if self._r is None:
+            if after: after()
+            return
         if after:
-            self._Q.setcallback("draw_done", after)
-        self._Q.submit("draw_done", self._draw, scale, dx, dy, center)
+            self._draw_callbacks.append(after)
+        if not rebuild_road and self._road_scene is not None:
+            if center: self._center()
+            else: self._render_viewport()
+            self.__en = True
+            callbacks, self._draw_callbacks = self._draw_callbacks, []
+            for callback in callbacks: callback()
+            return
+        self.__en = False
+        self._scene_generation += 1
+        generation = self._scene_generation
+        self._Q.submit(
+            "road_scene_ready", self._prepare_road_scene,
+            generation, self._r, self._world_colors, center
+        )
+
+    def _on_road_scene_ready(self, generation:int, scene:RoadScene, center:bool):
+        if generation != self._scene_generation:
+            return
+        self._road_scene = scene
+        span = max(scene.bounds[2] - scene.bounds[0], scene.bounds[3] - scene.bounds[1])
+        self._node_radius = max(span / 200.0, 1.0)
+        if center:
+            self._center()
+        else:
+            self._render_viewport()
+        self.__en = True
+        callbacks, self._draw_callbacks = self._draw_callbacks, []
+        for callback in callbacks:
+            callback()
     
     def _draw_line(self,x1,y1,x2,y2,color,lw,name):
-        self._items[self._cv.create_line(x1,y1,x2,y2,width=lw,fill=color)] = itemdesc('line', name)
+        self._items[self._cv.create_line(
+            x1,y1,x2,y2,width=lw,fill=color,tags=('grid', 'grid-line')
+        )] = itemdesc('line', name)
     
     def _draw_gen(self,x,y,r,color,lw,name,xb,yb,tp):
         assert tp in ('gen', 'pvw', 'ess')
-        self._items[self._cv.create_text(x+1.8*r,y+1.8*r,text=name)] = itemdesc(tp+'text', name+".text")
-        self._items[self._cv.create_line(x, y, xb, yb, width=lw)] = itemdesc(tp+"conn", name+".conn")
+        self._items[self._cv.create_text(
+            x+1.8*r,y+1.8*r,text=name,tags=('grid', 'grid-label')
+        )] = itemdesc(tp+'text', name+".text")
+        self._items[self._cv.create_line(
+            x, y, xb, yb, width=lw,tags=('grid', 'grid-connection')
+        )] = itemdesc(tp+"conn", name+".conn")
         if tp == 'gen':
-            self._items[self._cv.create_oval(x-r, y-r, x+r, y+r, fill=color, width=lw)] = itemdesc(tp, name)
+            self._items[self._cv.create_oval(
+                x-r, y-r, x+r, y+r, fill=color, width=lw,tags=('grid', 'grid-generator')
+            )] = itemdesc(tp, name)
         elif tp == 'pvw':
-            self._items[self._cv.create_polygon(x, y-r, x-r, y+r, x+r, y+r, fill=color, outline='black', width=lw)] = itemdesc(tp, name)
+            self._items[self._cv.create_polygon(
+                x, y-r, x-r, y+r, x+r, y+r, fill=color,
+                outline='black', width=lw,tags=('grid', 'grid-pvw')
+            )] = itemdesc(tp, name)
         else:
-            self._items[self._cv.create_rectangle(x-r, y-r, x+r, y+r, fill=color, width=lw)] = itemdesc(tp, name)
+            self._items[self._cv.create_rectangle(
+                x-r, y-r, x+r, y+r, fill=color, width=lw,tags=('grid', 'grid-ess')
+            )] = itemdesc(tp, name)
 
     def _draw_bus(self,x,y,r,color,lw,name):
-        self._items[self._cv.create_text(x+1.8*r,y+1.8*r,text=name)] = itemdesc('bustext', name+".text")
-        self._items[self._cv.create_rectangle(x-0.5*r, y-r, x+0.5*r, y+r, fill=color, width=lw)] = itemdesc("bus", name)
-    
-    def _draw(self, scale:float=1.0, dx:float=0.0, dy:float=0.0, center:bool=True):
-        if self._r is None: return
-        self.__en = False
-        self._cv.delete('all')
+        self._items[self._cv.create_text(
+            x+1.8*r,y+1.8*r,text=name,tags=('grid', 'grid-label')
+        )] = itemdesc('bustext', name+".text")
+        self._items[self._cv.create_rectangle(
+            x-0.5*r, y-r, x+0.5*r, y+r,
+            fill=color, width=lw,tags=('grid', 'grid-bus')
+        )] = itemdesc("bus", name)
 
-        minx, miny, maxx, maxy = self._r.getBoundary()
-        if minx > maxx or miny > maxy:
-            r = 5
-        else:
-            r = max(maxx-minx, maxy-miny)/200
-            
-        for ename in self._r.edges.keys():
-            shape = self._r.get_offset_shape(ename)
-            c, lw = self.__get_edge_prop(ename)
-            shape = [(p[0] * scale + dx, p[1] * scale + dy) for p in shape]
-            self._Q.delegate(self._draw_edge, shape, c, lw, ename)
-        
-        for nd in self._r.nodes.values():
-            x, y = nd.get_coord()
-            x = x * scale + dx
-            y = -y * scale + dy
-            self._Q.delegate(self._draw_node, x, y, r/2, 'gray', nd.name)
-            
+    def _refresh_editing_canvas_id(self):
+        editing = self._item_editing
+        if editing is None:
+            return
+        if isinstance(editing, Edge): cls, name = 'edge', editing.name
+        elif isinstance(editing, Node): cls, name = 'node', editing.name
+        elif isinstance(editing, Bus): cls, name = 'bus', editing.ID
+        elif isinstance(editing, Generator): cls, name = 'gen', editing.ID
+        elif isinstance(editing, PVWind): cls, name = 'pvw', editing.ID
+        elif isinstance(editing, ESS): cls, name = 'ess', editing.ID
+        elif isinstance(editing, Line): cls, name = 'line', editing.ID
+        else: return
+        canvas_id = self._items.getID(name, cls)
+        if canvas_id is not None:
+            self._item_editing_id = canvas_id
+
+    def _render_viewport(self):
+        self._viewport_after_id = None
+        if self._road_scene is None:
+            return
+        self._cv.delete('all')
+        self._items = BIDC(["bus", "bustext", "gen", "gentext", "genconn", "line", "edge", "node"])
+        self._Redges = {}
+        road_edges, road_nodes = self._road_scene.select(
+            self._viewport_bbox(),
+            self._max_visible_road_edges,
+            self._max_visible_road_nodes,
+            self._located_edges,
+        )
+        if isinstance(self._item_editing, Node):
+            selected_node = self._road_scene.node_by_name.get(self._item_editing.name)
+            if selected_node is not None and all(n.name != selected_node.name for n in road_nodes):
+                road_nodes = list(road_nodes) + [selected_node]
+        for edge in road_edges:
+            if edge.name in self._located_edges:
+                self._draw_road_edge_visual(edge, color='purple', width=5)
+            else:
+                self._draw_road_edge_visual(edge)
+        node_radius = max(1.0, min(6.0, self._node_radius * self._scale['k'] / 2))
+        for node in road_nodes:
+            self._draw_road_node_visual(node, node_radius)
+
+        r = max(3.0, min(30.0, self._node_radius * self._scale['k']))
         if self._g is not None:
             for line in self._g.Lines:
                 x1, y1 = self.convRealXY2PlotXY(*self._g.Bus(line.fBus).pos)
                 x2, y2 = self.convRealXY2PlotXY(*self._g.Bus(line.tBus).pos)
-                self._Q.delegate(self._draw_line, x1, y1, x2, y2, 'black', 2, line.ID)
+                self._draw_line(x1, y1, x2, y2, 'black', 2, line.ID)
             
             for g in chain(self._g.Gens, self._g.PVWinds, self._g.ESSs):
                 tp = g.__class__.__name__.lower()[:3]
                 xb, yb = self.convRealXY2PlotXY(*self._g.Bus(g.BusID).pos)
                 x, y = self.convRealXY2PlotXY(g.x, g.y)
-                self._Q.delegate(self._draw_gen, x, y, r, 'white', 2, g.ID, xb, yb, tp)
+                self._draw_gen(x, y, r, 'white', 2, g.ID, xb, yb, tp)
 
             for b in self._g.Buses:
                 x, y = self.convRealXY2PlotXY(b.x, b.y)
-                self._Q.delegate(self._draw_bus, x, y, r, 'white', 2, b.ID)
-        
-        if center: self._Q.trigger("draw_done_center")
+                self._draw_bus(x, y, r, 'white', 2, b.ID)
+        self._refresh_editing_canvas_id()
+
+    def _draw(self, scale:float=1.0, dx:float=0.0, dy:float=0.0, center:bool=True):
+        """Synchronous compatibility entry point used by older integrations."""
+        if self._r is None: return
+        self._road_scene = RoadScene.build(self._r, self._world_colors)
+        self._scale = {'k':scale, 'x':dx, 'y':dy}
+        if center: self._center()
+        else: self._render_viewport()
     
     def save(self, grid_path:str, net_path:str):
         '''Save the current network to files'''
