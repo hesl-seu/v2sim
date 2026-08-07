@@ -697,6 +697,13 @@ class MainBox(Tk):
         self.state = res = DetectFiles(self.folder)
         self.title(f"{_L['TITLE']} - {Path(self.folder).name}")
         self.update()
+
+        if LOAD_NET in loads:
+            self.cv_net.clear()
+            self._load_network(self.tabs.select(),
+                lambda: self._ldfrm.setText(LOAD_NET, _L['DONE']))
+        
+        self.update()
         
         # Load traffic generator
         if LOAD_GEN in loads:
@@ -740,13 +747,6 @@ class MainBox(Tk):
         
         self.state = res = DetectFiles(self.folder)
 
-        self.update()
-        
-        if LOAD_NET in loads:
-            self.cv_net.clear()
-            self._load_network(self.tabs.select(),
-                lambda: self._ldfrm.setText(LOAD_NET, _L['DONE']))
-        
         self.update()
 
         def setText(lb:Label, itm:str, must:bool = False):
