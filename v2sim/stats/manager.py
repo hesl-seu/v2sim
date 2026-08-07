@@ -151,13 +151,14 @@ class _CSVTable:
     def __load_as_whole(self, header:List[str]):
         self.__head = header[1:]
         data = self.__f.readlines()
+        time = 0
         for i, line in enumerate(data, 1):
             items = line.strip().split(",")
             if len(items) != len(header):
                 raise ValueError(f"Line {i}: Number of items ({len(items)}) does not match header ({len(header)})")
             time = int(items[0])
             for j, item in enumerate(self.__head, 1):
-                self.__data[item].add(time, float(items[j]))
+                self.__data[item].add(time, float(items[j]) if items[j] != "" else float('nan'))
         self.__lt = time
         self.__f.close()
         self.__loaded = True

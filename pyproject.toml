@@ -24,6 +24,7 @@ v2sim-plot = "v2sim.app.cmd_plot:main"
 v2sim-osm = "v2sim.app.gui_osm:entry"
 v2sim-split = "v2sim.app.cmd_split:main"
 v2sim-cmp = "v2sim.app.gui_cmp:main"
+v2sim-mcp = "v2sim.app.mcp_server:entry"
 
 [project.readme]
 file = "README.md"
