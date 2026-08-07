@@ -176,9 +176,11 @@ def get_sim_params(args:Union[str, ArgChecker], check_illegal:bool = True) -> Di
     # Common config
     ralgo = args.pop_str("route-algo", "astar")
     gasoline_price = args.pop_float("gasoline-price", 5.0)
+    add_veh_to_scs = not args.pop_bool("dont-add-veh-to-scs")
     vscfg = CommonConfig(
         routing_algorithm = ralgo,
         gasoline_price = ConstFunc(gasoline_price),
+        add_veh_to_scs=add_veh_to_scs
     )
 
     # SUMO or UXsim Config

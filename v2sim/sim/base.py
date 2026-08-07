@@ -54,7 +54,7 @@ class TrafficInst(ABC):
         self.__last_station_para_upd = 0
         random.seed(seed)
 
-    def _prepare_trips_and_scs(self):
+    def _prepare_trips_and_scs(self, add_veh_to_scs: bool = True):
         # Load vehicles
         from feasytools import PQueue
         self._fQ:PQueue[str] = PQueue()  # Fault queue
@@ -63,14 +63,16 @@ class TrafficInst(ABC):
         # Prepare for departure
         for veh in self._vehs.values():
             self._que.push(veh.trip.depart_time, (veh._name, None))
-        
-        for veh in self._vehs.evs.values():
-            # There is a 20% chance of adding to a rechargeable parking point
-            if veh.soc < veh._ks or random.random() <= 0.2:
-                if len(self._hubs.atbind[veh.trip.O].scs) == 0: continue
-                scs = random.choice(self._hubs.atbind[veh.trip.O].scs)
-                self.scs.add_veh(veh, scs._name)
-                # Do not directly add to a specific slow charging station here, or SCSHub will not be able to track the vehicle correctly
+
+        if add_veh_to_scs:
+            for veh in self._vehs.evs.values():
+                # There is a 20% chance of adding to a rechargeable parking point
+                if veh.soc < veh._ks or random.random() <= 0.2:
+                    if len(self._hubs.atbind[veh.trip.O].scs) == 0: continue
+                    scs = random.choice(self._hubs.atbind[veh.trip.O].scs)
+                    self.scs.add_veh(veh, scs._name)
+                    # Do not directly add to a specific slow charging station here, 
+                    # or SCSHub will not be able to track the vehicle correctly
     
     @abstractmethod
     def get_veh_pos(self, veh_id: str) -> Tuple[float, float]: ...
@@ -439,6 +441,7 @@ class TrafficInst(ABC):
 class CommonConfig:
     routing_algorithm: str = "astar"
     gasoline_price: TimeFunc = ConstFunc(5.0)
+    add_veh_to_scs: bool = True
 
 
 @dataclass

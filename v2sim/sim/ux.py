@@ -27,7 +27,8 @@ class TrafficUX(TrafficInst):
         roadnet:RoadNet, trip_logger: TripLogger, vehs: VDict, 
         hubs: MixedHub, pdn: Grid, gasoline_price: TimeFunc, 
         seed: int = 0, silent: bool = False, *,
-        routing_algo: str = "dijkstra",  # or "astar"
+        add_veh_to_scs: bool = True,
+        routing_algorithm: str = "dijkstra",  # or "astar"
         show_uxsim_info: bool = False,
         randomize_uxsim: bool = True,
         no_parallel: bool = False,
@@ -37,8 +38,8 @@ class TrafficUX(TrafficInst):
         self.__stall_count = 0
         self.__stall_last_check = 0
         
-        assert routing_algo in ("dijkstra", "astar"), Lang.ROUTE_ALGO_NOT_SUPPORTED
-        self.__use_astar = routing_algo == "astar"
+        assert routing_algorithm in ("dijkstra", "astar"), Lang.ROUTE_ALGO_NOT_SUPPORTED
+        self.__use_astar = routing_algorithm == "astar"
         
         # Get all road names
         self.__names: List[str] = list(self._rnet.edges.keys())
@@ -69,7 +70,7 @@ class TrafficUX(TrafficInst):
             else:
                 print(Lang.SINGLE_WORLD)
 
-        super()._prepare_trips_and_scs()
+        super()._prepare_trips_and_scs(add_veh_to_scs)
 
     def get_veh_pos(self, veh_id: str) -> Tuple[float, float]:
         return self.W.get_vehicle(veh_id).get_xy_coords()
@@ -502,8 +503,8 @@ class TrafficUX(TrafficInst):
             tc.start_time, tc.step_length, tc.end_time,
             case.road_network, tlogger, case.vehicles,
             case.mixed_hub, case.power_network, 
-            vscfg.gasoline_price, seed, silent, 
-            routing_algo=vscfg.routing_algorithm,
+            seed = seed, silent = silent, 
+            **asdict(vscfg),
             **asdict(config)
         )
         

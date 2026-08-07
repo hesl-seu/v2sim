@@ -80,7 +80,8 @@ class TrafficSUMO(TrafficInst):
         gasoline_price:TimeFunc, seed: int = 0, silent: bool = False, *,
         road_net_file: str,
         initial_state_folder: str = "",
-        routing_algo:str = "CH",
+        add_veh_to_scs: bool = True,
+        routing_algorithm:str = "CH",
         ignore_driving:bool = False,
         suppress_route_not_found:bool = True,
         gui: bool = False,
@@ -92,7 +93,7 @@ class TrafficSUMO(TrafficInst):
         self.__seed = seed
         self.__gui = gui
         self.__sumocfg_file = sumocfg_file
-        self.__ralgo = routing_algo
+        self.__ralgo = routing_algorithm
         self.__ignore_driving = ignore_driving
         assert self.__ralgo in ["CH", "dijkstra", "astar", "CHWrapper"], f"Invalid routing algorithm: {self.__ralgo}"
         self.__suppress_route_not_found = suppress_route_not_found
@@ -123,7 +124,7 @@ class TrafficSUMO(TrafficInst):
                 start_time=start_time,
                 end_time=end_time,
                 step_length=step_len,
-                routing_algo=routing_algo,
+                routing_algo=routing_algorithm,
                 seed=seed,
                 gui=gui,
                 mesosim=mesosim,
@@ -137,7 +138,7 @@ class TrafficSUMO(TrafficInst):
                 start_time=start_time,
                 end_time=end_time,
                 step_length=step_len,
-                routing_algo=routing_algo,
+                routing_algo=routing_algorithm,
                 seed=seed,
                 gui=False,
             )
@@ -156,7 +157,7 @@ class TrafficSUMO(TrafficInst):
             self.__load_v2sim_state(self.__istate_folder)
             return
         
-        super()._prepare_trips_and_scs()
+        super()._prepare_trips_and_scs(add_veh_to_scs)
 
     def get_veh_pos(self, veh_id: str) -> Tuple[float, float]:
         return self.__sumo.get_vehicle_position(veh_id)
@@ -820,11 +821,12 @@ class TrafficSUMO(TrafficInst):
             tc.start_time, tc.step_length, tc.end_time,
             case.road_network, tlogger, case.vehicles,
             case.mixed_hub, case.power_network, 
-            vscfg.gasoline_price, seed, silent,
+            seed = seed, silent = silent,
             road_net_file = net,
             sumocfg_file = sumo,
-            routing_algo = vscfg.routing_algorithm,
+            add_veh_to_scs = vscfg.add_veh_to_scs,
             case_dir = case.case_dir,
+            **asdict(vscfg),
             **asdict(config)
         )
     
@@ -847,12 +849,13 @@ class TrafficSUMO(TrafficInst):
             tc.start_time, tc.step_length, tc.end_time,
             case.road_network, tlogger, case.vehicles,
             case.mixed_hub, case.power_network,
-            vscfg.gasoline_price, seed, silent,
+            seed = seed, silent = silent,
             road_net_file = net,
             sumocfg_file = sumo,
             initial_state_folder = folder,
-            routing_algo = vscfg.routing_algorithm,
+            add_veh_to_scs = vscfg.add_veh_to_scs,
             case_dir = case.case_dir,
+            **asdict(vscfg),
             **asdict(config)
         )
 
