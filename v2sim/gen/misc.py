@@ -199,3 +199,5 @@ def add_trip_to_veh(veh:Vehicle, trip:Trip, day:int = -1):
         assert 0 <= trip.depart_time < 86400, "When day is specified, depart_time must be less than 86400."
         trip.depart_time += day * 86400
     veh.trips.append(trip)
+
+__all__ = ["EVType", "GVType", "VehicleTypePool", "create_veh", "add_trip_to_veh", "PDFuncLike", "random_diff", "random_diff2"]

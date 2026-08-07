@@ -17,7 +17,6 @@ from .controls import LogItemPad, PropertyPanel, PDFuncEditor, ALWAYS_ONLINE, Ne
 
 
 _L = LangLib.Load(__file__)
-DEFAULT_GRID = '<grid Sb="1MVA" Ub="10.0kV" model="ieee33" fixed-load="false" grid-repeat="1" load-repeat="8" />'
 LOAD_FCS = "Fast CS"
 LOAD_SCS = "Slow CS"
 LOAD_GS = "Gas Station"
@@ -698,14 +697,6 @@ class MainBox(Tk):
         self.state = res = DetectFiles(self.folder)
         self.title(f"{_L['TITLE']} - {Path(self.folder).name}")
         self.update()
-
-        # Check if grid exists
-        if not res.grid: 
-            with open(self.get_default_grid_path(),"w") as f:
-                f.write(DEFAULT_GRID)
-            self.state = res = DetectFiles(self.folder)
-        
-        self.update()
         
         # Load traffic generator
         if LOAD_GEN in loads:
@@ -980,6 +971,25 @@ class MainBox(Tk):
             def __el(state: FileDetectResult, after:OAfter=None):
                 assert state.net is not None
                 el = RoadNet.load(state.net)
+
+                # 若 grid 文件不存在，则基于路网生成
+                if state.grid is None:
+                    from v2sim.gen import generate_distribution_grid, GridGenerationConfig
+                    grid_path = self.get_default_grid_path()
+                    # 根据路网节点数调整配置
+                    bus_count = min(10, len(el.nodes) - 1)
+                    if bus_count < 2:
+                        bus_count = 2
+                    feeder_count = min(1, bus_count // 2)
+                    if feeder_count < 1:
+                        feeder_count = 1
+                    config = GridGenerationConfig(
+                        bus_count=bus_count,
+                        feeder_count=feeder_count
+                    )
+                    generate_distribution_grid(el, grid_path, config)
+                    state.grid = grid_path
+
                 pdn = PowerGrid.fromFile(state.grid, external_proj=el.getProjectorOrNone()) if state.grid else None
                 return el, pdn, after
             
@@ -989,7 +999,11 @@ class MainBox(Tk):
         if pdn:
             self.cv_net.setGrid(pdn)
             self.lb_puvalues.configure(text=_L["PU_VALS"].format(pdn.Ub, pdn.Sb_MVA))
-        self.cv_net.setRoadNet(el, after = after)    
+        self.cv_net.setRoadNet(el, after = after)
+        if self.state and self.state.grid:
+            self.lb_grid.config(text=Path(self.state.grid).name, foreground="black")
+        else:
+            self.lb_grid.config(text="None", foreground="red")
 
     def openFolder(self):
         init_dir = Path("./cases")

@@ -1,14 +1,16 @@
+from dataclasses import dataclass
 import os
 import random, time
 import concurrent.futures as cf
 from abc import ABC, abstractmethod
 from itertools import chain
 from enum import Enum
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union, Any, List
 from feasytools import ReadOnlyTable, CDDiscrete, PDDiscrete, PDGamma, DTypeEnum
+
 from ..locale import Lang
-from ..utils import DetectFiles
-from ..veh import VDict
+from ..utils import DetectFiles, ReadXML
+from ..veh import VDict, EV, GV, Vehicle, Trip
 from ..net import RoadNet
 from .misc import *
 from .poly import PolygonMan

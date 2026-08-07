@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import time, random
 from collections import defaultdict
 from enum import IntEnum

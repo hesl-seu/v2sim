@@ -65,3 +65,5 @@ class PolygonMan:
     
     def __len__(self):
         return len(self.polygons)
+
+__all__ = ["Polygon", "PolygonMan"]
