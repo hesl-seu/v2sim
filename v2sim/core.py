@@ -141,7 +141,7 @@ def create_output_directory(
     return pout, tlog
 
 
-def _create_plg_and_stats(plgfile:Optional[str], state_dir:Optional[str], pout:Path, inst:TrafficInst, logging_items:Optional[List[str]], disabled_plugins:Optional[List[str]]):
+def _create_plg_and_stats(plgfile:Optional[str], state_dir:Optional[str], pout:Path, inst:TrafficInst, logging_items:Optional[Dict[str, int]], disabled_plugins:Optional[List[str]]):
     plg_pool, sta_pool = create_pools()
 
     # Enable plugins
@@ -160,7 +160,17 @@ def _create_plg_and_stats(plgfile:Optional[str], state_dir:Optional[str], pout:P
     plgman = PluginMan(plgfile, pout, inst, plg_pool, disabled_plugins, plugin_state)
 
     # Create a data logger
-    if logging_items is None: logging_items = ["fcs", "scs", "gs"]
+    if logging_items is None: 
+        logging_items = {
+            "fcs": max(1, int(60 / inst._step)),
+            "scs": max(1, int(60 / inst._step)),
+            "gs": max(1, int(60 / inst._step)),
+            "bus": max(1, int(900 / inst._step)),
+            "gen": max(1, int(900 / inst._step)),
+            "line": max(1, int(900 / inst._step)),
+            "pvw": max(1, int(900 / inst._step)),
+            "ess": max(1, int(900 / inst._step)),
+        }
     stats = StaWriter(pout, inst, plgman.GetPlugins(), sta_pool, logging_items)
 
     return plgman, stats
@@ -299,7 +309,7 @@ class V2SimInstance:
         proj_dir:str, time:TimeConfig, break_at:Optional[int] = None, out_dir: Optional[str] = None, 
         seed = 0, silent:bool = False, vb = None, vscfg:Union[None, CommonConfig] = None,
         config: Union[None, SUMOConfig, UXsimConfig] = None, 
-        disabled_plugins:Optional[List[str]] = None, logging_items:Optional[List[str]] = None,
+        disabled_plugins:Optional[List[str]] = None, logging_items:Optional[Dict[str, int]] = None,
         state_option: LoadStateOption = LoadStateOption.Skip, state_dir:Optional[str] = None, 
         save_option: SaveStateOptions = SaveStateOptions.Skip, client_options: Optional[ClientOptions] = None,
         use_trip_logger: bool = True
@@ -338,7 +348,7 @@ class V2SimInstance:
         case_data:CaseData, pout:Path, break_at:Optional[int] = None,
         seed = 0, silent:bool = False, vb = None, vscfg:Union[None, CommonConfig] = None,
         config: Union[None, SUMOConfig, UXsimConfig] = None, 
-        disabled_plugins:Optional[List[str]] = None, logging_items:Optional[List[str]] = None,
+        disabled_plugins:Optional[List[str]] = None, logging_items:Optional[Dict[str, int]] = None,
         state_option: LoadStateOption = LoadStateOption.Skip, state_dir:Optional[str] = None, 
         save_option: SaveStateOptions = SaveStateOptions.Skip, client_options: Optional[ClientOptions] = None,
         use_trip_logger: bool = True
@@ -487,7 +497,7 @@ class V2SimInstance:
         self.__plgman.PreStepAll(t)
         self.__inst.simulation_step(self.__inst._step)
         self.__plgman.PostStepAll(t)
-        self.__sta.Log(t)
+        self.__sta.Log()
         return self.__inst.current_time
     
     def step_until(self, t:int) -> int:

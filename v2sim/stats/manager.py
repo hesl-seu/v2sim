@@ -77,6 +77,8 @@ class StaPool:
 class StaWriter:
     """Statistic data recorder"""
     __items: Dict[str, StaBase]
+    __interval: Dict[str, int]
+    __increment: Dict[str, int]
 
     def Writer(self, name: str):
         return self.__items[name].Writer
@@ -87,7 +89,7 @@ class StaWriter:
         tinst: TrafficInst,
         plugins: Dict[str, PluginBase],
         staPool: StaPool,
-        items: Optional[List[str]] = None,
+        items: Optional[Dict[str, int]] = None,
     ):
         """
         Initialize
@@ -99,28 +101,35 @@ class StaWriter:
         """
         self.__path = path if isinstance(path, str) else str(path)
         self.__items = {}
+        self.__interval = {}
+        self.__increment = {}
         self.__inst = tinst
         self.__plug = plugins
         self.__pool = staPool
 
         if items is not None:
-            for itm in items:
-                self.Add(itm)
+            for itm, interval in items.items():
+                self.Add(itm, interval)
 
-    def Add(self, sta_name: str) -> None:
+    def Add(self, sta_name: str, interval: int) -> None:
         """Add a statistic item, select from the registered items of StaMan"""
         sta_type = self.__pool.Get(sta_name)
         if sta_name in self.__items:
             raise ValueError(Lang.ERROR_STA_ADDED.format(sta_name))
         self.__items[sta_name] = sta_type(self.__path, self.__inst, self.__plug)
+        self.__interval[sta_name] = interval
+        self.__increment[sta_name] = 0
 
-    def Log(self, time: int):
-        for item in self.__items.values():
-            try:
-                item.LogOnce()
-            except Exception as e:
-                print(Lang.ERROR_STA_LOG_ITEM.format(item._name, e))
-                raise e
+    def Log(self):
+        for name, item in self.__items.items():
+            self.__increment[name] += 1
+            if self.__increment[name] >= self.__interval[name]:
+                self.__increment[name] = 0
+                try:
+                    item.LogOnce()
+                except Exception as e:
+                    print(Lang.ERROR_STA_LOG_ITEM.format(item._name, e))
+                    raise e
 
     def close(self):
         for item in self.__items.values():

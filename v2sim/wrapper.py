@@ -170,8 +170,22 @@ def get_sim_params(args:Union[str, ArgChecker], check_illegal:bool = True) -> Di
     if len(no_plgs) == 1 and no_plgs[0] == "": no_plgs = None
 
     # Logging items
-    logs = (args.pop_str("log", "") or args.pop_str("logging-items", "")).split(",")
-    if len(logs) == 1 and logs[0] == "": logs = None
+    log_str = (args.pop_str("log", "") or args.pop_str("logging-items", "")).split(",")
+    if len(log_str) == 1 and log_str[0] == "": 
+        logs = None
+    else:
+        logs = {}
+        for item in log_str:
+            if ":" in item:
+                name, interval = item.split(":", 1)
+                logs[name] = int(interval)
+            else:
+                if item in ("fcs", "scs", "gs"):
+                    logs[item] = max(1, 60 // step_len)
+                elif item in ("bus", "gen", "line", "pvw", "ess"):
+                    logs[item] = max(1, 900 // step_len)
+                else:
+                    logs[item] = 1
 
     # Common config
     ralgo = args.pop_str("route-algo", "astar")
@@ -229,7 +243,7 @@ def get_sim_params(args:Union[str, ArgChecker], check_illegal:bool = True) -> Di
 def simulate_single(
     proj_dir:str, time:TimeConfig, break_at:Optional[int] = None, out_dir: Optional[str] = None, seed = 0, silent:bool = False, 
     vb = None, vscfg:Optional[CommonConfig] = None, config: Union[None, SUMOConfig, UXsimConfig] = None, 
-    disabled_plugins:Optional[List[str]] = None, logging_items:Optional[List[str]] = None,
+    disabled_plugins:Optional[List[str]] = None, logging_items:Optional[Dict[str, int]] = None,
     state_option: LoadStateOption = LoadStateOption.Skip, state_dir:Optional[str] = None, 
     save_option: SaveStateOptions = SaveStateOptions.Skip, client_options: Optional[ClientOptions] = None, 
     gen_cmds:Optional[GenerationCommand] = None, plot_cmd:Optional[PlotCommand] = None,
