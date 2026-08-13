@@ -824,7 +824,6 @@ class TrafficSUMO(TrafficInst):
             seed = seed, silent = silent,
             road_net_file = net,
             sumocfg_file = sumo,
-            add_veh_to_scs = vscfg.add_veh_to_scs,
             case_dir = case.case_dir,
             **asdict(vscfg),
             **asdict(config)
@@ -853,7 +852,6 @@ class TrafficSUMO(TrafficInst):
             road_net_file = net,
             sumocfg_file = sumo,
             initial_state_folder = folder,
-            add_veh_to_scs = vscfg.add_veh_to_scs,
             case_dir = case.case_dir,
             **asdict(vscfg),
             **asdict(config)
