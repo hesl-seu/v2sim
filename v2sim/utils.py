@@ -1,5 +1,5 @@
 import gzip, sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Iterable, Optional, Set, Dict, List, Tuple, Union
 from xml.etree.ElementTree import ElementTree
@@ -223,6 +223,9 @@ _RENAME_FIELDS = {
     "disable_parallel": "ux_no_para",
 }
 
+CHARGING_MODES = ("unordered", "smartcharge", "v2g")
+
+
 @dataclass
 class V2SimConfig:
     start_time: int = 0
@@ -244,6 +247,45 @@ class V2SimConfig:
     sumo_mesosim: bool = False
     stats: Optional[List[str]] = None
 
+    # Integrated power-distribution-network settings.  PDN and V2G are core
+    # simulation features and are configured only through *.v2simcfg.
+    charging_mode: str = "unordered"
+    pdn_interval: int = 300
+    v2g_online: List[Tuple[int, int]] = field(default_factory=list)
+    pdn_estimator: str = "DistFlow"
+    pdn_calculator: str = "None"
+    pdn_mlrp: float = 0.5
+    pdn_source_bus: str = ""
+    pdn_dec_buses: str = "%all%"
+    pdn_solver: str = "ECOS"
+    pdn_max_workers: int = 1
+
+    def __post_init__(self):
+        self.charging_mode = str(self.charging_mode).lower()
+        if self.charging_mode not in CHARGING_MODES:
+            raise ValueError(
+                f"Invalid charging_mode {self.charging_mode!r}; "
+                f"expected one of {', '.join(CHARGING_MODES)}"
+            )
+        self.pdn_interval = max(1, int(self.pdn_interval))
+        self.pdn_max_workers = max(1, int(self.pdn_max_workers))
+        self.pdn_mlrp = float(self.pdn_mlrp)
+        if self.v2g_online is None:
+            self.v2g_online = []
+        normalized_v2g_online: List[Tuple[int, int]] = []
+        for r in self.v2g_online:
+            if not isinstance(r, (list, tuple)) or len(r) != 2:
+                raise ValueError("Each v2g_online range must be [start, end]")
+            start, end = int(r[0]), int(r[1])
+            if start >= end:
+                raise ValueError("Each v2g_online range must satisfy start < end")
+            normalized_v2g_online.append((start, end))
+        self.v2g_online = normalized_v2g_online
+        if self.charging_mode == "v2g" and not self.v2g_online:
+            raise ValueError(
+                "charging_mode='v2g' requires at least one explicit v2g_online range"
+            )
+
     @staticmethod
     def load(file:str) -> 'V2SimConfig':
         """
@@ -257,8 +299,13 @@ class V2SimConfig:
         try:
             with open(file, "r") as f:
                 data = json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError):
-            # Return default config if the file is invalid or doesn't exist
+        except FileNotFoundError:
+            # Return default config if the file doesn't exist
+            print(f"Warning: Configuration file {file} not found. Using default configuration.")
+            return V2SimConfig()
+        except json.JSONDecodeError:
+            # Return default config if the file is invalid
+            print(f"Warning: Failed to parse JSON from {file}. Using default configuration.")
             return V2SimConfig() 
         
         if not isinstance(data, dict):
@@ -272,7 +319,12 @@ class V2SimConfig:
         # Rename fields if present       
         for old_name, new_name in _RENAME_FIELDS.items():
             if old_name in data: data[new_name] = data.pop(old_name)
-        
+
+        allowed = {x.name for x in fields(V2SimConfig)}
+        unknown = sorted(set(data).difference(allowed))
+        if unknown:
+            raise ValueError("Unknown V2Sim configuration fields: " + ", ".join(unknown))
+
         return V2SimConfig(**data)
     
     def save(self, file:str):
@@ -282,7 +334,7 @@ class V2SimConfig:
             file (str): Path to the configuration file
         """
         import json
-        with open(file, "w") as f:
+        with open(file, "w", newline="\r\n", encoding="utf-8") as f:
             json.dump(self.__dict__, f, indent=4)
 
 
@@ -297,7 +349,7 @@ def CheckPyVersion(ver:Tuple[int, int, int, bool]) -> bool:
     return ver[0] == cur_ver[0] and ver[1] == cur_ver[1] and ver[3] == cur_ver[3]
 
 __all__ = [
-    "FileDetectResult", "V2SimConfig", "PyVersion", "CheckPyVersion", "CONFIG_DIR",
+    "FileDetectResult", "V2SimConfig", "CHARGING_MODES", "PyVersion", "CheckPyVersion", "CONFIG_DIR",
     "DetectFiles", "CheckFile", "ClearBakFiles", "ReadXML", "LoadFCS", "LoadSCS", "SAVED_STATE_FOLDER",
     "GetRecentProjects", "AddRecentProject", "RECENT_PROJECTS_FILE", "ClearRecentProjects"
 ]

@@ -1,12 +1,12 @@
 from v2sim.gui.common import *
 from v2sim.gui.langhelper import *
 
-import os, sys, time, traceback, subprocess
+import os, sys, time, traceback, subprocess, ast
 from pathlib import Path
 from fpowerkit import Grid as PowerGrid
 from feasytools import RangeList, PDUniform
-from v2sim import FileDetectResult, V2SimConfig, DetectFiles, ReadXML, RoadNet
-from v2sim.plugins import PluginBase, PluginPDN
+from v2sim import FileDetectResult, V2SimConfig, CHARGING_MODES, DetectFiles, ReadXML, RoadNet
+from v2sim.plugins import PluginBase
 from v2sim.gen import TrafficGenerator, StationQuery, TripsGenMode, DEFAULT_CNAME
 from .utils import *
 from .loadingbox import LoadingBox
@@ -344,6 +344,37 @@ class MainBox(Tk):
         self.sim_cb_sumo_mesosim.grid(row=0, column=4, padx=3, pady=3, sticky="w")
 
         #######################
+        # Integrated PDN / charging mode
+        #######################
+        self.sim_pdn = LabelFrame(self.tab_sim, text=_L["SIM_PDN_CONFIG"])
+        self.sim_pdn.pack(fill="x", expand=False)
+
+        self.sim_charging_mode = StringVar(self, "unordered")
+        Label(self.sim_pdn, text=_L["SIM_CHARGING_MODE"]).grid(row=0, column=0, padx=3, pady=3, sticky="w")
+        self.combo_charging_mode = Combobox(
+            self.sim_pdn, textvariable=self.sim_charging_mode,
+            values=list(CHARGING_MODES), state="readonly", width=14
+        )
+        self.combo_charging_mode.grid(row=0, column=1, padx=3, pady=3, sticky="w")
+
+        def _pdn_entry(row:int, col:int, label_key:str, default:str, width:int=12):
+            Label(self.sim_pdn, text=_L[label_key]).grid(row=row, column=col, padx=3, pady=3, sticky="w")
+            e = Entry(self.sim_pdn, width=width)
+            e.insert(0, default)
+            e.grid(row=row, column=col + 1, padx=3, pady=3, sticky="w")
+            return e
+
+        self.entry_pdn_interval = _pdn_entry(0, 2, "SIM_PDN_INTERVAL", "300")
+        self.entry_pdn_estimator = _pdn_entry(0, 4, "SIM_PDN_ESTIMATOR", "DistFlow")
+        self.entry_pdn_calculator = _pdn_entry(0, 6, "SIM_PDN_CALCULATOR", "None")
+        self.entry_pdn_mlrp = _pdn_entry(1, 0, "SIM_PDN_MLRP", "0.5")
+        self.entry_pdn_source_bus = _pdn_entry(1, 2, "SIM_PDN_SOURCE_BUS", "")
+        self.entry_pdn_dec_buses = _pdn_entry(1, 4, "SIM_PDN_DEC_BUSES", "%all%")
+        self.entry_pdn_solver = _pdn_entry(1, 6, "SIM_PDN_SOLVER", "ECOS")
+        self.entry_pdn_max_workers = _pdn_entry(2, 0, "SIM_PDN_MAX_WORKERS", "1")
+        self.entry_v2g_online = _pdn_entry(2, 2, "SIM_V2G_ONLINE", "[]", width=28)
+
+        #######################
         # Plugins
         #######################
         self.sim_plugins = LabelFrame(self.tab_sim, text=_L["SIM_PLUGIN"])
@@ -514,11 +545,57 @@ class MainBox(Tk):
     def saved(self):
         return self.sim_plglist.saved and self.FCS_editor.saved and self.SCS_editor.saved and self.cv_net.saved
     
+    def _save_v2simcfg(self, logs:Optional[List[str]] = None):
+        if not self.folder:
+            return
+        if logs is None:
+            logs = [
+                x for x in ("fcs", "scs", "gs", "ev", "gen", "bus", "line", "pvw", "ess", "utn")
+                if self.sim_statistic[x]
+            ]
+        online = ast.literal_eval(self.entry_v2g_online.get().strip() or "[]")
+        assert isinstance(online, list), "V2G online ranges must be a list"
+        for r in online:
+            assert isinstance(r, (list, tuple)) and len(r) == 2, "Each V2G online range must be [start, end]"
+
+        vcfg = V2SimConfig(
+            start_time=try_int(self.entry_start.get(), "start time"),
+            break_time=try_int(self.entry_break.get(), "break time"),
+            end_time=try_int(self.entry_end.get(), "end time"),
+            traffic_step=try_int(self.entry_step.get(), "time step"),
+            seed=try_int(self.entry_seed.get(), "random seed"),
+            routing_method=self.ralgo.get(),
+            load_state=self.sim_load_state.get(),
+            save_state_on_abort=self.sim_save_on_abort.get(),
+            save_state_on_finish=self.sim_save_on_finish.get(),
+            copy_state=self.sim_copy_state.get(),
+            visualize=self.sim_sumo_show.get(),
+            ux_no_para=self.sim_ux_no_para.get(),
+            ux_show_info=self.sim_ux_show_info.get(),
+            ux_rand=self.sim_ux_rand.get(),
+            sumo_ignore_driving=self.sim_sumo_ignore_driving.get(),
+            sumo_raise_routing_error=self.sim_sumo_raise_routing_error.get(),
+            sumo_mesosim=self.sim_sumo_mesosim.get(),
+            stats=logs,
+            charging_mode=self.sim_charging_mode.get().strip().lower(),
+            pdn_interval=try_int(self.entry_pdn_interval.get(), "PDN interval"),
+            v2g_online=[tuple(r) for r in online],
+            pdn_estimator=self.entry_pdn_estimator.get().strip(),
+            pdn_calculator=self.entry_pdn_calculator.get().strip(),
+            pdn_mlrp=float(self.entry_pdn_mlrp.get()),
+            pdn_source_bus=self.entry_pdn_source_bus.get().strip(),
+            pdn_dec_buses=self.entry_pdn_dec_buses.get().strip(),
+            pdn_solver=self.entry_pdn_solver.get().strip(),
+            pdn_max_workers=try_int(self.entry_pdn_max_workers.get(), "PDN max workers"),
+        )
+        vcfg.save(self.folder + "/preference.v2simcfg")
+
     def save(self):
         if not self.sim_plglist.saved: self.sim_plglist.save()
         if not self.FCS_editor.saved: self.FCS_editor.save()
         if not self.SCS_editor.saved: self.SCS_editor.save()
         if not self.cv_net.saved: self.saveNet()
+        self._save_v2simcfg()
     
     def get_default_grid_path(self) -> str:
         return str(Path(self.folder) / Path(self.folder).name) + ".grid.xml"
@@ -577,27 +654,8 @@ class MainBox(Tk):
             if not MB.askyesno(_L["MB_INFO"],_L["MB_SAVE_AND_SIM"]): return
             self.save()
         
-        # Save preference
-        vcfg = V2SimConfig()
-        vcfg.start_time = start
-        vcfg.break_time = break_at
-        vcfg.end_time = end
-        vcfg.traffic_step = step
-        vcfg.seed = seed
-        vcfg.load_state = self.sim_load_state.get()
-        vcfg.save_state_on_abort = self.sim_save_on_abort.get()
-        vcfg.save_state_on_finish = self.sim_save_on_finish.get()
-        vcfg.copy_state = self.sim_copy_state.get()
-        vcfg.routing_method = self.ralgo.get()
-        vcfg.ux_no_para = self.sim_ux_no_para.get()
-        vcfg.ux_show_info = self.sim_ux_show_info.get()
-        vcfg.ux_rand = self.sim_ux_rand.get()
-        vcfg.sumo_ignore_driving = self.sim_sumo_ignore_driving.get()
-        vcfg.sumo_raise_routing_error = self.sim_sumo_raise_routing_error.get()
-        vcfg.sumo_mesosim = self.sim_sumo_mesosim.get()
-        vcfg.visualize = self.sim_sumo_show.get()
-        vcfg.stats = logs
-        vcfg.save(self.folder + "/preference.v2simcfg")
+        # Save project preferences and integrated PDN configuration.
+        self._save_v2simcfg(logs)
         
         if self.sim_load_state.get() == 0:
             cmd_load_state = ""
@@ -800,6 +858,21 @@ class MainBox(Tk):
             self.sim_sumo_raise_routing_error.set(vcfg.sumo_raise_routing_error)
             self.sim_sumo_mesosim.set(vcfg.sumo_mesosim)
             self.sim_sumo_show.set(vcfg.visualize)
+            self.sim_charging_mode.set(vcfg.charging_mode)
+
+            def _set_entry(entry:Entry, value):
+                entry.delete(0, END)
+                entry.insert(0, str(value))
+
+            _set_entry(self.entry_pdn_interval, vcfg.pdn_interval)
+            _set_entry(self.entry_pdn_estimator, vcfg.pdn_estimator)
+            _set_entry(self.entry_pdn_calculator, vcfg.pdn_calculator)
+            _set_entry(self.entry_pdn_mlrp, vcfg.pdn_mlrp)
+            _set_entry(self.entry_pdn_source_bus, vcfg.pdn_source_bus)
+            _set_entry(self.entry_pdn_dec_buses, vcfg.pdn_dec_buses)
+            _set_entry(self.entry_pdn_solver, vcfg.pdn_solver)
+            _set_entry(self.entry_pdn_max_workers, vcfg.pdn_max_workers)
+            _set_entry(self.entry_v2g_online, repr(vcfg.v2g_online))
             if vcfg.stats:
                 for x in vcfg.stats:
                     if x in self.sim_statistic:
@@ -882,16 +955,6 @@ class MainBox(Tk):
                 attr.update(p.attrib)
                 self.sim_plglist.add(p.tag, intv, enabled, ol_str, attr, p)
 
-        # Check if PDN exists
-        if "pdn" not in plg_set:
-            pdn_attr_default = PluginPDN.ElemShouldHave().default_value_dict()
-            self.sim_plglist.add("pdn", 300, SIM_YES, ALWAYS_ONLINE, pdn_attr_default)
-            plg_set.add("pdn")
-            plg_enabled_set.add("pdn")
-        
-        # Check if V2G exists
-        if "v2g" not in plg_set:
-            self.sim_plglist.add("v2g", 300, SIM_YES, ALWAYS_ONLINE, {})
         if not self.state.plg:
             self.sim_plglist.save()
         

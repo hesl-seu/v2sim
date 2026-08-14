@@ -38,15 +38,15 @@ def _chk(x:Optional[float])->float:
     if x is None: return 0
     return x
 
-def _find_grid_plugin(plugins:Dict[str, PluginBase]) -> IGridPlugin:
-    for plg in plugins.values():
-        if isinstance(plg, IGridPlugin):
-            return plg
-    raise ValueError("No plugin for grid found.")
+def _find_grid_source(tinst: TrafficInst):
+    core_pdn = getattr(tinst, "_integrated_pdn", None)
+    if core_pdn is None:
+        raise ValueError("Integrated PDN core is not initialized.")
+    return core_pdn
 
 class StaGen(StaBase):
     def __init__(self, path:str, tinst:TrafficInst, plugins:Dict[str, PluginBase]):
-        self.__plg = _find_grid_plugin(plugins)
+        self.__plg = _find_grid_source(tinst)
         gen_names = self.__plg.Grid.GenNames
         super().__init__(FILE_GEN, path, cross_list2(gen_names, GEN_ATTRIB) + GEN_TOT_ATTRIB, tinst, plugins)
     
@@ -56,8 +56,7 @@ class StaGen(StaBase):
     
     @staticmethod
     def GetPluginDependency() -> List[str]:
-        '''Get Plugin Dependency'''
-        return ["pdn"]
+        return []
 
     def GetData(self, inst:TrafficInst, plugins:Dict[str, PluginBase]) -> Iterable[Any]:
         mpdn = self.__plg
@@ -78,7 +77,7 @@ class StaGen(StaBase):
 
 class StaBus(StaBase):
     def __init__(self, path:str, tinst:TrafficInst, plugins:Dict[str, PluginBase]):
-        self.__plg = _find_grid_plugin(plugins)
+        self.__plg = _find_grid_source(tinst)
         bus_names = self.__plg.Grid.BusNames
         self.__bus_with_gens = [b.ID for b in self.__plg.Grid.Buses if len(self.__plg.Grid.GensAtBus(b.ID))>0]
         super().__init__(FILE_BUS, path, cross_list2(bus_names, ["Pd", "Qd", "V"]) 
@@ -91,7 +90,7 @@ class StaBus(StaBase):
     @staticmethod
     def GetPluginDependency() -> List[str]:
         '''Get Plugin Dependency'''
-        return ["pdn"]
+        return []
     
     def GetData(self, inst: TrafficInst, plugins: Dict[str, PluginBase]) -> Iterable[Any]:
         mpdn = self.__plg.Grid
@@ -114,7 +113,7 @@ class StaBus(StaBase):
 
 class StaLine(StaBase):
     def __init__(self, path:str, tinst:TrafficInst, plugins:Dict[str, PluginBase]):
-        self.__plg = _find_grid_plugin(plugins)
+        self.__plg = _find_grid_source(tinst)
         super().__init__(FILE_LINE, path, cross_list2(self.__plg.Grid._lines.keys(), LINE_ATTRIB), tinst, plugins)
 
     @staticmethod
@@ -124,7 +123,7 @@ class StaLine(StaBase):
     @staticmethod
     def GetPluginDependency() -> List[str]:
         '''Get Plugin Dependency'''
-        return ["pdn"]
+        return []
     
     def GetData(self, inst:TrafficInst, plugins:Dict[str,PluginBase]) -> Iterable[Any]:
         mpdn = self.__plg.Grid
@@ -135,7 +134,7 @@ class StaLine(StaBase):
 
 class StaPVWind(StaBase):
     def __init__(self, path:str, tinst:TrafficInst, plugins:Dict[str, PluginBase]):
-        self.__plg = _find_grid_plugin(plugins)
+        self.__plg = _find_grid_source(tinst)
         super().__init__(FILE_PVW, path, cross_list2(self.__plg.Grid._pvws.keys(), PVW_ATTRIB),tinst,plugins)
 
     @staticmethod
@@ -145,7 +144,7 @@ class StaPVWind(StaBase):
     @staticmethod
     def GetPluginDependency() -> List[str]:
         '''Get Plugin Dependency'''
-        return ["pdn"]
+        return []
     
     def GetData(self, inst:TrafficInst, plugins:Dict[str,PluginBase]) -> Iterable[Any]:
         mpdn = self.__plg.Grid
@@ -155,7 +154,7 @@ class StaPVWind(StaBase):
 
 class StaESS(StaBase):
     def __init__(self, path:str, tinst:TrafficInst, plugins:Dict[str, PluginBase]):
-        self.__plg = _find_grid_plugin(plugins)
+        self.__plg = _find_grid_source(tinst)
         super().__init__(FILE_ESS, path, cross_list2(self.__plg.Grid._esss.keys(), ESS_ATTRIB),tinst,plugins)
 
     @staticmethod
@@ -165,7 +164,7 @@ class StaESS(StaBase):
     @staticmethod
     def GetPluginDependency() -> List[str]:
         '''Get Plugin Dependency'''
-        return ["pdn"]
+        return []
     
     def GetData(self, inst:TrafficInst, plugins:Dict[str,PluginBase])->Iterable[Any]:
         mpdn = self.__plg.Grid

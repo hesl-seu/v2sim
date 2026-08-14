@@ -3,9 +3,8 @@ from xml.etree.ElementTree import Element
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Generic, Iterable, Optional, Protocol, TypeVar, runtime_checkable, List, Tuple, Dict
+from typing import Any, Callable, Generic, Iterable, Optional, TypeVar, List, Tuple, Dict
 from feasytools import RangeList
-from fpowerkit import Grid
 from ..sim import TrafficInst
 from ..locale import Lang
 
@@ -101,13 +100,6 @@ class ConfigItemDict(Dict[str, ConfigItem]):
 
 PluginConfigItem = ConfigItem
 ConfigDict = ConfigItemDict
-
-@runtime_checkable
-class IGridPlugin(Protocol):
-    @property
-    def Grid(self) -> Grid:
-        '''Get the grid instance'''
-        raise NotImplementedError
 
 class PluginBase(Generic[PIResult]):
     __PreSimulation: Optional[PINoRet]

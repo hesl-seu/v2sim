@@ -2,16 +2,12 @@ import dill as pickle
 from typing import Type, Union
 from ..utils import CheckPyVersion, PyVersion
 from .base import *
-from .pdn import PluginPDN
-from .v2g import PluginV2G
 from .ocur import PluginOvercurrent
 
 PluginExports = Tuple[str, Type[PluginBase], List[str]]
 
 _internal_plugins:Dict[str, Tuple[Type[PluginBase], List[str]]] = {
-    "pdn": (PluginPDN,[]),
-    "v2g": (PluginV2G,["pdn"]),
-    "ocur": (PluginOvercurrent,["pdn"]),
+    "ocur": (PluginOvercurrent,[]),
 }
 
 

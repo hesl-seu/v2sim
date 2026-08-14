@@ -40,16 +40,12 @@ class StaFCS(StaBase):
         Pc = (cs._cload * 3600 for cs in IL)
         return chain(cnt, Pc)
 
-class _FakeV2GPlugin:
-    def IsOnline(self, t:int) -> bool:
-        return False
-
 class StaSCS(StaBase):
     def __init__(self, path:str, tinst:TrafficInst, plugins:Dict[str, PluginBase]):
         head = cross_list2(tinst.scs.get_names(), CS_ATTRIB)
         super().__init__(FILE_SCS, path, head, tinst, plugins)
         self.L = len(tinst._hubs.scs)
-        self.v2g_plugin = plugins.get("v2g", _FakeV2GPlugin())
+        self.pdn_core = getattr(tinst, "_integrated_pdn", None)
 
     @staticmethod
     def GetLocalizedName() -> str:
@@ -66,7 +62,7 @@ class StaSCS(StaBase):
         t = inst._ct
         cnt = (cs.__len__() for cs in IL)
         Pc = (cs._cload * 3600 for cs in IL)
-        if self.v2g_plugin.IsOnline(t):
+        if self.pdn_core is not None and self.pdn_core.v2g_online(t):
             Pd = (cs._dload * 3600 for cs in IL)
             Pv2g = (cs._cur_v2g_cap * 3600 for cs in IL)
         else:

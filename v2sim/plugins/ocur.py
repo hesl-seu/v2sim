@@ -3,18 +3,17 @@ from itertools import chain
 from feasytools import LangLib
 from fpowerkit import IslandResult, DistFlowSolver, Estimator
 from ..hub import CS
-from .pdn import PluginPDN
 from .base import *
 
 _locale = LangLib(["zh_CN","en"])
 _locale.SetLangLib("zh_CN",
     DESCRIPTION = "过流保护",
-    ERROR_NO_PDN = "过流保护依赖于PDN插件",
+    ERROR_NO_PDN = "过流保护依赖于内置PDN核心",
     ERROR_SMART_CHARGE = "启用有序充电时过流保护不可用",
 )
 _locale.SetLangLib("en",
     DESCRIPTION = "Over-current protection",
-    ERROR_NO_PDN = "Over-current protection depends on PDN plugin",
+    ERROR_NO_PDN = "Over-current protection depends on the integrated PDN core",
     ERROR_SMART_CHARGE = "Over-current protection is not available when smart charging is enabled",
 )
 
@@ -37,14 +36,17 @@ class PluginOvercurrent(PluginBase[None]):
     
     def Init(self, elem:Element, inst:TrafficInst, work_dir:Path, res_dir:Path, plg_deps:'List[PluginBase]')->None:
         self.__file = open(str(res_dir / "current_protect.log"), "w")
-        self.SetPreStep(self._work)
         self.SetPostSimulation(self.__file.close)
-        assert len(plg_deps) == 1 and isinstance(plg_deps[0], PluginPDN), _locale["ERROR_NO_PDN"]
-        self.__pdn = plg_deps[0]
-        if self.__pdn.isSmartChargeEnabled():
+        assert len(plg_deps) == 0, _locale["ERROR_NO_PDN"]
+        self.__pdn = getattr(inst, "_integrated_pdn", None)
+        if self.__pdn is None:
+            raise RuntimeError(_locale["ERROR_NO_PDN"])
+        if self.__pdn.is_smartcharge_mode():
             raise RuntimeError(_locale["ERROR_SMART_CHARGE"])
         if self.__pdn.Solver.est != Estimator.DistFlow:
             raise RuntimeError("Over-current protection only works with DistFlowSolver")
+        self.__last_core_exec = -1
+        self.__pdn.register_post_solve_hook(self._core_hook)
         self.__csatb:Dict[str, List[CS]] = defaultdict(list)
         for cs in chain(inst.SCSList, inst.FCSList):
             self.__csatb[cs._bus].append(cs)
@@ -60,6 +62,16 @@ class PluginOvercurrent(PluginBase[None]):
         for cs in self.__csatb[b]:
             cs.force_shutdown()
         print(f"CS {','.join(map(lambda x:x.name, self.__csatb[b]))} forced shutdown at bus {b}.", file=self.__file)
+
+    def _core_hook(self, _t:int):
+        # IntegratedPDN invokes this after the current-step grid solve.
+        # Preserve this plugin's own online window and execution interval.
+        if not self.IsOnline(_t):
+            return
+        if self.__last_core_exec >= 0 and self.__last_core_exec + self.Interval > _t:
+            return
+        self.__last_core_exec = _t
+        self._work(_t, PluginStatus.EXECUTE)
 
     def _work(self, _t:int, /, sta:PluginStatus) -> Tuple[bool, None]:
         '''

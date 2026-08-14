@@ -222,7 +222,3 @@ def load_scenario(W, fname, network=True, demand=True):
             else:
                 pass
         
-
-
-
-

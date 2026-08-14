@@ -280,6 +280,18 @@ class EV(Vehicle):
         money = delta_energy * unit_cost
         self._cost += money
         return delta_energy, money
+
+    def requested_charge_power(self, real_etar: Optional[float] = None) -> float:
+        """Return the unconstrained charging request for the current state.
+
+        The value is in kWh/s and does not change SOC, accounting state, or
+        the temporary PDN power limit.  It is used by the integrated PDN to
+        perform VersionB-style demand -> grid -> actual-charge sequencing.
+        """
+        target = self._etar if real_etar is None else real_etar
+        if self._energy >= target:
+            return 0.0
+        return max(0.0, self._chrate_mod(self.__pcm, self))
     
     def end_charging(self) -> Tuple[float, float]:
         """
@@ -374,6 +386,17 @@ class EV(Vehicle):
         self._pdr = 0
         return (self._energy - self.__ebeg, self._cost - self.__costbeg, self._earn - self.__earnbeg)
 
+    def v2g_eligible(self, t:int, e:float, require_soc: bool = True) -> bool:
+        """Whether this EV can participate in V2G at ``t`` and price ``e``.
+
+        ``require_soc=False`` is used by the integrated dispatcher when it must
+        decide *before charging* whether energy above ``kv`` should be reserved
+        as V2G capacity.
+        """
+        soc_ok = self.soc > self._kv if require_soc else True
+        time_ok = self._v2g_time.__contains__(t) if self._v2g_time else True
+        return soc_ok and e >= self._min_v2g_earn and time_ok and not self._leave_at_etar
+
     def willing_to_v2g(self, t:int, e:float) -> bool:
         """
         User determines whether the vehicle is willing to v2g
@@ -381,7 +404,7 @@ class EV(Vehicle):
             t: current time
             e: current V2G earn, $/kWh
         """
-        return self.soc > self._kv and e >= self._min_v2g_earn and (self._v2g_time.__contains__(t) if self._v2g_time else True) and not self._leave_at_etar
+        return self.v2g_eligible(t, e, True)
     
     def willing_to_slow_charge(self, t:int, c:float) -> bool:
         """

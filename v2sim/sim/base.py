@@ -14,6 +14,7 @@ from ..utils import *
 from ..veh import *
 from ..hub import *
 from .tlog import *
+from .pdncore import IntegratedPDN
 T_OD = TypeVar("T_OD")
 
 
@@ -28,6 +29,7 @@ class StageLike(Protocol):
 
 
 class TrafficInst(ABC):
+    _integrated_pdn: 'IntegratedPDN'
     def __init__(
         self, start_time: int, step_len: int, end_time: int, roadnet:RoadNet, 
         trip_logger: TripLogger, vehs: VDict, hubs: MixedHub, pdn: Grid,
@@ -176,6 +178,12 @@ class TrafficInst(ABC):
         # Electricity price is $/puh. Convert to $/kWh
         pb_e = self._pdn._cp(self._ct) / Sb_kVA
         ps_e = self._pdn._dp(self._ct) / Sb_kVA
+
+        # Integrated PDN/V2G dispatch.  This is intentionally before station
+        # update so the order is:
+        #   requested charge/V2G capability -> PDN solve -> actual charging.
+        self._integrated_pdn.prepare_dispatch(self._ct, deltaT, pb_e, ps_e)
+
         if self.__has_gil or self.__last_station_upd < 0.01:
             t = time.time()
             gvs = self._hubs.gs.update(deltaT, self._ct, pb_g)

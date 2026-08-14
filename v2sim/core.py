@@ -12,6 +12,7 @@ from .stats import *
 from .sim import *
 from .locale import Lang
 from .utils import *
+from .sim.pdncore import IntegratedPDN
 
 
 PLUGINS_FILE = "plugins.gz"
@@ -141,7 +142,7 @@ def create_output_directory(
     return pout, tlog
 
 
-def _create_plg_and_stats(plgfile:Optional[str], state_dir:Optional[str], pout:Path, inst:TrafficInst, logging_items:Optional[Dict[str, int]], disabled_plugins:Optional[List[str]]):
+def _create_plg_and_stats(plgfile:Optional[str], state_dir:Optional[str], pout:Path, inst:TrafficInst, logging_items:Optional[Dict[str, int]], disabled_plugins:Optional[List[str]], v2sim_config:V2SimConfig, silent:bool):
     plg_pool, sta_pool = create_pools()
 
     # Enable plugins
@@ -157,6 +158,8 @@ def _create_plg_and_stats(plgfile:Optional[str], state_dir:Optional[str], pout:P
     else:
         plugin_state = None
 
+    pdn_core = IntegratedPDN(inst, v2sim_config, pout)
+    inst._integrated_pdn = pdn_core
     plgman = PluginMan(plgfile, pout, inst, plg_pool, disabled_plugins, plugin_state)
 
     # Create a data logger
@@ -171,9 +174,12 @@ def _create_plg_and_stats(plgfile:Optional[str], state_dir:Optional[str], pout:P
             "pvw": max(1, int(900 / inst._step)),
             "ess": max(1, int(900 / inst._step)),
         }
+    if not silent:
+        print(Lang.INFO_LOGGING_ITEMS.format(','.join(logging_items.keys())))
+        print(Lang.INFO_PDN_CONFIG.format(v2sim_config.charging_mode, v2sim_config.pdn_solver, v2sim_config.pdn_interval, v2sim_config.pdn_estimator, v2sim_config.pdn_calculator, v2sim_config.pdn_mlrp))
     stats = StaWriter(pout, inst, plgman.GetPlugins(), sta_pool, logging_items)
 
-    return plgman, stats
+    return pdn_core, plgman, stats
 
 
 def _create_inst(case_data:CaseData, state_dir:Optional[str], tlogger:TripLogger, seed:int, 
@@ -260,7 +266,7 @@ class V2SimInstance:
         if not self.__silent: print(con, file=file, end=end)
 
     def __init__(
-        self, out_dir:Path, traffic: TrafficInst, plugins:PluginMan, stats:StaWriter,              
+        self, out_dir:Path, traffic: TrafficInst, pdn_core:IntegratedPDN, plugins:PluginMan, stats:StaWriter,              
         break_at:Optional[int] = None, client_options: Optional[ClientOptions] = None,
         save:SaveStateOptions = SaveStateOptions.Skip, vb = None, silent: bool = False,
         show_progress: bool = True,
@@ -277,6 +283,7 @@ class V2SimInstance:
 
         # Simulation parameters
         self.__inst = traffic
+        self.__pdn_core = pdn_core
         self.__plgman = plugins
         self.__sta = stats
         self.__silent = silent
@@ -297,11 +304,8 @@ class V2SimInstance:
         # Create simulation info log file
         self.__out = open(out_dir / SIM_INFO_LOG, "w", encoding="utf-8")
 
-        # Find the power grid plugin
-        self.__gridplg = None
+        # PDN/V2G are core-owned; only auxiliary plugins are listed here.
         for plugname, plugin in self.__plgman.GetPlugins().items():
-            if isinstance(plugin, PluginPDN):
-                self.__gridplg = plugin
             self.__print(Lang.INFO_PLG.format(plugname, plugin.Description))
         
     @staticmethod
@@ -339,9 +343,12 @@ class V2SimInstance:
             inst, show_prog = _create_inst(case_data, state_dir, tlogger, seed, silent, vscfg, config)
             plgfile = case_data.files.plg
 
-        plgman, stats = _create_plg_and_stats(plgfile, state_dir, pout, inst, logging_items, disabled_plugins)
+        v2sim_config = V2SimConfig.load(proj.pref) if proj.pref else V2SimConfig()
+        pdn_core, plgman, stats = _create_plg_and_stats(
+            plgfile, state_dir, pout, inst, logging_items, disabled_plugins, v2sim_config, silent
+        )
 
-        return V2SimInstance(pout, inst, plgman, stats, break_at, client_options, save_option, vb, silent, show_prog)
+        return V2SimInstance(pout, inst, pdn_core, plgman, stats, break_at, client_options, save_option, vb, silent, show_prog)
 
     @staticmethod
     def from_case_data(
@@ -358,9 +365,12 @@ class V2SimInstance:
         state_dir = check_state_dir(state_option, state_dir, Path(case_data.case_dir))
         inst, show_prog = _create_inst(case_data, state_dir, tlogger, seed, silent, vscfg, config)
         plgfile = case_data.files.plg
-        plgman, stats = _create_plg_and_stats(plgfile, state_dir, pout, inst, logging_items, disabled_plugins)
+        v2sim_config = V2SimConfig.load(case_data.files.pref) if case_data.files.pref else V2SimConfig()
+        pdn_core, plgman, stats = _create_plg_and_stats(
+            plgfile, state_dir, pout, inst, logging_items, disabled_plugins, v2sim_config, silent
+        )
 
-        return V2SimInstance(pout, inst, plgman, stats, break_at, client_options, save_option, vb, silent, show_prog)
+        return V2SimInstance(pout, inst, pdn_core, plgman, stats, break_at, client_options, save_option, vb, silent, show_prog)
  
     @property
     def result_dir(self):
@@ -453,9 +463,9 @@ class V2SimInstance:
         return self.__working_flag
     
     @property
-    def pdn(self) -> Optional[PluginPDN]:
-        '''Power grid plugin'''
-        return self.__gridplg
+    def pdn(self) -> IntegratedPDN:
+        '''Integrated power-distribution-network controller.'''
+        return self.__pdn_core
 
     @property
     def trips_logger(self) -> TripsLogger:
@@ -541,6 +551,7 @@ class V2SimInstance:
         self.__plgman.PostSimulationAll()
         self.__inst.simulation_stop()
         self.__sta.close()
+        self.__pdn_core.close()
         self.__out.close()
         self.__working_flag = False
     
@@ -603,7 +614,7 @@ class V2SimInstance:
                             if ctime - self.__st_time > 3
                             else "N/A"
                         )
-                        self.__print("\r",end="")
+                        self.__print("\r", end="")
                         self.__print(
                             Lang.MAIN_SIM_PROG.format(
                                 round(progress, 2), 
@@ -659,7 +670,7 @@ class V2SimInstance:
                     if ctime - self.__st_time > 3
                     else "N/A"
                 )
-                self.__print("\r",end="")
+                self.__print("\r", end="")
                 self.__print(
                     Lang.MAIN_SIM_PROG.format(
                         round(progress,2), 

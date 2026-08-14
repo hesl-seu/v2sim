@@ -19,9 +19,13 @@ V2GAllocator = Callable[[AllocEnv, int, float, float], None]
 
 def _AverageV2GAllocator(env:AllocEnv, veh_cnt: int, v2g_demand: float, v2g_cap: float):
     if veh_cnt == 0 or v2g_demand == 0: return
+    # v2g_demand is power delivered to the grid, while EV.set_temp_pd and
+    # bidirectional_discharge use battery-side discharge power.  Compensate
+    # for each EV's discharge efficiency so actual grid injection matches the
+    # PDN dispatch target.
     pd = v2g_demand / veh_cnt
     for ev in env.EVs:
-        ev.set_temp_pd(pd)
+        ev.set_temp_pd(pd / ev._ed if ev._ed > 1e-12 else 0.0)
 
 class V2GAllocPool:
     """Charging rate correction function pool"""
@@ -198,6 +202,7 @@ class CS(BaseStation[EV], ABC):
         self._cload: float = 0.0
         self._dload: float = 0.0
         self._cur_v2g_cap: float = 0.0
+        self._integrated_v2g_mode: bool = False
     
     def add_single_owner(self, owner: str):
         """
@@ -307,6 +312,20 @@ class CS(BaseStation[EV], ABC):
         """Check if this charging station supports V2G"""
         return self._psell is not None
 
+    def set_integrated_v2g_mode(self, enabled: bool):
+        """Select the core-owned V2G execution policy.
+
+        When enabled, charging demand is formed before the PDN solve.  EVs
+        above their V2G reserve SOC are therefore held as V2G resources rather
+        than simultaneously counted as charging demand.
+        """
+        self._integrated_v2g_mode = bool(enabled and self.supports_V2G)
+
+    @abstractmethod
+    def get_requested_pc(self, t: int, pb_e: float, ps_e: float = 0.0, v2g_mode: bool = False) -> float:
+        """Unconstrained charging request in kWh/s without changing EV state."""
+        raise NotImplementedError
+
     @abstractmethod
     def update(
         self, sec: int, cur_time: int, v2g_demand: float, pb_e:float, ps_e:float
@@ -331,7 +350,7 @@ class CS(BaseStation[EV], ABC):
         return len(self._chi) + len(self._buf)
 
     @abstractmethod
-    def get_V2G_cap(self, t: int) -> float:
+    def get_V2G_cap(self, t: int, ps_e: Optional[float] = None) -> float:
         """
         Get the maximum power of V2G under the current situation, unit kWh/s
         """
@@ -515,8 +534,17 @@ class UniCS(CS):
     def _ev_leave_chi(self, ev: EV):
         ev.end_charging()
     
-    def get_V2G_cap(self, _t:int, /) -> float:
+    def get_V2G_cap(self, _t:int, /, ps_e: Optional[float] = None) -> float:
         return 0.0
+
+    def get_requested_pc(self, t: int, pb_e: float, ps_e: float = 0.0, v2g_mode: bool = False) -> float:
+        if self.is_offline(t):
+            return 0.0
+        if self._cs_type == CSType.FCS:
+            evs = self._chi
+        else:
+            evs = [ev for ev in self._chi if ev.willing_to_slow_charge(t, self.real_pbuy(t, ev, pb_e))]
+        return sum(ev.requested_charge_power() for ev in evs)
     
     def update(
         self, sec: int, cur_time: int, v2g_demand: float, pb_e:float, ps_e:float
@@ -596,14 +624,42 @@ class BiCS(CS):
     def _ev_leave_chi(self, veh: EV):
         veh.end_bidirectional()           
 
-    def get_V2G_cap(self, _t:int, /) -> float:
+    def get_V2G_cap(self, _t:int, /, ps_e: Optional[float] = None) -> float:
         if self.is_offline(_t): return 0.0
         assert self._psell is not None, "V2G not supported in %s." % self._name
-        self._d_evs = [ev for ev in self._chi if ev.willing_to_v2g(_t, self._psell(_t, self, ev))]
-        tot_pd = sum(ev._pdv * ev._ed for ev in self._d_evs)
+        self._d_evs = [
+            ev for ev in self._chi
+            if ev.willing_to_v2g(
+                _t,
+                self._psell(_t, self, ev) if ps_e is None else self.real_psell(_t, ev, ps_e)
+            )
+        ]
+        tot_pd = sum(min(ev._pdv, self._pd_lim1) * ev._ed for ev in self._d_evs)
         self._cur_v2g_cap = tot_pd
         self.__d_evs_upd_t = _t
         return tot_pd
+
+    def get_requested_pc(self, t: int, pb_e: float, ps_e: float = 0.0, v2g_mode: bool = False) -> float:
+        if self.is_offline(t):
+            return 0.0
+        core_v2g = bool(v2g_mode and self._integrated_v2g_mode)
+        ret = 0.0
+        for ev in self._chi:
+            if self._cs_type == CSType.SCS and not ev.willing_to_slow_charge(t, self.real_pbuy(t, ev, pb_e)):
+                continue
+            if core_v2g:
+                eligible = ev.v2g_eligible(t, self.real_psell(t, ev, ps_e), False)
+                if eligible:
+                    # Reserve EVs at/above kv for possible discharge.  This
+                    # removes the circular dependency in the old plugin order.
+                    if ev.soc >= ev._kv:
+                        continue
+                    ret += ev.requested_charge_power(min(ev._cap * ev._kv, ev._etar))
+                else:
+                    ret += ev.requested_charge_power()
+            else:
+                ret += ev.requested_charge_power()
+        return ret
     
     def update(
         self, sec: int, cur_time: int, v2g_demand: float, pb_e:float, ps_e:float
@@ -627,32 +683,48 @@ class BiCS(CS):
         Wcharge = 0; Wdischarge = 0
          
         ret: List[EV] = []
+        core_v2g = self._integrated_v2g_mode
         v2g_enabled = v2g_demand > 0 and self._cur_v2g_cap > 0
-        if v2g_enabled:
+        if core_v2g:
             # V2G is enabled now. Some EVs charge and some EVs discharge.
             if self.__d_evs_upd_t != cur_time:
                 # Update both lists of vehicles willing to charge and discharge via V2G
                 self._c_evs.clear(); self._d_evs.clear()
                 if self._cs_type == CSType.FCS:
                     for ev in self._chi:
-                        if ev.soc < ev._kv:
+                        eligible = ev.v2g_eligible(cur_time, self.real_psell(cur_time, ev, ps_e), False)
+                        if eligible and ev.soc < ev._kv:
                             self._c_evs.append(ev)
-                        elif ev.willing_to_v2g(cur_time, self.real_psell(cur_time, ev, ps_e)):
+                        elif eligible and v2g_enabled and ev.willing_to_v2g(cur_time, self.real_psell(cur_time, ev, ps_e)):
                             self._d_evs.append(ev)
+                        elif not eligible:
+                            self._c_evs.append(ev)
                 else:
                     for ev in self._chi:
-                        if ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e)) and ev.soc < ev._kv:
+                        can_charge = ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e))
+                        eligible = ev.v2g_eligible(cur_time, self.real_psell(cur_time, ev, ps_e), False)
+                        if eligible and ev.soc < ev._kv and can_charge:
                             self._c_evs.append(ev)
-                        elif ev.willing_to_v2g(cur_time, self.real_psell(cur_time, ev, ps_e)):
+                        elif eligible and v2g_enabled and ev.willing_to_v2g(cur_time, self.real_psell(cur_time, ev, ps_e)):
                             self._d_evs.append(ev)
+                        elif not eligible and can_charge:
+                            self._c_evs.append(ev)
             else:
                 # Use the previously updated list of vehicles willing to discharge via V2G
                 # Only update the list of vehicles willing to charge via V2G
                 if self._cs_type == CSType.FCS:
-                    self._c_evs = [ev for ev in self._chi if ev.soc < ev._kv]
+                    self._c_evs = [
+                        ev for ev in self._chi
+                        if (not ev.v2g_eligible(cur_time, self.real_psell(cur_time, ev, ps_e), False)) or ev.soc < ev._kv
+                    ]
                 else:
-                    self._c_evs = [ev for ev in self._chi if ev.soc < ev._kv and 
-                        ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e))]
+                    self._c_evs = [
+                        ev for ev in self._chi
+                        if ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e))
+                        and ((not ev.v2g_eligible(cur_time, self.real_psell(cur_time, ev, ps_e), False)) or ev.soc < ev._kv)
+                    ]
+                if not v2g_enabled:
+                    self._d_evs.clear()
         else:
             # V2G is not enabled now, all vehicles charging to their _etar
             self._d_evs.clear()
@@ -667,17 +739,16 @@ class BiCS(CS):
             # If _pc_alloc do not allocate power to a vehicle, the vehicle's charging power is set to maximum charging power.
             self._pc_alloc(AllocEnv(self, self._c_evs, cur_time), m, self._pc_lim1, self._pc_limtot)
             
-            if v2g_enabled:
-                # When V2G is enabled, vehicles only charge to min(_cap * _kv, _etar)
+            if core_v2g:
+                # V2G-eligible vehicles charge only to kv; other vehicles retain
+                # the original target-energy behaviour.
                 for ev in self._c_evs:
                     pb = self.real_pbuy(cur_time, ev, pb_e)
-                    if ev._leave_at_etar:
-                        c_, m_ = ev._bidirectional_charge(sec, pb, ev._etar)
-                        Wcharge += c_; self._revenue += m_; self._cost += c_ * pb_e
-                        if ev._energy >= ev._etar and ev._leave_at_etar: ret.append(ev)
-                    else:
-                        c_, m_ = ev._bidirectional_charge(sec, pb, min(ev._cap * ev._kv, ev._etar))
-                        Wcharge += c_; self._revenue += m_; self._cost += c_ * pb_e
+                    eligible = ev.v2g_eligible(cur_time, self.real_psell(cur_time, ev, ps_e), False)
+                    target = min(ev._cap * ev._kv, ev._etar) if eligible else ev._etar
+                    c_, m_ = ev._bidirectional_charge(sec, pb, target)
+                    Wcharge += c_; self._revenue += m_; self._cost += c_ * pb_e
+                    if ev._energy >= ev._etar and ev._leave_at_etar: ret.append(ev)
             else:
                 # When V2G is not enabled, vehicles charge to _etar
                 for ev in self._c_evs:

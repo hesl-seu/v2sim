@@ -64,6 +64,8 @@ class _locale:
     INFO_REGEN_SCS = "慢充站已重新生成."
     INFO_REGEN_FCS = "快充站已重新生成."
     INFO_REGEN_VEH = "EV和行程已重新生成."
+    INFO_LOGGING_ITEMS = "  统计项: {}"
+    INFO_PDN_CONFIG = "  配电网: 模式 = {0}, 求解器 = {1}, 间隔 = {2}s, \n    优化器 = {3}, 计算器 = {4}, 最大削负荷比例 = {5:.4f}"
 
     CORE_NO_RUN = "这是仿真系统的核心模块。不要直接运行此文件。请改用sim_single.py或sim_para.py。"
 
@@ -213,8 +215,8 @@ class _locale:
     CSQUERY_KEY_REQUIRED = "请在命令行中使用'--key'提供高德地图密钥"
     BAD_TRIP_OD = "行程起始节点必须与前一个行程的结束节点相同，但车辆{2}的行程{3}的起点{0}不是{1}"
     BAD_TRIP_DEPART_TIME = "行程出发时间必须按升序排列，但车辆{2}的行程{3}的出发时间{0}早于{1}"
-    PARA_WORLDS = "已创建{0}个并行仿真."
-    SINGLE_WORLD = "已创建单个串行仿真."
+    PARA_WORLDS = "  已创建{0}个并行仿真."
+    SINGLE_WORLD = "  已创建单个串行仿真."
     ROUTE_ALGO_NOT_SUPPORTED = "寻路算法'{0}'无效. 可用项为: dijkstra, astar"
     VEH_NOT_FOUND = "车辆{0}不在仿真中."
     VEH_HAS_NO_LINK = "车辆{0}不在任何道路上."

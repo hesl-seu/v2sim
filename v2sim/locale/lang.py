@@ -78,6 +78,8 @@ class Lang:
     INFO_REGEN_FCS = "Fast charging stations regenerated."
     INFO_REGEN_GS = "Gas stations regenerated."
     INFO_REGEN_VEH = "EVs & trips regenerated."
+    INFO_LOGGING_ITEMS = "  Logging items: {}"
+    INFO_PDN_CONFIG = "  PDN Config: mode = {0}, solver = {1}, interval = {2}s, \n    estimator = {3}, calculator = {4}, mlrp = {5:.4f}"
 
     CORE_NO_RUN = "This is the core module of the simulation system. Do not run this file directly. Use sim_single.py or sim_para.py instead."
 
@@ -241,8 +243,8 @@ You can load the commands from a file as an argument in the command prompt/termi
     CSQUERY_KEY_REQUIRED = "Please provide an AMap key in command line with '--key'"
     BAD_TRIP_OD = "Trip start node must be the same as the previous trip's end node, but got {0} after {1} for vehicle {2}'s trip {3}"
     BAD_TRIP_DEPART_TIME = "Trip departure time must be in ascending order, but got {0} after {1} for vehicle {2}'s trip {3}"
-    PARA_WORLDS = "Paraworlds created. Number of sub-worlds: {0}."
-    SINGLE_WORLD = "Single world created."
+    PARA_WORLDS = "  Paraworlds created. Number of sub-worlds: {0}."
+    SINGLE_WORLD = "  Single world created."
     ROUTE_ALGO_NOT_SUPPORTED = "Route calculation algorithm '{0}' is not supported. Candidates are: dijkstra, astar"
     VEH_NOT_FOUND = "Vehicle {0} not found in the simulator."
     VEH_HAS_NO_LINK = "Vehicle {0} has no link assigned."
