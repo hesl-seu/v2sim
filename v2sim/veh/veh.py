@@ -278,7 +278,9 @@ class Vehicle:
         :param new_dis: New distance traveled, m. No less than the previous distance.
         :returns: True if the vehicle has remaining energy after driving, False if the vehicle is depleted.
         """
-        assert new_dis >= self._dis - EPS
+        if new_dis < 0: new_dis = 0.0
+        if new_dis < self._dis - EPS:
+            raise ValueError(f"New distance {new_dis} cannot be less than the previous distance {self._dis}")
         self._energy -= (new_dis - self._dis) * self._epm
         self._dis = new_dis
         if self._energy <= 0:

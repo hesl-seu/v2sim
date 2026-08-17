@@ -179,6 +179,7 @@ class VehGenerator(ABC):
         self._gen_mode = TripsGenMode.AUTO
 
         self.files = DetectFiles(PNAME)
+        
         if not self.files.vtypes:
             self.vTypes = VehicleTypePool(os.path.join(CROOT, "vtypes.xml"))
         else:
@@ -768,7 +769,7 @@ class SUMOVehGenerator(VehGenerator):
         elif mode == TripsGenMode.POLY:
             assert _fn.poly and _fn.net and _fn.fcs, Lang.ERROR_NO_TAZ_OR_POLY
             self._mode = "poly"
-            net = RoadNet.load(_fn.net)
+            net = RoadNet.load_sumo(_fn.net, only_passenger=True)
             polys = PolygonMan(_fn.poly)
             self.dic_taztype = {k:[] for k in TAZ_TYPE_LIST}
             for poly in polys:
@@ -777,8 +778,9 @@ class SUMOVehGenerator(VehGenerator):
                 poi_pos = poly.center()
                 if taz_type:
                     dist, eid, edge_pos = net.find_nearest_edge_id_with_pos(*poi_pos)
+                    is_passenger_allowed = net.allows_passengers(eid)
                     # Ensure the edge is in the largest strongly connected component
-                    if dist < 200 and net.is_edge_in_largest_scc(eid): 
+                    if dist < 200 and net.is_edge_in_largest_scc(eid) and is_passenger_allowed:
                         self.dic_taztype[taz_type].append(taz_id)
                         self.dic_taz[taz_id] = [eid]
                         self.taz_pos[taz_id] = edge_pos

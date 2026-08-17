@@ -176,8 +176,28 @@ class VehicleTypeEditor(LabelFrame):
 
             root.append(e)
 
-        CheckFile(self._file)
-        ElementTree(root).write(self._file, encoding="utf-8", xml_declaration=True)
+        import io
+        import os
+
+        f_buffer = io.BytesIO()
+        ElementTree(root).write(f_buffer, encoding="utf-8", xml_declaration=True)
+        new_content = f_buffer.getvalue()
+
+        should_write = True
+        if os.path.exists(self._file):
+            try:
+                with open(self._file, "rb") as f:
+                    old_content = f.read()
+                if old_content == new_content:
+                    should_write = False
+            except Exception:
+                pass
+
+        if should_write:
+            CheckFile(self._file)
+            with open(self._file, "wb") as f:
+                f.write(new_content)
+        
         self.lb_is_saved.config(text=_L["SAVED"], foreground="green")
 
 __all__ = ["VehicleTypeEditor"]
