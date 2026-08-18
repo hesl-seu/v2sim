@@ -94,6 +94,16 @@ def plot_all(config: dict, p: str, q: bool, npl: AdvancedPlot):
                 npl.quick_scs(tl, tr, s, res_path=p, **config["scs"])
         ploted = True
 
+    if sta.has_GS() and any(config["gs"].values()):
+        print("\r  Plotting GS...            ", end="")
+        npl.quick_gs(tl, tr, "<sum>", res_path=p, **config["gs"])
+        if not q:
+            n = len(sta.GS_head)
+            for i, g in enumerate(sta.GS_head):
+                print(f"\r  Plotting GS ({i}/{n})...            ", end="")
+                npl.quick_gs(tl, tr, g, res_path=p, **config["gs"])
+        ploted = True
+
     if ploted:
         print()
     else:
@@ -127,6 +137,9 @@ def main():
         "btime": args.pop_int("b", 0),
         "etime": args.pop_int("e", -1),
         "plotmax": args.pop_bool("plotmax"),
+        "gs": {
+            "cnt": args.pop_bool("gs-cnt"),
+        },
         "fcs": {
             "wcnt": args.pop_bool("fcs-wcnt"),
             "load": args.pop_bool("fcs-load"),
