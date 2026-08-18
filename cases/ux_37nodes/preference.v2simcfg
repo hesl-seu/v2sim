@@ -26,7 +26,7 @@
         "pvw",
         "ess"
     ],
-    "charging_mode": "v2g",
+    "charging_mode": "smartcharge",
     "pdn_interval": 900,
     "v2g_online": [
         [28800, 36000],

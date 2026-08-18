@@ -3,7 +3,7 @@ from v2sim.gui.langhelper import *
 
 import os, sys, time, traceback, subprocess, ast
 from pathlib import Path
-from fpowerkit import Grid as PowerGrid
+from fpowerkit import Grid as PowerGrid, Estimator, Calculator
 from feasytools import RangeList, PDUniform
 from v2sim import FileDetectResult, V2SimConfig, CHARGING_MODES, DetectFiles, ReadXML, RoadNet
 from v2sim.plugins import PluginBase
@@ -364,13 +364,34 @@ class MainBox(Tk):
             e.grid(row=row, column=col + 1, padx=3, pady=3, sticky="w")
             return e
 
+        def _pdn_combo(row:int, col:int, label_key:str, default:str, values, width:int=12):
+            Label(self.sim_pdn, text=_L[label_key]).grid(row=row, column=col, padx=3, pady=3, sticky="w")
+            cb = Combobox(self.sim_pdn, values=values, state="normal", width=width)
+            cb.set(default)
+            cb.grid(row=row, column=col + 1, padx=3, pady=3, sticky="w")
+            return cb
+
+        pdn_estimators = [
+            Estimator.DistFlow.value,
+            Estimator.LinDistFlow.value,
+            Estimator.LinDistFlow2.value
+        ]
+
+        pdn_calculators = [
+            Calculator.OpenDSS.value,
+            Calculator.Newton.value,
+            Calculator.NoneSolver.value
+        ]
+
+        pdn_solvers = ["CBC", "ECOS", "GUROBI"]
+
         self.entry_pdn_interval = _pdn_entry(0, 2, "SIM_PDN_INTERVAL", "300")
-        self.entry_pdn_estimator = _pdn_entry(0, 4, "SIM_PDN_ESTIMATOR", "DistFlow")
-        self.entry_pdn_calculator = _pdn_entry(0, 6, "SIM_PDN_CALCULATOR", "None")
+        self.entry_pdn_estimator = _pdn_combo(0, 4, "SIM_PDN_ESTIMATOR", "DistFlow", pdn_estimators)
+        self.entry_pdn_calculator = _pdn_combo(0, 6, "SIM_PDN_CALCULATOR", "None", pdn_calculators)
         self.entry_pdn_mlrp = _pdn_entry(1, 0, "SIM_PDN_MLRP", "0.5")
         self.entry_pdn_source_bus = _pdn_entry(1, 2, "SIM_PDN_SOURCE_BUS", "")
         self.entry_pdn_dec_buses = _pdn_entry(1, 4, "SIM_PDN_DEC_BUSES", "%all%")
-        self.entry_pdn_solver = _pdn_entry(1, 6, "SIM_PDN_SOLVER", "ECOS")
+        self.entry_pdn_solver = _pdn_combo(1, 6, "SIM_PDN_SOLVER", "CBC", pdn_solvers)
         self.entry_pdn_max_workers = _pdn_entry(2, 0, "SIM_PDN_MAX_WORKERS", "1")
         self.entry_v2g_online = _pdn_entry(2, 2, "SIM_V2G_ONLINE", "[]", width=28)
 
