@@ -9,6 +9,7 @@ Each station step follows one deterministic sequence:
     station demand/capability -> PDN dispatch -> actual charge/discharge
 """
 
+import math
 import os
 from collections import defaultdict
 from itertools import chain
@@ -100,9 +101,13 @@ class IntegratedPDN:
         self.__max_reduce_prop_cs: Dict[str, float] = {}
         self.__max_reduce_prop: Dict[str, float] = {}
 
+        pf_charge = 0.9
+        tan_phi = math.tan(math.acos(pf_charge))
+
         for b, css in self.__pds.items():
             load = TimeImplictFunc(self._create_bus_load_getter(b))
             self.__gr.Bus(b).Pd += load
+            self.__gr.Bus(b).Qd += load * tan_phi
             if b in decs:
                 assert isinstance(self.__sol.est, LRSolverBase)
                 self.__sol.est.AddReduce(b, load)
