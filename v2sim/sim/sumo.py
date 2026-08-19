@@ -80,7 +80,8 @@ class TrafficSUMO(TrafficInst):
         gasoline_price:TimeFunc, seed: int = 0, silent: bool = False, *,
         road_net_file: str,
         initial_state_folder: str = "",
-        add_veh_to_scs: bool = True,
+        add_veh_to_scs: bool = False,
+        allow_scs_redirect: bool = False,
         routing_algorithm:str = "CH",
         ignore_driving:bool = False,
         suppress_route_not_found:bool = True,
@@ -98,7 +99,8 @@ class TrafficSUMO(TrafficInst):
         assert self.__ralgo in ["CH", "dijkstra", "astar", "CHWrapper"], f"Invalid routing algorithm: {self.__ralgo}"
         self.__suppress_route_not_found = suppress_route_not_found
         self.__mesosim = mesosim
-        
+        self.__allow_scs_redirect = allow_scs_redirect
+
         # Read road network
         self.__snet_file = road_net_file
         self.__snet: Net = self._rnet.sumo
@@ -529,7 +531,11 @@ class TrafficSUMO(TrafficInst):
         base_stage, base_length = self.__planned_stage_and_length(
             trip.O, trip.D, trip.OPos, trip.DPos
         )
-        stage, planned_length = self.__maybe_redirect_trip_to_scs(veh, base_stage, base_length)
+        if self.__allow_scs_redirect:
+            stage, planned_length = self.__maybe_redirect_trip_to_scs(veh, base_stage, base_length)
+        else:
+            stage = base_stage; planned_length = base_length
+        
         trip = veh.trip
 
         if self._dist_based_restoration:

@@ -449,7 +449,8 @@ class TrafficInst(ABC):
 class CommonConfig:
     routing_algorithm: str = "astar"
     gasoline_price: TimeFunc = ConstFunc(5.0)
-    add_veh_to_scs: bool = True
+    add_veh_to_scs: bool = False
+    allow_scs_redirect: bool = False
 
 
 @dataclass

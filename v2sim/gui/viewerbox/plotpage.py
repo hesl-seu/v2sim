@@ -25,7 +25,7 @@ class PlotPage(Frame):
         self.lb_time = Label(self.panel_time, text=_L["START_TIME"])
         self.lb_time.pack(side="left")
         self.entry_time = Entry(self.panel_time,width=10)
-        self.entry_time.insert(0,"86400")
+        self.entry_time.insert(0, "0")
         self.entry_time.pack(side="left")
         self.lb_end_time = Label(self.panel_time, text=_L["END_TIME"])
         self.lb_end_time.pack(side="left")

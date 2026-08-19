@@ -27,7 +27,8 @@ class TrafficUX(TrafficInst):
         roadnet:RoadNet, trip_logger: TripLogger, vehs: VDict, 
         hubs: MixedHub, pdn: Grid, gasoline_price: TimeFunc, 
         seed: int = 0, silent: bool = False, *,
-        add_veh_to_scs: bool = True,
+        add_veh_to_scs: bool = False,
+        allow_scs_redirect: bool = False,
         routing_algorithm: str = "dijkstra",  # or "astar"
         show_uxsim_info: bool = False,
         randomize_uxsim: bool = True,
