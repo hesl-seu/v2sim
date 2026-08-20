@@ -242,10 +242,13 @@ class V2SimConfig:
     ux_no_para: bool = False
     ux_show_info: bool = False
     ux_rand: bool = False
+    ux_internal_step_len: Optional[int] = None
     sumo_ignore_driving: bool = False
     sumo_raise_routing_error: bool = False
     sumo_mesosim: bool = False
     stats: Optional[List[str]] = None
+    allow_scs_redirect: bool = False
+    add_veh_to_scs: bool = False
 
     # Integrated power-distribution-network settings.  PDN and V2G are core
     # simulation features and are configured only through *.v2simcfg.

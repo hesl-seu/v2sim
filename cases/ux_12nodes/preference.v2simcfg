@@ -7,14 +7,16 @@
     "routing_method": "astar",
     "load_state": 0,
     "save_state_on_abort": false,
-    "save_state_on_finish": true,
+    "save_state_on_finish": false,
     "copy_state": false,
     "visualize": false,
     "ux_no_para": false,
     "ux_show_info": false,
     "ux_rand": false,
+    "ux_internal_step_len": 1,
     "sumo_ignore_driving": false,
     "sumo_raise_routing_error": false,
+    "sumo_mesosim": false,
     "stats": [
         "fcs",
         "scs",
@@ -22,31 +24,85 @@
         "gen",
         "bus",
         "line",
+        "pvw",
+        "ess",
         "utn"
     ],
+    "allow_scs_redirect": false,
+    "add_veh_to_scs": false,
     "charging_mode": "smartcharge",
     "pdn_interval": 900,
+    "v2g_online": [
+        [
+            28800,
+            36000
+        ],
+        [
+            46800,
+            57600
+        ],
+        [
+            115200,
+            122400
+        ],
+        [
+            133200,
+            144000
+        ],
+        [
+            201600,
+            208800
+        ],
+        [
+            219600,
+            230400
+        ],
+        [
+            288000,
+            295200
+        ],
+        [
+            306000,
+            316800
+        ],
+        [
+            374400,
+            381600
+        ],
+        [
+            392400,
+            403200
+        ],
+        [
+            460800,
+            468000
+        ],
+        [
+            478800,
+            489600
+        ],
+        [
+            547200,
+            554400
+        ],
+        [
+            565200,
+            576000
+        ],
+        [
+            633600,
+            640800
+        ],
+        [
+            651600,
+            662400
+        ]
+    ],
     "pdn_estimator": "LinDistFlow2",
     "pdn_calculator": "Newton",
     "pdn_mlrp": 0.5,
     "pdn_source_bus": "b1",
     "pdn_dec_buses": "%all%",
-    "v2g_online": [
-        [28800, 36000],
-        [46800, 57600],
-        [115200, 122400],
-        [133200, 144000],
-        [201600, 208800],
-        [219600, 230400],
-        [288000, 295200],
-        [306000, 316800],
-        [374400, 381600],
-        [392400, 403200],
-        [460800, 468000],
-        [478800, 489600],
-        [547200, 554400],
-        [565200, 576000],
-        [633600, 640800],
-        [651600, 662400]
-    ]
+    "pdn_solver": "ECOS",
+    "pdn_max_workers": 1
 }

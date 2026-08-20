@@ -466,3 +466,4 @@ class UXsimConfig:
     show_uxsim_info: bool = False
     randomize_uxsim: bool = False
     no_parallel: bool = False
+    internal_step_len: Optional[int] = None

@@ -110,7 +110,7 @@ class IntegratedPDN:
             self.__gr.Bus(b).Qd += load * tan_phi
             if b in decs:
                 assert isinstance(self.__sol.est, LRSolverBase)
-                self.__sol.est.AddReduce(b, load)
+                self.__sol.est.AddReduce(b, load, tan_phi)
                 self.__max_reduce_prop[b] = 0.0
                 print(f"Enable load reduction at bus {b}", file=self.__fh)
 

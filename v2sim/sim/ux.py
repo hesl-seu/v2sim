@@ -33,6 +33,7 @@ class TrafficUX(TrafficInst):
         show_uxsim_info: bool = False,
         randomize_uxsim: bool = True,
         no_parallel: bool = False,
+        internal_step_len: Optional[int] = None
     ):  
         super().__init__(start_time, step_len, end_time, roadnet, trip_logger, vehs, hubs, pdn, gasoline_price, seed, silent)
         self.__stall_warned = False
@@ -53,10 +54,11 @@ class TrafficUX(TrafficInst):
         # Create uxsim world
         create_func = self._rnet.create_singleworld if no_parallel else self._rnet.create_world
         self.__show_uxsim_info = show_uxsim_info
+        print(internal_step_len)
         self.W = create_func(
             tmax=end_time,
             deltan=1,
-            reaction_time=step_len,
+            reaction_time=step_len if internal_step_len is None else internal_step_len,
             random_seed=seed,
             hard_deterministic_mode=not randomize_uxsim,
             reduce_memory_delete_vehicle_route_pref=True,

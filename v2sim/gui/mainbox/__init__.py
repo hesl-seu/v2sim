@@ -213,31 +213,31 @@ class MainBox(Tk):
         self.sim_time.pack(fill="x", expand=False)
         self.lb_start = Label(self.sim_time, text=_L["SIM_BEGT"])
         self.lb_start.grid(row=0, column=0, padx=3, pady=3, sticky="w")
-        self.entry_start = Entry(self.sim_time)
+        self.entry_start = Entry(self.sim_time, width=10)
         self.entry_start.insert(0, "0")
         self.entry_start.grid(row=0, column=1, padx=3, pady=3, sticky="w")
 
         self.lb_break = Label(self.sim_time, text=_L["SIM_BREAKT"])
         self.lb_break.grid(row=1, column=0, padx=3, pady=3, sticky="w")
-        self.entry_break = Entry(self.sim_time)
+        self.entry_break = Entry(self.sim_time, width=10)
         self.entry_break.insert(0, "172800")
         self.entry_break.grid(row=1, column=1, padx=3, pady=3, sticky="w")
 
         self.lb_end = Label(self.sim_time, text=_L["SIM_ENDT"])
         self.lb_end.grid(row=2, column=0, padx=3, pady=3, sticky="w")
-        self.entry_end = Entry(self.sim_time)
+        self.entry_end = Entry(self.sim_time, width=10)
         self.entry_end.insert(0, "172800")
         self.entry_end.grid(row=2, column=1, padx=3, pady=3, sticky="w")
 
         self.lb_step = Label(self.sim_time, text=_L["SIM_STEP"])
         self.lb_step.grid(row=3, column=0, padx=3, pady=3, sticky="w")
-        self.entry_step = Entry(self.sim_time)
+        self.entry_step = Entry(self.sim_time, width=10)
         self.entry_step.insert(0, "10")
         self.entry_step.grid(row=3, column=1, padx=3, pady=3, sticky="w")
 
         self.lb_seed = Label(self.sim_time, text=_L["SIM_SEED"])
         self.lb_seed.grid(row=4, column=0, padx=3, pady=3, sticky="w")
-        self.entry_seed = Entry(self.sim_time)
+        self.entry_seed = Entry(self.sim_time, width=10)
         self.entry_seed.insert(0, "0")
         self.entry_seed.grid(row=4, column=1, padx=3, pady=3, sticky="w")
 
@@ -297,6 +297,12 @@ class MainBox(Tk):
         self.combo_ralgo = Combobox(self.sim_algo_panel, textvariable=self.ralgo, values=[])
         self.combo_ralgo.grid(row=0, column=1, padx=3, pady=3, sticky="w")
 
+        self.sim_add_veh_to_scs = BooleanVar(self, False)
+        self.lb_add_veh_to_scs = Label(self.sim_algo_panel, text=_L["SIM_ADD_VEH_TO_SCS"])
+        self.lb_add_veh_to_scs.grid(row=0, column=2, padx=3, pady=3, sticky="w")
+        self.sim_cb_add_veh_to_scs = Checkbutton(self.sim_algo_panel, text=_L["SIM_ADD_VEH_TO_SCS"], variable=self.sim_add_veh_to_scs)
+        self.sim_cb_add_veh_to_scs.grid(row=0, column=2, padx=3, pady=3, sticky="w")
+
         #######################
         # UXsim Options
         #######################
@@ -317,6 +323,12 @@ class MainBox(Tk):
         self.sim_ux_rand = BooleanVar(self, False)
         self.sim_cb_ux_rand = Checkbutton(self.sim_ux_options_panel, text=_L["SIM_UX_RAND"], variable=self.sim_ux_rand)
         self.sim_cb_ux_rand.grid(row=0, column=3, padx=3, pady=3, sticky="w")
+
+        self.sim_ux_internal_step_len = StringVar(self, "None")
+        self.sim_lb_ux_step = Label(self.sim_ux_options_panel, text=_L["SIM_UX_INTERNAL_STEP_LEN"])
+        self.sim_lb_ux_step.grid(row=0, column=4, padx=3, pady=3, sticky="w")
+        self.sim_entry_ux_step = Entry(self.sim_ux_options_panel, textvariable=self.sim_ux_internal_step_len, width=6)
+        self.sim_entry_ux_step.grid(row=0, column=5, padx=3, pady=3, sticky="w")
 
         #######################
         # SUMO Options
@@ -342,6 +354,10 @@ class MainBox(Tk):
         self.sim_sumo_mesosim = BooleanVar(self, False)
         self.sim_cb_sumo_mesosim = Checkbutton(self.sim_sumo_options_panel, text=_L["SIM_SUMO_MESOSIM"], variable=self.sim_sumo_mesosim)
         self.sim_cb_sumo_mesosim.grid(row=0, column=4, padx=3, pady=3, sticky="w")
+
+        self.sim_allow_scs_redirect = BooleanVar(self, False)
+        self.sim_cb_allow_scs_redirect = Checkbutton(self.sim_sumo_options_panel, text=_L["SIM_ALLOW_SCS_REDIRECT"], variable=self.sim_allow_scs_redirect)
+        self.sim_cb_allow_scs_redirect.grid(row=0, column=5, padx=3, pady=3, sticky="w")
 
         #######################
         # Integrated PDN / charging mode
@@ -565,6 +581,14 @@ class MainBox(Tk):
     @property
     def saved(self):
         return self.sim_plglist.saved and self.FCS_editor.saved and self.SCS_editor.saved and self.cv_net.saved
+
+    def get_ux_step(self) -> Optional[int]:
+        ux_step = self.sim_ux_internal_step_len.get().strip()
+        if ux_step.lower() == "none" or ux_step == "":
+            ux_step = None
+        else:
+            ux_step = try_int(ux_step, "UX internal step length")
+        return ux_step
     
     def _save_v2simcfg(self, logs:Optional[List[str]] = None):
         if not self.folder:
@@ -594,10 +618,13 @@ class MainBox(Tk):
             ux_no_para=self.sim_ux_no_para.get(),
             ux_show_info=self.sim_ux_show_info.get(),
             ux_rand=self.sim_ux_rand.get(),
+            ux_internal_step_len=self.get_ux_step(),
             sumo_ignore_driving=self.sim_sumo_ignore_driving.get(),
             sumo_raise_routing_error=self.sim_sumo_raise_routing_error.get(),
             sumo_mesosim=self.sim_sumo_mesosim.get(),
             stats=logs,
+            allow_scs_redirect=self.sim_allow_scs_redirect.get(),
+            add_veh_to_scs=self.sim_add_veh_to_scs.get(),
             charging_mode=self.sim_charging_mode.get().strip().lower(),
             pdn_interval=try_int(self.entry_pdn_interval.get(), "PDN interval"),
             v2g_online=[tuple(r) for r in online],
@@ -704,7 +731,13 @@ class MainBox(Tk):
                     "--sumo-ignore-driving" if self.sim_sumo_ignore_driving.get() else "",
                     "--sumo-raise-routing-error" if self.sim_sumo_raise_routing_error.get() else "",
                     "--sumo-mesosim" if self.sim_sumo_mesosim.get() else "",
+                    "--allow-scs-redirect" if self.sim_allow_scs_redirect.get() else "",
+                    "--add-veh-to-scs" if self.sim_add_veh_to_scs.get() else "",
                 ]
+        ux_step = self.get_ux_step()
+        if ux_step is not None:
+            commands.append(f"--uxsim-step")
+            commands.append(f"{ux_step}")
         commands = [c for c in commands if c != ""] # remove empty strings
         if self.state.sumo:
             visualize = self.sim_sumo_show.get()
@@ -922,13 +955,13 @@ class MainBox(Tk):
     def _set_uxsim_panel_enabled(self, val:bool):
         state = NORMAL if val else DISABLED
         for widget in self.sim_ux_options_panel.children.values():
-            assert isinstance(widget, (Checkbutton, Label))
+            assert isinstance(widget, (Checkbutton, Label, Entry))
             widget.config(state=state)
     
     def _set_sumo_panel_enabled(self, val:bool):
         state = NORMAL if val else DISABLED
         for widget in self.sim_sumo_options_panel.children.values():
-            assert isinstance(widget, (Checkbutton, Label))
+            assert isinstance(widget, (Checkbutton, Label, Entry))
             widget.config(state=state)
     
     def _load_plugins(self):

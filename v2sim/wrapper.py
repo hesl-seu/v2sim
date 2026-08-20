@@ -204,13 +204,14 @@ def get_sim_params(args:Union[str, ArgChecker], check_illegal:bool = True) -> Di
     uxsim_show = args.pop_bool("uxsim-show-info")
     uxsim_rand = args.pop_bool("uxsim-randomize")
     uxsim_nopara = args.pop_bool("uxsim-no-parallel")
+    uxsim_step = args.pop_int("uxsim-step", -1)
     sumo_ignd = args.pop_bool("sumo-ignore-driving")
     sumo_raise = args.pop_bool("sumo-raise-routing-error")
     sumo_meso = args.pop_bool("sumo-mesosim")
 
-    if uxsim_show or uxsim_nopara or uxsim_rand:
+    if uxsim_show or uxsim_nopara or uxsim_rand or uxsim_step > 0:
         from .sim import UXsimConfig
-        config = UXsimConfig(uxsim_show, uxsim_rand, uxsim_nopara)
+        config = UXsimConfig(uxsim_show, uxsim_rand, uxsim_nopara, uxsim_step if uxsim_step > 0 else None)
     
     if sumo_ignd or sumo_raise or sumo_meso:
         assert config is None, "Cannot use both SUMO and UXsim configurations."
