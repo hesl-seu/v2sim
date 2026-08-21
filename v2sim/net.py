@@ -23,13 +23,26 @@ def _largeStackExec(func, *args):
 
 
 class Node:
-    def __init__(self, node_id:str, x:float, y:float, extras:Optional[Dict[str, str]] = None):
+    def __init__(
+        self, node_id:str, x:float, y:float, extras:Optional[Dict[str, str]] = None,
+        signal:Optional[List[float]] = None, signal_offset:float = 0.0,
+        signal_id:Optional[str] = None, signal_program:Optional[str] = None
+    ):
         self.name = node_id
         self.x = x
         self.y = y
         self.incoming_edges:List[Edge] = []
         self.attrs = extras if extras is not None else {}
         self.outgoing_edges:List[Edge] = []
+
+        # V2Sim traffic-signal abstraction. ``signal`` stores the duration of
+        # each phase in seconds.  An incoming edge is permitted to pass the
+        # node when the current phase is listed in Edge.signal_group.
+        # None means that this node is not signal-controlled.
+        self.signal = list(signal) if signal is not None else None
+        self.signal_offset = float(signal_offset)
+        self.signal_id = signal_id
+        self.signal_program = signal_program
     
     def get_coord(self) -> Tuple[float, float]:
         """Get the coordinates of the node."""
@@ -43,7 +56,11 @@ class Node:
 
 
 class Edge:
-    def __init__(self, name:str, from_node:Node, to_node:Node, length:float, lanes:int, speed_limit:float = 13.89, world_id:int = -1, nickname:Optional[str] = None, extras:Optional[Dict[str, str]] = None):
+    def __init__(
+        self, name:str, from_node:Node, to_node:Node, length:float, lanes:int,
+        speed_limit:float = 13.89, world_id:int = -1, nickname:Optional[str] = None,
+        extras:Optional[Dict[str, str]] = None, signal_group:Optional[List[int]] = None
+    ):
         self.name = name
         self.from_node = from_node
         self.to_node = to_node
@@ -53,6 +70,10 @@ class Edge:
         self.world_id = world_id
         self.nickname = nickname
         self.attrs = extras if extras is not None else {}
+
+        # Signal phases in which this incoming edge may pass its destination
+        # node. None means that no explicit restriction is stored.
+        self.signal_group = list(signal_group) if signal_group is not None else None
     
     def instant_travel_time(self, t: int) -> float:
         """Get the travel time of free flowing condition. The parameter t is ignored, but kept for compatibility."""
@@ -390,12 +411,19 @@ class RoadNet:
             self.calc_max_scc()
         return self.__scc
 
-    def add_node(self, node_id:str, x:int, y:int, extras:Optional[Dict[str, str]] = None) -> Node:
+    def add_node(
+        self, node_id:str, x:int, y:int, extras:Optional[Dict[str, str]] = None,
+        signal:Optional[List[float]] = None, signal_offset:float = 0.0,
+        signal_id:Optional[str] = None, signal_program:Optional[str] = None
+    ) -> Node:
         self.__scc = []
         self.__kdt = None
         if node_id in self.nodes:
             raise ValueError(f"Node {node_id} already exists.")
-        node = Node(node_id, x, y, extras)
+        node = Node(
+            node_id, x, y, extras, signal=signal, signal_offset=signal_offset,
+            signal_id=signal_id, signal_program=signal_program
+        )
         self.nodes[node_id] = node
         return node
     
@@ -442,14 +470,21 @@ class RoadNet:
     def node_count(self):
         return len(self.nodes)
     
-    def add_edge(self, edge_id:str, from_node:Union[str, Node], to_node:Union[str, Node], 
-            length_m:float, lanes:int, speed_limit:float, world_id:int = -1, nickname:Optional[str] = None) -> Edge:
+    def add_edge(
+        self, edge_id:str, from_node:Union[str, Node], to_node:Union[str, Node],
+        length_m:float, lanes:int, speed_limit:float, world_id:int = -1,
+        nickname:Optional[str] = None, extras:Optional[Dict[str, str]] = None,
+        signal_group:Optional[List[int]] = None
+    ) -> Edge:
         self.__scc = []
         if edge_id in self.edges:
             raise ValueError(Lang.EDGE_EXISTS.format(edge_id))
         if isinstance(from_node, str): from_node = self.get_node(from_node)
         if isinstance(to_node, str): to_node = self.get_node(to_node)
-        edge = Edge(edge_id, from_node, to_node, length_m, lanes, speed_limit, world_id, nickname)
+        edge = Edge(
+            edge_id, from_node, to_node, length_m, lanes, speed_limit, world_id,
+            nickname, extras, signal_group
+        )
         self.edges[edge_id] = edge
         from_node.outgoing_edges.append(edge)
         to_node.incoming_edges.append(edge)
@@ -528,29 +563,61 @@ class RoadNet:
         return len(self.edges)
     
     @staticmethod
+    def _parse_float_list(text:Optional[str]) -> Optional[List[float]]:
+        if text is None or text.strip() == "":
+            return None
+        return [float(x) for x in text.split(",") if x.strip() != ""]
+
+    @staticmethod
+    def _parse_int_list(text:Optional[str]) -> Optional[List[int]]:
+        if text is None:
+            return None
+        if text.strip() == "":
+            return []
+        return [int(x) for x in text.split(",") if x.strip() != ""]
+
+    @staticmethod
+    def _format_number_list(values) -> str:
+        return ",".join(f"{x:g}" for x in values)
+
+    @staticmethod
     def load_raw(fname:str):
         ret = RoadNet()
-        root = ReadXML(fname)
-        
+        tree = ReadXML(fname)
+        root = tree.getroot()
+
         if root is None:
             raise RuntimeError(f"Invalid xml file: {fname}")
         for node in root.findall("node"):
+            attrs = dict(node.attrib)
+            node_id = attrs.pop("id")
+            x = int(float(attrs.pop("x", "0")))
+            y = int(float(attrs.pop("y", "0")))
+            signal = RoadNet._parse_float_list(attrs.pop("signal", None))
+            signal_offset = float(attrs.pop("signal_offset", "0"))
+            signal_id = attrs.pop("signal_id", None)
+            signal_program = attrs.pop("signal_program", None)
             ret.add_node(
-                node_id = node.attrib.pop("id"),
-                x = int(float(node.attrib.pop("x", "0"))),
-                y = int(float(node.attrib.pop("y", "0"))),
-                extras = node.attrib.copy() if len(node.attrib) > 0 else None
+                node_id=node_id, x=x, y=y, extras=attrs if attrs else None,
+                signal=signal, signal_offset=signal_offset, signal_id=signal_id,
+                signal_program=signal_program
             )
         for edge in root.findall("edge"):
+            attrs = dict(edge.attrib)
+            edge_id = attrs.pop("id")
+            from_node = attrs.pop("from")
+            to_node = attrs.pop("to")
+            length_m = float(attrs.pop("length"))
+            lanes = int(attrs.pop("lanes", "1"))
+            speed_limit = float(attrs.pop("speed", "13.89"))
+            world_id = int(attrs.pop("world_id", "-1"))
+            nickname = attrs.pop("name", None)
+            signal_group = RoadNet._parse_int_list(attrs.pop("signal_group", None))
             ret.add_edge(
-                edge_id = edge.attrib["id"],
-                from_node = edge.attrib["from"],
-                to_node = edge.attrib["to"],
-                length_m = float(edge.attrib["length"]),
-                lanes = int(edge.attrib.get("lanes", "1")),
-                speed_limit = float(edge.attrib.get("speed", "13.89")),  # Default 50 km/h in m/s
-                world_id = int(edge.attrib.get("world_id", "-1")),
-                nickname = edge.attrib.get("name", None)
+                edge_id=edge_id, from_node=from_node, to_node=to_node,
+                length_m=length_m, lanes=lanes, speed_limit=speed_limit,
+                world_id=world_id, nickname=nickname, extras=attrs if attrs else None,
+                signal_group=signal_group
             )
         location = root.find("location")
         if location is not None:
@@ -559,13 +626,234 @@ class RoadNet:
             ret.origBoundary = tuple(map(float, location.attrib.get("origBoundary", "0,0,0,0").split(",")))
             ret.projParameter = location.attrib.get("projParameter", "!")
         return ret
-    
+
+    @staticmethod
+    def _load_sumo_traffic_signals(sumo_net, ret:'RoadNet'):
+        """
+        Convert SUMO traffic-light programs loaded by ``sumolib`` into the
+        V2Sim node/edge signal abstraction.
+
+        ``sumolib.net.readNet`` does not load TLS programs by default.  The
+        caller therefore has to use ``withLatestPrograms=True`` (or
+        ``withPrograms=True``).  Each V2Sim signal-controlled node stores the
+        phase durations and offset, while each incoming edge stores the phase
+        indices in which at least one retained SUMO connection from that edge
+        is permissive.
+
+        SUMO is lane/connection based whereas UXsim's native signal model is
+        incoming-link based.  Connections from the same incoming edge are
+        therefore aggregated: the incoming edge is open in a phase if any of
+        its retained movements has state G/g/O/o in that phase.
+        """
+        try:
+            tls_list = list(sumo_net.getTrafficLights())
+        except Exception as e:
+            print(f"[Warning] Failed to obtain SUMO traffic lights through sumolib: {e}")
+            return
+
+        if not tls_list:
+            print(
+                "[Info] No SUMO traffic-light controllers were found. "
+                "The converted RoadNet will not contain signal data."
+            )
+            return
+
+        # A TLS can control movements at more than one physical node.  Build
+        # per-node candidates first because the V2Sim abstraction stores one
+        # signal clock on each node.
+        by_node:Dict[str, List[Tuple[str, str, object, List[Tuple[str, int]]]]] = defaultdict(list)
+
+        for tls in tls_list:
+            try:
+                tls_id = tls.getID()
+                programs = tls.getPrograms()
+            except Exception as e:
+                print(f"[Warning] Ignoring malformed SUMO TLS: {e}")
+                continue
+
+            if not programs:
+                print(
+                    f"[Warning] SUMO TLS {tls_id!r} has no loaded program. "
+                    "Ensure the network is read with withLatestPrograms=True "
+                    "or withPrograms=True."
+                )
+                continue
+
+            # load_sumo() uses withLatestPrograms=True, for which sumolib
+            # normally leaves exactly one (the default active) program.  Keep
+            # the last mapping entry as a defensive fallback if an older
+            # sumolib version retains more than one.
+            program_id, program = list(programs.items())[-1]
+
+            try:
+                phases = list(program.getPhases())
+            except Exception as e:
+                print(f"[Warning] SUMO TLS {tls_id!r} program {program_id!r} has invalid phases: {e}")
+                continue
+
+            if not phases:
+                continue
+
+            per_node:Dict[str, List[Tuple[str, int]]] = defaultdict(list)
+            try:
+                connections = tls.getConnections()
+            except Exception as e:
+                print(f"[Warning] SUMO TLS {tls_id!r} has invalid connections: {e}")
+                continue
+
+            for conn in connections:
+                if len(conn) < 3:
+                    continue
+                in_lane, out_lane, link_index = conn[0], conn[1], conn[2]
+                try:
+                    from_edge = in_lane.getEdge().getID()
+                    to_edge = out_lane.getEdge().getID()
+                    link_index = int(link_index)
+                except Exception:
+                    continue
+
+                # A road may have been removed by the passenger-only filter.
+                # Ignore movements which are not present in the retained
+                # V2Sim road graph.
+                if from_edge not in ret.edges or to_edge not in ret.edges:
+                    continue
+
+                node_id = ret.edges[from_edge].to_node.name
+                per_node[node_id].append((from_edge, link_index))
+
+            for node_id, conns in per_node.items():
+                by_node[node_id].append((tls_id, str(program_id), program, conns))
+
+        converted_nodes = 0
+        converted_edges:Set[str] = set()
+
+        for node_id, tls_options in by_node.items():
+            # A normal junction is controlled by one TLS.  For joined or
+            # unusual networks, if multiple TLS objects map to one V2Sim node,
+            # retain the controller covering the most retained movements.
+            tls_options.sort(key=lambda x: (-len(x[3]), x[0]))
+            tls_id, program_id, program, conns = tls_options[0]
+
+            if len(tls_options) > 1:
+                ignored = ", ".join(x[0] for x in tls_options[1:])
+                print(
+                    f"[Warning] Node {node_id!r} maps to multiple SUMO TLS IDs; "
+                    f"using {tls_id!r}, ignoring {ignored}."
+                )
+
+            try:
+                phases = list(program.getPhases())
+                durations = [float(phase.duration) for phase in phases]
+                offset = float(program.getOffset())
+                program_type = program.getType()
+            except Exception as e:
+                print(
+                    f"[Warning] Failed to read SUMO TLS {tls_id!r} "
+                    f"program {program_id!r}: {e}"
+                )
+                continue
+
+            cycle = sum(durations)
+            if not durations or cycle <= 0:
+                continue
+
+            if program_type != "static":
+                print(
+                    f"[Warning] SUMO TLS {tls_id!r} uses {program_type!r}; "
+                    "V2Sim/UXsim stores its nominal phase durations as a "
+                    "fixed-cycle approximation."
+                )
+
+            node = ret.nodes.get(node_id)
+            if node is None:
+                continue
+
+            node.signal = durations
+            node.signal_offset = offset % cycle
+            node.signal_id = tls_id
+            node.signal_program = program_id
+            converted_nodes += 1
+
+            all_phases = list(range(len(phases)))
+            controlled_edges = {from_edge for from_edge, _ in conns}
+
+            # Incoming roads which are not controlled by this TLS remain
+            # permissive in all phases. Controlled roads are filled from the
+            # state of their SUMO link indices below.
+            for edge in node.incoming_edges:
+                edge.signal_group = list(all_phases)
+            for edge_id in controlled_edges:
+                ret.edges[edge_id].signal_group = []
+
+            valid_index_seen:Dict[str, bool] = {
+                edge_id: False for edge_id in controlled_edges
+            }
+
+            for from_edge, link_index in conns:
+                for phase_index, phase in enumerate(phases):
+                    state = str(phase.state)
+                    if link_index < 0 or link_index >= len(state):
+                        continue
+                    valid_index_seen[from_edge] = True
+                    # G/g: protected/permissive green. O/o: signal-off state,
+                    # treated as permissive in the mesoscopic representation.
+                    # Yellow and red remain closed.
+                    if state[link_index] in "GgOo":
+                        group = ret.edges[from_edge].signal_group
+                        assert group is not None
+                        if phase_index not in group:
+                            group.append(phase_index)
+
+            for edge_id, valid in valid_index_seen.items():
+                if not valid:
+                    # Do not deadlock a road because of inconsistent SUMO TLS
+                    # state lengths. Fall back to always-open and report it.
+                    ret.edges[edge_id].signal_group = list(all_phases)
+                    print(
+                        f"[Warning] SUMO TLS {tls_id!r}: no valid link index "
+                        f"was found for incoming edge {edge_id!r}; treating it "
+                        "as permissive in all phases."
+                    )
+                else:
+                    assert ret.edges[edge_id].signal_group is not None
+                    ret.edges[edge_id].signal_group.sort()
+                    converted_edges.add(edge_id)
+
+        if converted_nodes:
+            print(
+                f"[Info] Loaded SUMO traffic signals through sumolib: "
+                f"{converted_nodes} node(s), {len(converted_edges)} "
+                "controlled incoming edge(s)."
+            )
+        else:
+            print(
+                "[Info] SUMO traffic-light objects were present, but no "
+                "controller could be mapped to the retained V2Sim road graph."
+            )
+
     @staticmethod
     def load_sumo(fname:str, only_passenger:bool=True):
         ret = RoadNet()
         from sumolib.net import readNet, Net
         try:
-            r: Net = readNet(fname)
+            # Traffic-light programs are not loaded by sumolib by default.
+            # withLatestPrograms=True keeps the program SUMO would activate by
+            # default, while connections are required to build edge groups.
+            try:
+                r: Net = readNet(
+                    fname,
+                    withLatestPrograms=True,
+                    withConnections=True
+                )
+            except TypeError:
+                # Compatibility with older sumolib versions which may not
+                # expose withLatestPrograms. Loading all programs is still
+                # sufficient; _load_sumo_traffic_signals uses the last one.
+                r = readNet(
+                    fname,
+                    withPrograms=True,
+                    withConnections=True
+                )
         except Exception as e:
             raise RuntimeError(Lang.INVALID_SUMO_NETWORK.format(fname)) from e
         assert isinstance(r, Net), Lang.INVALID_SUMO_NETWORK.format(fname)
@@ -586,6 +874,11 @@ class RoadNet:
                 speed_limit = edge.getSpeed(),
                 world_id = -1
             )
+
+        # Load traffic signals after the retained road edges are known so that
+        # signal connections referring to filtered roads can be discarded.
+        RoadNet._load_sumo_traffic_signals(r, ret)
+
         import json
         proj_dir = Path(fname).parent
         part_json = None
@@ -615,7 +908,7 @@ class RoadNet:
             ret.projParameter = r._location["projParameter"]
         ret.__sumo = r
         return ret
-    
+
     @staticmethod
     def load(fname:str, fmt:str="auto"):
         if fmt == "raw":
@@ -641,13 +934,24 @@ class RoadNet:
                 "projParameter": self.projParameter
             }))
         for node in self.nodes.values():
-            root.append(Element("node", {
+            attrs = {
                 "id": node.name,
                 "x": str(node.x),
                 "y": str(node.y)
-            }))
+            }
+            for key, value in node.attrs.items():
+                if key not in {"id", "x", "y", "signal", "signal_offset", "signal_id", "signal_program"}:
+                    attrs[key] = value
+            if node.signal is not None:
+                attrs["signal"] = RoadNet._format_number_list(node.signal)
+                attrs["signal_offset"] = f"{node.signal_offset:g}"
+                if node.signal_id is not None:
+                    attrs["signal_id"] = node.signal_id
+                if node.signal_program is not None:
+                    attrs["signal_program"] = node.signal_program
+            root.append(Element("node", attrs))
         for edge in self.edges.values():
-            e = Element("edge", {
+            attrs = {
                 "id": edge.name,
                 "from": edge.from_node.name,
                 "to": edge.to_node.name,
@@ -655,9 +959,18 @@ class RoadNet:
                 "lanes": str(edge.lanes),
                 "speed": str(edge.speed_limit),
                 "world_id": str(edge.world_id)
-            })
-            if edge.nickname is not None: e.set("name", edge.nickname)
-            root.append(e)
+            }
+            if edge.nickname is not None:
+                attrs["name"] = edge.nickname
+            for key, value in edge.attrs.items():
+                if key not in {
+                    "id", "from", "to", "length", "lanes", "speed",
+                    "world_id", "name", "signal_group"
+                }:
+                    attrs[key] = value
+            if edge.signal_group is not None:
+                attrs["signal_group"] = RoadNet._format_number_list(edge.signal_group)
+            root.append(Element("edge", attrs))
         if fname.lower().endswith(".gz"):
             fname = fname[:-3]
         ElementTree(root).write(fname, encoding="utf-8", xml_declaration=True)
@@ -684,6 +997,23 @@ class RoadNet:
             gl[fr].append((to, edge))
         return gl
 
+    @staticmethod
+    def _uxsim_node_kwargs(node:Node):
+        kwargs = {"name": node.name, "x": node.x, "y": node.y}
+        if node.signal is not None:
+            kwargs["signal"] = list(node.signal)
+            kwargs["signal_offset"] = node.signal_offset
+        return kwargs
+
+    @staticmethod
+    def _uxsim_edge_signal_group(edge:Edge) -> List[int]:
+        if edge.signal_group is not None:
+            return list(edge.signal_group)
+        if edge.to_node.signal is not None:
+            # An uncontrolled incoming edge at a signalized node remains open.
+            return list(range(len(edge.to_node.signal)))
+        return [0]
+
     def create_singleworld(self, **kwargs):
         from .sim.uxsim import World
         from .sim.uxworld import SingleWorld
@@ -699,11 +1029,14 @@ class RoadNet:
             fr = edge.from_node.name
             to = edge.to_node.name
             if fr not in world.NODES_NAME_DICT:
-                world.addNode(name = fr, x = edge.from_node.x, y = edge.from_node.y)
+                world.addNode(**RoadNet._uxsim_node_kwargs(edge.from_node))
             if to not in world.NODES_NAME_DICT:
-                world.addNode(name = to, x = edge.to_node.x, y = edge.to_node.y)
-            link = world.addLink(name = edge.name, start_node = edge.from_node.name, end_node = edge.to_node.name,
-                length = edge.length, free_flow_speed = edge.speed_limit, number_of_lanes = edge.lanes)
+                world.addNode(**RoadNet._uxsim_node_kwargs(edge.to_node))
+            link = world.addLink(
+                name=edge.name, start_node=edge.from_node.name, end_node=edge.to_node.name,
+                length=edge.length, free_flow_speed=edge.speed_limit, number_of_lanes=edge.lanes,
+                signal_group=RoadNet._uxsim_edge_signal_group(edge)
+            )
             gl[fr].append((to, link))
         
         return SingleWorld(world, gl)
@@ -736,11 +1069,14 @@ class RoadNet:
             fr = edge.from_node.name
             to = edge.to_node.name
             if fr not in W.NODES_NAME_DICT:
-                W.addNode(name = fr, x = edge.from_node.x, y = edge.from_node.y)
+                W.addNode(**RoadNet._uxsim_node_kwargs(edge.from_node))
             if to not in W.NODES_NAME_DICT:
-                W.addNode(name = to, x = edge.to_node.x, y = edge.to_node.y)
-            link = W.addLink(name = edge.name, start_node = fr, end_node = to,
-                length = edge.length, free_flow_speed = edge.speed_limit, number_of_lanes = edge.lanes)
+                W.addNode(**RoadNet._uxsim_node_kwargs(edge.to_node))
+            link = W.addLink(
+                name=edge.name, start_node=fr, end_node=to,
+                length=edge.length, free_flow_speed=edge.speed_limit, number_of_lanes=edge.lanes,
+                signal_group=RoadNet._uxsim_edge_signal_group(edge)
+            )
             gl[fr].append((to, link))
         
         return ParaWorlds(worlds, gl)
@@ -1028,6 +1364,10 @@ def ConvertCase(input_dir:str, output_dir:str, part_cnt:int, auto_partition:bool
     if files.net:
         print("Found SUMO network file:", files.net)
         r = RoadNet.load_sumo(files.net, only_passenger=not non_passenger_links)
+        signal_nodes = sum(1 for node in r.nodes.values() if node.signal is not None)
+        signal_edges = sum(1 for edge in r.edges.values() if edge.signal_group is not None)
+        if signal_nodes:
+            print(f"Converted traffic signals: {signal_nodes} node(s), {signal_edges} incoming edge(s)")
         if not non_scc_links:
             print("Extracting largest strongly connected component...")
             r.remove_items_outside_max_scc()

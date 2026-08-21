@@ -196,12 +196,18 @@ class TrafficUX(TrafficInst):
         D: str,
         planned_length: Optional[float] = None,
     ):
-        veh = self._vehs[veh_id]
-        veh.clear_odometer()
+        stage = self.find_route(O, D)
+
         if planned_length is None:
-            planned_length = self.find_route(O, D).length
-        veh.current_trip_planned_length = planned_length
-        self.W.add_vehicle(veh_id, O, D)
+            planned_length = stage.length
+
+        self._add_veh(
+            veh_id,
+            O,
+            D,
+            stage,
+            planned_length=planned_length,
+        )
 
     @property
     def edges(self):
