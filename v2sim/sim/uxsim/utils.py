@@ -135,12 +135,6 @@ def print_columns(*lists):
                 print(" " * 10, end=" ")  # Adjust spacing to match the above width
         print()  # Newline after each row
 
-class LoggingWarning(UserWarning):
-    """
-    This warns that when vehicle_logging_timestep_interval is not 1 but called vehicle logging-related functions.
-    """
-    pass
-
 def plot_multiple_y(x=None, ys:Optional[Iterable]=None, labels=None, **kwarg):
     """
     Plot multiple y values on the same plot, normalizing each value to [0, 1].

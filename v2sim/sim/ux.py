@@ -54,7 +54,6 @@ class TrafficUX(TrafficInst):
         # Create uxsim world
         create_func = self._rnet.create_singleworld if no_parallel else self._rnet.create_world
         self.__show_uxsim_info = show_uxsim_info
-        print(internal_step_len)
         self.W = create_func(
             tmax=end_time,
             deltan=1,
@@ -62,7 +61,6 @@ class TrafficUX(TrafficInst):
             random_seed=seed,
             hard_deterministic_mode=not randomize_uxsim,
             reduce_memory_delete_vehicle_route_pref=True,
-            vehicle_logging_timestep_interval=-1,
             print_mode=1 if self.__show_uxsim_info else 0,
             silent=self.silent,
         )

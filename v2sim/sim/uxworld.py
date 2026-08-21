@@ -377,7 +377,12 @@ class ParaWorlds(WorldSpec):
         return sum(len(W.VEHICLES_RUNNING) for W in self.worlds.values())
     
     def get_average_speed(self) -> float:
-        return sum(W.analyzer.average_speed for W in self.worlds.values()) / len(self.worlds)
+        total_speed = 0.0
+        total_count = 0
+        for W in self.worlds.values():
+            total_speed += sum(v.v for v in W.VEHICLES_RUNNING.values())
+            total_count += len(W.VEHICLES_RUNNING)
+        return total_speed / total_count if total_count else 0.0
     
     def shutdown(self):
         self.__pool.shutdown(wait=True)

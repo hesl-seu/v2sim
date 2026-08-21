@@ -9,9 +9,7 @@ from collections import defaultdict as ddict
 from typing import Any, Callable
 import warnings
 import numpy as np
-from .analyzer import *
 from .utils import *
-from .scenario_reader_writer import *
 
 class Node:
     """
@@ -229,7 +227,6 @@ class Node:
                         outlink.vehicles.append(veh)
                         # outlink.vehicles_enter_log[s.W.T*s.W.DELTAT] = veh
 
-                        outlink.cum_arrival[-1] += s.W.DELTAN
                         veh.link_arrival_time = s.W.T*s.W.DELTAT
 
                         outlink.capacity_in_remain -= s.W.DELTAN
@@ -283,11 +280,6 @@ class Node:
                     veh = max(zip(merge_priorities, vehs), key=lambda x:x[0])[1]
                 
                 inlink = veh.link
-
-                #累積台数関連更新
-                inlink.cum_departure[-1] += s.W.DELTAN
-                outlink.cum_arrival[-1] += s.W.DELTAN
-                inlink.traveltime_actual[int(veh.link_arrival_time/s.W.DELTAT):] = s.W.T*s.W.DELTAT - veh.link_arrival_time #自分の流入時刻より後の実旅行時間も今の実旅行時間で仮決め．後に流出した車両が上書きする前提
 
                 veh.link_arrival_time = s.W.T*s.W.DELTAT
 
@@ -364,7 +356,7 @@ class Link:
     """
     Link in a network.
     """
-    def __init__(s, W: "World", name: str, start_node: Node|str, end_node: Node|str, length: float, free_flow_speed: float=20, jam_density: float=0.2, jam_density_per_lane: float|None=None, number_of_lanes: int=1, merge_priority: float=1, signal_group: list[int]=[0], capacity_out: float|None=None, capacity_in: float|None=None, congestion_pricing: Callable[[float],float]|None=None, eular_dx=None, attribute=None, user_attribute=None, user_function=None, auto_rename=False):
+    def __init__(s, W: "World", name: str, start_node: Node|str, end_node: Node|str, length: float, free_flow_speed: float=20, jam_density: float=0.2, jam_density_per_lane: float|None=None, number_of_lanes: int=1, merge_priority: float=1, signal_group: list[int]=[0], capacity_out: float|None=None, capacity_in: float|None=None, congestion_pricing: Callable[[float],float]|None=None, attribute=None, user_attribute=None, user_function=None, auto_rename=False):
         """
         Create a link.
 
@@ -485,17 +477,12 @@ class Link:
         # s.vehicles_enter_log = {}
         # 流入车辆不统计以减小内存占用
 
-        #旅行時間
-        s.traveltime_instant = []
+        # V2Sim only needs the latest instantaneous travel time.
+        s.traveltime_instant = s.length/s.u
 
         #経路選択補正（混雑課金）
         s.congestion_pricing = congestion_pricing
         s.route_choice_penalty = 0
-
-        #累積図関係
-        s.cum_arrival = []
-        s.cum_departure = []
-        s.traveltime_actual = []
 
         #信号関係
         s.signal_group = signal_group
@@ -544,40 +531,13 @@ class Link:
         s._num_vehicles = -1 #車両数
         s._num_vehicles_queue = -1 #自由流速度未満の車両数
 
-        #より正確な車両軌跡
-        s.tss = []
-        s.xss = []
-        s.cs = []
-        s.ls = []
-        s.names = []
-
-        s.eular_dx = eular_dx
-        if eular_dx == None:
-            s.edie_dx = s.length/10
-            if s.edie_dx < s.u*s.W.DELTAT:
-                s.edie_dx = s.u*s.W.DELTAT
-
 
     def __repr__(s):
         return f"<Link {s.name}>"
 
     def init_after_tmax_fix(s):
-        """
-        Initalization before simulation execution.
-        """
-
-        #Euler型交通状態
-        s.edie_dt = s.W.EULAR_DT
-        s.edie_dx = s.edie_dx
-        s.k_mat = np.zeros([int(s.W.TMAX/s.edie_dt)+1, int(s.length/s.edie_dx)])
-        s.q_mat = np.zeros(s.k_mat.shape)
-        s.v_mat = np.zeros(s.k_mat.shape)
-        s.tn_mat = np.zeros(s.k_mat.shape)
-        s.dn_mat = np.zeros(s.k_mat.shape)
-        s.an = s.edie_dt*s.edie_dx
-
-        #累積
-        s.traveltime_actual = np.array([s.length/s.u for t in range(s.W.TSIZE)])
+        """Compatibility hook; no UXsim analysis buffers are allocated in V2Sim."""
+        pass
 
     def update(s):
         """
@@ -586,11 +546,6 @@ class Link:
         s.in_out_flow_constraint()
 
         s.set_traveltime_instant()
-        s.cum_arrival.append(0)
-        s.cum_departure.append(0)
-        if len(s.cum_arrival) > 1:
-            s.cum_arrival[-1] = s.cum_arrival[-2]
-            s.cum_departure[-1] = s.cum_departure[-2]
 
         if s.user_function is not None:
             s.user_function(s)
@@ -617,203 +572,16 @@ class Link:
             s.capacity_in_remain = 10e10
 
     def set_traveltime_instant(s):
-        """
-        Compute instantaneous travel time.
-        """
+        """Update the latest link travel time used by V2Sim/UXsim routing."""
         if s.W.T%s.W.instantaneous_TT_timestep_interval == 0:
             if s.speed > 0:
-                s.traveltime_instant.append(s.length/s.speed)
+                s.traveltime_instant = s.length/s.speed
             else:
-                s.traveltime_instant.append(s.length/(s.u/100))
-        else:
-            s.traveltime_instant.append(s.traveltime_instant[-1])
-
-    def arrival_count(s, t: float) -> float:
-        """
-        Get cumulative vehicle count of arrival to this link on time t.
-
-        Parameters
-        ----------
-        t : float
-            Time in seconds.
-
-        Returns
-        -------
-        float
-            The cumulative arrival vehicle count.
-        """
-        tt = int(t//s.W.DELTAT)
-        if tt >= len(s.cum_arrival):
-            return s.cum_arrival[-1]
-        if tt < 0:
-            return s.cum_arrival[0]
-        return s.cum_arrival[tt]
-
-    def departure_count(s, t: float) -> float:
-        """
-        Get cumulative vehicle count of departure from this link on time t.
-
-        Parameters
-        ----------
-        t : float
-            Time in seconds.
-
-        Returns
-        -------
-        float
-            The cumulative departure vehicle count.
-        """
-        tt = int(t//s.W.DELTAT)
-        if tt >= len(s.cum_departure):
-            return s.cum_departure[-1]
-        if tt < 0:
-            return s.cum_departure[0]
-        return s.cum_departure[tt]
-    
-    def inflow_between(s, t0: float, t1: float) -> float:
-        """
-        Get inflow to this link between time t0 and t1.
-
-        Parameters
-        ----------
-        t0 : float
-            Start time in seconds.
-        t1 : float
-            End time in seconds.
-
-        Returns
-        -------
-        float
-            The inflow.
-        """
-        return (s.arrival_count(t1)-s.arrival_count(t0))/(t1-t0)
-    
-    # def average_travel_time_between(s, t0: float, t1: float) -> float:
-    #     """
-    #     Get average travel time on this link between time t0 and t1 based on the cumulative curves. More precisely, average travel time of vehicles that entered this link during [t0, t1).
-
-    #     Parameters
-    #     ----------
-    #     t0 : float
-    #         Start time in seconds.
-    #     t1 : float
-    #         End time in seconds.
-
-    #     Returns
-    #     -------
-    #     float
-    #         The average travel time.
-    #     """
-    #     t_list = [t for t in s.vehicles_enter_log.keys() if t0 <= t < t1]
-    #     if len(t_list) == 0:
-    #         return s.length/s.u
-    #     return np.average([s.actual_travel_time(t) for t in t_list])
-    
-    def num_vehicles_t(s, t: float) -> float:
-        """
-        Get number of vehicles on this link on time t.
-
-        Parameters
-        ----------
-        t : float
-            Time in seconds.
-
-        Returns
-        -------
-        float
-            The number of vehicles.
-        """
-        return s.arrival_count(t)-s.departure_count(t)
-   
-    def average_density(s, t: float) -> float:
-        """
-        Get average density of this link on time t.
-
-        Parameters
-        ----------
-        t : float
-            Time in seconds.
-
-        Returns
-        -------
-        float
-            The average density.
-        """
-        return float(s.num_vehicles_t(t)/s.length)
+                s.traveltime_instant = s.length/(s.u/100)
 
     def instant_travel_time(s, t: float) -> float:
-        """
-        Get instantaneous travel time of this link on time t.
-
-        Parameters
-        ----------
-        t : float
-            Time in seconds.
-
-        Returns
-        -------
-        float
-            The instantaneous travel time.
-        """
-        tt = int(t//s.W.DELTAT)
-        if tt >= len(s.traveltime_instant):
-            return s.traveltime_instant[-1]
-        if tt < 0:
-            return s.traveltime_instant[0]
-        return s.traveltime_instant[tt]
-    
-    def actual_travel_time(s, t: float) -> float:
-        """
-        Get actual travel time of vehicle who enters this link on time t. Note that small error may occur due to fractional processing.
-
-        Parameters
-        ----------
-        t : float
-            Time in seconds.
-
-        Returns
-        -------
-        float
-            The actual travel time.
-        """
-        tt = int(t//s.W.DELTAT)
-        if tt >= len(s.traveltime_actual):
-            return s.traveltime_actual[-1]
-        if tt < 0:
-            return s.traveltime_actual[0]
-        return s.traveltime_actual[tt]
-
-    def average_speed(s, t: float) -> float:
-        """
-        Get average speed (=inverse of instantaneous travel time) of this link on time t.
-
-        Parameters
-        ----------
-        t : float
-            Time in seconds.
-
-        Returns
-        -------
-        float
-            The instantaneous travel time.
-        """
-        return float(s.length/s.instant_travel_time(t))
-
-    def average_flow(s, t: float) -> float:
-        """
-        Get average flow of this link on time t.
-
-        Parameters
-        ----------
-        t : float
-            Time in seconds.
-
-        Returns
-        -------
-        float
-            The average flow.
-        """
-        return float(s.average_speed(t)*s.average_density(t))
+        """Return the latest travel time; historical travel-time logging is disabled."""
+        return float(s.traveltime_instant)
 
     def get_toll(s, t: float) -> float:
         """
@@ -1050,21 +818,10 @@ class Vehicle:
         s.trip_abort = trip_abort
         s.flag_trip_aborted = 0
 
-        #log
-        s.log_t = [] #時刻
-        s.log_state = [] #状態
-        s.log_link = [] #リンク
-        s.log_x = [] #位置
-        s.log_s = [] #車頭距離
-        s.log_v = [] #現在速度
-        s.log_lane = [] #車線
-        s.color = (s.W.rng.random(), s.W.rng.random(), s.W.rng.random())
-
+        # Compact route-level trace is retained because V2Sim uses traveled_route().
         s.log_t_link : list[tuple[int,str|Link]] = [[int(s.departure_time*s.W.DELTAT), "home"]] #route-level log. It records the time and link when the vehicle entered new link. The typehint is technically incorrect; it is actually not tuple, but list
         s.link_old = None
         
-        s.distance_traveled = 0
-
         s.attribute = attribute
         s.user_attribute = user_attribute
         s.user_function = user_function
@@ -1166,9 +923,6 @@ class Vehicle:
         Procedure when the vehicle finishes its trip.
         """
         s.state = "end"
-
-        s.link.cum_departure[-1] += s.W.DELTAN
-        s.link.traveltime_actual[int(s.link_arrival_time/s.W.DELTAT):] = (s.W.T+1)*s.W.DELTAT - s.link_arrival_time  #端部の挙動改善 todo: 精査
 
         if s.follower != None:
             s.follower.leader = None
@@ -1389,18 +1143,6 @@ class Vehicle:
         list
             The time at which the vehicle entered each link. If `include_arrival_time` is true, the last element is the time the vehicle reached the destination. If `include_departure_time` is true, the first element is the time the vehicle departed from the origin. This complexity is actually due to a design failure in the past. These options are added to keep the backward compatibility.
         """
-        # link_old = -1
-        # t = -1
-        # route = []
-        # ts = []
-        # for i, link in enumerate(s.log_link):
-        #     if link_old != link:
-        #         route.append(link)
-        #         ts.append(s.log_t[i])
-        #         link_old = link
-
-        # return Route(s.W, route[:-1]), ts
-
         route = []
         ts = []
 
@@ -1425,23 +1167,13 @@ class Vehicle:
         return Route(s.W, route), ts
 
     def get_xy_coords(s, t=-1):
-        """
-        Get the x-y coordinates of the vehicle. If t is given, the position at time t is returned based on the logs.
-
-        Parameters
-        ----------
-        t : int | float, optional
-            Time in seconds. If it is -1, the latest position is returned.
-        """
+        """Get current x-y coordinates. V2Sim does not retain historical trajectories."""
         if t != -1:
-            link = s.log_link[int(t/s.W.DELTAT/s.W.vehicle_logging_timestep_interval)]
-            xx = s.log_x[int(t/s.W.DELTAT/s.W.vehicle_logging_timestep_interval)]
-        else:
-            link = s.link
-            xx = s.x
-        if link == -1:
+            raise NotImplementedError("Historical vehicle trajectory logging is disabled in the V2Sim build.")
+        link = s.link
+        xx = s.x
+        if link is None or link == -1:
             return (-1, -1)
-        link:Link = s.W.get_link(link)
         x0 = link.start_node.x
         y0 = link.start_node.y
         x1 = link.end_node.x
@@ -1451,49 +1183,7 @@ class Vehicle:
         return (x, y)
 
     def record_log(s, enforce_log=0):
-        """
-        Record travel logs.
-
-        Parameters
-        ----------
-        enforce_log : bool, optional
-            Record log regardless of the logging interval, default is 0.
-        """
-        if s.W.vehicle_logging_timestep_interval != -1:
-            if s.W.vehicle_logging_timestep_interval == 1 or s.W.T%s.W.vehicle_logging_timestep_interval == 0 or enforce_log:
-                if s.state != "run":
-                    # if s.state == "end" and s.log_t_link[-1][1] != "end":
-                    #     s.log_t_link.append([t, "end"])
-
-                    s.log_t.append(s.W.T*s.W.DELTAT)
-                    s.log_state.append(s.state)
-                    s.log_link.append(-1)
-                    s.log_x.append(-1)
-                    s.log_s.append(-1)
-                    s.log_v.append(-1)
-                    s.log_lane.append(-1)
-
-                    if s.state == "wait":
-                        s.W.analyzer.average_speed_count += 1
-                        s.W.analyzer.average_speed += 0
-                else:
-                    # if len(s.log_link) == 0 or s.log_link[-1] != s.link:
-                    #     s.log_t_link.append([t, s.link])
-
-                    s.log_t.append(s.W.T*s.W.DELTAT)
-                    s.log_state.append(s.state)
-                    s.log_link.append(s.link)
-                    s.log_x.append(s.x)
-                    s.log_v.append(s.v)
-                    s.log_lane.append(s.lane)
-                    if s.leader != None and s.link == s.leader.link:
-                        s.log_s.append(s.leader.x-s.x)
-                    else:
-                        s.log_s.append(-1)
-
-                    s.W.analyzer.average_speed_count += 1
-                    s.W.analyzer.average_speed += (s.v - s.W.analyzer.average_speed)/s.W.analyzer.average_speed_count
-        
+        """Record only link transitions required by V2Sim route reconstruction."""
         if s.link != s.link_old:
             if s.state == "run":
                 s.log_t_link.append([s.W.T*s.W.DELTAT, s.link])
@@ -1523,9 +1213,6 @@ class RouteChoice:
         s.dist = np.zeros([len(s.W.NODES), len(s.W.NODES)])
         #iからjに行くために次に進むべきノード: the node to proceed from i when the destination is j
         s.next = np.zeros([len(s.W.NODES), len(s.W.NODES)])
-        #iからjに行くために来たノード. This is not used anymore
-        s.pred = np.zeros([len(s.W.NODES), len(s.W.NODES)])
-
         # s.dist_record = {}
         # 不记录距离以减少内存占用
 
@@ -1554,9 +1241,9 @@ class RouteChoice:
             j = link.end_node.id
             if s.W.ADJ_MAT[i,j]:
                 if s.W.hard_deterministic_mode == False:
-                    new_link_tt = link.traveltime_instant[-1]*s.W.rng.uniform(1, 1+noise) + link.get_toll(t)
+                    new_link_tt = link.traveltime_instant*s.W.rng.uniform(1, 1+noise) + link.get_toll(t)
                 else:
-                    new_link_tt = link.traveltime_instant[-1] + link.get_toll(t)
+                    new_link_tt = link.traveltime_instant + link.get_toll(t)
                 n = adj_mat_link_count[i,j]
                 s.adj_mat_time[i,j] = s.adj_mat_time[i,j]*n/(n+1) + new_link_tt/(n+1) # if there are multiple links between the same nodes, average the travel time
                 # s.adj_mat_time[i,j] = new_link_tt #if there is only one link between the nodes, this line is fine, but for generality we use the above line
@@ -1620,11 +1307,9 @@ class World:
     def __init__(W, name: str="", deltan: int=5, reaction_time: float=1, 
                  duo_update_time: float=600, duo_update_weight: float=0.5, duo_noise: float=0.01, route_choice_principle: str="homogeneous_DUO", route_choice_update_gradual: bool=False, instantaneous_TT_timestep_interval: int=5, 
                  no_cyclic_routing: bool = False,
-                 eular_dt: float=120, eular_dx: float=100, 
                  random_seed: Any|None=None, 
                  print_mode: bool=1, save_mode: bool=1, show_mode: bool=0, show_progress: bool=1, show_progress_deltat: float=600, 
                  tmax: float|None=None, 
-                 vehicle_logging_timestep_interval: int=1, 
                  reduce_memory_delete_vehicle_route_pref: bool=False,
                  hard_deterministic_mode: bool=False, 
                  meta_data: dict={}, user_attribute=None, user_function=None):
@@ -1647,8 +1332,6 @@ class World:
             The noise in route choice, default is 0.01.
         route_choice_update_gradual : bool, optional
             Whether to update route choice ratio gradually or not. True is recommended. Default is False for backward compatibility.
-        eular_dt : float, optional
-            The time aggregation size for eularian traffic state computation, default is 120.
         random_seed : int or None, optional
             The random seed, default is None.
         print_mode : int, optional
@@ -1665,9 +1348,6 @@ class World:
             The time interval for showing network progress, default is 600 seconds.
         tmax : float or None, optional
             The simulation duration, default is None (automatically determined).
-        vehicle_logging_timestep_interval : int, optional
-            The interval for logging vehicle data, default is 1. Logging is off if set to -1.
-            Setting a large interval (2 or more) or turning off the logging makes the simulation significantly faster in large-scale scenarios without losing simulation internal accuracy, but outputted vehicle trajectory and other related data will become inaccurate.
         instantaneous_TT_timestep_interval : int, optional
             The interval for computing instantaneous travel time of each link. Default is 5.
             If it is longer than the DUO update timestep interval, it is substituted by DUO update timestep interval to maintain reasonable route choice behavior.
@@ -1708,7 +1388,6 @@ class World:
         W.DUO_UPDATE_TIME = duo_update_time     #time interval for route choice update (s)
         W.DUO_UPDATE_WEIGHT = duo_update_weight    #weight for route choice update
         W.DUO_NOISE = duo_noise    #very small noise for route choice to avoid singular results
-        W.EULAR_DT = eular_dt     #time discretization size for Eular-type data (aggregated traffic state)
 
         W.DELTAT = W.REACTION_TIME*W.DELTAN
         W.DELTAT_ROUTE = int(W.DUO_UPDATE_TIME/W.DELTAT) #this unit is timestep
@@ -1724,8 +1403,6 @@ class World:
 
         W.NODES_NAME_DICT = {} #map from name to node object
         W.LINKS_NAME_DICT = {}
-
-        W.vehicle_logging_timestep_interval = vehicle_logging_timestep_interval
 
         W.route_choice_principle = route_choice_principle
 
@@ -1752,8 +1429,6 @@ class World:
         W.hard_deterministic_mode = hard_deterministic_mode
 
         W.meta_data = meta_data
-        W.network_info = ddict(list)
-        W.demand_info = ddict(list)
 
         W.finalized = 0
         W.world_start_time = time.time()
@@ -1820,7 +1495,7 @@ class World:
         """
         return Node(W, name, x, y, signal=signal, signal_offset=signal_offset, signal_offset_old=signal_offset_old, flow_capacity=flow_capacity, number_of_lanes=number_of_lanes, auto_rename=auto_rename, attribute=attribute, user_attribute=user_attribute, user_function=user_function)
 
-    def addLink(W, name: str, start_node: Node|str, end_node: Node|str, length: float, free_flow_speed: float=20, jam_density: float=0.2, jam_density_per_lane: float|None=None, number_of_lanes: int=1, merge_priority: float=1, signal_group: list[int]=[0], capacity_out: float|None=None, capacity_in: float|None=None, congestion_pricing: Callable[[float],float]|None=None, eular_dx=None, attribute=None, user_attribute=None, user_function=None, auto_rename=False):
+    def addLink(W, name: str, start_node: Node|str, end_node: Node|str, length: float, free_flow_speed: float=20, jam_density: float=0.2, jam_density_per_lane: float|None=None, number_of_lanes: int=1, merge_priority: float=1, signal_group: list[int]=[0], capacity_out: float|None=None, capacity_in: float|None=None, congestion_pricing: Callable[[float],float]|None=None, attribute=None, user_attribute=None, user_function=None, auto_rename=False):
         """
         Create a link.
 
@@ -1897,7 +1572,7 @@ class World:
             The priority of the link when merging at the downstream node.
         """
 
-        return Link(W, name, start_node, end_node, length, free_flow_speed=free_flow_speed, jam_density=jam_density, jam_density_per_lane=jam_density_per_lane, number_of_lanes=number_of_lanes, merge_priority=merge_priority, signal_group=signal_group, capacity_out=capacity_out, capacity_in=capacity_in, congestion_pricing=congestion_pricing, eular_dx=eular_dx, attribute=attribute, user_attribute=user_attribute, user_function=user_function, auto_rename=auto_rename)
+        return Link(W, name, start_node, end_node, length, free_flow_speed=free_flow_speed, jam_density=jam_density, jam_density_per_lane=jam_density_per_lane, number_of_lanes=number_of_lanes, merge_priority=merge_priority, signal_group=signal_group, capacity_out=capacity_out, capacity_in=capacity_in, congestion_pricing=congestion_pricing, attribute=attribute, user_attribute=user_attribute, user_function=user_function, auto_rename=auto_rename)
 
     def addVehicle(W, *args, direct_call=True, **kwargs) -> Vehicle:
         """
@@ -1944,7 +1619,6 @@ class World:
         """
         return Vehicle(W, *args, **kwargs)
 
-    @demand_info_record
     def adddemand(W, orig: str|Node, dest: str|Node, t_start: float, t_end: float, flow: float =-1, volume: float =-1, attribute=None, direct_call=True):
         """
         Generate vehicles by specifying time-dependent origin-destination demand.
@@ -1980,7 +1654,6 @@ class World:
 
         
 
-    @demand_info_record
     def adddemand_point2point(W, x_orig, y_orig, x_dest, y_dest, t_start, t_end, flow=-1, volume=-1, attribute=None, direct_call=True):
         """
         Generate vehicles by specifying time-dependent origin-destination demand using coordinates.
@@ -2010,7 +1683,6 @@ class World:
         dest = W.get_nearest_node(x_dest, y_dest)
         W.adddemand(orig, dest, t_start, t_end, flow, volume, attribute, direct_call=False)
 
-    @demand_info_record
     def adddemand_area2area(W, x_orig, y_orig,  radious_orig, x_dest, y_dest, radious_dest, t_start, t_end, flow=-1, volume=-1, attribute=None, direct_call=True):
         """
         Generate vehicles by specifying time-dependent origin-destination demand by specifying circular areas. `adddemand_area2area()` is not recommended as it may truncate demand. Consider to use new `adddemand_area2area2()` which is more accurate, smooth, and fast.
@@ -2071,7 +1743,6 @@ class World:
             for d in dests:
                 W.adddemand(o, d, t_start, t_end, flow, volume, attribute, direct_call=False)
     
-    @demand_info_record
     def adddemand_nodes2nodes(W, origs: list[str|Node], dests: list[str|Node], t_start: float, t_end: float, flow: float=-1, volume: float=-1, attribute=None, direct_call=True):
         """
         Generate vehicles by specifying time-dependent origin-destination demand by specifying origin area (i.e., list of nodes) and destination one. `adddemand_nodes2nodes()` is not recommended as it may truncate demand. Consider to use new `adddemand_nodes2nodes2() which is more accurate, smooth, and fast.
@@ -2119,7 +1790,6 @@ class World:
             for d in dests:
                 W.adddemand(o, d, t_start, t_end, flow, volume, attribute, direct_call=False)
 
-    @demand_info_record
     def adddemand_area2area2(W, x_orig:float, y_orig:float,  radious_orig:float, x_dest:float, y_dest:float, radious_dest:float, t_start:float, t_end:float, flow:float=-1, volume:float=-1, attribute=None, direct_call=True):
         """
         Generate vehicles by specifying time-dependent origin-destination demand by specifying circular areas. This is new version of `adddemand_area2area`, more efficient, more smooth, and more accurate. However, it introduces some randomness.
@@ -2185,7 +1855,6 @@ class World:
             W.addVehicle(o, d2, t, attribute=attribute, direct_call=False)
 
 
-    @demand_info_record
     def adddemand_nodes2nodes2(W, origs:list[str|Node], dests:list[str|Node], t_start:float, t_end:float, flow:float=-1, volume:float=-1, attribute=None, direct_call=True):
         """
         Generate vehicles by specifying time-dependent origin-destination demand by specifying origin area (i.e., list of nodes) and destination one. This is new version of `adddemand_nodes2nodes`, more efficient, more smooth, and more accurate. However, it introduces some randomness.
@@ -2262,16 +1931,12 @@ class World:
         W.TIME = 0 #s
 
         W.TSIZE = int(W.TMAX/W.DELTAT)
-        W.Q_AREA = ddict(lambda: np.zeros(int(W.TMAX/W.EULAR_DT)))
-        W.K_AREA = ddict(lambda: np.zeros(int(W.TMAX/W.EULAR_DT)))
         for l in W.LINKS:
             l.init_after_tmax_fix()
 
         #generate adjacency matrix
         W.ROUTECHOICE = RouteChoice(W)
         W.ADJ_MAT = np.zeros([len(W.NODES), len(W.NODES)])
-        W.ADJ_MAT_LINKS = dict() #リンクオブジェクトが入った隣接行列（的な辞書）
-        W.NODE_PAIR_LINKS = dict() #リンクオブジェクトが入った隣接行列（的な辞書）．キーはノード名
         for link in W.LINKS:
             for i,start_node in enumerate(W.NODES):
                 if start_node == link.start_node:
@@ -2280,11 +1945,6 @@ class World:
                 if end_node == link.end_node:
                     break
             W.ADJ_MAT[i,j] = 1
-            W.ADJ_MAT_LINKS[i,j] = link
-            W.NODE_PAIR_LINKS[start_node.name,end_node.name] = link
-
-        W.analyzer = Analyzer(W)
-
         W.finalized = 1
 
         ## 問題規模表示
@@ -2293,6 +1953,13 @@ class World:
 
         W.sim_start_time = time.time()
         W.print("simulating...")
+
+    def show_simulation_progress(W):
+        """Print simulation progress without keeping analysis state."""
+        if W.print_mode:
+            n = len(W.VEHICLES_RUNNING)
+            avev = sum(v.v for v in W.VEHICLES_RUNNING.values()) / n if n else 0.0
+            print(f"{W.TIME:>8.0f} s| {n*W.DELTAN:>8.0f} vehs|  {avev:>4.1f} m/s| {time.time()-W.sim_start_time:8.2f} s", flush=True)
 
     def print_scenario_stats(W):
         """
@@ -2365,7 +2032,7 @@ class World:
 
         if start_ts == end_ts == W.TSIZE:
             if W.print_mode and W.show_progress:
-                W.analyzer.show_simulation_progress()
+                W.show_simulation_progress()
             W.simulation_terminated()
             return 1 #end of simulation
         if end_ts < start_ts:
@@ -2377,7 +2044,7 @@ class World:
             #print("execing:", W.T, start_ts, end_ts, W.check_simulation_ongoing())
             if W.T == 0:
                 W.print("      time| # of vehicles| ave speed| computation time", flush=True)
-                W.analyzer.show_simulation_progress()
+                W.show_simulation_progress()
 
             for link in W.LINKS:
                 link.update()
@@ -2409,7 +2076,7 @@ class World:
             W.TIME = W.T*W.DELTAT
 
             if W.print_mode and W.show_progress and W.T%W.show_progress_deltat_timestep == 0 and W.T > 0:
-                W.analyzer.show_simulation_progress()
+                W.show_simulation_progress()
             
             if W.user_function is not None:
                 W.user_function(W)
@@ -2423,7 +2090,7 @@ class World:
 
         if W.T == W.TSIZE:
             if W.print_mode and W.show_progress:
-                W.analyzer.show_simulation_progress()
+                W.show_simulation_progress()
             W.simulation_terminated()
             return 1
         
@@ -2447,7 +2114,6 @@ class World:
         Postprocessing after simulation finished.
         """
         W.print(" simulation finished")
-        # W.analyzer.basic_analysis()
 
     def get_node(W, node:str|Node) -> Node:
         """
@@ -2852,35 +2518,3 @@ class Route:
         if isinstance(other, Route):
             return [l.name for l in self.links] == [l.name for l in other.links]
         return NotImplemented
-
-    def actual_travel_time(s, t:float, return_details:bool=False):
-        """
-        Actual travel time for a (hypothetical) vehicle who start traveling this route on time t.
-
-        Parameters
-        ----------
-        t : float
-            Time in seconds.
-        return_details : bool
-            True if you want travel time per link.
-
-        Returns
-        -------
-        float
-            The actual travel time.
-        list (if `return_details` is True)
-            List of travel time per link.
-        """
-        tt = 0
-        tts = []
-
-        for l in s.links:
-            link_tt = l.actual_travel_time(t)
-            tt += link_tt
-            t += link_tt
-            tts.append(link_tt)
-
-        if return_details:
-            return tt, tts
-        else:
-            return tt
