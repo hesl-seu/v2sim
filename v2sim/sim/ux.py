@@ -57,7 +57,7 @@ class TrafficUX(TrafficInst):
         self.W = create_func(
             tmax=end_time,
             deltan=1,
-            reaction_time=step_len if internal_step_len is None else internal_step_len,
+            reaction_time=1 if internal_step_len is None else internal_step_len,
             random_seed=seed,
             hard_deterministic_mode=not randomize_uxsim,
             reduce_memory_delete_vehicle_route_pref=True,
