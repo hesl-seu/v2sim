@@ -287,7 +287,7 @@ class VehGenerator(ABC):
             else:
                 st = 0
         else:
-            st = veh.trips[-1].depart_time % 86400 + 1
+            st = veh.trips[-1].depart_time // 86400 + 1
         for j in range(st, st + day_count):
             self._genTripsChainA(veh, j)
     
@@ -707,7 +707,11 @@ class UXVehGenerator(VehGenerator):
         depart_time_min, to_Type = self._getDest1(from_Type, weekday)
         while depart_time_min * 60 >= 86400 - 3600:  # Ensure that there is enough time for subsequent trips
             depart_time_min, to_Type = self._getDest1(from_Type, weekday)
-        to_node = self._getNextNode(from_node, from_Type)
+        # IMPORTANT: use the generated destination type for non-first-day trips.
+        # The old code accidentally sampled another Home node by passing
+        # ``from_Type`` here.  That makes day-2+ UXsim trips much shorter and
+        # suppresses the corresponding charging demand compared with SUMO.
+        to_node = self._getNextNode(from_node, to_Type)
         return Trip(trip_id, depart_time_min * 60, from_node, to_node, None, from_Type, to_Type)
 
     def _genTripsChainA(self, v: Vehicle, daynum: int = 1):  # vehicle_trip
