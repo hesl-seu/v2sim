@@ -703,7 +703,7 @@ class RoadNet:
             if to not in world.NODES_NAME_DICT:
                 world.addNode(name = to, x = edge.to_node.x, y = edge.to_node.y)
             link = world.addLink(name = edge.name, start_node = edge.from_node.name, end_node = edge.to_node.name,
-                length = edge.length, free_flow_speed = edge.speed_limit, number_of_lanes = edge.lanes)
+                length = edge.length, free_flow_speed = edge.speed_limit, number_of_lanes = edge.lanes, jam_density_per_lane=0.2)
             gl[fr].append((to, link))
         
         return SingleWorld(world, gl)
@@ -740,7 +740,7 @@ class RoadNet:
             if to not in W.NODES_NAME_DICT:
                 W.addNode(name = to, x = edge.to_node.x, y = edge.to_node.y)
             link = W.addLink(name = edge.name, start_node = fr, end_node = to,
-                length = edge.length, free_flow_speed = edge.speed_limit, number_of_lanes = edge.lanes)
+                length = edge.length, free_flow_speed = edge.speed_limit, number_of_lanes = edge.lanes, jam_density_per_lane=0.2)
             gl[fr].append((to, link))
         
         return ParaWorlds(worlds, gl)

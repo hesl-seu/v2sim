@@ -1,5 +1,5 @@
 import cloudpickle as pickle
-import gzip
+import gzip, math
 from fpowerkit import Grid
 from feasytools import TimeFunc
 from dataclasses import asdict
@@ -19,6 +19,8 @@ from .utils import CaseData
 from .base import CommonConfig, TrafficInst, TRAFFIC_INST_FILE_NAME, UXsimConfig
 
 WORLD_FILE_NAME = "world.gz"
+ATTR_UX_DEST_SCS = "_ux_dest_scs"
+UX_SCS_SEARCH_RADIUS_M = 200.0
 
 
 class TrafficUX(TrafficInst):
@@ -42,6 +44,12 @@ class TrafficUX(TrafficInst):
         
         assert routing_algorithm in ("dijkstra", "astar"), Lang.ROUTE_ALGO_NOT_SUPPORTED
         self.__use_astar = routing_algorithm == "astar"
+        self.__allow_scs_redirect = allow_scs_redirect
+        self.__instant_arrivals = set()
+        self.__speed_upper_bound = max(
+            (float(edge.speed_limit) for edge in self._rnet.edges.values() if edge.speed_limit > 0),
+            default=0.0,
+        )
         
         # Get all road names
         self.__names: List[str] = list(self._rnet.edges.keys())
@@ -63,6 +71,7 @@ class TrafficUX(TrafficInst):
             reduce_memory_delete_vehicle_route_pref=True,
             print_mode=1 if self.__show_uxsim_info else 0,
             silent=self.silent,
+            no_cyclic_routing=False
         )
         if not self.silent:
             from .uxworld import ParaWorlds
@@ -91,9 +100,14 @@ class TrafficUX(TrafficInst):
         
         :param fastest: True = fastest route, False = shortest route
         """
+        if O == D:
+            return Stage([O], [], 0.0, 0.0)
         if self.__use_astar:
             if fastest:
-                return astarF(self.W.get_gl(), self.W.get_coords(), self._ct, O, D)
+                return astarF(
+                    self.W.get_gl(), self.W.get_coords(), self._ct, O, D,
+                    self.__speed_upper_bound,
+                )
             else:
                 return astarS(self.W.get_gl(), self.W.get_coords(), self._ct, O, D)
         else:
@@ -113,7 +127,7 @@ class TrafficUX(TrafficInst):
         if self.__use_astar:
             if fastest:
                 return astarMF(self.W.get_gl(), self.W.get_coords(), self._ct,
-                    O, Ds, max(0.1, self.W.get_average_speed()))
+                    O, Ds, self.__speed_upper_bound)
             else:
                 return astarMS(self.W.get_gl(), self.W.get_coords(), self._ct, O, Ds)
         else:
@@ -139,7 +153,7 @@ class TrafficUX(TrafficInst):
 
         if self.__use_astar:
             ret = astarMC(self.W.get_gl(), self.W.get_coords(), self._ct, O, omega, Ds.keys(),
-                scores, max_dist, max(0.1, self.W.get_average_speed()))
+                scores, max_dist, self.__speed_upper_bound)
         else:
             ret = dijMC(self.W.get_gl(), self._ct, O, omega, Ds.keys(), scores, max_dist)
         
@@ -168,6 +182,126 @@ class TrafficUX(TrafficInst):
             except Exception:
                 pass
         return max(0.0, length)
+
+    def __node_xy(self, node_id: str) -> Tuple[float, float]:
+        """Return node coordinates in the same metre-based plane as UXsim."""
+        return self._rnet.get_node(node_id).get_coord()
+
+    @staticmethod
+    def __estimated_soc_after(veh: EV, distance: float) -> float:
+        return (veh._energy - distance * veh._epm) / veh._cap
+
+    def __select_scs_near_destination(
+        self, veh: EV, trip: Trip
+    ) -> Tuple[Optional[CS], Optional[Stage], float]:
+        """Select an online SCS near the destination in the node-based network."""
+        try:
+            dx, dy = self.__node_xy(trip.D)
+        except Exception:
+            return None, None, 0.0
+
+        best_scs: Optional[CS] = None
+        best_stage: Optional[Stage] = None
+        best_length = 0.0
+        best_score = (1, float("inf"), float("inf"))
+
+        for scs in self.SCSList:
+            if not scs.is_online(self._ct):
+                continue
+            try:
+                if math.isfinite(scs._x) and math.isfinite(scs._y):
+                    sx, sy = float(scs._x), float(scs._y)
+                else:
+                    sx, sy = self.__node_xy(scs._bind)
+            except Exception:
+                continue
+
+            dist = math.hypot(sx - dx, sy - dy)
+            if dist > UX_SCS_SEARCH_RADIUS_M:
+                continue
+
+            try:
+                stage = self.find_route(trip.O, scs._bind)
+            except Exception:
+                continue
+            if len(stage.nodes) == 0:
+                continue
+
+            owner_rank = 0 if scs._owners is not None and veh._name in scs._owners else 1
+            score = (owner_rank, scs.wait_count(), dist)
+            if score < best_score:
+                best_score = score
+                best_scs = scs
+                best_stage = stage
+                best_length = stage.length
+
+        return best_scs, best_stage, best_length
+
+    def __maybe_redirect_trip_to_scs(
+        self, veh: Vehicle, base_stage: Stage, base_length: float
+    ) -> Tuple[Stage, float]:
+        if not isinstance(veh, EV):
+            return base_stage, base_length
+
+        trip = veh.trip
+        estimated_soc = self.__estimated_soc_after(veh, base_length)
+        if estimated_soc > veh._ks:
+            return base_stage, base_length
+
+        scs, scs_stage, scs_length = self.__select_scs_near_destination(veh, trip)
+        if scs is None or scs_stage is None:
+            return base_stage, base_length
+
+        trip.D = scs._bind
+        trip.DPos = None
+        trip.edges = None
+        veh._force_sc = True
+        setattr(veh, ATTR_UX_DEST_SCS, scs._name)
+
+        next_idx = veh.trip_id + 1
+        if next_idx < len(veh.trips):
+            next_trip = veh.trips[next_idx]
+            next_trip.O = scs._bind
+            next_trip.OPos = None
+            next_trip.edges = None
+
+        return scs_stage, scs_length
+
+    def __start_charging_SCS_by_name(self, veh: EV, scs_name: str) -> bool:
+        if scs_name not in self._hubs.scs:
+            return False
+        scs = self._hubs.scs[scs_name]
+        if not scs.is_online(self._ct):
+            return False
+        if self.scs.add_veh(veh, scs_name):
+            self._log.join_SCS(self._ct, veh, scs_name)
+            return True
+        return False
+
+    def _end_trip(self, veh: Vehicle, dist: float):
+        """End a UXsim trip, honoring an explicit SCS redirect target when set."""
+        veh.status = VehStatus.Parking
+        arr_sta = TripLogger.ARRIVAL_NO_CHARGE
+        if isinstance(veh, EV):
+            target_scs = getattr(veh, ATTR_UX_DEST_SCS, None)
+            if target_scs is not None:
+                veh._force_sc = False
+                if self.__start_charging_SCS_by_name(veh, target_scs):
+                    arr_sta = TripLogger.ARRIVAL_CHARGE_SUCCESSFULLY
+                else:
+                    arr_sta = TripLogger.ARRIVAL_CHARGE_FAILED
+                delattr(veh, ATTR_UX_DEST_SCS)
+            elif veh.soc < veh._ks or veh._force_sc:
+                veh._force_sc = False
+                if self._start_charging_SCS(veh, veh.trip.D):
+                    arr_sta = TripLogger.ARRIVAL_CHARGE_SUCCESSFULLY
+                else:
+                    arr_sta = TripLogger.ARRIVAL_CHARGE_FAILED
+        self._log.arrive(self._ct, veh, arr_sta, dist)
+        tid = veh.next_trip()
+        if tid != -1:
+            ntrip = veh.trip
+            self._que.push(ntrip.depart_time, (veh._name, None))
 
     @staticmethod
     def __ctpl_or(measured_distance: float, veh: Vehicle) -> float:
@@ -258,23 +392,37 @@ class TrafficUX(TrafficInst):
         :return: whether departed successfully. If False, it means the vehicle cannot reach any FCS/GS on the way
         """
         trip = veh.trip
-        direct_depart = True
+        stage = self.find_route(trip.O, trip.D)
+        planned_length = stage.length
+        if self.__allow_scs_redirect:
+            stage, planned_length = self.__maybe_redirect_trip_to_scs(veh, stage, planned_length)
+        trip = veh.trip
 
-        if self._dist_based_restoration:
-            stage = self.find_route(trip.O, trip.D)
+        # Edge-to-node conversion can collapse a SUMO trip to O == D.  Do not
+        # inject such a vehicle into UXsim: UXsim may otherwise make it traverse
+        # a cycle before it can finish.  This is a genuine zero-distance trip.
+        instant_arrival = trip.O == trip.D
+
+        if instant_arrival:
+            direct_depart = True
+        elif self._dist_based_restoration:
             # Determine whether the battery is sufficient
-            direct_depart = (not veh._fr_on_dpt) and veh.is_energy_enough(stage.length)
+            direct_depart = (not veh._fr_on_dpt) and veh.is_energy_enough(planned_length)
         else:
             # Determine whether the EV needs to be fast charged
-            stage = None
             direct_depart = (not veh._fr_on_dpt) and veh.soc >= veh._kf
         if direct_depart:  # Direct departure
             veh._cs = None
             veh._etar = veh._cap  # Reset the energy target
-            if stage:
-                self._add_veh(veh._name, trip.O, trip.D, stage)
+            if instant_arrival:
+                veh.clear_odometer()
+                veh.current_trip_planned_length = 0.0
+                self.__instant_arrivals.add(veh._name)
             else:
-                self._add_veh2(veh._name, trip.O, trip.D)
+                self._add_veh(
+                    veh._name, trip.O, trip.D, stage,
+                    planned_length=planned_length,
+                )
         else:  # Charge/Refuel once on the way
             if veh._fr_on_dpt is not None and veh._dpt_rs is not None:
                 # Forced to a specified FCS/GS
@@ -317,6 +465,10 @@ class TrafficUX(TrafficInst):
             if self.__start_trip(veh):
                 depart_delay = max(0, self._ct - depart_time)
                 self._log.depart(self._ct, veh, depart_delay, veh._cs)
+                if veh_id in self.__instant_arrivals:
+                    self.__instant_arrivals.discard(veh_id)
+                    veh.drive(0.0)
+                    self._end_trip(veh, 0.0)
             else:
                 if isinstance(veh, GV):
                     available_s = self._hubs.gs.get_online_names(self._ct)
@@ -334,14 +486,14 @@ class TrafficUX(TrafficInst):
                 
                 # Find the nearest FCS
                 best_route = self.find_best_route(trip.O, nodes.keys(), False)
-                best_s = nodes[best_route.nodes[-1]]
-
                 if len(best_route.nodes) == 0:
                     # No FCS/GS available
                     trT = self._ct + self._step
                     self._fQ.push(trT, veh_id)  # Teleport in the next step
                     self._log.depart_failed(self._ct, veh, -1, "", trT)
                     continue
+
+                best_s = nodes[best_route.nodes[-1]]
 
                 batt_req = best_route.length * veh._epm * veh._kr
                 if isinstance(veh, EV) and self._hubs.scs.has_veh(veh._name):
@@ -471,6 +623,15 @@ class TrafficUX(TrafficInst):
 
         ti = d["obj"]
         assert isinstance(ti, TrafficUX)
+        if not hasattr(ti, "_TrafficUX__allow_scs_redirect"):
+            ti.__allow_scs_redirect = False
+        if not hasattr(ti, "_TrafficUX__instant_arrivals"):
+            ti.__instant_arrivals = set()
+        if not hasattr(ti, "_TrafficUX__speed_upper_bound"):
+            ti.__speed_upper_bound = max(
+                (float(edge.speed_limit) for edge in ti._rnet.edges.values() if edge.speed_limit > 0),
+                default=0.0,
+            )
         ti._log = tlogger
         return ti
     

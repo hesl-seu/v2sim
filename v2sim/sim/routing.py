@@ -1,6 +1,6 @@
 import heapq, math
 from dataclasses import dataclass
-from typing import Callable, Iterable, List, Dict, Mapping, Protocol, Sequence, Tuple, TypeVar
+from typing import Callable, Iterable, List, Dict, Mapping, Optional, Protocol, Sequence, Tuple, TypeVar
 from scipy.spatial import KDTree
 
 
@@ -19,6 +19,46 @@ class LinkLike(Protocol):
     def instant_travel_time(self, t: int) -> float: ...
 
 Graph = Mapping[str, Sequence[Tuple[str, LinkLike]]]  # node ID -> List of (to_node ID, Link object)
+
+
+def get_network_speed_upper_bound(gl: Graph) -> float:
+    """Return a conservative upper bound of link speed in m/s.
+
+    UXsim links expose ``free_flow_speed`` while the lightweight road-network
+    edges used by some callers expose ``speed_limit``.  Falling back to ``u``
+    keeps this helper compatible with UXsim's internal link representation.
+
+    A non-positive result means that no usable bound could be determined.  In
+    that case time-based A* falls back to a zero heuristic (i.e. Dijkstra-like
+    ordering), which is still admissible.
+    """
+    max_speed = 0.0
+    seen_links = set()
+    for outgoing in gl.values():
+        for _, link in outgoing:
+            lid = id(link)
+            if lid in seen_links:
+                continue
+            seen_links.add(lid)
+            speed = getattr(link, "free_flow_speed", None)
+            if speed is None:
+                speed = getattr(link, "speed_limit", None)
+            if speed is None:
+                speed = getattr(link, "u", None)
+            try:
+                speed = float(speed)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(speed) and speed > max_speed:
+                max_speed = speed
+    return max_speed
+
+
+def _time_from_straight_line(distance: float, speed_upper_bound: float) -> float:
+    """Convert a straight-line distance heuristic (m) into seconds."""
+    if not math.isfinite(speed_upper_bound) or speed_upper_bound <= 0:
+        return 0.0
+    return distance / speed_upper_bound
 
 def dijMC(gl: Graph, ctime: int, from_node: str, omega: float, to_nodes: Iterable[str],
           node_scores: Dict[str, float], max_length: float = float('inf')) -> Stage:
@@ -143,16 +183,22 @@ def dijS(gl: Graph, ctime: int, from_node: str, to_node: str) -> Stage:
     """Shortest path between two specific nodes."""
     return dijMS(gl, ctime, from_node, {to_node})
 
-def astarF(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_node: str) -> Stage:
+def astarF(
+    gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_node: str,
+    speed_upper_bound: Optional[float] = None,
+) -> Stage:
     """
     A* algorithm for FASTEST path using time as cost.
     Uses f_score (time + heuristic) as primary key, time as secondary key, length as tertiary key.
     """
     to_coord = node_coords[to_node]
+    if speed_upper_bound is None:
+        speed_upper_bound = get_network_speed_upper_bound(gl)
     
     def heuristic(node):
         coord = node_coords[node]
-        return math.hypot(coord[0] - to_coord[0], coord[1] - to_coord[1])
+        distance = math.hypot(coord[0] - to_coord[0], coord[1] - to_coord[1])
+        return _time_from_straight_line(distance, speed_upper_bound)
     
     heap = []
     initial_h = heuristic(from_node)
@@ -271,7 +317,9 @@ def create_heuristic_with_kdtree(node_coords: CoordsDict, kdtree: KDTree) -> Cal
     
     return heuristic
 
-def create_time_heuristic_with_kdtree(node_coords: CoordsDict, kdtree: KDTree, avg_speed: float = 20.0) -> Callable:
+def create_time_heuristic_with_kdtree(
+    node_coords: CoordsDict, kdtree: KDTree, speed_upper_bound: float
+) -> Callable:
     """
     创建使用kDTree的时间启发式函数
     """
@@ -282,20 +330,30 @@ def create_time_heuristic_with_kdtree(node_coords: CoordsDict, kdtree: KDTree, a
         coord = node_coords[node]
         # 查询最近的一个目标节点
         distance, _ = kdtree.query([coord], k=1)
-        return distance[0] / avg_speed  # 将距离转换为时间估计
+        return _time_from_straight_line(float(distance[0]), speed_upper_bound)
     
     return heuristic
 
 # 修改后的A*算法（以astarMF为例）
-def astarMF(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_nodes: Iterable[str], avg_speed:float) -> Stage:
+def astarMF(
+    gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str,
+    to_nodes: Iterable[str], speed_upper_bound: Optional[float] = None,
+) -> Stage:
     """
     A* version of dijMF - Find the FASTEST route to any node in to_nodes using kDTree heuristic.
     """
+    targets = set(to_nodes)
+    if not targets:
+        return Stage([], [], float('inf'), float('inf'))
+
     # 构建kDTree
-    kdtree, index_to_node = build_target_kdtree(node_coords, to_nodes)
+    kdtree, index_to_node = build_target_kdtree(node_coords, targets)
+
+    if speed_upper_bound is None:
+        speed_upper_bound = get_network_speed_upper_bound(gl)
     
     # 创建启发式函数
-    heuristic = create_time_heuristic_with_kdtree(node_coords, kdtree, avg_speed=avg_speed)
+    heuristic = create_time_heuristic_with_kdtree(node_coords, kdtree, speed_upper_bound)
     
     # (estimated_total_time, time, length, node, path, path_edges)
     initial_h = heuristic(from_node)
@@ -311,7 +369,7 @@ def astarMF(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_n
         if cur_node in visited:
             continue
             
-        if cur_node in to_nodes:
+        if cur_node in targets:
             if cur_time < best_stage.travelTime:
                 best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
         
@@ -383,12 +441,19 @@ def astarMS(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_n
 
 def astarMC(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, omega: float,
             to_nodes:Iterable[str], node_scores: Dict[str, float],
-            max_length: float = float('inf'), avg_speed: float = 20.0) -> Stage:
+            max_length: float = float('inf'), speed_upper_bound: Optional[float] = None) -> Stage:
     """
     A* version of dijMC - Find the BEST route using kDTree heuristic.
     """
+    targets = set(to_nodes)
+    if not targets:
+        return Stage([], [], float('inf'), float('inf'))
+
     # 构建kDTree
-    kdtree, index_to_node = build_target_kdtree(node_coords, to_nodes)
+    kdtree, index_to_node = build_target_kdtree(node_coords, targets)
+
+    if speed_upper_bound is None:
+        speed_upper_bound = get_network_speed_upper_bound(gl)
     
     # 创建启发式函数（使用距离启发式）
     distance_heuristic = create_heuristic_with_kdtree(node_coords, kdtree)
@@ -396,8 +461,8 @@ def astarMC(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, omeg
     # 将距离启发式转换为score启发式（近似）
     def score_heuristic(node):
         dist = distance_heuristic(node)
-        # 将距离转换为近似的score增量（这是一个保守估计）
-        return omega * (dist / avg_speed / 60.0)  # 假设平均速度20.0m/s，转换为分钟
+        # Convert metres to an admissible lower bound of travel time first.
+        return omega * (_time_from_straight_line(dist, speed_upper_bound) / 60.0)
     
     # (estimated_total_score, actual_score, time, length, node, path, path_edges)
     initial_h = score_heuristic(from_node)
@@ -419,7 +484,7 @@ def astarMC(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, omeg
             continue
         visited.add(cur_node)
         
-        if cur_node in to_nodes and cur_len <= max_length:
+        if cur_node in targets and cur_len <= max_length:
             if cur_score < min_actual_score:
                 min_actual_score = cur_score
                 best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
