@@ -216,7 +216,7 @@ class StaReader:
     """
     def __init__(
         self,
-        path: str,
+        path: Union[str, Path],
         sta_pool: Optional[StaPool] = None,
     ):
         """

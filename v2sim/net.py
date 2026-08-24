@@ -630,7 +630,7 @@ class RoadNet:
         else:
             raise ValueError(Lang.UNKNOWN_NET_FORMAT.format(fmt))
     
-    def save(self, fname:str):
+    def save(self, fname:Union[str, Path]):
         root = Element("roadnet", { "v2simfmtver": str(RoadNet.VERSION) })
         def _w(x): return ','.join(map(str, x))
         if self.hasGeoProj():
@@ -658,6 +658,7 @@ class RoadNet:
             })
             if edge.nickname is not None: e.set("name", edge.nickname)
             root.append(e)
+        fname = str(fname)
         if fname.lower().endswith(".gz"):
             fname = fname[:-3]
         ElementTree(root).write(fname, encoding="utf-8", xml_declaration=True)
@@ -703,7 +704,7 @@ class RoadNet:
             if to not in world.NODES_NAME_DICT:
                 world.addNode(name = to, x = edge.to_node.x, y = edge.to_node.y)
             link = world.addLink(name = edge.name, start_node = edge.from_node.name, end_node = edge.to_node.name,
-                length = edge.length, free_flow_speed = edge.speed_limit, number_of_lanes = edge.lanes, jam_density_per_lane=0.2)
+                length = edge.length, free_flow_speed = edge.speed_limit, number_of_lanes = edge.lanes)
             gl[fr].append((to, link))
         
         return SingleWorld(world, gl)
@@ -740,7 +741,7 @@ class RoadNet:
             if to not in W.NODES_NAME_DICT:
                 W.addNode(name = to, x = edge.to_node.x, y = edge.to_node.y)
             link = W.addLink(name = edge.name, start_node = fr, end_node = to,
-                length = edge.length, free_flow_speed = edge.speed_limit, number_of_lanes = edge.lanes, jam_density_per_lane=0.2)
+                length = edge.length, free_flow_speed = edge.speed_limit, number_of_lanes = edge.lanes)
             gl[fr].append((to, link))
         
         return ParaWorlds(worlds, gl)

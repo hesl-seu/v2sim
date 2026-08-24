@@ -71,7 +71,6 @@ class TrafficUX(TrafficInst):
             reduce_memory_delete_vehicle_route_pref=True,
             print_mode=1 if self.__show_uxsim_info else 0,
             silent=self.silent,
-            no_cyclic_routing=False
         )
         if not self.silent:
             from .uxworld import ParaWorlds

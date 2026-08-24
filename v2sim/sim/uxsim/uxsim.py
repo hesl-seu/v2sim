@@ -85,6 +85,13 @@ class Node:
         #vertical queue for vehicle generation
         s.generation_queue: deque[Vehicle] = deque()
 
+        # Vehicles crossing a ParaWorld partition boundary are not true origin
+        # demand.  Keep them in per-outlink queues so that a blocked boundary
+        # movement cannot head-of-line block vehicles bound for other outlinks.
+        # The ordinary generation_queue is intentionally left untouched so
+        # SingleWorld/origin semantics remain exactly the same.
+        s.partition_generation_queues = ddict(deque)
+
         #signal settings
         #If this node does not have a signal, set `signal=[0]`
         #If this node has a signal, set `signal=[green time for group0, green time for group1. ...]`
@@ -166,6 +173,76 @@ class Node:
         else:
             s.flow_capacity_remain = 10e10
 
+    def enqueue_partition_transfer(s, veh, outlink):
+        """Queue a cross-partition vehicle for one exact outgoing link.
+
+        ParaWorlds splits a continuous trip at partition boundary nodes.  Such
+        vehicles correspond to inter-link transfers in a SingleWorld, not to
+        newly generated origin traffic.  Queueing them by outgoing link avoids
+        the FIFO head-of-line blocking of ``generation_queue``.
+        """
+        outlink = s.W.get_link(outlink)
+        if outlink is None or outlink.start_node is not s:
+            raise ValueError(f"Invalid partition transfer outlink {outlink} at node {s.name}.")
+        veh.state = "wait"
+        s.partition_generation_queues[outlink.name].append(veh)
+
+    def _generate_partition_transfers(s):
+        """Inject queued partition transfers without cross-movement HOL blocking."""
+        if not s.partition_generation_queues:
+            return
+
+        # Node.transfer() gives each outgoing lane one transfer attempt.  Mirror
+        # that throughput here.  Different outlinks remain independent, which
+        # is the key property lost when all boundary traffic is put into the
+        # single FIFO origin generation_queue.
+        outlinks = []
+        for outlink in s.outlinks.values():
+            q = s.partition_generation_queues.get(outlink.name)
+            if q:
+                outlinks.extend([outlink] * outlink.number_of_lanes)
+
+        if s.W.hard_deterministic_mode == False:
+            s.W.rng.shuffle(outlinks)
+
+        for outlink in outlinks:
+            q = s.partition_generation_queues.get(outlink.name)
+            if not q:
+                continue
+
+            can_enter = (
+                len(outlink.vehicles) < outlink.number_of_lanes
+                or outlink.vehicles[-outlink.number_of_lanes].x
+                    > outlink.delta_per_lane * s.W.DELTAN
+            ) and outlink.capacity_in_remain >= s.W.DELTAN
+            if not can_enter:
+                continue
+
+            veh = q.popleft()
+            veh.state = "run"
+            veh.link = outlink
+            veh.x = 0
+            veh.v = outlink.u
+            s.W.VEHICLES_RUNNING[veh.name] = veh
+
+            if len(outlink.vehicles) > 0:
+                veh.lane = (outlink.vehicles[-1].lane + 1) % outlink.number_of_lanes
+            else:
+                veh.lane = 0
+
+            veh.leader = None
+            if len(outlink.vehicles) >= outlink.number_of_lanes:
+                veh.leader = outlink.vehicles[-outlink.number_of_lanes]
+                veh.leader.follower = veh
+                assert veh.leader.lane == veh.lane
+
+            outlink.vehicles.append(veh)
+            veh.link_arrival_time = s.W.T * s.W.DELTAT
+            outlink.capacity_in_remain -= s.W.DELTAN
+
+            if not q:
+                del s.partition_generation_queues[outlink.name]
+
     def generate(s):
         """
         Departs vehicles from the waiting queue.
@@ -235,6 +312,11 @@ class Node:
                         break
                 else:
                     break
+
+        # Cross-partition traffic represents link-to-link transfer traffic.
+        # Process it after ordinary origin generation, just as Node.transfer()
+        # is processed after Node.generate() in a normal SingleWorld step.
+        s._generate_partition_transfers()
 
     def transfer(s):
         """

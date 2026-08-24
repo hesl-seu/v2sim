@@ -228,8 +228,9 @@ class ParaWorlds(WorldSpec):
                 else:
                     self.node_coords[node.name] = (node.x, node.y)
         
-        # Deque of (arrival vehicle id, current trip segment id)
-        self.__aQs:List[Deque[Tuple[str, int]]] = [deque() for _ in range(len(worlds))]
+        # Per-world segment-arrival queues.  World IDs need not be dense.
+        # Entries are (vehicle id, current segment id, actual segment arrival time).
+        self.__aQs:Dict[int, Deque[Tuple[str, int, int]]] = {wid: deque() for wid in worlds}
 
         # Real queue for arrival vehicles, completing the whole trip
         self.__aQ:Deque[str] = deque()
@@ -239,6 +240,11 @@ class ParaWorlds(WorldSpec):
 
         # Vehicle itineraries: vehicle id -> list of splitting nodes: (node_name, next_world_id)
         self.__veh_itineraies:Dict[str, List[Tuple[str, int]]] = {}
+
+        # Preserve the original V2Sim-planned route inside every partition.
+        # The old implementation discarded it after splitting, so each segment
+        # could independently reroute and choose a different boundary movement.
+        self.__veh_segment_routes:Dict[str, List[List[str]]] = {}
 
         self.__uvi: Dict[str, Vehicle] = {}
 
@@ -291,20 +297,34 @@ class ParaWorlds(WorldSpec):
         
         self.__ctime = until_s
 
-        for i, aQ in enumerate(self.__aQs):
+        # Collect all segment completions first and order them by the actual
+        # segment arrival time.  Parallel worker completion order must not decide
+        # the order in which vehicles enter a shared downstream boundary link.
+        completed_segments = []
+        for source_wid, aQ in self.__aQs.items():
             while len(aQ) > 0:
-                veh_id, trip_segment = aQ.popleft()
-                self.worlds[i].VEHICLES.pop(veh_id)
-                splitting_nodes = self.__veh_itineraies[veh_id]
-                if trip_segment + 2 < len(splitting_nodes):
-                    trip_segment += 1
-                    from_node, next_wid = splitting_nodes[trip_segment]
-                    to_node, _ = splitting_nodes[trip_segment + 1]
-                    del self.__uvi[veh_id]
-                    self.__add_veh(next_wid, veh_id, from_node, to_node, trip_segment)
-                else:
-                    self.__aQ.append(veh_id)
-                    self.__veh_itineraies.pop(veh_id)
+                veh_id, trip_segment, arrival_time = aQ.popleft()
+                completed_segments.append((arrival_time, source_wid, veh_id, trip_segment))
+
+        completed_segments.sort(key=lambda x: (x[0], x[1], x[2]))
+        for arrival_time, source_wid, veh_id, trip_segment in completed_segments:
+            self.worlds[source_wid].VEHICLES.pop(veh_id)
+            splitting_nodes = self.__veh_itineraies[veh_id]
+            segment_routes = self.__veh_segment_routes[veh_id]
+            if trip_segment + 2 < len(splitting_nodes):
+                trip_segment += 1
+                from_node, next_wid = splitting_nodes[trip_segment]
+                to_node, _ = splitting_nodes[trip_segment + 1]
+                del self.__uvi[veh_id]
+                self.__add_veh(
+                    next_wid, veh_id, from_node, to_node, trip_segment,
+                    segment_routes[trip_segment], is_partition_transfer=True,
+                    departure_time=arrival_time,
+                )
+            else:
+                self.__aQ.append(veh_id)
+                self.__veh_itineraies.pop(veh_id)
+                self.__veh_segment_routes.pop(veh_id)
 
     def get_link(self, link_id:str) -> Optional[Link]:
         return self.worlds[self.wid_of_edges[link_id]].get_link(link_id)
@@ -318,18 +338,42 @@ class ParaWorlds(WorldSpec):
     def links(self) -> Iterable[Link]:
         return (link for W in self.worlds.values() for link in W.LINKS)
 
-    def __add_veh(self, world_id:int, veh_id:str, from_node:str, to_node:str, trip_segment:int):
+    def __add_veh(
+        self, world_id:int, veh_id:str, from_node:str, to_node:str, trip_segment:int,
+        route_edges:Optional[List[str]] = None, *, is_partition_transfer:bool = False,
+        departure_time:Optional[int] = None,
+    ):
         assert world_id in self.wid_of_nodes[from_node], \
             f"Node {from_node} is not in world {world_id}, cannot add vehicle {veh_id}."
         assert world_id in self.wid_of_nodes[to_node], \
             f"Node {to_node} is not in world {world_id}, cannot add vehicle {veh_id}."
         W = self.worlds[world_id]
+        if route_edges is None:
+            route_edges = []
+        if departure_time is None:
+            departure_time = self.__ctime
 
         def add_to_aQ(veh:Vehicle):
-            self.__aQs[world_id].append((veh.name, trip_segment))
+            # end_trip() stores arrival_time in UXsim time steps.
+            arrival_time = int(veh.arrival_time * veh.W.DELTAT)
+            self.__aQs[world_id].append((veh.name, trip_segment, arrival_time))
 
-        self.__uvi[veh_id] = W.addVehicle(orig=from_node, dest=to_node, 
-            departure_time=self.__ctime, name=veh_id, end_trip_callback=add_to_aQ)
+        veh = W.addVehicle(
+            orig=from_node, dest=to_node, links_prefer=route_edges,
+            departure_time=departure_time, name=veh_id, end_trip_callback=add_to_aQ,
+        )
+        self.__uvi[veh_id] = veh
+
+        if is_partition_transfer:
+            if len(route_edges) == 0:
+                raise RuntimeError(
+                    f"Empty route for partition transfer of vehicle {veh_id} "
+                    f"from {from_node} to {to_node}."
+                )
+            # Do not re-inject a boundary transfer as ordinary origin demand.
+            # It is already waiting at the boundary and should compete for the
+            # exact first downstream link independently of other movements.
+            W.get_node(from_node).enqueue_partition_transfer(veh, route_edges[0])
 
     def add_vehicle(self, veh_id:str, from_node:str, to_node:str, route:Union[None, Stage, List[str]] = None, algo:RoutingAlgorithm = RoutingAlgorithm.AstarFastest):
         if from_node == to_node:
@@ -355,14 +399,28 @@ class ParaWorlds(WorldSpec):
                 edges = route
             Ecnt = len(edges)
             assert Ecnt > 0, "Route not found."
-            splitting_nodes:List[Tuple[str, int]] = [(nodes[0], self.wid_of_edges[edges[0]])]  # (node_name, prev_world_id, next_world_id)
+            splitting_nodes:List[Tuple[str, int]] = [(nodes[0], self.wid_of_edges[edges[0]])]  # (node_name, next_world_id)
+            segment_routes:List[List[str]] = []
+            seg_begin = 0
             for i in range(Ecnt - 1):
                 if self.wid_of_edges[edges[i]] != self.wid_of_edges[edges[i + 1]]:
                     splitting_nodes.append((nodes[i + 1], self.wid_of_edges[edges[i + 1]]))
+                    segment_routes.append(list(edges[seg_begin:i + 1]))
+                    seg_begin = i + 1
+            segment_routes.append(list(edges[seg_begin:Ecnt]))
             splitting_nodes.append((nodes[-1], -1))  # Destination node, no next world
 
+        if from_node == to_node:
+            segment_routes = [[]]
+
+        assert len(segment_routes) + 1 == len(splitting_nodes), \
+            f"Invalid partition route split for vehicle {veh_id}."
         self.__veh_itineraies[veh_id] = splitting_nodes
-        self.__add_veh(splitting_nodes[0][1], veh_id, splitting_nodes[0][0], splitting_nodes[1][0], 0)
+        self.__veh_segment_routes[veh_id] = segment_routes
+        self.__add_veh(
+            splitting_nodes[0][1], veh_id, splitting_nodes[0][0], splitting_nodes[1][0], 0,
+            segment_routes[0],
+        )
 
     def has_vehicle(self, veh_id: str) -> bool:
         return veh_id in self.__uvi
@@ -384,9 +442,20 @@ class ParaWorlds(WorldSpec):
             total_count += len(W.VEHICLES_RUNNING)
         return total_speed / total_count if total_count else 0.0
     
+    def get_partition_waiting_vehicle_count(self) -> int:
+        """Number of vehicles waiting at artificial partition boundaries."""
+        total = 0
+        for W in self.worlds.values():
+            for node in W.NODES:
+                total += sum(len(q) for q in node.partition_generation_queues.values())
+        return total
+
     def shutdown(self):
         self.__pool.shutdown(wait=True)
-        return f"Total steps: {self.__cnt_ser} serial + {self.__cnt_para} parallel"
+        return (
+            f"Total steps: {self.__cnt_ser} serial + {self.__cnt_para} parallel; "
+            f"partition boundary waiting: {self.get_partition_waiting_vehicle_count()}"
+        )
 
     def __lstack_save(self, filepath:str):
         sys.setrecursionlimit(10**9)

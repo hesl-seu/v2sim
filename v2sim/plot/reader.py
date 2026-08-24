@@ -65,9 +65,9 @@ class ReadOnlyStatistics(StaReader):
 
         return list(set(__trans(x) for x in self.GetTable(name).keys()))
 
-    def __init__(self, path: str):
+    def __init__(self, path: Union[str, Path]):
         super().__init__(path)
-        self.root = path
+        self.root = str(path)
         self.__fcs_head = None if FILE_FCS not in self else TO_BE_LOADED
         self.__scs_head = None if FILE_SCS not in self else TO_BE_LOADED
         self.__gs_head = None if FILE_GS not in self else TO_BE_LOADED

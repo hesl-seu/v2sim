@@ -720,7 +720,7 @@ class BiCS(CS):
                 else:
                     self._c_evs = [
                         ev for ev in self._chi
-                        if ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e)) and ev._energy < ev._etar
+                        if ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e))
                         and ((not ev.v2g_eligible(cur_time, self.real_psell(cur_time, ev, ps_e), False)) or ev.soc < ev._kv)
                     ]
                 if not v2g_enabled:
@@ -731,7 +731,7 @@ class BiCS(CS):
             if self._cs_type == CSType.FCS:
                 self._c_evs = list(self._chi)
             else:
-                self._c_evs = [ev for ev in self._chi if ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e)) and ev._energy < ev._etar]
+                self._c_evs = [ev for ev in self._chi if ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e))]
             
         m = len(self._c_evs)
         if m > 0:
