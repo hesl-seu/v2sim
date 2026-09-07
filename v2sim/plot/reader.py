@@ -1,5 +1,6 @@
 import math
-from typing import Any, List
+from pathlib import Path
+from typing import Any, List, Union
 from feasytools import SegFunc
 from ..plugins import *
 from ..stats import *
