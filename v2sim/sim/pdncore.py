@@ -14,7 +14,7 @@ import os
 from collections import defaultdict
 from itertools import chain
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple, TypedDict
 
 from feasytools import ComFunc, RangeList, TimeImplictFunc
 from fpowerkit import (
@@ -27,10 +27,93 @@ from fpowerkit import (
     LRSolverBase,
 )
 
-from ..hub import CS, ConstPriceGetter, ToUPriceGetter
+from ..hub import BidCurvePoint, CS, V2GBidBlock
 from ..utils import V2SimConfig
 
 INF = float("inf")
+
+
+class V2GStationStatus(TypedDict):
+    name: str
+    bus: str
+    capacity_kW: float
+    dispatch_kW: float
+    manual_target_kW: float
+    bid_curve: List[BidCurvePoint]
+
+
+class V2GStatus(TypedDict, total=False):
+    mode: str
+    time: int
+    online: bool
+    last_solve_time: int
+    grid_buy_price_per_kWh: Optional[float]
+    grid_sell_price_per_kWh: Optional[float]
+    grid_marginal_price_per_kWh: Optional[float]
+    manual_fallback_enabled: bool
+    manual_fallback_active: bool
+    manual_fallback_reason: Optional[str]
+    effective_control: str
+    last_manual_check: Dict[str, object]
+    stations: List[V2GStationStatus]
+
+
+class GridBusStatus(TypedDict, total=False):
+    name: str
+    voltage_pu: Optional[float]
+    min_voltage_pu: Optional[float]
+    max_voltage_pu: Optional[float]
+    voltage_violation: bool
+
+
+class GridLineStatus(TypedDict, total=False):
+    name: str
+    current_kA: Optional[float]
+    limit_kA: Optional[float]
+    loading_pu: Optional[float]
+    thermal_violation: bool
+
+
+class GridState(TypedDict, total=False):
+    time: int
+    last_solve_time: int
+    solve_result: str
+    feasible: bool
+    grid_buy_price_per_kWh: Optional[float]
+    grid_sell_price_per_kWh: Optional[float]
+    grid_marginal_price_per_kWh: Optional[float]
+    grid_marginal_price_basis: Optional[str]
+    gross_ev_charging_kW: float
+    v2g_dispatch_kW: float
+    net_ev_load_kW: float
+    total_bus_load_kW: float
+    total_generation_kW: float
+    min_voltage_pu: Optional[float]
+    min_voltage_bus: Optional[str]
+    max_voltage_pu: Optional[float]
+    max_voltage_bus: Optional[str]
+    max_line_loading_pu: Optional[float]
+    max_line_loading_line: Optional[str]
+    voltage_violations: List[str]
+    thermal_violations: List[str]
+    buses: List[GridBusStatus]
+    lines: List[GridLineStatus]
+
+
+class V2GDispatchCheck(TypedDict, total=False):
+    feasible: bool
+    time: int
+    online: bool
+    replace: bool
+    requested_kW: Dict[str, float]
+    effective_targets_kW: Dict[str, float]
+    available_kW: Dict[str, float]
+    accepted_kW: Dict[str, float]
+    violations: List[Dict[str, object]]
+    grid_validation: str
+    current_grid_feasible: bool
+    fallback_enabled: bool
+    would_fallback: bool
 
 
 class IntegratedPDN:
@@ -51,6 +134,13 @@ class IntegratedPDN:
 
         self.__v2g_online = RangeList(config.v2g_online) if config.v2g_online else None
         self.__interval = max(1, int(config.pdn_interval))
+        self.__manual_fallback_enabled = bool(config.v2g_manual_fallback_to_v2g)
+        self.__manual_fallback_active = False
+        self.__manual_fallback_reason: Optional[str] = None
+        self.__manual_dispatch_dirty = False
+        self.__last_manual_check: Dict[str, object] = {}
+        self.__last_pb_e: Optional[float] = None
+        self.__last_ps_e: Optional[float] = None
 
         dec_bus = config.pdn_dec_buses.strip()
         if dec_bus == r"%all%":
@@ -97,6 +187,10 @@ class IntegratedPDN:
             self.__pds[c.bus].append(c)
 
         self.__bus_charge_pu: Dict[str, float] = {b: 0.0 for b in self.__gr.BusNames}
+        # Gross charging active power used to form charging reactive demand.
+        # Manual V2G is treated as unity-PF active injection and does not make
+        # the charging station export reactive power.
+        self.__bus_charge_qbase_pu: Dict[str, float] = {b: 0.0 for b in self.__gr.BusNames}
         self.__bus_ratio: Dict[str, float] = {b: 1.0 for b in self.__gr.BusNames}
         self.__max_reduce_prop_cs: Dict[str, float] = {}
         self.__max_reduce_prop: Dict[str, float] = {}
@@ -105,64 +199,82 @@ class IntegratedPDN:
         tan_phi = math.tan(math.acos(pf_charge))
 
         for b, css in self.__pds.items():
-            load = TimeImplictFunc(self._create_bus_load_getter(b))
-            self.__gr.Bus(b).Pd += load
-            self.__gr.Bus(b).Qd += load * tan_phi
+            load_p = TimeImplictFunc(self._create_bus_load_getter(b, False))
+            load_qbase = TimeImplictFunc(self._create_bus_load_getter(b, True))
+            self.__gr.Bus(b).Pd += load_p
+            self.__gr.Bus(b).Qd += load_qbase * tan_phi
             if b in decs:
                 assert isinstance(self.__sol.est, LRSolverBase)
-                self.__sol.est.AddReduce(b, load, tan_phi)
+                self.__sol.est.AddReduce(b, load_p, tan_phi)
                 self.__max_reduce_prop[b] = 0.0
                 print(f"Enable load reduction at bus {b}", file=self.__fh)
 
         self.__v2g_stations: List[CS] = list(chain(inst.fcs, inst.scs))
         self.__v2g_cap: List[float] = [0.0] * len(self.__v2g_stations)
         self.__v2g_dispatch: List[float] = [0.0] * len(self.__v2g_stations)
-        self.__v2g_gen_names: List[Optional[str]] = [None] * len(self.__v2g_stations)
+        self.__v2g_bid_blocks: List[List[V2GBidBlock]] = [[] for _ in self.__v2g_stations]
+        self.__v2g_gen_names: List[List[str]] = [[] for _ in self.__v2g_stations]
+        # Persistent station targets used only by charging_mode='v2g_manual'.
+        self.__manual_v2g_target: List[float] = [0.0] * len(self.__v2g_stations)
         self._configure_v2g_generators()
 
         for cs in self.__v2g_stations:
             cs.set_integrated_v2g_mode(False)
 
-    def _create_bus_load_getter(self, bus: str):
+    def _create_bus_load_getter(self, bus: str, reactive_base: bool):
         def _sumP():
+            if reactive_base:
+                return self.__bus_charge_qbase_pu[bus]
             return self.__bus_charge_pu[bus]
         return _sumP
 
     def _configure_v2g_generators(self):
-        if self.__mode != "v2g":
+        """Create dynamic V2G bid generators used by automatic market dispatch.
+
+        In ``v2g_manual`` mode these generators are also created when fallback
+        is enabled, but their capacity is zero unless fallback is active.
+        """
+        if self.__mode != "v2g" and not (self.__mode == "v2g_manual" and self.__manual_fallback_enabled):
             return
-        Sb_kVA = self.__gr.Sb_kVA
         for i, cs in enumerate(self.__v2g_stations):
-            if cs._psell is None:
+            if not cs.supports_V2G:
                 continue
-            if isinstance(cs._psell, ConstPriceGetter):
-                psell_func = cs._psell._price * Sb_kVA
-            elif isinstance(cs._psell, ToUPriceGetter):
-                psell_func = cs._psell._price_func * Sb_kVA
-            else:
-                raise RuntimeError(
-                    "Integrated V2G supports constant price or time-of-use price for selling electricity."
-                )
-            if cs._psell_is_serv_fee:
-                psell_func = self.__gr._dp + psell_func
-            name = "V2G_" + cs._name
-            self.__v2g_gen_names[i] = name
-            self.__gr.AddGen(Generator(
-                name, cs._bus,
-                0.0, psell_func, 0.0,
-                -1.0, -1.0, None,
-                0.0, ComFunc(self._v2g_cap_getter(i)), 0.0, 0.0,
-            ))
-        # V2G generators are part of the core grid before the first solve.
+            for j in range(cs._slots):
+                name = f"V2G_{cs._name}_{j}"
+                self.__v2g_gen_names[i].append(name)
+                self.__gr.AddGen(Generator(
+                    name, cs._bus,
+                    0.0, ComFunc(self._v2g_bid_cost_getter(i, j)), 0.0,
+                    -1.0, -1.0, None,
+                    0.0, ComFunc(self._v2g_bid_cap_getter(i, j)), 0.0, 0.0,
+                ))
         if hasattr(self.__sol.est, "UpdateGrid"):
             self.__sol.est.UpdateGrid(self.__gr)
 
-    def _v2g_cap_getter(self, i: int):
+    def _automatic_v2g_enabled(self, t: int) -> bool:
+        if not self.v2g_online(t):
+            return False
+        if self.__mode == "v2g":
+            return True
+        return self.is_manual_v2g_mode() and self.__manual_fallback_enabled and self.__manual_fallback_active
+
+    def _manual_dispatch_enabled(self, t: int) -> bool:
+        return self.is_manual_v2g_mode() and self.v2g_online(t) and not self.__manual_fallback_active
+
+    def _v2g_bid_cost_getter(self, i: int, j: int):
         def func(t: int) -> float:
-            if not self.v2g_online(t):
+            if not self._automatic_v2g_enabled(t) or j >= len(self.__v2g_bid_blocks[i]):
                 return 0.0
-            # kWh/s -> kW -> pu: x * 3600 / Sb_kVA
-            return self.__v2g_cap[i] * 3600.0 / self.__gr.Sb_kVA
+            # $/kWh -> coefficient for pu-h generation in FPowerKit.
+            return self.__v2g_bid_blocks[i][j].price * self.__gr.Sb_kVA
+        return func
+
+    def _v2g_bid_cap_getter(self, i: int, j: int):
+        def func(t: int) -> float:
+            if not self._automatic_v2g_enabled(t) or j >= len(self.__v2g_bid_blocks[i]):
+                return 0.0
+            # kWh/s -> kW -> pu.
+            return self.__v2g_bid_blocks[i][j].quantity * 3600.0 / self.__gr.Sb_kVA
         return func
 
     @property
@@ -186,7 +298,10 @@ class IntegratedPDN:
         return self.__mode
 
     def v2g_online(self, t: int) -> bool:
-        return self.__mode == "v2g" and self.__v2g_online is not None and t in self.__v2g_online
+        return self.__mode in ("v2g", "v2g_manual") and self.__v2g_online is not None and t in self.__v2g_online
+
+    def is_manual_v2g_mode(self) -> bool:
+        return self.__mode == "v2g_manual"
 
     def is_smartcharge_mode(self) -> bool:
         return (
@@ -214,22 +329,70 @@ class IntegratedPDN:
     def _collect_requests(self, t: int, pb_e: float, ps_e: float):
         self._reset_station_limits()
         v2g_active = self.v2g_online(t)
+
+        # Build the supply curve first.  In manual mode the selected blocks are
+        # known before charging demand is formed, so unselected EVs may charge
+        # normally instead of being unnecessarily held at kv.
+        if v2g_active:
+            self.__v2g_bid_blocks = [cs.get_V2G_bid_blocks(t) for cs in self.__v2g_stations]
+            self.__v2g_cap = [sum(x.quantity for x in blocks) for blocks in self.__v2g_bid_blocks]
+            for cs, cap in zip(self.__v2g_stations, self.__v2g_cap):
+                cs._cur_v2g_cap = cap
+        else:
+            self.__v2g_bid_blocks = [[] for _ in self.__v2g_stations]
+            self.__v2g_cap = [0.0] * len(self.__v2g_stations)
+
+        manual_active = self._manual_dispatch_enabled(t)
+        if manual_active:
+            self.__v2g_dispatch = [
+                min(target, cap) for target, cap in zip(self.__manual_v2g_target, self.__v2g_cap)
+            ]
+            for i, cs in enumerate(self.__v2g_stations):
+                cs.set_V2G_dispatch_plan(self._plan_from_total(i, self.__v2g_dispatch[i]))
+        else:
+            for cs in self.__v2g_stations:
+                cs.clear_V2G_dispatch_plan()
+
         requested_cs = []
         for cs in self.__v2g_stations:
-            cs.set_integrated_v2g_mode(v2g_active)
+            cs.set_integrated_v2g_mode(v2g_active, reserve_all=not manual_active)
             requested_cs.append(cs.get_requested_pc(t, pb_e, ps_e, v2g_active))
 
         for b in self.__bus_charge_pu:
             self.__bus_charge_pu[b] = 0.0
+            self.__bus_charge_qbase_pu[b] = 0.0
         for cs, pc in zip(self.__v2g_stations, requested_cs):
-            # kWh/s -> MW -> pu
-            self.__bus_charge_pu[cs.bus] += pc * 3.6 / self.__gr.Sb_MVA
+            pu = pc * 3.6 / self.__gr.Sb_MVA
+            self.__bus_charge_pu[cs.bus] += pu
+            self.__bus_charge_qbase_pu[cs.bus] += pu
 
-        if self.v2g_online(t):
-            self.__v2g_cap = [cs.get_V2G_cap(t, ps_e) for cs in self.__v2g_stations]
-        else:
-            self.__v2g_cap = [0.0] * len(self.__v2g_stations)
+        if manual_active:
+            # Manual V2G is a fixed unity-PF active injection.  During fallback
+            # the original market V2G generators provide the injection instead.
+            for cs, pd in zip(self.__v2g_stations, self.__v2g_dispatch):
+                self.__bus_charge_pu[cs.bus] -= pd * 3.6 / self.__gr.Sb_MVA
         return requested_cs
+
+    def _plan_from_total(self, i: int, total: float) -> Dict[str, Tuple[float, float, float]]:
+        """Allocate a station total along its current ascending bid curve."""
+        left = max(0.0, min(float(total), self.__v2g_cap[i]))
+        plan: Dict[str, Tuple[float, float, float]] = {}
+        for block in self.__v2g_bid_blocks[i]:
+            if left <= 1e-15:
+                break
+            power = min(left, block.quantity)
+            if power > 0.0:
+                plan[block.ev._name] = (power, block.user_price, block.price)
+                left -= power
+        return plan
+
+    def _set_v2g_demands(self, demands: List[float]):
+        nf = len(self.__inst.fcs)
+        self.__inst.fcs.set_V2G_demand(demands[:nf])
+        self.__inst.scs.set_V2G_demand(demands[nf:])
+        for i, cs in enumerate(self.__v2g_stations):
+            plan = self._plan_from_total(i, demands[i]) if i < len(demands) else {}
+            cs.set_V2G_dispatch_plan(plan)
 
     def _apply_held_dispatch(self, requested_cs: List[float], t: int):
         # Between PDN solves, use the last bus service ratio against the current
@@ -241,41 +404,135 @@ class IntegratedPDN:
             self._reset_station_limits()
 
         if self.v2g_online(t):
-            held = [min(x, cap) for x, cap in zip(self.__v2g_dispatch, self.__v2g_cap)]
+            if self._manual_dispatch_enabled(t):
+                held = [min(x, cap) for x, cap in zip(self.__manual_v2g_target, self.__v2g_cap)]
+                self.__v2g_dispatch = held
+            else:
+                # Automatic V2G (native v2g mode or manual fallback) holds the
+                # last market dispatch between PDN solves.
+                held = [min(x, cap) for x, cap in zip(self.__v2g_dispatch, self.__v2g_cap)]
         else:
             held = [0.0] * len(self.__v2g_stations)
+            self.__v2g_dispatch = held
         self._set_v2g_demands(held)
 
-        # The grid log should represent the held served charging request.
         if self.is_smartcharge_mode():
             for b in self.__bus_charge_pu:
-                self.__bus_charge_pu[b] *= self.__bus_ratio.get(b, 1.0)
+                ratio = self.__bus_ratio.get(b, 1.0)
+                self.__bus_charge_pu[b] *= ratio
+                self.__bus_charge_qbase_pu[b] *= ratio
 
-    def _set_v2g_demands(self, demands: List[float]):
-        nf = len(self.__inst.fcs)
-        self.__inst.fcs.set_V2G_demand(demands[:nf])
-        self.__inst.scs.set_V2G_demand(demands[nf:])
+    def _manual_capacity_violations(self) -> List[Dict[str, object]]:
+        ret: List[Dict[str, object]] = []
+        if not self.is_manual_v2g_mode():
+            return ret
+        for cs, target, cap in zip(self.__v2g_stations, self.__manual_v2g_target, self.__v2g_cap):
+            if target > cap + 1e-12:
+                ret.append({
+                    "type": "v2g_capacity",
+                    "station": cs.name,
+                    "requested_kW": target * 3600.0,
+                    "maximum_kW": cap * 3600.0,
+                })
+        return ret
+
+    @staticmethod
+    def _solve_result_has_grid_violation(ok) -> bool:
+        return ok in (GridSolveResult.OKwithoutVICons, GridSolveResult.SubOKwithoutVICons)
+
+    def _activate_manual_fallback(self, reason: str):
+        if not (self.is_manual_v2g_mode() and self.__manual_fallback_enabled):
+            return
+        self.__manual_fallback_active = True
+        self.__manual_fallback_reason = str(reason)
+
+    def _clear_manual_fallback(self):
+        self.__manual_fallback_active = False
+        self.__manual_fallback_reason = None
 
     def prepare_dispatch(self, t: int, step_len: int, pb_e: float, ps_e: float):
         """Compute requested power, solve PDN when due, and set station targets.
 
         This method never changes vehicle SOC.  Actual charging/discharging is
         performed later in the same TrafficInst.post_simulation_step call.
+
+        When ``v2g_manual_fallback_to_v2g`` is enabled, an infeasible manual
+        target is rejected and the same step is re-solved with the original
+        market/OPF V2G mechanism.  Fallback remains active until the external
+        controller submits or clears a manual target.
         """
+        self.__last_pb_e = float(pb_e)
+        self.__last_ps_e = float(ps_e)
         requested_cs = self._collect_requests(t, pb_e, ps_e)
         self.__last_apply_t = t
 
+        # A newly submitted manual command is solved immediately so the agent
+        # never executes a fresh command solely against stale grid constraints.
+        due = (
+            self.__last_solve_t < 0
+            or self.__last_solve_t + self.__interval <= t
+            or (self._manual_dispatch_enabled(t) and self.__manual_dispatch_dirty)
+        )
+
+        manual_attempt = self._manual_dispatch_enabled(t)
+        capacity_violations = self._manual_capacity_violations() if manual_attempt else []
+        if manual_attempt:
+            self.__last_manual_check = {
+                "time": int(t),
+                "capacity_feasible": not bool(capacity_violations),
+                "violations": capacity_violations,
+                "grid_feasible": None,
+                "fallback_triggered": False,
+            }
+
+        # Capacity infeasibility is known before power flow/OPF.  With fallback
+        # enabled, discard the manual injection and rebuild requests using the
+        # original automatic V2G reservation/market mechanism.
+        if manual_attempt and capacity_violations and self.__manual_fallback_enabled:
+            self._activate_manual_fallback("manual_capacity_infeasible")
+            self.__last_manual_check["fallback_triggered"] = True
+            self.__last_manual_check["fallback_reason"] = self.__manual_fallback_reason
+            requested_cs = self._collect_requests(t, pb_e, ps_e)
+            manual_attempt = False
+            due = True
+
         # PDN is always active. Only V2G participation is time-gated by
         # v2g_online; the network itself continues solving at pdn_interval.
-        due = self.__last_solve_t < 0 or self.__last_solve_t + self.__interval <= t
         if not due:
             self._apply_held_dispatch(requested_cs, t)
             return
 
         prev_solve_t = self.__last_solve_t
         ok, _ = self.__sol.solve(t)
+
+        # A manual candidate that cannot satisfy the network solve (or needs
+        # voltage/current constraints relaxed) is illegal. Re-solve the same
+        # step with the native market V2G mechanism when fallback is enabled.
+        if (
+            self._manual_dispatch_enabled(t)
+            and self.__manual_fallback_enabled
+            and (ok == GridSolveResult.Failed or self._solve_result_has_grid_violation(ok))
+        ):
+            reason = (
+                "manual_pdn_solve_failed"
+                if ok == GridSolveResult.Failed
+                else "manual_grid_constraint_violation"
+            )
+            self._activate_manual_fallback(reason)
+            self.__last_manual_check["grid_feasible"] = False
+            self.__last_manual_check["fallback_triggered"] = True
+            self.__last_manual_check["fallback_reason"] = reason
+            print(f"[{t}] Manual V2G rejected ({reason}); falling back to original V2G.", file=self.__fh)
+            requested_cs = self._collect_requests(t, pb_e, ps_e)
+            ok, _ = self.__sol.solve(t)
+        elif self.is_manual_v2g_mode() and self.__last_manual_check:
+            self.__last_manual_check["grid_feasible"] = (
+                ok != GridSolveResult.Failed and not self._solve_result_has_grid_violation(ok)
+            )
+
         self.__last_solve_t = t
         self.last_ok = ok
+        self.__manual_dispatch_dirty = False
         if ok == GridSolveResult.Failed:
             print(f"[{t}] Fail.", file=self.__fh)
             self.__gr.savePQofBus(os.path.join(self.__save_to, f"{t}_load.csv"), t)
@@ -324,24 +581,334 @@ class IntegratedPDN:
                     self.__max_reduce_prop_cs.get(cs.name, 0.0), 1.0 - ratio
                 )
             for b in self.__bus_charge_pu:
-                self.__bus_charge_pu[b] *= self.__bus_ratio.get(b, 1.0)
+                ratio = self.__bus_ratio.get(b, 1.0)
+                self.__bus_charge_pu[b] *= ratio
+                self.__bus_charge_qbase_pu[b] *= ratio
         else:
             self._reset_station_limits()
 
         if self.v2g_online(t):
-            dispatch = []
-            for name in self.__v2g_gen_names:
-                if name is None:
-                    dispatch.append(0.0)
-                    continue
-                p = self.__gr.Gen(name).P
-                pu = 0.0 if p is None else (float(p) if isinstance(p, (int, float)) else p(t))
-                # pu -> kW -> kWh/s
-                dispatch.append(max(0.0, pu * self.__gr.Sb_kVA / 3600.0))
-            self.__v2g_dispatch = [min(x, cap) for x, cap in zip(dispatch, self.__v2g_cap)]
+            if self._manual_dispatch_enabled(t):
+                self.__v2g_dispatch = [
+                    min(target, cap) for target, cap in zip(self.__manual_v2g_target, self.__v2g_cap)
+                ]
+            else:
+                dispatch: List[float] = []
+                for names in self.__v2g_gen_names:
+                    total = 0.0
+                    for name in names:
+                        p = self.__gr.Gen(name).P
+                        pu = 0.0 if p is None else (float(p) if isinstance(p, (int, float)) else p(t))
+                        total += max(0.0, pu * self.__gr.Sb_kVA / 3600.0)
+                    dispatch.append(total)
+                self.__v2g_dispatch = [min(x, cap) for x, cap in zip(dispatch, self.__v2g_cap)]
         else:
             self.__v2g_dispatch = [0.0] * len(self.__v2g_stations)
         self._set_v2g_demands(self.__v2g_dispatch)
+
+    @staticmethod
+    def _value_at(value, t: int) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            if callable(value):
+                value = value(t)
+            return float(value) # type: ignore
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+    @staticmethod
+    def _magnitude(value) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            return float(abs(value))
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+    def _current_grid_prices(self, t: int) -> Tuple[Optional[float], Optional[float]]:
+        """Return current grid buy/sell prices in $/kWh.
+
+        ``pb_e`` is also exposed as ``grid_marginal_price_per_kWh`` because it
+        is the current marginal procurement price used by the charging-system
+        side of V2Sim.  It is not intended to claim a nodal LMP calculation.
+        """
+        pb_e, ps_e = self.__last_pb_e, self.__last_ps_e
+        if pb_e is not None and ps_e is not None and self.__last_apply_t == t:
+            return pb_e, ps_e
+        pdn = getattr(self.__inst, "_pdn", None)
+        try:
+            if pdn is not None:
+                sb_kva = float(self.__gr.Sb_kVA)
+                pb_e = float(pdn._cp(t)) / sb_kva
+                ps_e = float(pdn._dp(t)) / sb_kva
+        except Exception:
+            pass
+        return pb_e, ps_e
+
+    def get_grid_state(self, t: int) -> GridState:
+        """Return the latest solved electrical state and current prices.
+
+        The values are observations of the latest PDN solution.  They do not
+        run an additional power flow and therefore are safe to call while the
+        asynchronous simulation is paused for agent dispatch.
+        """
+        pb_e, ps_e = self._current_grid_prices(t)
+        buses: List[GridBusStatus] = []
+        voltage_violations: List[str] = []
+        min_v: Optional[float] = None
+        max_v: Optional[float] = None
+        min_v_bus: Optional[str] = None
+        max_v_bus: Optional[str] = None
+        total_bus_load_kw = 0.0
+
+        for bus in self.__gr.Buses:
+            name = str(bus.ID)
+            v = self._magnitude(getattr(bus, "V", None))
+            vmin = self._value_at(getattr(bus, "MinV", None), t)
+            vmax = self._value_at(getattr(bus, "MaxV", None), t)
+            violation = bool(
+                v is not None
+                and ((vmin is not None and v < vmin - 1e-9) or (vmax is not None and v > vmax + 1e-9))
+            )
+            if violation:
+                voltage_violations.append(name)
+            if v is not None:
+                if min_v is None or v < min_v:
+                    min_v, min_v_bus = v, name
+                if max_v is None or v > max_v:
+                    max_v, max_v_bus = v, name
+            pd = self._value_at(getattr(bus, "Pd", None), t)
+            if pd is not None:
+                total_bus_load_kw += pd * float(self.__gr.Sb_MVA) * 1000.0
+            buses.append({
+                "name": name,
+                "voltage_pu": v,
+                "min_voltage_pu": vmin,
+                "max_voltage_pu": vmax,
+                "voltage_violation": violation,
+            })
+
+        lines: List[GridLineStatus] = []
+        thermal_violations: List[str] = []
+        max_loading: Optional[float] = None
+        max_loading_line: Optional[str] = None
+        ib_ka = self._magnitude(getattr(self.__gr, "Ib", None))
+        for line in self.__gr.Lines:
+            name = str(line.ID)
+            i_pu = self._magnitude(getattr(line, "I", None))
+            i_ka = i_pu * ib_ka if i_pu is not None and ib_ka is not None else None
+            limit_ka = self._magnitude(getattr(line, "max_I", None))
+            loading = (i_ka / limit_ka) if i_ka is not None and limit_ka not in (None, 0.0) else None
+            violation = bool(loading is not None and loading > 1.0 + 1e-9)
+            if violation:
+                thermal_violations.append(name)
+            if loading is not None and (max_loading is None or loading > max_loading):
+                max_loading, max_loading_line = loading, name
+            lines.append({
+                "name": name,
+                "current_kA": i_ka,
+                "limit_kA": limit_ka,
+                "loading_pu": loading,
+                "thermal_violation": violation,
+            })
+
+        total_generation_kw = 0.0
+        for gen in self.__gr.Gens:
+            p = self._value_at(getattr(gen, "P", None), t)
+            if p is not None:
+                total_generation_kw += p * float(self.__gr.Sb_MVA) * 1000.0
+
+        gross_ev_kw = sum(self.__bus_charge_qbase_pu.values()) * float(self.__gr.Sb_MVA) * 1000.0
+        v2g_kw = sum(self.__v2g_dispatch) * 3600.0
+        net_ev_kw = gross_ev_kw - v2g_kw
+        solve_result = getattr(self.last_ok, "name", str(self.last_ok))
+        solver_feasible = (
+            self.last_ok != GridSolveResult.Failed
+            and not self._solve_result_has_grid_violation(self.last_ok)
+        )
+        feasible = bool(solver_feasible and not voltage_violations and not thermal_violations)
+        return {
+            "time": int(t),
+            "last_solve_time": self.__last_solve_t,
+            "solve_result": solve_result,
+            "feasible": feasible,
+            "grid_buy_price_per_kWh": pb_e,
+            "grid_sell_price_per_kWh": ps_e,
+            "grid_marginal_price_per_kWh": pb_e,
+            "grid_marginal_price_basis": "current grid purchase/procurement price (pb_e), not nodal LMP",
+            "gross_ev_charging_kW": gross_ev_kw,
+            "v2g_dispatch_kW": v2g_kw,
+            "net_ev_load_kW": net_ev_kw,
+            "total_bus_load_kW": total_bus_load_kw,
+            "total_generation_kW": total_generation_kw,
+            "min_voltage_pu": min_v,
+            "min_voltage_bus": min_v_bus,
+            "max_voltage_pu": max_v,
+            "max_voltage_bus": max_v_bus,
+            "max_line_loading_pu": max_loading,
+            "max_line_loading_line": max_loading_line,
+            "voltage_violations": voltage_violations,
+            "thermal_violations": thermal_violations,
+            "buses": buses,
+            "lines": lines,
+        }
+
+    def check_manual_v2g_dispatch(
+        self, t: int, dispatch_kW: Dict[str, float], replace: bool = True
+    ) -> V2GDispatchCheck:
+        """Preflight-check a manual station dispatch without changing state.
+
+        User/EV availability and station capacity are checked immediately from
+        the current bid curve. Candidate-specific network feasibility requires
+        a PDN solve, so it is validated when the command is executed on the next
+        simulation step. If fallback is enabled, an illegal executed command is
+        automatically re-solved with the original V2G mechanism.
+        """
+        violations: List[Dict[str, object]] = []
+        index = {cs.name: i for i, cs in enumerate(self.__v2g_stations)}
+        curves = self.get_V2G_bid_curve(t)
+        available = {name: sum(row["quantity_kW"] for row in curve) for name, curve in curves.items()}
+        effective = (
+            {cs.name: self.__manual_v2g_target[i] * 3600.0 for i, cs in enumerate(self.__v2g_stations)}
+            if not replace else {cs.name: 0.0 for cs in self.__v2g_stations}
+        )
+        requested: Dict[str, float] = {}
+        for name, raw in dispatch_kW.items():
+            if name not in index:
+                violations.append({"type": "unknown_station", "station": str(name)})
+                continue
+            try:
+                value = float(raw)
+            except (TypeError, ValueError, OverflowError):
+                violations.append({"type": "invalid_value", "station": name, "value": str(raw)})
+                continue
+            if not math.isfinite(value) or value < 0.0:
+                violations.append({"type": "invalid_value", "station": name, "value": value})
+                continue
+            requested[name] = value
+            effective[name] = value
+
+        online = self.v2g_online(t)
+        if not online:
+            violations.append({"type": "v2g_offline", "time": int(t)})
+
+        accepted: Dict[str, float] = {}
+        for name, target in effective.items():
+            cap = float(available.get(name, 0.0))
+            accepted[name] = min(target, cap)
+            if target > cap + 1e-9:
+                violations.append({
+                    "type": "v2g_capacity",
+                    "station": name,
+                    "requested_kW": target,
+                    "maximum_kW": cap,
+                })
+
+        current_grid_feasible = self.get_grid_state(t).get("feasible", False)
+        feasible = bool(self.is_manual_v2g_mode() and online and not violations)
+        ret: V2GDispatchCheck = {
+            "feasible": feasible,
+            "time": int(t),
+            "online": online,
+            "replace": bool(replace),
+            "requested_kW": requested,
+            "effective_targets_kW": effective,
+            "available_kW": available,
+            "accepted_kW": accepted,
+            "violations": violations,
+            "grid_validation": "candidate network feasibility is validated by the next PDN solve",
+            "current_grid_feasible": current_grid_feasible,
+            "fallback_enabled": self.__manual_fallback_enabled,
+            "would_fallback": bool(self.__manual_fallback_enabled and violations),
+        }
+        self.__last_manual_check = dict(ret)
+        return ret
+
+    def set_manual_v2g_dispatch(
+        self, dispatch_kW: Dict[str, float], replace: bool = True, t: Optional[int] = None
+    ):
+        """Set persistent manual station V2G targets in kW.
+
+        A new command exits any previous fallback state and forces a PDN solve
+        on the next simulation step. Without fallback, targets retain the legacy
+        clipping behaviour; with fallback, infeasible targets invoke native V2G.
+        """
+        if not self.is_manual_v2g_mode():
+            raise RuntimeError("Manual V2G dispatch requires charging_mode='v2g_manual'")
+        index = {cs.name: i for i, cs in enumerate(self.__v2g_stations)}
+        unknown = sorted(set(dispatch_kW).difference(index))
+        if unknown:
+            raise KeyError("Unknown charging stations: " + ", ".join(unknown))
+        normalized: Dict[str, float] = {}
+        for name, value in dispatch_kW.items():
+            value = float(value)
+            if not math.isfinite(value) or value < 0.0:
+                raise ValueError(f"Manual V2G target for {name} must be a finite non-negative kW value")
+            normalized[name] = value
+        check_t = int(t) if t is not None else (self.__last_apply_t if self.__last_apply_t >= 0 else 0)
+        self.check_manual_v2g_dispatch(check_t, normalized, replace)
+        self._clear_manual_fallback()
+        if replace:
+            self.__manual_v2g_target = [0.0] * len(self.__v2g_stations)
+        for name, value in normalized.items():
+            self.__manual_v2g_target[index[name]] = value / 3600.0
+        self.__manual_dispatch_dirty = True
+
+    def clear_manual_v2g_dispatch(self):
+        if not self.is_manual_v2g_mode():
+            raise RuntimeError("Manual V2G dispatch requires charging_mode='v2g_manual'")
+        self.__manual_v2g_target = [0.0] * len(self.__v2g_stations)
+        self._clear_manual_fallback()
+        self.__manual_dispatch_dirty = True
+        self.__last_manual_check = {
+            "time": self.__last_apply_t,
+            "feasible": True,
+            "cleared": True,
+            "fallback_triggered": False,
+        }
+
+    def get_V2G_bid_curve(self, t: int) -> Dict[str, List[BidCurvePoint]]:
+        """Return current per-station V2G bid curves for an external dispatcher."""
+        if not self.v2g_online(t):
+            return {cs.name: [] for cs in self.__v2g_stations}
+        return {cs.name: cs.get_V2G_bid_curve(t) for cs in self.__v2g_stations}
+
+    def get_V2G_status(self, t: int) -> V2GStatus:
+        curves: Dict[str, List[BidCurvePoint]] = self.get_V2G_bid_curve(t)
+        stations: List[V2GStationStatus] = []
+        for i, cs in enumerate(self.__v2g_stations):
+            curve = curves[cs.name]
+            cap = sum(row["quantity_kW"] for row in curve)
+            station: V2GStationStatus = {
+                "name": cs.name,
+                "bus": cs.bus,
+                "capacity_kW": cap,
+                "dispatch_kW": self.__v2g_dispatch[i] * 3600.0,
+                "manual_target_kW": self.__manual_v2g_target[i] * 3600.0,
+                "bid_curve": curve,
+            }
+            stations.append(station)
+        pb_e, ps_e = self._current_grid_prices(t)
+        status: V2GStatus = {
+            "mode": self.__mode,
+            "time": int(t),
+            "online": self.v2g_online(t),
+            "last_solve_time": self.__last_solve_t,
+            "grid_buy_price_per_kWh": pb_e,
+            "grid_sell_price_per_kWh": ps_e,
+            "grid_marginal_price_per_kWh": pb_e,
+            "manual_fallback_enabled": self.__manual_fallback_enabled,
+            "manual_fallback_active": self.__manual_fallback_active,
+            "manual_fallback_reason": self.__manual_fallback_reason,
+            "effective_control": (
+                "original_v2g_fallback"
+                if self.__manual_fallback_active else ("manual" if self.is_manual_v2g_mode() else self.__mode)
+            ),
+            "last_manual_check": dict(self.__last_manual_check),
+            "stations": stations,
+        }
+        return status
 
     def GetMaxLoadReductionProportion(self, bus: str) -> float:
         return self.__max_reduce_prop.get(bus, 0.0)

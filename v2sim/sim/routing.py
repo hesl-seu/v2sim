@@ -46,7 +46,7 @@ def get_network_speed_upper_bound(gl: Graph) -> float:
             if speed is None:
                 speed = getattr(link, "u", None)
             try:
-                speed = float(speed)
+                speed = float(speed) # type: ignore
             except (TypeError, ValueError):
                 continue
             if math.isfinite(speed) and speed > max_speed:

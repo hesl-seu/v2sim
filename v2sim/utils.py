@@ -223,7 +223,7 @@ _RENAME_FIELDS = {
     "disable_parallel": "ux_no_para",
 }
 
-CHARGING_MODES = ("unordered", "smartcharge", "v2g")
+CHARGING_MODES = ("unordered", "smartcharge", "v2g", "v2g_manual")
 
 
 @dataclass
@@ -262,6 +262,9 @@ class V2SimConfig:
     pdn_dec_buses: str = "%all%"
     pdn_solver: str = "ECOS"
     pdn_max_workers: int = 1
+    # If a v2g_manual command is infeasible, optionally fall back to the
+    # original market/OPF-driven V2G mechanism for that control interval.
+    v2g_manual_fallback_to_v2g: bool = False
 
     def __post_init__(self):
         self.charging_mode = str(self.charging_mode).lower()
@@ -273,6 +276,7 @@ class V2SimConfig:
         self.pdn_interval = max(1, int(self.pdn_interval))
         self.pdn_max_workers = max(1, int(self.pdn_max_workers))
         self.pdn_mlrp = float(self.pdn_mlrp)
+        self.v2g_manual_fallback_to_v2g = bool(self.v2g_manual_fallback_to_v2g)
         if self.v2g_online is None:
             self.v2g_online = []
         normalized_v2g_online: List[Tuple[int, int]] = []
@@ -284,9 +288,9 @@ class V2SimConfig:
                 raise ValueError("Each v2g_online range must satisfy start < end")
             normalized_v2g_online.append((start, end))
         self.v2g_online = normalized_v2g_online
-        if self.charging_mode == "v2g" and not self.v2g_online:
+        if self.charging_mode in ("v2g", "v2g_manual") and not self.v2g_online:
             raise ValueError(
-                "charging_mode='v2g' requires at least one explicit v2g_online range"
+                "V2G charging modes require at least one explicit v2g_online range"
             )
 
     @staticmethod

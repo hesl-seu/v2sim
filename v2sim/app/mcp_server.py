@@ -23,9 +23,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import mcp.server as mcp_server
+import mcp.types as types
 from mcp.server import NotificationOptions
 from mcp.server.models import InitializationOptions
-import mcp.types as types
 from mcp.server import stdio
 
 # 导入 V2Sim 所需模块
@@ -40,6 +40,7 @@ try:
     from v2sim.hub import LoadFCSList, LoadSCSList, LoadGSList
     from v2sim.hub.s import GS
     from v2sim.veh import Vehicle, VehType
+    from v2sim.sim.pdncore import V2GStatus, GridState, V2GDispatchCheck
     # 异步仿真支持
     from v2sim.async_wrapper import simulate_async, AsyncSimHandle
 except ImportError as e:
@@ -440,6 +441,8 @@ async def start_simulation_task(
     step_length: int = 10,
     seed: int = 0,
     silent: bool = True,
+    start_paused: bool = False,
+    v2g_manual_interval: int = 900,
 ) -> str:
     """启动异步仿真并返回 task_id。"""
     # 生成唯一任务ID
@@ -460,7 +463,12 @@ async def start_simulation_task(
         vscfg=common_cfg,
         state_option=LoadStateOption.Skip,
         save_option=SaveStateOptions.OnFinish,
+        start_paused=start_paused,
+        manual_v2g_dispatch_interval=v2g_manual_interval,
     )
+    # Ensure initial state is ready. In v2g_manual this also guarantees the
+    # first online dispatch point is actually waiting for the agent.
+    await handle.wait_until_ready()
 
     # 存储任务
     _sim_tasks[task_id] = handle
@@ -471,6 +479,8 @@ async def start_simulation_task(
         "step_length": step_length,
         "seed": seed,
         "silent": silent,
+        "start_paused": start_paused,
+        "v2g_manual_interval": v2g_manual_interval,
         "status": "running",
         "created_at": datetime.datetime.now().isoformat(),
     }
@@ -503,6 +513,8 @@ async def query_simulation(task_id: str) -> Dict[str, Any]:
     info = _task_info[task_id].copy()
     info["progress"] = handle.progress
     info["is_running"] = handle.is_running
+    info["is_paused"] = handle.is_paused
+    info.update(handle.get_control_status())
     if not handle.is_running and info["status"] == "running":
         # 如果 handle 已停止但状态未更新（可能监控还没完成），尝试获取结果
         if handle.result is not None:
@@ -520,6 +532,73 @@ async def stop_simulation(task_id: str, wait: bool = True) -> str:
     if wait:
         await handle.wait()
     return "Stop signal sent."
+
+async def pause_simulation(task_id: str) -> Dict[str, Any]:
+    if task_id not in _sim_tasks:
+        raise ValueError(f"Task ID {task_id} not found.")
+    handle = _sim_tasks[task_id]
+    handle.pause()
+    return await query_simulation(task_id)
+
+
+async def resume_simulation(task_id: str) -> Dict[str, Any]:
+    if task_id not in _sim_tasks:
+        raise ValueError(f"Task ID {task_id} not found.")
+    handle = _sim_tasks[task_id]
+    handle.resume()
+    return await query_simulation(task_id)
+
+
+async def step_simulation(task_id: str) -> Dict[str, Any]:
+    if task_id not in _sim_tasks:
+        raise ValueError(f"Task ID {task_id} not found.")
+    handle = _sim_tasks[task_id]
+    await handle.step_once()
+    info = await query_simulation(task_id)
+    if handle.is_running:
+        info["v2g"] = handle.get_v2g_status()
+    return info
+
+
+async def get_v2g_status(task_id: str) -> V2GStatus:
+    """Return live V2G bid curves, capacity and dispatch for a simulation."""
+    if task_id not in _sim_tasks:
+        raise ValueError(f"Task ID {task_id} not found.")
+    return _sim_tasks[task_id].get_v2g_status()
+
+
+async def get_grid_state(task_id: str) -> GridState:
+    """Return the latest solved PDN state and current grid prices."""
+    if task_id not in _sim_tasks:
+        raise ValueError(f"Task ID {task_id} not found.")
+    return _sim_tasks[task_id].get_grid_state()
+
+
+async def check_v2g_dispatch(
+    task_id: str, dispatch_kW: Dict[str, float], replace: bool = True
+) -> V2GDispatchCheck:
+    """Preflight-check a manual V2G dispatch without modifying the simulation."""
+    if task_id not in _sim_tasks:
+        raise ValueError(f"Task ID {task_id} not found.")
+    return _sim_tasks[task_id].check_manual_v2g_dispatch(dispatch_kW, replace)
+
+
+async def set_v2g_dispatch(task_id: str, dispatch_kW: Dict[str, float], replace: bool = True) -> V2GStatus:
+    """Set persistent station V2G targets for a v2g_manual simulation."""
+    if task_id not in _sim_tasks:
+        raise ValueError(f"Task ID {task_id} not found.")
+    handle = _sim_tasks[task_id]
+    handle.set_manual_v2g_dispatch(dispatch_kW, replace)
+    return handle.get_v2g_status()
+
+
+async def clear_v2g_dispatch(task_id: str) -> V2GStatus:
+    """Clear all manual V2G targets for a v2g_manual simulation."""
+    if task_id not in _sim_tasks:
+        raise ValueError(f"Task ID {task_id} not found.")
+    handle = _sim_tasks[task_id]
+    handle.clear_manual_v2g_dispatch()
+    return handle.get_v2g_status()
 
 # ================== MCP 服务器 ==================
 
@@ -544,6 +623,17 @@ async def list_tools() -> List[types.Tool]:
                     "step_length": {"type": "integer", "description": "Simulation step length (seconds)", "default": 10},
                     "seed": {"type": "integer", "description": "Random seed", "default": 0},
                     "silent": {"type": "boolean", "description": "Suppress output", "default": True},
+                    "start_paused": {
+                        "type": "boolean",
+                        "description": "Force an initial pause. v2g_manual pauses automatically while V2G is online, so this is normally unnecessary for agent dispatch.",
+                        "default": False,
+                    },
+                    "v2g_manual_interval": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Agent dispatch interval in seconds for charging_mode='v2g_manual'. Default 900 s (15 min). The simulation auto-pauses at each interval while V2G is online.",
+                        "default": 900,
+                    },
                 },
                 "required": ["case_path"],
             },
@@ -575,6 +665,126 @@ async def list_tools() -> List[types.Tool]:
                 "properties": {
                     "task_id": {"type": "string", "description": "Task ID to stop"},
                     "wait": {"type": "boolean", "description": "Wait for the task to fully terminate", "default": True},
+                },
+                "required": ["task_id"],
+            },
+        ),
+        types.Tool(
+            name="pause_simulation",
+            description="Pause a running simulation before its next step.",
+            inputSchema={
+                "type": "object",
+                "properties": {"task_id": {"type": "string"}},
+                "required": ["task_id"],
+            },
+        ),
+        types.Tool(
+            name="resume_simulation",
+            description="Resume a paused simulation. In v2g_manual it runs until the next configured agent-dispatch epoch, then auto-pauses again.",
+            inputSchema={
+                "type": "object",
+                "properties": {"task_id": {"type": "string"}},
+                "required": ["task_id"],
+            },
+        ),
+        types.Tool(
+            name="step_simulation",
+            description=(
+                "Advance exactly one simulation step and remain paused. This is mainly for debugging; "
+                "normal v2g_manual agent dispatch should use set_v2g_dispatch + resume_simulation and wait for the next auto-pause."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {"task_id": {"type": "string"}},
+                "required": ["task_id"],
+            },
+        ),
+        types.Tool(
+            name="get_v2g_status",
+            description=(
+                "Get live V2G bid-price/bid-quantity curves, available capacity, dispatch, current grid prices, fallback state, and agent-control timing. "
+                "In charging_mode='v2g_manual', call this when awaiting_agent_dispatch is true."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "Task ID returned by start_simulation"},
+                },
+                "required": ["task_id"],
+            },
+        ),
+        types.Tool(
+            name="get_grid_state",
+            description=(
+                "Get the latest solved distribution-grid state for an agent: bus voltages, line loading, "
+                "violations, aggregate EV charging/V2G power, and current grid buy/sell/marginal price. "
+                "The marginal price field is V2Sim's current grid procurement price (pb_e), not a nodal LMP."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "Task ID returned by start_simulation"},
+                },
+                "required": ["task_id"],
+            },
+        ),
+        types.Tool(
+            name="check_v2g_dispatch",
+            description=(
+                "Preflight-check a v2g_manual station dispatch without changing simulation state. "
+                "It validates station names, values, V2G online state, EV/user bid availability and station capacity. "
+                "Candidate-specific grid feasibility is validated by the PDN solve when the command executes."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "Task ID returned by start_simulation"},
+                    "dispatch_kW": {
+                        "type": "object",
+                        "description": "Mapping from charging-station name to non-negative V2G target in kW",
+                        "additionalProperties": {"type": "number"},
+                    },
+                    "replace": {
+                        "type": "boolean",
+                        "description": "Check as a full replacement; false merges with current targets",
+                        "default": True,
+                    },
+                },
+                "required": ["task_id", "dispatch_kW"],
+            },
+        ),
+        types.Tool(
+            name="set_v2g_dispatch",
+            description=(
+                "Set persistent manual V2G discharge targets by charging station for a v2g_manual simulation. "
+                "Values are kW. If v2g_manual_fallback_to_v2g is enabled, infeasible manual commands "
+                "fall back to the original market/OPF V2G mechanism; otherwise legacy capacity clipping is retained."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "Task ID returned by start_simulation"},
+                    "dispatch_kW": {
+                        "type": "object",
+                        "description": "Mapping from charging-station name to non-negative V2G target in kW",
+                        "additionalProperties": {"type": "number", "minimum": 0},
+                    },
+                    "replace": {
+                        "type": "boolean",
+                        "description": "Replace all previous targets; false updates only named stations",
+                        "default": True,
+                    },
+                },
+                "required": ["task_id", "dispatch_kW"],
+            },
+        ),
+        types.Tool(
+            name="clear_v2g_dispatch",
+            description="Clear all persistent manual V2G discharge targets for a simulation.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "Task ID returned by start_simulation"},
                 },
                 "required": ["task_id"],
             },
@@ -716,6 +926,8 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
                 "step_length": arguments.get("step_length", 10),
                 "seed": arguments.get("seed", 0),
                 "silent": arguments.get("silent", True),
+                "start_paused": arguments.get("start_paused", False),
+                "v2g_manual_interval": arguments.get("v2g_manual_interval", 900),
             }
             task_id = await start_simulation_task(case_path, **kwargs)
             return [types.TextContent(
@@ -730,6 +942,8 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
                 info["task_id"] = task_id
                 info["progress"] = handle.progress
                 info["is_running"] = handle.is_running
+                info["is_paused"] = handle.is_paused
+                info.update(handle.get_control_status())
                 running_tasks.append(info)
             json_data = json.dumps(running_tasks, indent=2)
             return [types.TextContent(type="text", text=json_data)]
@@ -744,6 +958,42 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
             wait = arguments.get("wait", True)
             msg = await stop_simulation(task_id, wait)
             return [types.TextContent(type="text", text=msg)]
+
+        elif name == "pause_simulation":
+            info = await pause_simulation(arguments["task_id"])
+            return [types.TextContent(type="text", text=json.dumps(info, indent=2))]
+
+        elif name == "resume_simulation":
+            info = await resume_simulation(arguments["task_id"])
+            return [types.TextContent(type="text", text=json.dumps(info, indent=2))]
+
+        elif name == "step_simulation":
+            info = await step_simulation(arguments["task_id"])
+            return [types.TextContent(type="text", text=json.dumps(info, indent=2))]
+
+        elif name == "get_v2g_status":
+            status = await get_v2g_status(arguments["task_id"])
+            return [types.TextContent(type="text", text=json.dumps(status, indent=2))]
+
+        elif name == "get_grid_state":
+            state = await get_grid_state(arguments["task_id"])
+            return [types.TextContent(type="text", text=json.dumps(state, indent=2))]
+
+        elif name == "check_v2g_dispatch":
+            check = await check_v2g_dispatch(
+                arguments["task_id"], arguments["dispatch_kW"], arguments.get("replace", True)
+            )
+            return [types.TextContent(type="text", text=json.dumps(check, indent=2))]
+
+        elif name == "set_v2g_dispatch":
+            status = await set_v2g_dispatch(
+                arguments["task_id"], arguments["dispatch_kW"], arguments.get("replace", True)
+            )
+            return [types.TextContent(type="text", text=json.dumps(status, indent=2))]
+
+        elif name == "clear_v2g_dispatch":
+            status = await clear_v2g_dispatch(arguments["task_id"])
+            return [types.TextContent(type="text", text=json.dumps(status, indent=2))]
 
         elif name == "read_results":
             case_path = arguments["case_path"]

@@ -199,3 +199,4 @@ SIM_PDN_DEC_BUSES=Reducible buses
 SIM_PDN_SOLVER=Solver
 SIM_PDN_MAX_WORKERS=Max workers
 SIM_V2G_ONLINE=V2G online ranges
+SIM_V2G_MANUAL_FALLBACK=Fallback to original V2G when manual dispatch is infeasible

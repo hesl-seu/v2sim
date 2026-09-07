@@ -410,6 +410,12 @@ class MainBox(Tk):
         self.entry_pdn_solver = _pdn_combo(1, 6, "SIM_PDN_SOLVER", "CBC", pdn_solvers)
         self.entry_pdn_max_workers = _pdn_entry(2, 0, "SIM_PDN_MAX_WORKERS", "1")
         self.entry_v2g_online = _pdn_entry(2, 2, "SIM_V2G_ONLINE", "[]", width=28)
+        self.sim_v2g_manual_fallback = BooleanVar(self, False)
+        self.sim_cb_v2g_manual_fallback = Checkbutton(
+            self.sim_pdn, text=_L["SIM_V2G_MANUAL_FALLBACK"],
+            variable=self.sim_v2g_manual_fallback
+        )
+        self.sim_cb_v2g_manual_fallback.grid(row=2, column=4, columnspan=4, padx=3, pady=3, sticky="w")
 
         #######################
         # Plugins
@@ -635,6 +641,7 @@ class MainBox(Tk):
             pdn_dec_buses=self.entry_pdn_dec_buses.get().strip(),
             pdn_solver=self.entry_pdn_solver.get().strip(),
             pdn_max_workers=try_int(self.entry_pdn_max_workers.get(), "PDN max workers"),
+            v2g_manual_fallback_to_v2g=self.sim_v2g_manual_fallback.get(),
         )
         vcfg.save(self.folder + "/preference.v2simcfg")
 
@@ -927,6 +934,7 @@ class MainBox(Tk):
             _set_entry(self.entry_pdn_solver, vcfg.pdn_solver)
             _set_entry(self.entry_pdn_max_workers, vcfg.pdn_max_workers)
             _set_entry(self.entry_v2g_online, repr(vcfg.v2g_online))
+            self.sim_v2g_manual_fallback.set(vcfg.v2g_manual_fallback_to_v2g)
             if vcfg.stats:
                 for x in vcfg.stats:
                     if x in self.sim_statistic:

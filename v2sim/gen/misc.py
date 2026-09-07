@@ -118,6 +118,13 @@ def random_diff2(seq:Sequence[Any], weights:List[float], exclude:Any):
     return ret
 
 PDFuncLike = Union[None, float, PDFunc]
+
+# User price preferences used when generating EVs.  The ranges straddle the
+# default station charging/V2G prices so that generated users have meaningful
+# heterogeneous price responses instead of always accepting both services.
+DEFAULT_MAX_SC_COST_RANGE = (1.2, 2.0)      # $/kWh, maximum accepted slow-charging price
+DEFAULT_MIN_V2G_EARN_RANGE = (0.6, 1.2)     # $/kWh, minimum accepted V2G revenue
+
 def _impl_PDFuncLike(x:PDFuncLike, default:PDFunc) -> float:
     if x is None:
         return default.sample()
@@ -161,6 +168,8 @@ def create_veh(veh_id: str, vT:Union[GVType, EVType], soc:float,
             kv2g = _impl_PDFuncLike(kv2g, PDUniform(0.65, 0.75))
         else:
             kv2g = 1 + 1e-4
+        max_sc_cost = random.uniform(*DEFAULT_MAX_SC_COST_RANGE)
+        min_v2g_earn = random.uniform(*DEFAULT_MIN_V2G_EARN_RANGE)
         ret = EV(veh_id, vT.vtype, vT.bcap_kWh, soc,
             vT.bcap_kWh / vT.range_km, 0.88, 0.9, 0.85,
             vT.pcf_kW, vT.pcs_kW, vT.pdv_kW,
@@ -168,7 +177,7 @@ def create_veh(veh_id: str, vT:Union[GVType, EVType], soc:float,
             _impl_PDFuncLike(krel, PDUniform(0.9, 1.0)),
             _impl_PDFuncLike(kfc, PDUniform(0.2, 0.25)),
             _impl_PDFuncLike(ksc, PDUniform(0.4, 0.6)),
-             kv2g, [], {})
+            kv2g, [], {}, max_sc_cost=max_sc_cost, min_v2g_earn=min_v2g_earn)
     elif isinstance(vT, GVType):
         ret = GV(veh_id, vT.vtype, vT.cap_L, soc,
             vT.cap_L / vT.range_km / 1000, 
@@ -200,4 +209,4 @@ def add_trip_to_veh(veh:Vehicle, trip:Trip, day:int = -1):
         trip.depart_time += day * 86400
     veh.trips.append(trip)
 
-__all__ = ["EVType", "GVType", "VehicleTypePool", "create_veh", "add_trip_to_veh", "PDFuncLike", "random_diff", "random_diff2"]
+__all__ = ["EVType", "GVType", "VehicleTypePool", "create_veh", "add_trip_to_veh", "PDFuncLike", "DEFAULT_MAX_SC_COST_RANGE", "DEFAULT_MIN_V2G_EARN_RANGE", "random_diff", "random_diff2"]

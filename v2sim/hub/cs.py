@@ -1,7 +1,7 @@
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Iterable, Optional, List, Dict, Set, Tuple
+from typing import Callable, Iterable, Optional, List, Dict, Set, Tuple, TypedDict
 from xml.etree.ElementTree import Element
 from feasytools import RangeList
 from itertools import chain
@@ -9,11 +9,41 @@ from ..veh import EV
 from .s import BaseStation, PriceGetterLike, _pget_from_like
 
 
+class BidCurvePoint(TypedDict):
+    """One point on a V2G bid curve.
+
+    ``price`` is the system-side offer price in $/kWh, ``user_price`` is the
+    pay-as-bid revenue received by the EV, and ``quantity_kW`` is grid-side
+    power in kW after discharge efficiency.
+    """
+    vehicle: str
+    price: float
+    user_price: float
+    service_fee: float
+    quantity_kW: float
+    cumulative_quantity_kW: float
+
+
 @dataclass
 class AllocEnv:
     cs: 'CS'
     EVs: Iterable[EV]
     CTime: int
+
+
+@dataclass(frozen=True)
+class V2GBidBlock:
+    """One EV's V2G offer block.
+
+    ``price`` is the system-side offer price in $/kWh, ``user_price`` is the
+    pay-as-bid revenue received by the EV, and ``quantity`` is grid-side power
+    in kWh/s after discharge efficiency.
+    """
+    ev: EV
+    price: float
+    user_price: float
+    quantity: float
+
 
 V2GAllocator = Callable[[AllocEnv, int, float, float], None]
 
@@ -203,6 +233,9 @@ class CS(BaseStation[EV], ABC):
         self._dload: float = 0.0
         self._cur_v2g_cap: float = 0.0
         self._integrated_v2g_mode: bool = False
+        self._v2g_reserve_all: bool = True
+        # EV name -> (grid-side power kWh/s, EV revenue $/kWh, system payment $/kWh)
+        self._v2g_dispatch_plan: Dict[str, Tuple[float, float, float]] = {}
     
     def add_single_owner(self, owner: str):
         """
@@ -223,6 +256,8 @@ class CS(BaseStation[EV], ABC):
         self._pc_actual = None
         self._pd_actual = []
         self._pc_is_constrained = False
+        self._v2g_dispatch_plan.clear()
+        self._v2g_reserve_all = True
     
     def __repr__(self):
         return f"CS(name='{self._name}', slots={self._slots}, price_buy={self._pbuy}, price_buy_is_service_fee={self._pbuy_is_serv_fee}, price_sell={self._psell}, price_sell_is_service_fee={self._psell_is_serv_fee}, offline={self._offline})"
@@ -312,14 +347,74 @@ class CS(BaseStation[EV], ABC):
         """Check if this charging station supports V2G"""
         return self._psell is not None
 
-    def set_integrated_v2g_mode(self, enabled: bool):
+    def get_V2G_bid_blocks(self, t: int) -> List[V2GBidBlock]:
+        """Build the current merit-order V2G offer blocks for this station.
+
+        Each physically available EV contributes one block.  In service-fee
+        mode, the system-side offer is ``EV minimum revenue + service fee``.
+        In direct-price mode, the EV reservation price itself is the bid; the
+        configured ``psell`` only enables V2G for that station in market modes.
+        """
+        if self.is_offline(t) or self._psell is None:
+            return []
+        blocks: List[V2GBidBlock] = []
+        for ev in self._chi:
+            if not ev.v2g_available(t, True):
+                continue
+            quantity = min(ev._pdv, self._pd_lim1) * ev._ed
+            if quantity <= 0.0:
+                continue
+            station_price = float(self._psell(t, self, ev))
+            user_price = float(ev.minimum_v2g_earn)
+            if self._psell_is_serv_fee:
+                offer_price = user_price + station_price
+            else:
+                offer_price = user_price
+            blocks.append(V2GBidBlock(ev, offer_price, user_price, quantity))
+        blocks.sort(key=lambda x: (x.price, x.ev._name))
+        return blocks
+
+    def get_V2G_bid_curve(self, t: int) -> List[BidCurvePoint]:
+        """Return the current sorted V2G bid-price/bid-quantity curve.
+
+        Quantities are exposed in kW for external dispatchers.  One row is one
+        EV block so heterogeneous user reservation prices are preserved.
+        """
+        ret: List[BidCurvePoint] = []
+        cumulative = 0.0
+        for block in self.get_V2G_bid_blocks(t):
+            q_kw = block.quantity * 3600.0
+            cumulative += q_kw
+            ret.append({
+                "vehicle": block.ev._name,
+                "price": block.price,
+                "user_price": block.user_price,
+                "service_fee": block.price - block.user_price,
+                "quantity_kW": q_kw,
+                "cumulative_quantity_kW": cumulative,
+            })
+        return ret
+
+    def set_V2G_dispatch_plan(self, plan: Dict[str, Tuple[float, float, float]]):
+        """Set the integrated dispatch plan for the next station update."""
+        self._v2g_dispatch_plan = {
+            name: (float(power), float(user_price), float(system_price))
+            for name, (power, user_price, system_price) in plan.items()
+            if power > 0.0
+        }
+
+    def clear_V2G_dispatch_plan(self):
+        self._v2g_dispatch_plan.clear()
+
+    def set_integrated_v2g_mode(self, enabled: bool, reserve_all: bool = True):
         """Select the core-owned V2G execution policy.
 
-        When enabled, charging demand is formed before the PDN solve.  EVs
-        above their V2G reserve SOC are therefore held as V2G resources rather
-        than simultaneously counted as charging demand.
+        Automatic market dispatch reserves every available bidder before OPF
+        (``reserve_all=True``).  Manual dispatch knows the winning blocks in
+        advance and therefore only reserves the EVs selected by the operator.
         """
         self._integrated_v2g_mode = bool(enabled and self.supports_V2G)
+        self._v2g_reserve_all = bool(reserve_all)
 
     @abstractmethod
     def get_requested_pc(self, t: int, pb_e: float, ps_e: float = 0.0, v2g_mode: bool = False) -> float:
@@ -627,14 +722,19 @@ class BiCS(CS):
     def get_V2G_cap(self, _t:int, /, ps_e: Optional[float] = None) -> float:
         if self.is_offline(_t): return 0.0
         assert self._psell is not None, "V2G not supported in %s." % self._name
-        self._d_evs = [
-            ev for ev in self._chi
-            if ev.willing_to_v2g(
-                _t,
-                self._psell(_t, self, ev) if ps_e is None else self.real_psell(_t, ev, ps_e)
-            )
-        ]
-        tot_pd = sum(min(ev._pdv, self._pd_lim1) * ev._ed for ev in self._d_evs)
+        if self._integrated_v2g_mode:
+            blocks = self.get_V2G_bid_blocks(_t)
+            self._d_evs = [block.ev for block in blocks]
+            tot_pd = sum(block.quantity for block in blocks)
+        else:
+            self._d_evs = [
+                ev for ev in self._chi
+                if ev.willing_to_v2g(
+                    _t,
+                    self._psell(_t, self, ev) if ps_e is None else self.real_psell(_t, ev, ps_e)
+                )
+            ]
+            tot_pd = sum(min(ev._pdv, self._pd_lim1) * ev._ed for ev in self._d_evs)
         self._cur_v2g_cap = tot_pd
         self.__d_evs_upd_t = _t
         return tot_pd
@@ -648,10 +748,10 @@ class BiCS(CS):
             if self._cs_type == CSType.SCS and not ev.willing_to_slow_charge(t, self.real_pbuy(t, ev, pb_e)):
                 continue
             if core_v2g:
-                eligible = ev.v2g_eligible(t, self.real_psell(t, ev, ps_e), False)
-                if eligible:
-                    # Reserve EVs at/above kv for possible discharge.  This
-                    # removes the circular dependency in the old plugin order.
+                available = ev.v2g_available(t, False)
+                reserved = available and (self._v2g_reserve_all or ev._name in self._v2g_dispatch_plan)
+                if reserved:
+                    # Reserve selected/market-available bidders at or above kv.
                     if ev.soc >= ev._kv:
                         continue
                     ret += ev.requested_charge_power(min(ev._cap * ev._kv, ev._etar))
@@ -684,11 +784,30 @@ class BiCS(CS):
          
         ret: List[EV] = []
         core_v2g = self._integrated_v2g_mode
-        v2g_enabled = v2g_demand > 0 and self._cur_v2g_cap > 0
         if core_v2g:
-            # V2G is enabled now. Some EVs charge and some EVs discharge.
+            # Integrated market/manual dispatch selects exact EV blocks.
+            # Auto mode reserves all bidders; manual mode reserves only winners.
+            plan = self._v2g_dispatch_plan if v2g_demand > 0.0 else {}
+            selected = set(plan)
+            self._c_evs.clear(); self._d_evs.clear()
+            for ev in self._chi:
+                available = ev.v2g_available(cur_time, False)
+                can_charge = (
+                    self._cs_type == CSType.FCS
+                    or ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e))
+                )
+                if ev._name in selected and available and ev.soc > ev._kv:
+                    self._d_evs.append(ev)
+                elif available and (self._v2g_reserve_all or ev._name in selected):
+                    if ev.soc < ev._kv and can_charge:
+                        self._c_evs.append(ev)
+                elif can_charge:
+                    self._c_evs.append(ev)
+        else:
+            # Legacy non-integrated behaviour: use the current station/user
+            # selling price to decide willingness and the configured allocator.
+            v2g_enabled = v2g_demand > 0 and self._cur_v2g_cap > 0
             if self.__d_evs_upd_t != cur_time:
-                # Update both lists of vehicles willing to charge and discharge via V2G
                 self._c_evs.clear(); self._d_evs.clear()
                 if self._cs_type == CSType.FCS:
                     for ev in self._chi:
@@ -710,8 +829,6 @@ class BiCS(CS):
                         elif not eligible and can_charge:
                             self._c_evs.append(ev)
             else:
-                # Use the previously updated list of vehicles willing to discharge via V2G
-                # Only update the list of vehicles willing to charge via V2G
                 if self._cs_type == CSType.FCS:
                     self._c_evs = [
                         ev for ev in self._chi
@@ -725,14 +842,7 @@ class BiCS(CS):
                     ]
                 if not v2g_enabled:
                     self._d_evs.clear()
-        else:
-            # V2G is not enabled now, all vehicles charging to their _etar
-            self._d_evs.clear()
-            if self._cs_type == CSType.FCS:
-                self._c_evs = list(self._chi)
-            else:
-                self._c_evs = [ev for ev in self._chi if ev.willing_to_slow_charge(cur_time, self.real_pbuy(cur_time, ev, pb_e))]
-            
+
         m = len(self._c_evs)
         if m > 0:
             # Allocate charging power to vehicles, where set_temp_pc is called.
@@ -740,12 +850,13 @@ class BiCS(CS):
             self._pc_alloc(AllocEnv(self, self._c_evs, cur_time), m, self._pc_lim1, self._pc_limtot)
             
             if core_v2g:
-                # V2G-eligible vehicles charge only to kv; other vehicles retain
-                # the original target-energy behaviour.
+                # Reserved V2G resources charge only to kv.  In manual mode,
+                # available but unselected EVs retain their normal target.
                 for ev in self._c_evs:
                     pb = self.real_pbuy(cur_time, ev, pb_e)
-                    eligible = ev.v2g_eligible(cur_time, self.real_psell(cur_time, ev, ps_e), False)
-                    target = min(ev._cap * ev._kv, ev._etar) if eligible else ev._etar
+                    available = ev.v2g_available(cur_time, False)
+                    reserved = available and (self._v2g_reserve_all or ev._name in self._v2g_dispatch_plan)
+                    target = min(ev._cap * ev._kv, ev._etar) if reserved else ev._etar
                     c_, m_ = ev._bidirectional_charge(sec, pb, target)
                     Wcharge += c_; self._revenue += m_; self._cost += c_ * pb_e
                     if ev._energy >= ev._etar and ev._leave_at_etar: ret.append(ev)
@@ -758,12 +869,20 @@ class BiCS(CS):
         
         n = len(self._d_evs)
         if n > 0:
-            # Allocate V2G power to vehicles, where set_temp_pd is called.
-            # If _pd_alloc do not allocate power to a vehicle, the vehicle's discharging power is set to maximum discharging power.
-            self._pd_alloc(AllocEnv(self, self._d_evs, cur_time), n, v2g_demand, self._cur_v2g_cap)
-            for ev in self._d_evs:
-                c_, m_ = ev.bidirectional_discharge(sec, self.real_psell(cur_time, ev, ps_e))
-                Wdischarge += c_; self._cost += m_; self._revenue += c_ * ps_e
+            if core_v2g:
+                # The integrated dispatcher already chose the winning bid blocks.
+                # Set exact battery-side power and settle each EV pay-as-bid.
+                for ev in self._d_evs:
+                    grid_power, user_price, system_price = self._v2g_dispatch_plan[ev._name]
+                    ev.set_temp_pd(grid_power / ev._ed if ev._ed > 1e-12 else 0.0)
+                    c_, m_ = ev.bidirectional_discharge(sec, user_price)
+                    Wdischarge += c_; self._cost += m_; self._revenue += c_ * system_price
+            else:
+                # Legacy station-wide dispatch allocation.
+                self._pd_alloc(AllocEnv(self, self._d_evs, cur_time), n, v2g_demand, self._cur_v2g_cap)
+                for ev in self._d_evs:
+                    c_, m_ = ev.bidirectional_discharge(sec, self.real_psell(cur_time, ev, ps_e))
+                    Wdischarge += c_; self._cost += m_; self._revenue += c_ * ps_e
         
         self._cload = Wcharge / sec
         self._dload = Wdischarge / sec
@@ -774,4 +893,4 @@ class BiCS(CS):
         return f"BiCS(name='{self._name}')"
 
 
-__all__ = ["CS", "V2GAllocPool", "MaxPCAllocPool", "AllocEnv", "V2GAllocator", "MaxPCAllocator", "CSType", "OwnerGroup", "UniCS", "BiCS"]
+__all__ = ["CS", "BidCurvePoint", "V2GBidBlock", "V2GAllocPool", "MaxPCAllocPool", "AllocEnv", "V2GAllocator", "MaxPCAllocator", "CSType", "OwnerGroup", "UniCS", "BiCS"]

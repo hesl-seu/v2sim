@@ -386,16 +386,20 @@ class EV(Vehicle):
         self._pdr = 0
         return (self._energy - self.__ebeg, self._cost - self.__costbeg, self._earn - self.__earnbeg)
 
-    def v2g_eligible(self, t:int, e:float, require_soc: bool = True) -> bool:
-        """Whether this EV can participate in V2G at ``t`` and price ``e``.
+    def v2g_available(self, t:int, require_soc: bool = True) -> bool:
+        """Whether this EV is physically/time-wise available for V2G.
 
-        ``require_soc=False`` is used by the integrated dispatcher when it must
-        decide *before charging* whether energy above ``kv`` should be reserved
-        as V2G capacity.
+        This check deliberately ignores price.  The integrated V2G market uses
+        each EV's ``minimum_v2g_earn`` as its bid instead of filtering the EV
+        against one station-wide selling price before the OPF is solved.
         """
         soc_ok = self.soc > self._kv if require_soc else True
         time_ok = self._v2g_time.__contains__(t) if self._v2g_time else True
-        return soc_ok and e >= self._min_v2g_earn and time_ok and not self._leave_at_etar
+        return soc_ok and time_ok and not self._leave_at_etar
+
+    def v2g_eligible(self, t:int, e:float, require_soc: bool = True) -> bool:
+        """Whether this EV accepts V2G at ``t`` and user revenue ``e``."""
+        return self.v2g_available(t, require_soc) and e >= self._min_v2g_earn
 
     def willing_to_v2g(self, t:int, e:float) -> bool:
         """

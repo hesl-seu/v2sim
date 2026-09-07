@@ -1,16 +1,20 @@
+from __future__ import annotations
+
 import subprocess
 import math, os, shutil, sys, threading
 import numpy as np
-import sumolib
 from xml.etree.ElementTree import Element, ElementTree
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union, Set
 from collections import defaultdict
 from dataclasses import dataclass, field
 from scipy.cluster.vq import kmeans, vq
 from scipy.spatial import KDTree
 from .utils import DetectFiles, ReadXML
 from .locale import Lang
+
+if TYPE_CHECKING:
+    import sumolib
 
 
 def _largeStackExec(func, *args):
