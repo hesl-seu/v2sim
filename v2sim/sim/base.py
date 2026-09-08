@@ -175,7 +175,8 @@ class TrafficInst(ABC):
         # Process vehicles in charging stations and parked vehicles
         pb_g = self._gp(self._ct)
         Sb_kVA = self._pdn.Sb_kVA
-        # Electricity price is $/puh. Convert to $/kWh
+        # cprice/dprice are compatibility fallbacks only. Integrated PDN pricing
+        # uses each station's bus ShadowPrice whenever fpowerkit has one.
         pb_e = self._pdn._cp(self._ct) / Sb_kVA
         ps_e = self._pdn._dp(self._ct) / Sb_kVA
 
@@ -183,22 +184,27 @@ class TrafficInst(ABC):
         # update so the order is:
         #   requested charge/V2G capability -> PDN solve -> actual charging.
         self._integrated_pdn.prepare_dispatch(self._ct, deltaT, pb_e, ps_e)
+        station_prices = self._integrated_pdn.station_price_snapshot(self._ct)
 
         if self.__has_gil or self.__last_station_upd < 0.01:
             t = time.time()
             gvs = self._hubs.gs.update(deltaT, self._ct, pb_g)
             for gv in gvs: self._end_restore(gv)
-            evs = self._hubs.fcs.update(deltaT, self._ct, pb_e, ps_e)
+            evs = self._hubs.fcs.update(deltaT, self._ct, pb_e, ps_e, station_prices)
             for ev in evs: self._end_restore(ev)
-            evs = self._hubs.scs.update(deltaT, self._ct, pb_e, ps_e)
+            evs = self._hubs.scs.update(deltaT, self._ct, pb_e, ps_e, station_prices)
             self.__last_station_upd = time.time() - t if self.__last_station_upd >= 0 else -1
         else:
             t = time.time()
             gvs = self._hubs.gs.update_parallel(deltaT, self._ct, pb_g, self.__max_workers)
             for gv in gvs: self._end_restore(gv)
-            evs = self._hubs.fcs.update_parallel(deltaT, self._ct, pb_e, ps_e, self.__max_workers)
+            evs = self._hubs.fcs.update_parallel(
+                deltaT, self._ct, pb_e, ps_e, self.__max_workers, station_prices
+            )
             for ev in evs: self._end_restore(ev)
-            evs = self._hubs.scs.update_parallel(deltaT, self._ct, pb_e, ps_e, self.__max_workers)
+            evs = self._hubs.scs.update_parallel(
+                deltaT, self._ct, pb_e, ps_e, self.__max_workers, station_prices
+            )
             self.__last_station_para_upd = time.time() - t
             if self.__last_station_para_upd > self.__last_station_upd * 1.2:
                 # Parallel version is slower than single-threaded version, probably due to the overhead of multi-threading and GIL. Use single-threaded version in the future.

@@ -40,6 +40,10 @@ class V2GStationStatus(TypedDict):
     dispatch_kW: float
     manual_target_kW: float
     bid_curve: List[BidCurvePoint]
+    shadow_price_per_kWh: Optional[float]
+    effective_buy_price_per_kWh: Optional[float]
+    effective_sell_price_per_kWh: Optional[float]
+    price_source: str
 
 
 class V2GStatus(TypedDict, total=False):
@@ -50,23 +54,35 @@ class V2GStatus(TypedDict, total=False):
     grid_buy_price_per_kWh: Optional[float]
     grid_sell_price_per_kWh: Optional[float]
     grid_marginal_price_per_kWh: Optional[float]
+    grid_marginal_price_basis: Optional[str]
+    fallback_grid_buy_price_per_kWh: Optional[float]
+    fallback_grid_sell_price_per_kWh: Optional[float]
+    shadow_price_min_per_kWh: Optional[float]
+    shadow_price_max_per_kWh: Optional[float]
+    shadow_price_bus_count: int
+    price_basis: str
     manual_fallback_enabled: bool
     manual_fallback_active: bool
     manual_fallback_reason: Optional[str]
-    effective_control: str
     last_manual_check: Dict[str, object]
     stations: List[V2GStationStatus]
+    effective_control: str
+    agent_control: dict
 
 
-class GridBusStatus(TypedDict, total=False):
+class GridBusStatus(TypedDict):
     name: str
     voltage_pu: Optional[float]
     min_voltage_pu: Optional[float]
     max_voltage_pu: Optional[float]
     voltage_violation: bool
+    shadow_price_per_kWh: Optional[float]
+    effective_buy_price_per_kWh: Optional[float]
+    effective_sell_price_per_kWh: Optional[float]
+    price_source: str
 
 
-class GridLineStatus(TypedDict, total=False):
+class GridLineStatus(TypedDict):
     name: str
     current_kA: Optional[float]
     limit_kA: Optional[float]
@@ -74,7 +90,7 @@ class GridLineStatus(TypedDict, total=False):
     thermal_violation: bool
 
 
-class GridState(TypedDict, total=False):
+class GridState(TypedDict):
     time: int
     last_solve_time: int
     solve_result: str
@@ -83,6 +99,12 @@ class GridState(TypedDict, total=False):
     grid_sell_price_per_kWh: Optional[float]
     grid_marginal_price_per_kWh: Optional[float]
     grid_marginal_price_basis: Optional[str]
+    fallback_grid_buy_price_per_kWh: Optional[float]
+    fallback_grid_sell_price_per_kWh: Optional[float]
+    shadow_price_min_per_kWh: Optional[float]
+    shadow_price_max_per_kWh: Optional[float]
+    shadow_price_bus_count: int
+    price_basis: str
     gross_ev_charging_kW: float
     v2g_dispatch_kW: float
     net_ev_load_kW: float
@@ -139,8 +161,13 @@ class IntegratedPDN:
         self.__manual_fallback_reason: Optional[str] = None
         self.__manual_dispatch_dirty = False
         self.__last_manual_check: Dict[str, object] = {}
+        # cprice/dprice are retained only as a compatibility fallback for a
+        # bus that has no usable OPF ShadowPrice yet (for example before the
+        # first successful solve). Runtime charging/V2G economics otherwise use
+        # the nodal ShadowPrice produced by fpowerkit.
         self.__last_pb_e: Optional[float] = None
         self.__last_ps_e: Optional[float] = None
+        self.__station_price_snapshot: Dict[str, Tuple[Optional[float], Optional[float], str]] = {}
 
         dec_bus = config.pdn_dec_buses.strip()
         if dec_bus == r"%all%":
@@ -303,6 +330,27 @@ class IntegratedPDN:
     def is_manual_v2g_mode(self) -> bool:
         return self.__mode == "v2g_manual"
 
+    def manual_v2g_dispatch_available(self, t: int) -> bool:
+        """Whether an external manual V2G dispatch is meaningful at ``t``.
+
+        A manual dispatch epoch should only interrupt the simulator when V2G is
+        globally online *and* at least one connected EV currently contributes
+        positive discharge capacity to a station bid curve.  This incorporates
+        station availability, EV V2G time windows, SOC reserve, departure state,
+        charger limits, and discharge efficiency through ``get_V2G_bid_curve``.
+
+        Price is deliberately not used as a gate here: in ``v2g_manual`` mode
+        the external agent is allowed to inspect the bid prices and decide whether
+        dispatch is economically justified.
+        """
+        if not self.is_manual_v2g_mode() or not self.v2g_online(t):
+            return False
+        for cs in self.__v2g_stations:
+            curve = cs.get_V2G_bid_curve(t)
+            if any(float(row.get("quantity_kW", 0.0)) > 1e-9 for row in curve):
+                return True
+        return False
+
     def is_smartcharge_mode(self) -> bool:
         return (
             self.__mode == "smartcharge"
@@ -330,9 +378,10 @@ class IntegratedPDN:
         self._reset_station_limits()
         v2g_active = self.v2g_online(t)
 
-        # Build the supply curve first.  In manual mode the selected blocks are
-        # known before charging demand is formed, so unselected EVs may charge
-        # normally instead of being unnecessarily held at kv.
+        # Build the supply curve first. Native and manual V2G use the same
+        # reservation semantics: while V2G is online, every currently available
+        # V2G bidder is reserved before charging demand is formed. The dispatch
+        # plan determines actual discharge only, not reservation eligibility.
         if v2g_active:
             self.__v2g_bid_blocks = [cs.get_V2G_bid_blocks(t) for cs in self.__v2g_stations]
             self.__v2g_cap = [sum(x.quantity for x in blocks) for blocks in self.__v2g_bid_blocks]
@@ -355,8 +404,21 @@ class IntegratedPDN:
 
         requested_cs = []
         for cs in self.__v2g_stations:
-            cs.set_integrated_v2g_mode(v2g_active, reserve_all=not manual_active)
-            requested_cs.append(cs.get_requested_pc(t, pb_e, ps_e, v2g_active))
+            # Keep EV-resource semantics identical for Native V2G and Manual
+            # V2G so controller comparisons see the same charging/SOC trajectory
+            # before dispatch differences are applied.
+            cs.set_integrated_v2g_mode(v2g_active, reserve_all=True)
+            cs_pb_e, cs_ps_e, _ = self.__station_price_snapshot.get(
+                cs.name, (pb_e, ps_e, "cprice_dprice_fallback")
+            )
+            # The effective station energy price is the nodal OPF shadow price
+            # when available. cprice/dprice are used only as a per-node fallback.
+            requested_cs.append(cs.get_requested_pc(
+                t,
+                pb_e if cs_pb_e is None else cs_pb_e,
+                ps_e if cs_ps_e is None else cs_ps_e,
+                v2g_active,
+            ))
 
         for b in self.__bus_charge_pu:
             self.__bus_charge_pu[b] = 0.0
@@ -463,6 +525,12 @@ class IntegratedPDN:
         """
         self.__last_pb_e = float(pb_e)
         self.__last_ps_e = float(ps_e)
+        # Snapshot prices once per traffic step so PDN request formation and the
+        # subsequent station update use the same price signal. A newly solved
+        # ShadowPrice therefore takes effect on the next traffic step (normally
+        # one simulation step later), avoiding an endogenous-price inconsistency
+        # within a single step.
+        self.__station_price_snapshot = self._build_station_price_snapshot(t, pb_e, ps_e)
         requested_cs = self._collect_requests(t, pb_e, ps_e)
         self.__last_apply_t = t
 
@@ -534,6 +602,10 @@ class IntegratedPDN:
         self.last_ok = ok
         self.__manual_dispatch_dirty = False
         if ok == GridSolveResult.Failed:
+            # The current solve produced no usable shadow price. Use cprice/dprice
+            # for the station execution of this step, exactly as the documented
+            # per-node fallback rule requires.
+            self.__station_price_snapshot = self._build_station_price_snapshot(t, pb_e, ps_e)
             print(f"[{t}] Fail.", file=self.__fh)
             self.__gr.savePQofBus(os.path.join(self.__save_to, f"{t}_load.csv"), t)
             self.__badcnt += 1
@@ -627,11 +699,11 @@ class IntegratedPDN:
             return None
 
     def _current_grid_prices(self, t: int) -> Tuple[Optional[float], Optional[float]]:
-        """Return current grid buy/sell prices in $/kWh.
+        """Return configured cprice/dprice in $/kWh for fallback use only.
 
-        ``pb_e`` is also exposed as ``grid_marginal_price_per_kWh`` because it
-        is the current marginal procurement price used by the charging-system
-        side of V2Sim.  It is not intended to claim a nodal LMP calculation.
+        V2Sim no longer treats these values as the primary electricity-price
+        signal. They are used only when a station's connected bus has no usable
+        OPF ``ShadowPrice`` (including before the first successful PDN solve).
         """
         pb_e, ps_e = self.__last_pb_e, self.__last_ps_e
         if pb_e is not None and ps_e is not None and self.__last_apply_t == t:
@@ -645,6 +717,65 @@ class IntegratedPDN:
         except Exception:
             pass
         return pb_e, ps_e
+
+    def _bus_shadow_price_per_kWh(self, bus_name: str) -> Optional[float]:
+        """Return a bus OPF ShadowPrice converted from $/puh to $/kWh.
+
+        A shadow price is considered usable only after a non-failed PDN solve.
+        ``None`` and non-finite values are treated as unavailable. Zero and
+        negative finite values are preserved because they can be legitimate
+        marginal values in an OPF.
+        """
+        if self.__last_solve_t < 0 or self.last_ok == GridSolveResult.Failed:
+            return None
+        try:
+            raw = getattr(self.__gr.Bus(bus_name), "ShadowPrice", None)
+            if raw is None:
+                return None
+            value = float(raw)
+            sb_kva = float(self.__gr.Sb_kVA)
+            if not math.isfinite(value) or not math.isfinite(sb_kva) or sb_kva <= 0.0:
+                return None
+            return value / sb_kva
+        except (KeyError, TypeError, ValueError, OverflowError, AttributeError):
+            return None
+
+    def _effective_bus_prices(
+        self,
+        bus_name: str,
+        fallback_buy: Optional[float],
+        fallback_sell: Optional[float],
+    ) -> Tuple[Optional[float], Optional[float], str]:
+        """Return nodal buy/sell signal and its source for one PDN bus."""
+        shadow = self._bus_shadow_price_per_kWh(bus_name)
+        if shadow is not None:
+            # A nodal marginal value is direction-neutral: use the same local
+            # energy value as the base price for charging and V2G selling.
+            return shadow, shadow, "shadow_price"
+        return fallback_buy, fallback_sell, "cprice_dprice_fallback"
+
+    def _build_station_price_snapshot(
+        self, t: int, fallback_buy: Optional[float], fallback_sell: Optional[float]
+    ) -> Dict[str, Tuple[Optional[float], Optional[float], str]]:
+        return {
+            cs.name: self._effective_bus_prices(cs.bus, fallback_buy, fallback_sell)
+            for cs in self.__v2g_stations
+        }
+
+    def station_price_snapshot(
+        self, t: Optional[int] = None
+    ) -> Dict[str, Tuple[Optional[float], Optional[float], str]]:
+        """Return the per-station prices used for the current traffic step.
+
+        The first two tuple values are the effective buy and sell energy prices
+        in $/kWh. They are normally the connected bus ShadowPrice; cprice/dprice
+        appear only when that bus has no usable shadow price.
+        """
+        if self.__station_price_snapshot:
+            return dict(self.__station_price_snapshot)
+        tt = self.__last_apply_t if t is None else int(t)
+        pb_e, ps_e = self._current_grid_prices(tt)
+        return self._build_station_price_snapshot(tt, pb_e, ps_e)
 
     def get_grid_state(self, t: int) -> GridState:
         """Return the latest solved electrical state and current prices.
@@ -681,12 +812,18 @@ class IntegratedPDN:
             pd = self._value_at(getattr(bus, "Pd", None), t)
             if pd is not None:
                 total_bus_load_kw += pd * float(self.__gr.Sb_MVA) * 1000.0
+            shadow = self._bus_shadow_price_per_kWh(name)
+            eff_buy, eff_sell, price_source = self._effective_bus_prices(name, pb_e, ps_e)
             buses.append({
                 "name": name,
                 "voltage_pu": v,
                 "min_voltage_pu": vmin,
                 "max_voltage_pu": vmax,
                 "voltage_violation": violation,
+                "shadow_price_per_kWh": shadow,
+                "effective_buy_price_per_kWh": eff_buy,
+                "effective_sell_price_per_kWh": eff_sell,
+                "price_source": price_source,
             })
 
         lines: List[GridLineStatus] = []
@@ -728,15 +865,27 @@ class IntegratedPDN:
             and not self._solve_result_has_grid_violation(self.last_ok)
         )
         feasible = bool(solver_feasible and not voltage_violations and not thermal_violations)
+        shadow_prices:List[float] = []
+        for row in buses:
+            v = row.get("shadow_price_per_kWh")
+            if v is not None: shadow_prices.append(v)
         return {
             "time": int(t),
             "last_solve_time": self.__last_solve_t,
             "solve_result": solve_result,
             "feasible": feasible,
+            # Legacy global price fields are retained only for compatibility;
+            # they now expose fallback cprice/dprice, not the active nodal price.
             "grid_buy_price_per_kWh": pb_e,
             "grid_sell_price_per_kWh": ps_e,
-            "grid_marginal_price_per_kWh": pb_e,
-            "grid_marginal_price_basis": "current grid purchase/procurement price (pb_e), not nodal LMP",
+            "grid_marginal_price_per_kWh": None,
+            "grid_marginal_price_basis": "deprecated global field; use buses[].shadow_price_per_kWh (nodal OPF shadow price)",
+            "fallback_grid_buy_price_per_kWh": pb_e,
+            "fallback_grid_sell_price_per_kWh": ps_e,
+            "shadow_price_min_per_kWh": min(shadow_prices) if shadow_prices else None,
+            "shadow_price_max_per_kWh": max(shadow_prices) if shadow_prices else None,
+            "shadow_price_bus_count": len(shadow_prices),
+            "price_basis": "nodal_shadow_price_with_cprice_dprice_fallback",
             "gross_ev_charging_kW": gross_ev_kw,
             "v2g_dispatch_kW": v2g_kw,
             "net_ev_load_kW": net_ev_kw,
@@ -880,6 +1029,9 @@ class IntegratedPDN:
         for i, cs in enumerate(self.__v2g_stations):
             curve = curves[cs.name]
             cap = sum(row["quantity_kW"] for row in curve)
+            shadow = self._bus_shadow_price_per_kWh(cs.bus)
+            pb_e, ps_e = self._current_grid_prices(t)
+            eff_buy, eff_sell, price_source = self._effective_bus_prices(cs.bus, pb_e, ps_e)
             station: V2GStationStatus = {
                 "name": cs.name,
                 "bus": cs.bus,
@@ -887,17 +1039,32 @@ class IntegratedPDN:
                 "dispatch_kW": self.__v2g_dispatch[i] * 3600.0,
                 "manual_target_kW": self.__manual_v2g_target[i] * 3600.0,
                 "bid_curve": curve,
+                "shadow_price_per_kWh": shadow,
+                "effective_buy_price_per_kWh": eff_buy,
+                "effective_sell_price_per_kWh": eff_sell,
+                "price_source": price_source,
             }
             stations.append(station)
         pb_e, ps_e = self._current_grid_prices(t)
-        status: V2GStatus = {
+        station_shadows:List[float] = []
+        for x in stations:
+            v = x.get("shadow_price_per_kWh")
+            if v is not None: station_shadows.append(v)
+        status:V2GStatus = {
             "mode": self.__mode,
             "time": int(t),
             "online": self.v2g_online(t),
             "last_solve_time": self.__last_solve_t,
             "grid_buy_price_per_kWh": pb_e,
             "grid_sell_price_per_kWh": ps_e,
-            "grid_marginal_price_per_kWh": pb_e,
+            "grid_marginal_price_per_kWh": None,
+            "grid_marginal_price_basis": "deprecated global field; use stations[].shadow_price_per_kWh",
+            "fallback_grid_buy_price_per_kWh": pb_e,
+            "fallback_grid_sell_price_per_kWh": ps_e,
+            "shadow_price_min_per_kWh": min(station_shadows) if station_shadows else None,
+            "shadow_price_max_per_kWh": max(station_shadows) if station_shadows else None,
+            "shadow_price_bus_count": len({x["bus"] for x in stations if x.get("shadow_price_per_kWh") is not None}),
+            "price_basis": "nodal_shadow_price_with_cprice_dprice_fallback",
             "manual_fallback_enabled": self.__manual_fallback_enabled,
             "manual_fallback_active": self.__manual_fallback_active,
             "manual_fallback_reason": self.__manual_fallback_reason,

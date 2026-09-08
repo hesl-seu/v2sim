@@ -127,13 +127,21 @@ def get_sim_params(args:Union[str, ArgChecker], check_illegal:bool = True) -> Di
         plot_cmd = PlotCommand.from_file(plot_script)
     else:
         plot_cmd = None
-    
+
+    # Directories
+    proj_dir = args.pop_str("d", "") or args.pop_str("dir", "") or args.pop_str("proj-dir")
+    out_dir = args.pop_str("o", "") or args.pop_str("out", "") or args.pop_str("out-dir", "")
+    if out_dir == "": out_dir = None
+
+    # Load V2Sim configuration from project directory
+    v2sim_config = V2SimConfig.load(Path(proj_dir) / "preferences.v2simcfg")
+
     # Time
-    start_time = args.pop_int("b", 0)
-    step_len = args.pop_int("l", 10)
-    end_time = args.pop_int("e", 172800)
+    start_time = args.pop_int("b", v2sim_config.start_time)
+    step_len = args.pop_int("l", v2sim_config.traffic_step)
+    end_time = args.pop_int("e", v2sim_config.end_time)
     time_conf = TimeConfig(start_time, step_len, end_time)
-    break_at = args.pop_int("break-at", -1)
+    break_at = args.pop_int("break-at", v2sim_config.break_time)
     if break_at < 0: break_at = end_time
     assert start_time >= 0 and step_len > 0 and end_time >= start_time and \
         break_at >= start_time, "Time options: 0 <= start < break_at <= end, step > 0"
@@ -159,11 +167,6 @@ def get_sim_params(args:Union[str, ArgChecker], check_illegal:bool = True) -> Di
     if args.pop_bool("save-on-finish"):
         save_opt |= SaveStateOptions.OnFinish.value
     save_opt = SaveStateOptions(save_opt)
-
-    # Directories
-    proj_dir = args.pop_str("d", "") or args.pop_str("dir", "") or args.pop_str("proj-dir")
-    out_dir = args.pop_str("o", "") or args.pop_str("out", "") or args.pop_str("out-dir", "")
-    if out_dir == "": out_dir = None
 
     # Plugins
     no_plgs = (args.pop_str("no-plg", "") or args.pop_str("disable-plugins", "")).split(",")

@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, Sequence, Tuple, Union, TypeVar, Generic, List, Literal
+from typing import Dict, Iterable, Sequence, Tuple, Union, TypeVar, Generic, List, Literal, Mapping, Optional
 from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass
@@ -419,7 +419,10 @@ class CSHub(StationHub[CS, EV]):
         """Clear V2G demand"""
         self.__pd_dem = []
     
-    def update(self, sec: int, cur_time: int, pb_e:float, ps_e:float) -> List[EV]:
+    def update(
+        self, sec: int, cur_time: int, pb_e: float, ps_e: float,
+        price_by_station: Optional[Mapping[str, Tuple[Optional[float], Optional[float], str]]] = None,
+    ) -> List[EV]:
         """
         Charge and V2G discharge the EV with the current parameters.
         
@@ -439,13 +442,21 @@ class CSHub(StationHub[CS, EV]):
         # Do not use multithreading since the overhead is too large for small number of CSs
         ret:List[EV] = []       
         for cs, pd in zip(self._s, v2g_demand):
-            lst = cs.update(sec, cur_time, pd, pb_e, ps_e)
+            cs_pb, cs_ps = pb_e, ps_e
+            if price_by_station is not None and cs.name in price_by_station:
+                pbuy, psell, _ = price_by_station[cs.name]
+                if pbuy is not None: cs_pb = pbuy
+                if psell is not None: cs_ps = psell
+            lst = cs.update(sec, cur_time, pd, cs_pb, cs_ps)
             for ev in lst:
                 del self._veh[ev._name]
             ret.extend(lst)
         return ret
     
-    def update_parallel(self, sec: int, cur_time: int, pb_e:float, ps_e:float, max_workers: int) -> List[EV]:
+    def update_parallel(
+        self, sec: int, cur_time: int, pb_e: float, ps_e: float, max_workers: int,
+        price_by_station: Optional[Mapping[str, Tuple[Optional[float], Optional[float], str]]] = None,
+    ) -> List[EV]:
         """Parallel version of update() method. It may be faster when there are many charging stations."""
         cnt = len(self._s)
         if cnt == 0: return []
@@ -458,7 +469,12 @@ class CSHub(StationHub[CS, EV]):
             for i in range(l, r):
                 cs = self._s[i]
                 pd = self.__pd_dem[i] if i < N else 0.0
-                ret.append(cs.update(sec, cur_time, pd, pb_e, ps_e))
+                cs_pb, cs_ps = pb_e, ps_e
+                if price_by_station is not None and cs.name in price_by_station:
+                    pbuy, psell, _ = price_by_station[cs.name]
+                    if pbuy is not None: cs_pb = pbuy
+                    if psell is not None: cs_ps = psell
+                ret.append(cs.update(sec, cur_time, pd, cs_pb, cs_ps))
             return ret
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:

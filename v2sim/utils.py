@@ -230,7 +230,7 @@ CHARGING_MODES = ("unordered", "smartcharge", "v2g", "v2g_manual")
 class V2SimConfig:
     start_time: int = 0
     end_time: int = 172800
-    break_time: int = 172800
+    break_time: int = -1
     traffic_step: int = 10
     seed: int = 0
     routing_method:str = "astar"
@@ -294,11 +294,11 @@ class V2SimConfig:
             )
 
     @staticmethod
-    def load(file:str) -> 'V2SimConfig':
+    def load(file:Union[str, Path]) -> 'V2SimConfig':
         """
         Load V2Sim configuration from a file.
         Args:
-            file (str): Path to the configuration file
+            file (str or Path): Path to the configuration file
         Returns:
             V2SimConfig: A V2SimConfig object with the loaded configuration
         """

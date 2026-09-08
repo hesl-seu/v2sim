@@ -16,6 +16,8 @@ V2Sim MCP Server
 import asyncio
 import datetime
 import json
+import math
+import numbers
 import os
 import sys
 import uuid
@@ -49,14 +51,36 @@ except ImportError as e:
 
 # 默认 case 存放目录：用户主目录下的 v2sim_cases
 DEFAULT_CASES_DIR = Path.home() / "v2sim_cases"
+DEFAULT_CASES_DIR.mkdir(parents=True, exist_ok=True)
 os.chdir(DEFAULT_CASES_DIR)  # 切换工作目录到默认算例目录
 
 # 缓存 ReadOnlyStatistics 对象
 _stats_cache: Dict[str, ReadOnlyStatistics] = {}
 
 # 仿真任务管理
-_sim_tasks: Dict[str, AsyncSimHandle] = {}          # task_id -> handle
-_task_info: Dict[str, Dict[str, Any]] = {}          # task_id -> metadata (start_time, case_path, status, etc.)
+_sim_tasks: Dict[str, AsyncSimHandle] = {}          # task_id -> ready/starting handle
+_sim_init_tasks: Dict[str, asyncio.Task] = {}         # task_id -> background initializer
+_task_info: Dict[str, Dict[str, Any]] = {}            # task_id -> metadata/status
+
+# stdio MCP shares stdout with the JSON-RPC transport.  Never use stdout for
+# diagnostics here.  Optional debug breadcrumbs go to a file and stderr only.
+_MCP_START_DEFER_SECONDS = max(0.05, float(os.getenv("V2SIM_MCP_START_DEFER_SECONDS", "0.50")))
+_MCP_DEBUG = os.getenv("V2SIM_MCP_DEBUG", "0").strip().lower() in {"1", "true", "yes", "on"}
+_MCP_DEBUG_FILE = DEFAULT_CASES_DIR / "v2sim_mcp_debug.log"
+
+def _mcp_debug(message: str) -> None:
+    if not _MCP_DEBUG:
+        return
+    line = f"[{datetime.datetime.now().isoformat(timespec='milliseconds')}] {message}"
+    try:
+        with _MCP_DEBUG_FILE.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+    try:
+        print(line, file=sys.stderr, flush=True)
+    except Exception:
+        pass
 
 def get_stats(case_path: str) -> ReadOnlyStatistics:
     """获取或创建 ReadOnlyStatistics 实例"""
@@ -87,6 +111,38 @@ def safe_get_price(price_getter, t: int, station, dummy_veh: Optional[Vehicle] =
 # ================== 工具函数实现 ==================
 
 # (保留原有辅助函数：run_simulation 被移除，其他如 read_results、list_cases 等保持不变)
+
+def _strict_json_value(value: Any) -> Any:
+    """Convert V2Sim/MCP payloads to strict JSON-safe values.
+
+    Infinite limits are meaningful internally, but JSON-RPC consumers and web
+    JSON parsers require RFC-compatible JSON.  Expose non-finite values as null.
+    """
+    if value is None or isinstance(value, (str, bool)):
+        return value
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, numbers.Real):
+        f = float(value)
+        return f if math.isfinite(f) else None
+    if isinstance(value, dict):
+        return {str(k): _strict_json_value(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_strict_json_value(v) for v in value]
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            return _strict_json_value(item())
+        except Exception:
+            pass
+    return str(value)
+
+
+def _json_dumps(data: Any, **kwargs: Any) -> str:
+    kwargs.setdefault("allow_nan", False)
+    kwargs.setdefault("default", str)
+    return json.dumps(_strict_json_value(data), **kwargs)
+
 
 async def read_results(
     case_path: str,
@@ -434,7 +490,105 @@ async def generate_trips(
 
 # ================== 异步仿真启动/查询/停止 ==================
 
-async def start_simulation_task(
+async def _initialize_simulation_task(
+    task_id: str,
+    case_path: str,
+    start_time: int,
+    end_time: int,
+    step_length: int,
+    seed: int,
+    silent: bool,
+    start_paused: bool,
+    v2g_manual_interval: int,
+) -> None:
+    """Background initializer for a simulation task.
+
+    Heavy project parsing and V2Sim/UXsim startup must not hold the MCP
+    start_simulation request open.  Status transitions are exposed through
+    query_simulation: initializing -> running -> finished/stopped/error.
+    """
+    try:
+        _mcp_debug(f"initializer entered task_id={task_id}")
+        _task_info[task_id]["initialization_phase"] = "loading_project"
+        _mcp_debug(f"loading_project task_id={task_id}")
+        time_cfg = TimeConfig(start_time, step_length, end_time)
+        common_cfg = CommonConfig()
+
+        handle = await simulate_async(
+            proj_dir=case_path,
+            time=time_cfg,
+            break_at=end_time,
+            out_dir=None,
+            seed=seed,
+            silent=silent,
+            vscfg=common_cfg,
+            state_option=LoadStateOption.Skip,
+            save_option=SaveStateOptions.OnFinish,
+            start_paused=start_paused,
+            manual_v2g_dispatch_interval=v2g_manual_interval,
+        )
+        _sim_tasks[task_id] = handle
+        _mcp_debug(f"simulate_async returned handle task_id={task_id}")
+        _task_info[task_id]["initialization_phase"] = "starting_simulation"
+
+        # _run() sets the ready event after V2SimInstance.start() completes.
+        # That startup itself runs off the event loop in AsyncSimHandle._run.
+        await handle.wait_until_ready()
+
+        # If startup failed, _run may already have terminated.  Await it here
+        # once so the original exception is captured in task metadata.
+        if not handle.is_running:
+            if handle._task is not None and handle._task.done():
+                await handle.wait()
+            if handle.result is False:
+                raise RuntimeError("Simulation stopped during initialization.")
+
+        _task_info[task_id]["status"] = "running"
+        _task_info[task_id]["initialization_phase"] = "ready"
+        _mcp_debug(f"simulation ready task_id={task_id}")
+        asyncio.create_task(_monitor_simulation(task_id, handle))
+    except asyncio.CancelledError:
+        _task_info[task_id]["status"] = "stopped"
+        _task_info[task_id]["initialization_phase"] = "cancelled"
+        raise
+    except Exception as e:
+        _mcp_debug(f"initializer error task_id={task_id}: {type(e).__name__}: {e}")
+        _task_info[task_id]["status"] = "error"
+        _task_info[task_id]["initialization_phase"] = "failed"
+        _task_info[task_id]["error"] = f"{type(e).__name__}: {e}"
+    finally:
+        _sim_init_tasks.pop(task_id, None)
+
+
+async def _deferred_initialize_simulation_task(
+    task_id: str,
+    case_path: str,
+    start_time: int,
+    end_time: int,
+    step_length: int,
+    seed: int,
+    silent: bool,
+    start_paused: bool,
+    v2g_manual_interval: int,
+) -> None:
+    """Yield a grace period before any heavy initialization begins.
+
+    This is intentional for stdio MCP: it gives the server enough time to
+    serialize and flush the start_simulation response before V2Sim/UXsim
+    project loading starts in the background.
+    """
+    _task_info[task_id]["initialization_phase"] = "response_grace_period"
+    _mcp_debug(
+        f"deferred initializer sleeping {_MCP_START_DEFER_SECONDS:.2f}s task_id={task_id}"
+    )
+    await asyncio.sleep(_MCP_START_DEFER_SECONDS)
+    await _initialize_simulation_task(
+        task_id, case_path, start_time, end_time, step_length, seed, silent,
+        start_paused, v2g_manual_interval,
+    )
+
+
+def start_simulation_task(
     case_path: str,
     start_time: int = 0,
     end_time: int = 172800,
@@ -444,34 +598,18 @@ async def start_simulation_task(
     start_paused: bool = False,
     v2g_manual_interval: int = 900,
 ) -> str:
-    """启动异步仿真并返回 task_id。"""
-    # 生成唯一任务ID
+    """Register an asynchronous simulation and return task_id immediately.
+
+    This function deliberately contains no ``await``.  It performs only cheap
+    validation/metadata registration and schedules a deferred initializer.
+    Heavy project parsing and UXsim/V2Sim startup happen after a short grace
+    period, allowing the stdio MCP response to be flushed first.
+    """
+    case_path = str(Path(case_path).expanduser().resolve())
+    if not Path(case_path).is_dir():
+        raise NotADirectoryError(f"Case path does not exist: {case_path}")
+
     task_id = uuid.uuid4().hex
-
-    # 准备时间配置
-    time_cfg = TimeConfig(start_time, step_length, end_time)
-    common_cfg = CommonConfig()
-
-    # 启动仿真（立即返回 handle）
-    handle = await simulate_async(
-        proj_dir=case_path,
-        time=time_cfg,
-        break_at=end_time,
-        out_dir=None,
-        seed=seed,
-        silent=silent,
-        vscfg=common_cfg,
-        state_option=LoadStateOption.Skip,
-        save_option=SaveStateOptions.OnFinish,
-        start_paused=start_paused,
-        manual_v2g_dispatch_interval=v2g_manual_interval,
-    )
-    # Ensure initial state is ready. In v2g_manual this also guarantees the
-    # first online dispatch point is actually waiting for the agent.
-    await handle.wait_until_ready()
-
-    # 存储任务
-    _sim_tasks[task_id] = handle
     _task_info[task_id] = {
         "case_path": case_path,
         "start_time": start_time,
@@ -481,14 +619,23 @@ async def start_simulation_task(
         "silent": silent,
         "start_paused": start_paused,
         "v2g_manual_interval": v2g_manual_interval,
-        "status": "running",
+        "status": "initializing",
+        "initialization_phase": "registered",
         "created_at": datetime.datetime.now().isoformat(),
     }
+    _mcp_debug(f"registered task_id={task_id} case={case_path}")
 
-    # 增加一个后台任务来更新状态（当仿真完成时更新 status）
-    asyncio.create_task(_monitor_simulation(task_id, handle))
-
+    init_task = asyncio.get_running_loop().create_task(
+        _deferred_initialize_simulation_task(
+            task_id, case_path, start_time, end_time, step_length, seed, silent,
+            start_paused, v2g_manual_interval,
+        ),
+        name=f"v2sim-init-{task_id}",
+    )
+    _sim_init_tasks[task_id] = init_task
+    _mcp_debug(f"scheduled deferred initializer task_id={task_id}")
     return task_id
+
 
 async def _monitor_simulation(task_id: str, handle: AsyncSimHandle):
     """监控仿真任务，完成后更新状态。"""
@@ -506,26 +653,65 @@ async def _monitor_simulation(task_id: str, handle: AsyncSimHandle):
                 _task_info[task_id]["result_dir"] = handle._inst.result_dir
 
 async def query_simulation(task_id: str) -> Dict[str, Any]:
-    """查询仿真任务状态和进度。"""
-    if task_id not in _sim_tasks:
+    """Query task state, including background initialization progress."""
+    if task_id not in _task_info:
         raise ValueError(f"Task ID {task_id} not found.")
-    handle = _sim_tasks[task_id]
+
     info = _task_info[task_id].copy()
+    handle = _sim_tasks.get(task_id)
+    if handle is None:
+        # Preserve compatibility with clients that interpret is_running=False
+        # as terminal.  An initializing task is active even though its live
+        # AsyncSimHandle has not been published yet.
+        active = info.get("status") in {"initializing", "running", "stopping"}
+        info.update({
+            "progress": 0.0,
+            "current_time": info.get("start_time"),
+            "time": info.get("start_time"),
+            "is_running": active,
+            "is_paused": False,
+            "manual_v2g_mode": False,
+            "awaiting_agent_dispatch": False,
+            "pause_reason": None,
+            "manual_v2g_dispatch_interval_s": None,
+            "next_manual_v2g_dispatch_time": None,
+        })
+        return info
+
     info["progress"] = handle.progress
     info["is_running"] = handle.is_running
     info["is_paused"] = handle.is_paused
+    # Expose the exact simulation clock.  The dashboard/agent previously had
+    # only progress and therefore could not display an exact sim_time.
+    try:
+        current_time = int(handle._inst.ctime)
+    except Exception:
+        current_time = None
+    info["current_time"] = current_time
+    info["time"] = current_time  # backward-friendly alias
     info.update(handle.get_control_status())
-    if not handle.is_running and info["status"] == "running":
-        # 如果 handle 已停止但状态未更新（可能监控还没完成），尝试获取结果
+    if not handle.is_running and info.get("status") == "running":
         if handle.result is not None:
             info["status"] = "finished" if handle.result else "stopped"
     return info
 
+
 async def stop_simulation(task_id: str, wait: bool = True) -> str:
-    """停止正在运行的仿真任务。若 wait=True，则等待任务完全结束。"""
-    if task_id not in _sim_tasks:
+    """Stop a simulation, including one that is still initializing."""
+    if task_id not in _task_info:
         raise ValueError(f"Task ID {task_id} not found.")
-    handle = _sim_tasks[task_id]
+
+    handle = _sim_tasks.get(task_id)
+    if handle is None:
+        # asyncio.to_thread work cannot be force-killed safely.  Mark the task
+        # stopped; the initializer will not be exposed as running to clients.
+        _task_info[task_id]["status"] = "stopped"
+        _task_info[task_id]["initialization_phase"] = "stop_requested"
+        init_task = _sim_init_tasks.get(task_id)
+        if init_task is not None:
+            init_task.cancel()
+        return "Stop requested during initialization."
+
     if not handle.is_running:
         return "Task is not running."
     handle.stop()
@@ -533,26 +719,35 @@ async def stop_simulation(task_id: str, wait: bool = True) -> str:
         await handle.wait()
     return "Stop signal sent."
 
-async def pause_simulation(task_id: str) -> Dict[str, Any]:
-    if task_id not in _sim_tasks:
+
+def _require_ready_handle(task_id: str) -> AsyncSimHandle:
+    if task_id not in _task_info:
         raise ValueError(f"Task ID {task_id} not found.")
-    handle = _sim_tasks[task_id]
+    handle = _sim_tasks.get(task_id)
+    if handle is None:
+        status = _task_info[task_id].get("status", "initializing")
+        phase = _task_info[task_id].get("initialization_phase")
+        raise RuntimeError(
+            f"Simulation {task_id} is not ready (status={status}, phase={phase}). "
+            "Query the task until status='running'."
+        )
+    return handle
+
+
+async def pause_simulation(task_id: str) -> Dict[str, Any]:
+    handle = _require_ready_handle(task_id)
     handle.pause()
     return await query_simulation(task_id)
 
 
 async def resume_simulation(task_id: str) -> Dict[str, Any]:
-    if task_id not in _sim_tasks:
-        raise ValueError(f"Task ID {task_id} not found.")
-    handle = _sim_tasks[task_id]
+    handle = _require_ready_handle(task_id)
     handle.resume()
     return await query_simulation(task_id)
 
 
 async def step_simulation(task_id: str) -> Dict[str, Any]:
-    if task_id not in _sim_tasks:
-        raise ValueError(f"Task ID {task_id} not found.")
-    handle = _sim_tasks[task_id]
+    handle = _require_ready_handle(task_id)
     await handle.step_once()
     info = await query_simulation(task_id)
     if handle.is_running:
@@ -562,41 +757,31 @@ async def step_simulation(task_id: str) -> Dict[str, Any]:
 
 async def get_v2g_status(task_id: str) -> V2GStatus:
     """Return live V2G bid curves, capacity and dispatch for a simulation."""
-    if task_id not in _sim_tasks:
-        raise ValueError(f"Task ID {task_id} not found.")
-    return _sim_tasks[task_id].get_v2g_status()
+    return _require_ready_handle(task_id).get_v2g_status()
 
 
 async def get_grid_state(task_id: str) -> GridState:
     """Return the latest solved PDN state and current grid prices."""
-    if task_id not in _sim_tasks:
-        raise ValueError(f"Task ID {task_id} not found.")
-    return _sim_tasks[task_id].get_grid_state()
+    return _require_ready_handle(task_id).get_grid_state()
 
 
 async def check_v2g_dispatch(
     task_id: str, dispatch_kW: Dict[str, float], replace: bool = True
 ) -> V2GDispatchCheck:
     """Preflight-check a manual V2G dispatch without modifying the simulation."""
-    if task_id not in _sim_tasks:
-        raise ValueError(f"Task ID {task_id} not found.")
-    return _sim_tasks[task_id].check_manual_v2g_dispatch(dispatch_kW, replace)
+    return _require_ready_handle(task_id).check_manual_v2g_dispatch(dispatch_kW, replace)
 
 
 async def set_v2g_dispatch(task_id: str, dispatch_kW: Dict[str, float], replace: bool = True) -> V2GStatus:
     """Set persistent station V2G targets for a v2g_manual simulation."""
-    if task_id not in _sim_tasks:
-        raise ValueError(f"Task ID {task_id} not found.")
-    handle = _sim_tasks[task_id]
+    handle = _require_ready_handle(task_id)
     handle.set_manual_v2g_dispatch(dispatch_kW, replace)
     return handle.get_v2g_status()
 
 
 async def clear_v2g_dispatch(task_id: str) -> V2GStatus:
     """Clear all manual V2G targets for a v2g_manual simulation."""
-    if task_id not in _sim_tasks:
-        raise ValueError(f"Task ID {task_id} not found.")
-    handle = _sim_tasks[task_id]
+    handle = _require_ready_handle(task_id)
     handle.clear_manual_v2g_dispatch()
     return handle.get_v2g_status()
 
@@ -611,7 +796,8 @@ async def list_tools() -> List[types.Tool]:
         types.Tool(
             name="start_simulation",
             description=(
-                "Start an asynchronous V2Sim simulation. Returns a task_id for later query/stop. "
+                "Queue an asynchronous V2Sim simulation and return task_id immediately. "
+                "Initialization continues in the background; query_simulation may initially return status='initializing'. "
                 "WARNING: Running multiple simulations concurrently may cause severe CPU contention."
             ),
             inputSchema={
@@ -702,7 +888,8 @@ async def list_tools() -> List[types.Tool]:
         types.Tool(
             name="get_v2g_status",
             description=(
-                "Get live V2G bid-price/bid-quantity curves, available capacity, dispatch, current grid prices, fallback state, and agent-control timing. "
+                "Get live V2G bid-price/bid-quantity curves, available capacity, dispatch, per-station nodal OPF shadow prices, fallback state, and agent-control timing. "
+                "Use stations[].shadow_price_per_kWh (or effective_*_price_per_kWh) for economic decisions; cprice/dprice are fallback only when a node has no shadow price. "
                 "In charging_mode='v2g_manual', call this when awaiting_agent_dispatch is true."
             ),
             inputSchema={
@@ -717,8 +904,9 @@ async def list_tools() -> List[types.Tool]:
             name="get_grid_state",
             description=(
                 "Get the latest solved distribution-grid state for an agent: bus voltages, line loading, "
-                "violations, aggregate EV charging/V2G power, and current grid buy/sell/marginal price. "
-                "The marginal price field is V2Sim's current grid procurement price (pb_e), not a nodal LMP."
+                "violations, aggregate EV charging/V2G power, and per-bus OPF shadow prices. "
+                "Use buses[].shadow_price_per_kWh as the primary nodal energy-value signal. "
+                "Configured cprice/dprice are exposed only as fallback values for buses without a usable shadow price."
             ),
             inputSchema={
                 "type": "object",
@@ -920,38 +1108,43 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
     try:
         if name == "start_simulation":
             case_path = arguments["case_path"]
+            requested_silent = bool(arguments.get("silent", True))
+            if not requested_silent:
+                _mcp_debug(
+                    "start_simulation requested silent=False; forcing silent=True because "
+                    "stdio MCP reserves stdout for JSON-RPC framing"
+                )
             kwargs = {
                 "start_time": arguments.get("start_time", 0),
                 "end_time": arguments.get("end_time", 172800),
                 "step_length": arguments.get("step_length", 10),
                 "seed": arguments.get("seed", 0),
-                "silent": arguments.get("silent", True),
+                # stdout belongs exclusively to the stdio MCP transport.
+                "silent": True,
                 "start_paused": arguments.get("start_paused", False),
                 "v2g_manual_interval": arguments.get("v2g_manual_interval", 900),
             }
-            task_id = await start_simulation_task(case_path, **kwargs)
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({"task_id": task_id}, indent=2)
-            )]
+            _mcp_debug(f"call_tool start_simulation entered case={case_path}")
+            task_id = start_simulation_task(case_path, **kwargs)
+            payload = _json_dumps({"task_id": task_id}, indent=2)
+            _mcp_debug(f"call_tool start_simulation returning task_id={task_id}")
+            return [types.TextContent(type="text", text=payload)]
 
         elif name == "list_running_simulations":
             running_tasks = []
-            for task_id, handle in _sim_tasks.items():
-                info = _task_info.get(task_id, {}).copy()
+            for task_id, meta in _task_info.items():
+                if meta.get("status") not in {"initializing", "running", "stopping"}:
+                    continue
+                info = await query_simulation(task_id)
                 info["task_id"] = task_id
-                info["progress"] = handle.progress
-                info["is_running"] = handle.is_running
-                info["is_paused"] = handle.is_paused
-                info.update(handle.get_control_status())
                 running_tasks.append(info)
-            json_data = json.dumps(running_tasks, indent=2)
+            json_data = _json_dumps(running_tasks, indent=2)
             return [types.TextContent(type="text", text=json_data)]
         
         elif name == "query_simulation":
             task_id = arguments["task_id"]
             info = await query_simulation(task_id)
-            return [types.TextContent(type="text", text=json.dumps(info, indent=2))]
+            return [types.TextContent(type="text", text=_json_dumps(info, indent=2))]
         
         elif name == "stop_simulation":
             task_id = arguments["task_id"]
@@ -961,39 +1154,39 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
 
         elif name == "pause_simulation":
             info = await pause_simulation(arguments["task_id"])
-            return [types.TextContent(type="text", text=json.dumps(info, indent=2))]
+            return [types.TextContent(type="text", text=_json_dumps(info, indent=2))]
 
         elif name == "resume_simulation":
             info = await resume_simulation(arguments["task_id"])
-            return [types.TextContent(type="text", text=json.dumps(info, indent=2))]
+            return [types.TextContent(type="text", text=_json_dumps(info, indent=2))]
 
         elif name == "step_simulation":
             info = await step_simulation(arguments["task_id"])
-            return [types.TextContent(type="text", text=json.dumps(info, indent=2))]
+            return [types.TextContent(type="text", text=_json_dumps(info, indent=2))]
 
         elif name == "get_v2g_status":
             status = await get_v2g_status(arguments["task_id"])
-            return [types.TextContent(type="text", text=json.dumps(status, indent=2))]
+            return [types.TextContent(type="text", text=_json_dumps(status, indent=2))]
 
         elif name == "get_grid_state":
             state = await get_grid_state(arguments["task_id"])
-            return [types.TextContent(type="text", text=json.dumps(state, indent=2))]
+            return [types.TextContent(type="text", text=_json_dumps(state, indent=2))]
 
         elif name == "check_v2g_dispatch":
             check = await check_v2g_dispatch(
                 arguments["task_id"], arguments["dispatch_kW"], arguments.get("replace", True)
             )
-            return [types.TextContent(type="text", text=json.dumps(check, indent=2))]
+            return [types.TextContent(type="text", text=_json_dumps(check, indent=2))]
 
         elif name == "set_v2g_dispatch":
             status = await set_v2g_dispatch(
                 arguments["task_id"], arguments["dispatch_kW"], arguments.get("replace", True)
             )
-            return [types.TextContent(type="text", text=json.dumps(status, indent=2))]
+            return [types.TextContent(type="text", text=_json_dumps(status, indent=2))]
 
         elif name == "clear_v2g_dispatch":
             status = await clear_v2g_dispatch(arguments["task_id"])
-            return [types.TextContent(type="text", text=json.dumps(status, indent=2))]
+            return [types.TextContent(type="text", text=_json_dumps(status, indent=2))]
 
         elif name == "read_results":
             case_path = arguments["case_path"]
@@ -1002,13 +1195,13 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
             start = arguments.get("start", 0)
             limit = arguments.get("limit", 1000)
             data = await read_results(case_path, table, column, start, limit)
-            json_data = json.dumps(data)
+            json_data = _json_dumps(data)
             return [types.TextContent(type="text", text=json_data)]
 
         elif name == "list_cases":
             cases_dir = arguments.get("cases_dir")
             cases = await list_cases(cases_dir)
-            json_data = json.dumps(cases, indent=2)
+            json_data = _json_dumps(cases, indent=2)
             return [types.TextContent(type="text", text=json_data)]
 
         elif name == "convert_to_uxsim":
@@ -1072,7 +1265,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
             case_path = arguments["case_path"]
             station_type = arguments.get("station_type")
             stations = await list_stations(case_path, station_type)
-            json_data = json.dumps(stations, indent=2)
+            json_data = _json_dumps(stations, indent=2)
             return [types.TextContent(type="text", text=json_data)]
 
         elif name == "generate_trips":

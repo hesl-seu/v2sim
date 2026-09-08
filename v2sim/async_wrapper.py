@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Optional, Callable, Any, Union
+from typing import Dict, List, Optional, Callable, Any, Union
 
 from .locale import Lang
 from .core import ClientOptions, V2SimInstance, LoadStateOption, SaveStateOptions
@@ -26,18 +26,13 @@ class AsyncSimHandle:
         self._manual_v2g_dispatch_interval = max(
             int(inst.step_length), int(manual_v2g_dispatch_interval)
         )
-        self._manual_v2g_was_online = (
-            self._manual_v2g_mode and bool(inst.pdn.v2g_online(inst.btime))
-        )
-        self._next_manual_v2g_dispatch_time: Optional[int] = (
-            inst.btime + self._manual_v2g_dispatch_interval
-            if self._manual_v2g_was_online else None
-        )
-        auto_pause = self._manual_v2g_was_online
-        self._paused = bool(start_paused or auto_pause)
-        self._pause_reason: Optional[str] = (
-            "v2g_manual_dispatch" if auto_pause else ("user" if start_paused else None)
-        )
+        # Do not auto-pause merely because the global V2G time window is open.
+        # Actual EV/station V2G availability is only reliable after inst.start(),
+        # so the scheduler is initialized there.
+        self._manual_v2g_was_dispatchable = False
+        self._next_manual_v2g_dispatch_time: Optional[int] = None
+        self._paused = bool(start_paused)
+        self._pause_reason: Optional[str] = "user" if start_paused else None
         self._step_budget = 0
         self._control_event = asyncio.Event()
         self._ready_event = asyncio.Event()
@@ -94,8 +89,19 @@ class AsyncSimHandle:
 
     def get_control_status(self):
         """Return scheduler state used by an external/LLM dispatcher."""
+        dispatchable = False
+        if self._manual_v2g_mode:
+            try:
+                dispatchable = bool(
+                    self._inst.pdn.manual_v2g_dispatch_available(int(self._inst.ctime))
+                )
+            except Exception:
+                # During very early initialization, live EV/CS state may not yet
+                # be queryable.  Do not turn that into a false dispatch pause.
+                dispatchable = False
         return {
             "manual_v2g_mode": self._manual_v2g_mode,
+            "manual_v2g_dispatch_available": dispatchable,
             "awaiting_agent_dispatch": (
                 self._paused and self._pause_reason == "v2g_manual_dispatch"
             ),
@@ -153,18 +159,28 @@ class AsyncSimHandle:
         self._inst.pdn.clear_manual_v2g_dispatch()
 
     def _update_manual_v2g_scheduler(self):
-        """Auto-pause v2g_manual at online entry and then at fixed dispatch epochs."""
+        """Pause only when a manual V2G decision is actually actionable.
+
+        Global ``v2g_online`` is necessary but not sufficient: if no connected EV
+        currently has positive V2G capacity (for example because of EV-specific
+        V2G time windows, SOC reserve, departure state, or charger availability),
+        the simulation keeps running without interrupting the external agent.
+
+        When actionable V2G first becomes available, pause immediately.  While it
+        remains available, pause at fixed dispatch intervals.
+        """
         if not self._manual_v2g_mode:
             return
         t = int(self._inst.ctime)
-        online = bool(self._inst.pdn.v2g_online(t))
+        dispatchable = bool(self._inst.pdn.manual_v2g_dispatch_available(t))
         pause_now = False
 
-        if online and not self._manual_v2g_was_online:
-            # Do not wait up to a full interval when a V2G window opens.
+        if dispatchable and not self._manual_v2g_was_dispatchable:
+            # A usable V2G opportunity has just appeared.  Give the agent a
+            # decision immediately rather than waiting a full interval.
             pause_now = True
             self._next_manual_v2g_dispatch_time = t + self._manual_v2g_dispatch_interval
-        elif online:
+        elif dispatchable:
             if self._next_manual_v2g_dispatch_time is None:
                 self._next_manual_v2g_dispatch_time = t + self._manual_v2g_dispatch_interval
             elif t >= self._next_manual_v2g_dispatch_time:
@@ -172,10 +188,14 @@ class AsyncSimHandle:
                 while self._next_manual_v2g_dispatch_time <= t:
                     self._next_manual_v2g_dispatch_time += self._manual_v2g_dispatch_interval
         else:
+            # No actionable V2G: do not schedule or pause the external agent.
             self._next_manual_v2g_dispatch_time = None
 
-        self._manual_v2g_was_online = online
+        self._manual_v2g_was_dispatchable = dispatchable
         if pause_now:
+            # Preserve an explicit user/debug pause rather than rewriting its cause.
+            if self._paused and self._pause_reason not in (None, "v2g_manual_dispatch"):
+                return
             self._paused = True
             self._step_budget = 0
             self._pause_reason = "v2g_manual_dispatch"
@@ -190,8 +210,14 @@ class AsyncSimHandle:
         total_dur = end_t - start_t
         started = False
         try:
-            self._inst.start()
+            # V2Sim/UXsim startup can be expensive for large cases.  Run the
+            # synchronous initialization in a worker thread so the MCP/asyncio
+            # event loop remains responsive while the simulation is starting.
+            await asyncio.to_thread(self._inst.start)
             started = True
+            # Live EV/CS availability is now initialized.  Decide whether the
+            # first manual V2G dispatch pause is actually necessary.
+            self._update_manual_v2g_scheduler()
             self._ready_event.set()
             while self._inst.ctime < end_t and not self._stop_requested:
                 while self._paused and self._step_budget <= 0 and not self._stop_requested:
@@ -226,7 +252,7 @@ class AsyncSimHandle:
 async def simulate_async(
     proj_dir:str, time:TimeConfig, break_at:Optional[int] = None, out_dir: Optional[str] = None, seed = 0, silent:bool = False, 
     vb = None, vscfg:Optional[CommonConfig] = None, config: Union[None, SUMOConfig, UXsimConfig] = None, 
-    disabled_plugins:Optional[List[str]] = None, logging_items:Optional[List[str]] = None,
+    disabled_plugins:Optional[List[str]] = None, logging_items:Optional[Dict[str, int]] = None,
     state_option: LoadStateOption = LoadStateOption.Skip, state_dir:Optional[str] = None, 
     save_option: SaveStateOptions = SaveStateOptions.Skip, client_options: Optional[ClientOptions] = None, 
     gen_cmds:Optional[GenerationCommand] = None, plot_cmd:Optional[PlotCommand] = None,
@@ -246,8 +272,12 @@ async def simulate_async(
         gen_cmds.generate(proj_dir, silent)
 
     # Run simulation
-    inst = V2SimInstance.from_project(
-        proj_dir, time, break_at, out_dir, seed, silent, vb, vscfg, config, 
+    # Project parsing and UXsim/PDN construction can take a long time for
+    # realistic cases.  Keep it off the asyncio event loop so MCP requests
+    # (especially start/query) remain responsive during initialization.
+    inst = await asyncio.to_thread(
+        V2SimInstance.from_project,
+        proj_dir, time, break_at, out_dir, seed, silent, vb, vscfg, config,
         disabled_plugins, logging_items, state_option, state_dir, save_option, client_options
     )
 
