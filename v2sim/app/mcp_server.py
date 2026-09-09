@@ -490,6 +490,60 @@ async def generate_trips(
 
 # ================== 异步仿真启动/查询/停止 ==================
 
+def _normalize_logging_items(value: Any, step_length: int) -> Optional[Dict[str, int]]:
+    """Normalize optional MCP logging configuration to V2Sim logging_items.
+
+    This is transport/configuration only and does not change any power semantics.
+    Intervals are counts of simulation steps.  ``None`` preserves V2Sim defaults.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        result: Dict[str, int] = {}
+        for raw in text.split(','):
+            item = raw.strip()
+            if not item:
+                continue
+            if ':' in item:
+                name, interval = item.split(':', 1)
+                name = name.strip()
+                try:
+                    n = int(interval.strip())
+                except ValueError as e:
+                    raise ValueError(f"Invalid logging interval in {item!r}") from e
+            else:
+                name = item
+                if name in ("fcs", "scs", "gs"):
+                    n = max(1, 60 // max(1, int(step_length)))
+                elif name in ("bus", "gen", "line", "pvw", "ess"):
+                    n = max(1, 900 // max(1, int(step_length)))
+                else:
+                    n = 1
+            if not name:
+                raise ValueError("Logging item name cannot be empty")
+            if n <= 0:
+                raise ValueError(f"Logging interval for {name!r} must be positive")
+            result[name] = n
+        return result or None
+    if isinstance(value, dict):
+        result: Dict[str, int] = {}
+        for raw_name, raw_interval in value.items():
+            name = str(raw_name).strip()
+            if not name:
+                raise ValueError("Logging item name cannot be empty")
+            try:
+                n = int(raw_interval)
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"Invalid logging interval for {name!r}: {raw_interval!r}") from e
+            if n <= 0:
+                raise ValueError(f"Logging interval for {name!r} must be positive")
+            result[name] = n
+        return result or None
+    raise TypeError("log must be a comma-separated string, an object mapping names to step intervals, or null")
+
 async def _initialize_simulation_task(
     task_id: str,
     case_path: str,
@@ -500,6 +554,7 @@ async def _initialize_simulation_task(
     silent: bool,
     start_paused: bool,
     v2g_manual_interval: int,
+    logging_items: Optional[Dict[str, int]],
 ) -> None:
     """Background initializer for a simulation task.
 
@@ -526,6 +581,7 @@ async def _initialize_simulation_task(
             save_option=SaveStateOptions.OnFinish,
             start_paused=start_paused,
             manual_v2g_dispatch_interval=v2g_manual_interval,
+            logging_items=logging_items,
         )
         _sim_tasks[task_id] = handle
         _mcp_debug(f"simulate_async returned handle task_id={task_id}")
@@ -570,6 +626,7 @@ async def _deferred_initialize_simulation_task(
     silent: bool,
     start_paused: bool,
     v2g_manual_interval: int,
+    logging_items: Optional[Dict[str, int]],
 ) -> None:
     """Yield a grace period before any heavy initialization begins.
 
@@ -584,7 +641,7 @@ async def _deferred_initialize_simulation_task(
     await asyncio.sleep(_MCP_START_DEFER_SECONDS)
     await _initialize_simulation_task(
         task_id, case_path, start_time, end_time, step_length, seed, silent,
-        start_paused, v2g_manual_interval,
+        start_paused, v2g_manual_interval, logging_items,
     )
 
 
@@ -597,6 +654,7 @@ def start_simulation_task(
     silent: bool = True,
     start_paused: bool = False,
     v2g_manual_interval: int = 900,
+    logging_items: Optional[Dict[str, int]] = None,
 ) -> str:
     """Register an asynchronous simulation and return task_id immediately.
 
@@ -619,6 +677,7 @@ def start_simulation_task(
         "silent": silent,
         "start_paused": start_paused,
         "v2g_manual_interval": v2g_manual_interval,
+        "logging_items": dict(logging_items) if logging_items is not None else None,
         "status": "initializing",
         "initialization_phase": "registered",
         "created_at": datetime.datetime.now().isoformat(),
@@ -628,7 +687,7 @@ def start_simulation_task(
     init_task = asyncio.get_running_loop().create_task(
         _deferred_initialize_simulation_task(
             task_id, case_path, start_time, end_time, step_length, seed, silent,
-            start_paused, v2g_manual_interval,
+            start_paused, v2g_manual_interval, logging_items,
         ),
         name=f"v2sim-init-{task_id}",
     )
@@ -820,6 +879,17 @@ async def list_tools() -> List[types.Tool]:
                         "description": "Agent dispatch interval in seconds for charging_mode='v2g_manual'. Default 900 s (15 min). The simulation auto-pauses at each interval while V2G is online.",
                         "default": 900,
                     },
+                    "log": {
+                        "description": (
+                            "Optional V2Sim result logging configuration. Use a string such as "
+                            "'fcs:1,scs:1,bus:90' or an object such as {'fcs': 1, 'scs': 1}. "
+                            "Intervals are counts of simulation steps. Omit this field to preserve V2Sim defaults."
+                        ),
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1}},
+                        ],
+                    },
                 },
                 "required": ["case_path"],
             },
@@ -888,7 +958,7 @@ async def list_tools() -> List[types.Tool]:
         types.Tool(
             name="get_v2g_status",
             description=(
-                "Get live V2G bid-price/bid-quantity curves, available capacity, dispatch, per-station nodal OPF shadow prices, fallback state, and agent-control timing. "
+                "Get live instantaneous V2G bid-price/bid-quantity curves, instantaneous available capacity, dispatch, per-station nodal OPF shadow prices, fallback state, and agent-control timing. "
                 "Use stations[].shadow_price_per_kWh (or effective_*_price_per_kWh) for economic decisions; cprice/dprice are fallback only when a node has no shadow price. "
                 "In charging_mode='v2g_manual', call this when awaiting_agent_dispatch is true."
             ),
@@ -920,7 +990,7 @@ async def list_tools() -> List[types.Tool]:
             name="check_v2g_dispatch",
             description=(
                 "Preflight-check a v2g_manual station dispatch without changing simulation state. "
-                "It validates station names, values, V2G online state, EV/user bid availability and station capacity. "
+                "It validates station names, values, V2G online state, instantaneous EV capacity, and minimum V2G bid acceptance against the effective nodal sell price. "
                 "Candidate-specific grid feasibility is validated by the PDN solve when the command executes."
             ),
             inputSchema={
@@ -945,8 +1015,8 @@ async def list_tools() -> List[types.Tool]:
             name="set_v2g_dispatch",
             description=(
                 "Set persistent manual V2G discharge targets by charging station for a v2g_manual simulation. "
-                "Values are kW. If v2g_manual_fallback_to_v2g is enabled, infeasible manual commands "
-                "fall back to the original market/OPF V2G mechanism; otherwise legacy capacity clipping is retained."
+                "Values are instantaneous kW targets. If v2g_manual_fallback_to_v2g is enabled, infeasible manual commands "
+                "fall back to the original market/OPF V2G mechanism; otherwise a preflight-infeasible command is rejected."
             ),
             inputSchema={
                 "type": "object",
@@ -1114,15 +1184,18 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
                     "start_simulation requested silent=False; forcing silent=True because "
                     "stdio MCP reserves stdout for JSON-RPC framing"
                 )
+            step_length = int(arguments.get("step_length", 10))
+            logging_items = _normalize_logging_items(arguments.get("log"), step_length)
             kwargs = {
                 "start_time": arguments.get("start_time", 0),
                 "end_time": arguments.get("end_time", 172800),
-                "step_length": arguments.get("step_length", 10),
+                "step_length": step_length,
                 "seed": arguments.get("seed", 0),
                 # stdout belongs exclusively to the stdio MCP transport.
                 "silent": True,
                 "start_paused": arguments.get("start_paused", False),
                 "v2g_manual_interval": arguments.get("v2g_manual_interval", 900),
+                "logging_items": logging_items,
             }
             _mcp_debug(f"call_tool start_simulation entered case={case_path}")
             task_id = start_simulation_task(case_path, **kwargs)

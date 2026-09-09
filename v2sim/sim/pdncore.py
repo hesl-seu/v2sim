@@ -378,10 +378,10 @@ class IntegratedPDN:
         self._reset_station_limits()
         v2g_active = self.v2g_online(t)
 
-        # Build the supply curve first. Native and manual V2G use the same
-        # reservation semantics: while V2G is online, every currently available
-        # V2G bidder is reserved before charging demand is formed. The dispatch
-        # plan determines actual discharge only, not reservation eligibility.
+        # Build the instantaneous per-EV V2G supply curve first.  Charging
+        # behaviour is not controlled by a separate reservation switch: the
+        # v1.6.0 SOC/kv state machine in CS.get_requested_pc() decides whether
+        # each EV is charging, idle, or V2G-capable.
         if v2g_active:
             self.__v2g_bid_blocks = [cs.get_V2G_bid_blocks(t) for cs in self.__v2g_stations]
             self.__v2g_cap = [sum(x.quantity for x in blocks) for blocks in self.__v2g_bid_blocks]
@@ -404,10 +404,9 @@ class IntegratedPDN:
 
         requested_cs = []
         for cs in self.__v2g_stations:
-            # Keep EV-resource semantics identical for Native V2G and Manual
-            # V2G so controller comparisons see the same charging/SOC trajectory
-            # before dispatch differences are applied.
-            cs.set_integrated_v2g_mode(v2g_active, reserve_all=True)
+            # Native and Manual V2G share the same v1.6.0 SOC/kv state rule.
+            # No additional pre-allocation layer is used.
+            cs.set_integrated_v2g_mode(v2g_active)
             cs_pb_e, cs_ps_e, _ = self.__station_price_snapshot.get(
                 cs.name, (pb_e, ps_e, "cprice_dprice_fallback")
             )
@@ -485,16 +484,35 @@ class IntegratedPDN:
                 self.__bus_charge_qbase_pu[b] *= ratio
 
     def _manual_capacity_violations(self) -> List[Dict[str, object]]:
+        """Check instantaneous power and user minimum-price feasibility."""
         ret: List[Dict[str, object]] = []
         if not self.is_manual_v2g_mode():
             return ret
-        for cs, target, cap in zip(self.__v2g_stations, self.__manual_v2g_target, self.__v2g_cap):
+        for i, (cs, target, cap) in enumerate(zip(
+            self.__v2g_stations, self.__manual_v2g_target, self.__v2g_cap
+        )):
             if target > cap + 1e-12:
                 ret.append({
                     "type": "v2g_capacity",
                     "station": cs.name,
                     "requested_kW": target * 3600.0,
                     "maximum_kW": cap * 3600.0,
+                })
+                continue
+            _, sell_price, _ = self.__station_price_snapshot.get(cs.name, (None, None, "unavailable"))
+            if sell_price is None:
+                continue
+            accepted_cap = sum(
+                block.quantity for block in self.__v2g_bid_blocks[i]
+                if block.price <= float(sell_price) + 1e-12
+            )
+            if target > accepted_cap + 1e-12:
+                ret.append({
+                    "type": "v2g_minimum_price",
+                    "station": cs.name,
+                    "requested_kW": target * 3600.0,
+                    "maximum_accepted_kW": accepted_cap * 3600.0,
+                    "effective_sell_price_per_kWh": float(sell_price),
                 })
         return ret
 
@@ -555,7 +573,7 @@ class IntegratedPDN:
 
         # Capacity infeasibility is known before power flow/OPF.  With fallback
         # enabled, discard the manual injection and rebuild requests using the
-        # original automatic V2G reservation/market mechanism.
+        # original automatic V2G market mechanism.
         if manual_attempt and capacity_violations and self.__manual_fallback_enabled:
             self._activate_manual_fallback("manual_capacity_infeasible")
             self.__last_manual_check["fallback_triggered"] = True
@@ -945,13 +963,30 @@ class IntegratedPDN:
         accepted: Dict[str, float] = {}
         for name, target in effective.items():
             cap = float(available.get(name, 0.0))
-            accepted[name] = min(target, cap)
+            price_cap = cap
+            if name in index:
+                cs = self.__v2g_stations[index[name]]
+                pb_fallback, ps_fallback = self._current_grid_prices(t)
+                _, sell_price, _ = self._effective_bus_prices(cs.bus, pb_fallback, ps_fallback)
+                if sell_price is not None:
+                    price_cap = sum(
+                        float(row["quantity_kW"]) for row in curves.get(name, [])
+                        if float(row.get("price", row.get("user_price", 0.0))) <= float(sell_price) + 1e-12
+                    )
+            accepted[name] = min(target, cap, price_cap)
             if target > cap + 1e-9:
                 violations.append({
                     "type": "v2g_capacity",
                     "station": name,
                     "requested_kW": target,
                     "maximum_kW": cap,
+                })
+            elif target > price_cap + 1e-9:
+                violations.append({
+                    "type": "v2g_minimum_price",
+                    "station": name,
+                    "requested_kW": target,
+                    "maximum_accepted_kW": price_cap,
                 })
 
         current_grid_feasible = self.get_grid_state(t).get("feasible", False)
@@ -996,7 +1031,9 @@ class IntegratedPDN:
                 raise ValueError(f"Manual V2G target for {name} must be a finite non-negative kW value")
             normalized[name] = value
         check_t = int(t) if t is not None else (self.__last_apply_t if self.__last_apply_t >= 0 else 0)
-        self.check_manual_v2g_dispatch(check_t, normalized, replace)
+        check = self.check_manual_v2g_dispatch(check_t, normalized, replace)
+        if not check.get("feasible", False) and not self.__manual_fallback_enabled:
+            raise ValueError(f"Manual V2G preflight failed: {check.get('violations', [])}")
         self._clear_manual_fallback()
         if replace:
             self.__manual_v2g_target = [0.0] * len(self.__v2g_stations)
