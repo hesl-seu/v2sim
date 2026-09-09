@@ -22,6 +22,8 @@ class BidCurvePoint(TypedDict):
     service_fee: float
     quantity_kW: float
     cumulative_quantity_kW: float
+    energy_headroom_kWh: float
+    grid_deliverable_energy_kWh: float
 
 
 @dataclass
@@ -383,6 +385,7 @@ class CS(BaseStation[EV], ABC):
         for block in self.get_V2G_bid_blocks(t):
             q_kw = block.quantity * 3600.0
             cumulative += q_kw
+            energy_headroom = max(0.0, block.ev._energy - block.ev._cap * block.ev._kv)
             ret.append({
                 "vehicle": block.ev._name,
                 "price": block.price,
@@ -390,8 +393,26 @@ class CS(BaseStation[EV], ABC):
                 "service_fee": block.price - block.user_price,
                 "quantity_kW": q_kw,
                 "cumulative_quantity_kW": cumulative,
+                "energy_headroom_kWh": energy_headroom,
+                "grid_deliverable_energy_kWh": energy_headroom * block.ev._ed,
             })
         return ret
+
+    def get_V2G_energy_headroom(self, t: int) -> Tuple[float, float]:
+        """Return current V2G energy headroom without changing power capacity.
+
+        The first value is battery-side energy above the EV ``kv`` floor (kWh).
+        The second is the corresponding energy deliverable to the grid after
+        discharge efficiency (kWh).  These are observation-only quantities: they
+        do not alter instantaneous V2G bid quantities or PDN generator limits.
+        """
+        battery_kwh = 0.0
+        grid_kwh = 0.0
+        for block in self.get_V2G_bid_blocks(t):
+            headroom = max(0.0, block.ev._energy - block.ev._cap * block.ev._kv)
+            battery_kwh += headroom
+            grid_kwh += headroom * block.ev._ed
+        return battery_kwh, grid_kwh
 
     def set_V2G_dispatch_plan(self, plan: Dict[str, Tuple[float, float, float]]):
         """Set the integrated dispatch plan for the next station update."""
@@ -739,20 +760,33 @@ class BiCS(CS):
         return tot_pd
 
     def get_requested_pc(self, t: int, pb_e: float, ps_e: float = 0.0, v2g_mode: bool = False) -> float:
+        """Return the current instantaneous charging request, in kWh/s.
+
+        ``v2g_mode`` means that the project charging mode is ``v2g`` or
+        ``v2g_manual``; it does not mean that the global V2G online window is
+        active at this exact step.  This distinction is important because the
+        original v1.6.0 behaviour intentionally falls back to the legacy
+        non-integrated V2G charging-selection branch outside V2G online
+        windows.
+
+        For every non-smartcharge mode the request is intended to match the
+        charging selection that ``update()`` will execute in the same step.
+        """
         if self.is_offline(t):
             return 0.0
-        core_v2g = bool(v2g_mode and self._integrated_v2g_mode)
+
+        configured_v2g_mode = bool(v2g_mode and self.supports_V2G)
+        core_v2g = bool(configured_v2g_mode and self._integrated_v2g_mode)
         ret = 0.0
+
         for ev in self._chi:
-            # In integrated V2G modes, pb_e is the effective nodal energy price
-            # supplied by IntegratedPDN (ShadowPrice, or cprice fallback).
-            charge_price = pb_e if core_v2g else self.real_pbuy(t, ev, pb_e)
-            if self._cs_type == CSType.SCS and not ev.willing_to_slow_charge(t, charge_price):
-                continue
             if core_v2g:
-                # v1.6.0 V2G state rule: V2G-time EVs charge only below kv;
-                # at/above kv they stop charging regardless of whether OPF or
-                # an external controller eventually dispatches them.
+                # Integrated V2G window: use the same v1.6.0 SOC/kv state
+                # machine as update().  Time-wise V2G participants below kv
+                # charge toward kv; at/above kv they stop charging.
+                charge_price = pb_e
+                if self._cs_type == CSType.SCS and not ev.willing_to_slow_charge(t, charge_price):
+                    continue
                 available = ev.v2g_available(t, False)
                 if available:
                     if ev.soc >= ev._kv:
@@ -760,8 +794,31 @@ class BiCS(CS):
                     ret += ev.requested_charge_power(min(ev._cap * ev._kv, ev._etar))
                 else:
                     ret += ev.requested_charge_power()
-            else:
+                continue
+
+            if configured_v2g_mode:
+                # Outside the global V2G online window, update() deliberately
+                # uses the legacy non-integrated V2G branch.  Mirror that exact
+                # charging selection here: an EV that is V2G-eligible at the
+                # current selling price stops charging once it reaches kv; an
+                # eligible EV below kv, or a non-eligible EV, charges normally
+                # toward etar.  This is not smartcharge load reduction.
+                buy_price = self.real_pbuy(t, ev, pb_e)
+                sell_price = self.real_psell(t, ev, ps_e)
+                if self._cs_type == CSType.SCS and not ev.willing_to_slow_charge(t, buy_price):
+                    continue
+                eligible = ev.v2g_eligible(t, sell_price, False)
+                if eligible and ev.soc >= ev._kv:
+                    continue
                 ret += ev.requested_charge_power()
+                continue
+
+            # Ordinary non-V2G charging mode.
+            buy_price = self.real_pbuy(t, ev, pb_e)
+            if self._cs_type == CSType.SCS and not ev.willing_to_slow_charge(t, buy_price):
+                continue
+            ret += ev.requested_charge_power()
+
         return ret
     
     def update(

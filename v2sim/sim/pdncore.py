@@ -37,6 +37,8 @@ class V2GStationStatus(TypedDict):
     name: str
     bus: str
     capacity_kW: float
+    energy_headroom_kWh: float
+    grid_deliverable_energy_kWh: float
     dispatch_kW: float
     manual_target_kW: float
     bid_curve: List[BidCurvePoint]
@@ -150,7 +152,11 @@ class IntegratedPDN:
         os.makedirs(self.__save_to, exist_ok=True)
         self.__badcnt = 0
         self.last_ok = GridSolveResult.Failed
+        # Most recent actual PDN/OPF solve (periodic or event-triggered).
         self.__last_solve_t = -1
+        # Anchor for the configured periodic PDN cadence. Native V2G runtime
+        # correction solves do not move this clock.
+        self.__last_periodic_solve_t = -1
         self.__last_apply_t = -1
         self.__post_solve_hooks: List[Callable[[int], None]] = []
 
@@ -241,6 +247,20 @@ class IntegratedPDN:
         self.__v2g_dispatch: List[float] = [0.0] * len(self.__v2g_stations)
         self.__v2g_bid_blocks: List[List[V2GBidBlock]] = [[] for _ in self.__v2g_stations]
         self.__v2g_gen_names: List[List[str]] = [[] for _ in self.__v2g_stations]
+        # Runtime execution-feedback caps for automatic V2G only. These caps do
+        # NOT redefine instantaneous V2G capacity or MCP capacity_kW. They are
+        # applied only to the next automatic OPF after measured under-delivery,
+        # preventing an event solve from selecting the same physically
+        # undeliverable station dispatch again every simulation step.
+        self.__v2g_feedback_cap: List[float] = [INF] * len(self.__v2g_stations)
+        # Candidate-set signature associated with each execution-feedback cap.
+        # A cap remains valid while the same EV candidate set is present and is
+        # released only when that set changes. This avoids retrying a known
+        # under-delivering resource at every periodic OPF solve.
+        self.__v2g_feedback_signature: List[Optional[Tuple[str, ...]]] = [
+            None
+        ] * len(self.__v2g_stations)
+        self.__v2g_opf_block_cap: List[List[float]] = [[] for _ in self.__v2g_stations]
         # Persistent station targets used only by charging_mode='v2g_manual'.
         self.__manual_v2g_target: List[float] = [0.0] * len(self.__v2g_stations)
         self._configure_v2g_generators()
@@ -298,10 +318,14 @@ class IntegratedPDN:
 
     def _v2g_bid_cap_getter(self, i: int, j: int):
         def func(t: int) -> float:
-            if not self._automatic_v2g_enabled(t) or j >= len(self.__v2g_bid_blocks[i]):
+            if not self._automatic_v2g_enabled(t):
                 return 0.0
-            # kWh/s -> kW -> pu.
-            return self.__v2g_bid_blocks[i][j].quantity * 3600.0 / self.__gr.Sb_kVA
+            if i >= len(self.__v2g_opf_block_cap) or j >= len(self.__v2g_opf_block_cap[i]):
+                return 0.0
+            # kWh/s -> kW -> pu. The precomputed OPF cap may include temporary
+            # execution feedback, while the public instantaneous capacity/bid
+            # curve remains untouched.
+            return self.__v2g_opf_block_cap[i][j] * 3600.0 / self.__gr.Sb_kVA
         return func
 
     @property
@@ -391,10 +415,18 @@ class IntegratedPDN:
             self.__v2g_bid_blocks = [[] for _ in self.__v2g_stations]
             self.__v2g_cap = [0.0] * len(self.__v2g_stations)
 
+        self._release_changed_automatic_v2g_feedback_caps()
+        self._refresh_automatic_v2g_opf_caps()
+
         manual_active = self._manual_dispatch_enabled(t)
         if manual_active:
+            # Keep the agent target persistent, but execute only the currently
+            # feasible instantaneous power. User minimum-price acceptance is
+            # enforced here as well as in preflight. Energy headroom does NOT
+            # enter this power limit.
             self.__v2g_dispatch = [
-                min(target, cap) for target, cap in zip(self.__manual_v2g_target, self.__v2g_cap)
+                min(target, self._manual_accepted_capacity(i))
+                for i, target in enumerate(self.__manual_v2g_target)
             ]
             for i, cs in enumerate(self.__v2g_stations):
                 cs.set_V2G_dispatch_plan(self._plan_from_total(i, self.__v2g_dispatch[i]))
@@ -416,7 +448,7 @@ class IntegratedPDN:
                 t,
                 pb_e if cs_pb_e is None else cs_pb_e,
                 ps_e if cs_ps_e is None else cs_ps_e,
-                v2g_active,
+                self.__mode in ("v2g", "v2g_manual"),
             ))
 
         for b in self.__bus_charge_pu:
@@ -432,6 +464,7 @@ class IntegratedPDN:
             # the original market V2G generators provide the injection instead.
             for cs, pd in zip(self.__v2g_stations, self.__v2g_dispatch):
                 self.__bus_charge_pu[cs.bus] -= pd * 3.6 / self.__gr.Sb_MVA
+
         return requested_cs
 
     def _plan_from_total(self, i: int, total: float) -> Dict[str, Tuple[float, float, float]]:
@@ -466,7 +499,10 @@ class IntegratedPDN:
 
         if self.v2g_online(t):
             if self._manual_dispatch_enabled(t):
-                held = [min(x, cap) for x, cap in zip(self.__manual_v2g_target, self.__v2g_cap)]
+                held = [
+                    min(target, self._manual_accepted_capacity(i))
+                    for i, target in enumerate(self.__manual_v2g_target)
+                ]
                 self.__v2g_dispatch = held
             else:
                 # Automatic V2G (native v2g mode or manual fallback) holds the
@@ -482,6 +518,131 @@ class IntegratedPDN:
                 ratio = self.__bus_ratio.get(b, 1.0)
                 self.__bus_charge_pu[b] *= ratio
                 self.__bus_charge_qbase_pu[b] *= ratio
+
+    def _manual_accepted_capacity(self, i: int) -> float:
+        """Current instantaneous manual-dispatch capacity accepted by users.
+
+        This remains a power quantity (kWh/s). Energy headroom is deliberately
+        not used here; it is exposed only as observation data to the agent.
+        """
+        cap = self.__v2g_cap[i]
+        cs = self.__v2g_stations[i]
+        _, sell_price, _ = self.__station_price_snapshot.get(cs.name, (None, None, "unavailable"))
+        if sell_price is None:
+            return cap
+        price_cap = sum(
+            block.quantity for block in self.__v2g_bid_blocks[i]
+            if block.price <= float(sell_price) + 1e-12
+        )
+        return min(cap, price_cap)
+
+    def _refresh_automatic_v2g_opf_caps(self) -> None:
+        """Build automatic-OPF block caps from bids plus execution feedback.
+
+        This is intentionally separate from ``__v2g_cap`` and the MCP-visible
+        bid curve, both of which continue to represent instantaneous power.
+        """
+        caps: List[List[float]] = []
+        for i, blocks in enumerate(self.__v2g_bid_blocks):
+            remaining = self.__v2g_feedback_cap[i]
+            row: List[float] = []
+            for block in blocks:
+                if math.isfinite(remaining):
+                    quantity = min(block.quantity, max(0.0, remaining))
+                    remaining = max(0.0, remaining - quantity)
+                else:
+                    quantity = block.quantity
+                row.append(quantity)
+            caps.append(row)
+        self.__v2g_opf_block_cap = caps
+
+    def _automatic_v2g_candidate_signature(self, i: int) -> Tuple[str, ...]:
+        """Return the current EV candidate-set identity for one station.
+
+        The signature intentionally contains only EV identities, not power, bid
+        quantity, or energy headroom.  Those remain instantaneous state values.
+        Execution feedback is therefore retained for the same physical resource
+        set and released when an EV enters or leaves that candidate set.
+        """
+        if i < 0 or i >= len(self.__v2g_bid_blocks):
+            return ()
+        return tuple(sorted(block.ev._name for block in self.__v2g_bid_blocks[i]))
+
+    def _release_changed_automatic_v2g_feedback_caps(self) -> None:
+        """Release station feedback only when its V2G candidate set changes.
+
+        This does not alter instantaneous V2G capacity.  It only decides whether
+        a previous execution-feedback cap is still applicable to the same set of
+        EVs.  Periodic OPF solves alone do not clear feedback.
+        """
+        for i, cap in enumerate(self.__v2g_feedback_cap):
+            if not math.isfinite(cap):
+                continue
+            previous = self.__v2g_feedback_signature[i]
+            current = self._automatic_v2g_candidate_signature(i)
+            if previous is not None and current != previous:
+                self.__v2g_feedback_cap[i] = INF
+                self.__v2g_feedback_signature[i] = None
+
+    def _apply_automatic_v2g_delivery_feedback(
+        self, violations: List[Tuple[str, float, float]]
+    ) -> None:
+        """Derate the next automatic OPF offer to measured station delivery.
+
+        This is an execution-feedback guard, not a capacity definition. The
+        underlying instantaneous bid curve and MCP capacity_kW remain unchanged.
+        """
+        by_name = {cs.name: i for i, cs in enumerate(self.__v2g_stations)}
+        for name, _dispatch, actual in violations:
+            i = by_name.get(name)
+            if i is None:
+                continue
+            actual = max(0.0, float(actual))
+            self.__v2g_feedback_cap[i] = min(self.__v2g_feedback_cap[i], actual)
+            self.__v2g_feedback_signature[i] = self._automatic_v2g_candidate_signature(i)
+
+    def _automatic_v2g_capacity_event(self, t: int) -> bool:
+        """Whether held native/fallback V2G dispatch exceeds current capacity.
+
+        Only an infeasible held dispatch triggers an event solve. Ordinary
+        instantaneous-capacity fluctuations that remain above the held target
+        do not cause extra OPF runs, preserving the configured periodic cadence.
+        """
+        if not self._automatic_v2g_enabled(t):
+            return False
+        return any(
+            dispatch > cap + 1e-12
+            for dispatch, cap in zip(self.__v2g_dispatch, self.__v2g_cap)
+        )
+
+    def _automatic_v2g_actual_underdelivery(
+        self, t: int, step_len: int
+    ) -> List[Tuple[str, float, float]]:
+        """Return native/fallback stations that under-delivered last step.
+
+        The OPF and MCP capacity values remain instantaneous power quantities.
+        This runtime check uses the *executed* station discharge from the
+        immediately preceding simulation step only as an event trigger.  It does
+        not alter V2G capacity, bids, or the periodic OPF interval.
+
+        Returned powers are internal kWh/s values: ``(station, dispatch, actual)``.
+        """
+        if not self._automatic_v2g_enabled(t):
+            return []
+        if self.__last_apply_t < 0 or self.__last_apply_t + step_len != t:
+            return []
+
+        violations: List[Tuple[str, float, float]] = []
+        abs_tol = 0.1 / 3600.0  # 0.1 kW absolute deadband.
+        for cs, dispatch in zip(self.__v2g_stations, self.__v2g_dispatch):
+            dispatch = max(0.0, float(dispatch))
+            if dispatch <= abs_tol:
+                continue
+            actual = max(0.0, float(getattr(cs, "_dload", 0.0)))
+            tol = max(abs_tol, dispatch * 1e-2)  # also allow 1% relative mismatch.
+            if actual + tol < dispatch:
+                violations.append((cs.name, dispatch, actual))
+        return violations
 
     def _manual_capacity_violations(self) -> List[Dict[str, object]]:
         """Check instantaneous power and user minimum-price feasibility."""
@@ -549,19 +710,70 @@ class IntegratedPDN:
         # one simulation step later), avoiding an endogenous-price inconsistency
         # within a single step.
         self.__station_price_snapshot = self._build_station_price_snapshot(t, pb_e, ps_e)
+
+        # Before overwriting __last_apply_t, compare the preceding step's
+        # actually delivered station V2G power with the automatic dispatch that
+        # was held for that step.  This catches SOC-floor clipping or other
+        # execution shortfalls that station-level instantaneous capacity alone
+        # cannot detect.
+        native_actual_violations = self._automatic_v2g_actual_underdelivery(t, step_len)
+        native_actual_event = bool(native_actual_violations)
+
+        # Periodic solves do not clear execution feedback.  A feedback cap is
+        # tied to the EV candidate set that produced the measured under-delivery
+        # and is released only when that set changes.  This prevents the same
+        # known-failing resource from being retried every 900 s while preserving
+        # the original instantaneous-capacity semantics.
+        periodic_due = (
+            self.__last_periodic_solve_t < 0
+            or self.__last_periodic_solve_t + self.__interval <= t
+        )
+        if native_actual_event:
+            self._apply_automatic_v2g_delivery_feedback(native_actual_violations)
+
         requested_cs = self._collect_requests(t, pb_e, ps_e)
         self.__last_apply_t = t
 
-        # A newly submitted manual command is solved immediately so the agent
-        # never executes a fresh command solely against stale grid constraints.
-        due = (
-            self.__last_solve_t < 0
-            or self.__last_solve_t + self.__interval <= t
-            or (self._manual_dispatch_enabled(t) and self.__manual_dispatch_dirty)
-        )
-
         manual_attempt = self._manual_dispatch_enabled(t)
         capacity_violations = self._manual_capacity_violations() if manual_attempt else []
+        native_capacity_event = self._automatic_v2g_capacity_event(t)
+        manual_runtime_event = bool(manual_attempt and capacity_violations)
+
+        # Periodic PDN solves remain the normal cadence. Three V2G events can
+        # additionally re-solve immediately:
+        #   1) last-step native/fallback actual V2G under-delivered its held
+        #      dispatch;
+        #   2) a held native/fallback OPF dispatch exceeds current instantaneous
+        #      V2G capacity;
+        #   3) a persistent manual target becomes infeasible after it was set.
+        # A newly submitted manual command also solves immediately.
+        manual_command_event = bool(manual_attempt and self.__manual_dispatch_dirty)
+        due = (
+            periodic_due
+            or manual_command_event
+            or native_actual_event
+            or native_capacity_event
+            or manual_runtime_event
+        )
+        # Preserve the pre-existing manual-control behavior: a new manual command
+        # or a manual runtime correction becomes a new periodic reference epoch.
+        # Native runtime corrections are different: they repair an invalid held
+        # V2G dispatch but must not shift the configured periodic PDN clock.
+        reanchor_periodic = periodic_due or manual_command_event or manual_runtime_event
+        if native_actual_event:
+            detail = ", ".join(
+                f"{name}: dispatch={dispatch * 3600.0:.6f} kW, actual={actual * 3600.0:.6f} kW"
+                for name, dispatch, actual in native_actual_violations
+            )
+            print(
+                f"[{t}] V2G event solve: native actual under-delivery ({detail}); "
+                "automatic OPF offers temporarily derated to measured delivery.",
+                file=self.__fh,
+            )
+        elif native_capacity_event:
+            print(f"[{t}] V2G event solve: held native dispatch exceeds current instantaneous capacity.", file=self.__fh)
+        elif manual_runtime_event:
+            print(f"[{t}] V2G event solve: manual target no longer satisfies current instantaneous constraints.", file=self.__fh)
         if manual_attempt:
             self.__last_manual_check = {
                 "time": int(t),
@@ -575,7 +787,13 @@ class IntegratedPDN:
         # enabled, discard the manual injection and rebuild requests using the
         # original automatic V2G market mechanism.
         if manual_attempt and capacity_violations and self.__manual_fallback_enabled:
-            self._activate_manual_fallback("manual_capacity_infeasible")
+            violation_types = {str(v.get("type", "")) for v in capacity_violations}
+            fallback_reason = (
+                "manual_price_infeasible"
+                if "v2g_minimum_price" in violation_types and "v2g_capacity" not in violation_types
+                else "manual_capacity_infeasible"
+            )
+            self._activate_manual_fallback(fallback_reason)
             self.__last_manual_check["fallback_triggered"] = True
             self.__last_manual_check["fallback_reason"] = self.__manual_fallback_reason
             requested_cs = self._collect_requests(t, pb_e, ps_e)
@@ -617,6 +835,8 @@ class IntegratedPDN:
             )
 
         self.__last_solve_t = t
+        if reanchor_periodic:
+            self.__last_periodic_solve_t = t
         self.last_ok = ok
         self.__manual_dispatch_dirty = False
         if ok == GridSolveResult.Failed:
@@ -680,7 +900,8 @@ class IntegratedPDN:
         if self.v2g_online(t):
             if self._manual_dispatch_enabled(t):
                 self.__v2g_dispatch = [
-                    min(target, cap) for target, cap in zip(self.__manual_v2g_target, self.__v2g_cap)
+                    min(target, self._manual_accepted_capacity(i))
+                    for i, target in enumerate(self.__manual_v2g_target)
                 ]
             else:
                 dispatch: List[float] = []
@@ -1069,10 +1290,13 @@ class IntegratedPDN:
             shadow = self._bus_shadow_price_per_kWh(cs.bus)
             pb_e, ps_e = self._current_grid_prices(t)
             eff_buy, eff_sell, price_source = self._effective_bus_prices(cs.bus, pb_e, ps_e)
+            battery_headroom, grid_headroom = cs.get_V2G_energy_headroom(t)
             station: V2GStationStatus = {
                 "name": cs.name,
                 "bus": cs.bus,
                 "capacity_kW": cap,
+                "energy_headroom_kWh": battery_headroom,
+                "grid_deliverable_energy_kWh": grid_headroom,
                 "dispatch_kW": self.__v2g_dispatch[i] * 3600.0,
                 "manual_target_kW": self.__manual_v2g_target[i] * 3600.0,
                 "bid_curve": curve,
