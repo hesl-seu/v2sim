@@ -4,6 +4,7 @@ from feasytools import RangeList
 from .veh import *
 
 _INF = float('inf')
+V2G_SOC_EPS = 1e-4
 
 def _EqualChargeRate(rate: float, ev: 'EV') -> float:
     return rate
@@ -59,8 +60,11 @@ class EV(Vehicle):
         :param omega: Decision parameter for selecting charging station
         :param kr: User's estimation deviation of distance. For example, if kr=0.9, it means that the user thinks that the current energy can support 90% of the actual mileage.
         :param kf: SoC threshold for user selecting fast charging (0.0~1.0)
-        :param ks: SoC threshold for user selecting slow charging (kf~1.0)
-        :param kv: SoC threshold for user allowing V2G (ks~1.0). When V2G is enabled, the vehicle's SoC will not be lower than kv, and the user will not participate in V2G when SoC<=kv.
+        :param ks: SoC threshold for user selecting slow charging (kf~1.0).
+            It is also the lower SoC floor for an already-started V2G discharge.
+        :param kv: SoC threshold for user entering V2G (ks~1.0). A vehicle may
+            start a V2G discharge only when SoC>kv; once selected, that discharge
+            may continue down to ks.
         :param trips: Vehicle trip list
         :param trip_info: Trip generation related information
         :param base: Vehicle base element (node or edge) in the road network
@@ -96,9 +100,9 @@ class EV(Vehicle):
         assert 0 < kf < 1
         self._kf = kf                   # User selects SoC for fast charging
         assert kf <= ks < 1
-        self._ks = ks                   # User selects SoC for slow charging
+        self._ks = ks                   # Slow-charge threshold and V2G discharge floor
         assert ks < kv
-        self._kv = kv                   # SoC where the user is willing to join V2G
+        self._kv = kv                   # SoC entry threshold for starting V2G
 
         self.__tmp_pc_max = _INF        # Temporary variable, maximum charging power kWh/s
         self.__tmp_pd = self._pdv       # Temporary variable, maximum discharging power kWh/s
@@ -169,7 +173,7 @@ class EV(Vehicle):
 
     @property
     def ks(self) -> float:
-        """Select the SOC threshold for slow charging"""
+        """SOC threshold for slow charging and lower floor for active V2G."""
         return self._ks
 
     @ks.setter
@@ -179,7 +183,7 @@ class EV(Vehicle):
 
     @property
     def kv2g(self) -> float:
-        """Select the SOC threshold for slow charging"""
+        """SOC entry threshold for starting V2G discharge."""
         return self._kv
 
     @kv2g.setter
@@ -363,11 +367,16 @@ class EV(Vehicle):
             + Actual energy drawn from the battery is more due to discharging efficiency.
         """
         _energy = self._energy
-        self._pdr = min(self.__pdm, self.__tmp_pd) # Constant discharging power during the period, maybe changed in the future
+        requested_pdr = min(self.__pdm, self.__tmp_pd) # battery-side kWh/s
         self.__tmp_pd = self._pdv
-        self._energy -= self._pdr * sec
-        if self._energy < self._cap * self._kv:
-            self._energy = self._cap * self._kv
+        self._energy -= requested_pdr * sec
+        # V2G uses a hysteresis band: a vehicle may enter V2G only above kv,
+        # but an already-selected discharge may continue down to ks.
+        if self._energy < self._cap * self._ks:
+            self._energy = self._cap * self._ks
+        # Report the physically realized battery-side power when the ks floor
+        # clips the final simulation step.
+        self._pdr = (_energy - self._energy) / sec if sec > 0 else 0.0
         delta_energy = (_energy - self._energy) * self._ed
         money = delta_energy * unit_earn
         self._earn += money
@@ -387,13 +396,26 @@ class EV(Vehicle):
         return (self._energy - self.__ebeg, self._cost - self.__costbeg, self._earn - self.__earnbeg)
 
     def v2g_available(self, t:int, require_soc: bool = True) -> bool:
-        """Whether this EV is physically/time-wise available for V2G.
+        """Whether this EV may enter a new V2G dispatch.
 
         This check deliberately ignores price.  The integrated V2G market uses
         each EV's ``minimum_v2g_earn`` as its bid instead of filtering the EV
-        against one station-wide selling price before the OPF is solved.
+        against one station-wide selling price before the OPF is solved.  With
+        ``require_soc=True`` the entry condition is strictly ``SoC > kv``.
         """
-        soc_ok = self.soc > self._kv if require_soc else True
+        soc_ok = self.soc > self._kv + V2G_SOC_EPS if require_soc else True
+        time_ok = self._v2g_time.__contains__(t) if self._v2g_time else True
+        return soc_ok and time_ok and not self._leave_at_etar
+
+    def v2g_can_continue(self, t: int) -> bool:
+        """Whether an already-selected V2G discharge may continue.
+
+        Entry and exit thresholds are intentionally different: V2G starts only
+        above ``kv`` and, once selected, may continue while ``SoC > ks``.  This
+        prevents a dispatch from being cut off immediately at the entry
+        threshold while preserving ``ks`` as the hard battery-energy floor.
+        """
+        soc_ok = self.soc > self._ks + V2G_SOC_EPS
         time_ok = self._v2g_time.__contains__(t) if self._v2g_time else True
         return soc_ok and time_ok and not self._leave_at_etar
 

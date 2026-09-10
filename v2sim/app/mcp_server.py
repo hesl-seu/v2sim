@@ -959,7 +959,8 @@ async def list_tools() -> List[types.Tool]:
             name="get_v2g_status",
             description=(
                 "Get live instantaneous V2G bid-price/bid-quantity curves, instantaneous available capacity, dispatch, per-station nodal OPF shadow prices, fallback state, and agent-control timing. "
-                "Energy headroom is also exposed separately as energy_headroom_kWh and grid_deliverable_energy_kWh for duration-aware agent reasoning; it never replaces or rescales instantaneous capacity_kW. "
+                "New V2G participation requires SoC>kv, while an already-selected discharge may continue down to ks. "
+                "Energy headroom is therefore measured to the ks discharge floor and exposed separately as energy_headroom_kWh and grid_deliverable_energy_kWh for duration-aware agent reasoning; it never replaces or rescales instantaneous capacity_kW. "
                 "Use stations[].shadow_price_per_kWh (or effective_*_price_per_kWh) for economic decisions; cprice/dprice are fallback only when a node has no shadow price. "
                 "In charging_mode='v2g_manual', call this when awaiting_agent_dispatch is true."
             ),

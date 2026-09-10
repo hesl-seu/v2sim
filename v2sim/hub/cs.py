@@ -24,6 +24,9 @@ class BidCurvePoint(TypedDict):
     cumulative_quantity_kW: float
     energy_headroom_kWh: float
     grid_deliverable_energy_kWh: float
+    current_soc: float
+    v2g_entry_soc_kv: float
+    v2g_floor_soc_ks: float
 
 
 @dataclass
@@ -359,7 +362,16 @@ class CS(BaseStation[EV], ABC):
             return []
         blocks: List[V2GBidBlock] = []
         for ev in self._chi:
-            if not ev.v2g_available(t, True):
+            # Hysteresis: new V2G participation requires SoC>kv.  An EV that
+            # was already selected in the previous dispatch plan may remain a
+            # supply block while SoC>ks so the held dispatch can actually run
+            # down to the requested lower floor instead of stopping at kv.
+            continuing = ev._name in self._v2g_dispatch_plan
+            if continuing:
+                physically_available = ev.v2g_can_continue(t)
+            else:
+                physically_available = ev.v2g_available(t, True)
+            if not physically_available:
                 continue
             quantity = min(ev._pdv, self._pd_lim1) * ev._ed
             if quantity <= 0.0:
@@ -385,7 +397,9 @@ class CS(BaseStation[EV], ABC):
         for block in self.get_V2G_bid_blocks(t):
             q_kw = block.quantity * 3600.0
             cumulative += q_kw
-            energy_headroom = max(0.0, block.ev._energy - block.ev._cap * block.ev._kv)
+            # A block enters V2G only above kv, but once selected can discharge
+            # to ks.  Therefore duration-aware headroom is measured to ks.
+            energy_headroom = max(0.0, block.ev._energy - block.ev._cap * block.ev._ks)
             ret.append({
                 "vehicle": block.ev._name,
                 "price": block.price,
@@ -395,13 +409,18 @@ class CS(BaseStation[EV], ABC):
                 "cumulative_quantity_kW": cumulative,
                 "energy_headroom_kWh": energy_headroom,
                 "grid_deliverable_energy_kWh": energy_headroom * block.ev._ed,
+                "current_soc": block.ev.soc,
+                "v2g_entry_soc_kv": block.ev._kv,
+                "v2g_floor_soc_ks": block.ev._ks,
             })
         return ret
 
     def get_V2G_energy_headroom(self, t: int) -> Tuple[float, float]:
         """Return current V2G energy headroom without changing power capacity.
 
-        The first value is battery-side energy above the EV ``kv`` floor (kWh).
+        The first value is battery-side energy above the EV ``ks`` discharge
+        floor (kWh).  ``kv`` remains the entry threshold for starting a new
+        V2G discharge.
         The second is the corresponding energy deliverable to the grid after
         discharge efficiency (kWh).  These are observation-only quantities: they
         do not alter instantaneous V2G bid quantities or PDN generator limits.
@@ -409,7 +428,7 @@ class CS(BaseStation[EV], ABC):
         battery_kwh = 0.0
         grid_kwh = 0.0
         for block in self.get_V2G_bid_blocks(t):
-            headroom = max(0.0, block.ev._energy - block.ev._cap * block.ev._kv)
+            headroom = max(0.0, block.ev._energy - block.ev._cap * block.ev._ks)
             battery_kwh += headroom
             grid_kwh += headroom * block.ev._ed
         return battery_kwh, grid_kwh
@@ -426,13 +445,14 @@ class CS(BaseStation[EV], ABC):
         self._v2g_dispatch_plan.clear()
 
     def set_integrated_v2g_mode(self, enabled: bool):
-        """Enable the v1.6.0-style integrated V2G state machine.
+        """Enable the integrated V2G state machine.
 
         There is deliberately no separate reservation policy.  While V2G is
         active, an EV that is time-wise available for V2G charges only while
         ``soc < kv`` (toward ``kv``); at/above ``kv`` it is not counted as a
-        charging load.  Only EVs with ``soc > kv`` can form discharge bids.
-        Native OPF and manual dispatch share this exact state rule.
+        charging load.  A new V2G discharge may start only with ``soc > kv``;
+        once selected it may continue down to ``ks``.  Native OPF and manual
+        dispatch share this exact hysteresis rule.
         """
         self._integrated_v2g_mode = bool(enabled and self.supports_V2G)
 
@@ -781,14 +801,16 @@ class BiCS(CS):
 
         for ev in self._chi:
             if core_v2g:
-                # Integrated V2G window: use the same v1.6.0 SOC/kv state
-                # machine as update().  Time-wise V2G participants below kv
-                # charge toward kv; at/above kv they stop charging.
+                # Integrated V2G window: entry is SoC>kv and an already-held
+                # dispatch may continue down to ks.  Do not request charging
+                # for an EV that is still executing the held V2G plan.
                 charge_price = pb_e
                 if self._cs_type == CSType.SCS and not ev.willing_to_slow_charge(t, charge_price):
                     continue
                 available = ev.v2g_available(t, False)
                 if available:
+                    if ev._name in self._v2g_dispatch_plan and ev.v2g_can_continue(t):
+                        continue
                     if ev.soc >= ev._kv:
                         continue
                     ret += ev.requested_charge_power(min(ev._cap * ev._kv, ev._etar))
@@ -846,9 +868,10 @@ class BiCS(CS):
         core_v2g = self._integrated_v2g_mode
         if core_v2g:
             # Native OPF/manual dispatch selects exact discharge blocks, but
-            # charging follows the original v1.6.0 SOC/kv state machine and is
-            # independent of selection: below kv -> charge toward kv; at/above
-            # kv -> idle unless selected for V2G; above kv -> may discharge.
+            # charging and discharging use V2G hysteresis: a new discharge may
+            # start only above kv; once selected it can continue down to ks.
+            # Unselected time-wise V2G participants below kv charge toward kv,
+            # while those at/above kv remain idle during the V2G window.
             plan = self._v2g_dispatch_plan if v2g_demand > 0.0 else {}
             selected = set(plan)
             self._c_evs.clear(); self._d_evs.clear()
@@ -859,7 +882,7 @@ class BiCS(CS):
                     or ev.willing_to_slow_charge(cur_time, pb_e)
                 )
                 if available:
-                    if ev._name in selected and ev.soc > ev._kv:
+                    if ev._name in selected and ev.v2g_can_continue(cur_time):
                         self._d_evs.append(ev)
                     elif ev.soc < ev._kv and can_charge:
                         self._c_evs.append(ev)
@@ -912,8 +935,9 @@ class BiCS(CS):
             self._pc_alloc(AllocEnv(self, self._c_evs, cur_time), m, self._pc_lim1, self._pc_limtot)
             
             if core_v2g:
-                # Time-wise V2G participants below kv charge only toward kv;
-                # all other EVs retain the ordinary etar target.
+                # Time-wise V2G participants that are not in an active held
+                # discharge and are below kv charge only toward kv.  Selected
+                # V2G EVs may continue through kv down to ks.
                 for ev in self._c_evs:
                     pb = pb_e
                     available = ev.v2g_available(cur_time, False)
