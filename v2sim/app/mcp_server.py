@@ -827,7 +827,7 @@ async def get_grid_state(task_id: str) -> GridState:
 async def check_v2g_dispatch(
     task_id: str, dispatch_kW: Dict[str, float], replace: bool = True
 ) -> V2GDispatchCheck:
-    """Preflight-check a manual V2G dispatch without modifying the simulation."""
+    """Preflight-check a manual V2G dispatch with a reversible candidate PDN solve."""
     return _require_ready_handle(task_id).check_manual_v2g_dispatch(dispatch_kW, replace)
 
 
@@ -991,9 +991,10 @@ async def list_tools() -> List[types.Tool]:
         types.Tool(
             name="check_v2g_dispatch",
             description=(
-                "Preflight-check a v2g_manual station dispatch without changing simulation state. "
-                "It validates station names, values, V2G online state, instantaneous EV capacity, and minimum V2G bid acceptance against the effective nodal sell price. "
-                "Candidate-specific grid feasibility is validated by the PDN solve when the command executes."
+                "Preflight-check a v2g_manual station dispatch without advancing simulation state. "
+                "It validates station names, values, V2G online state, instantaneous EV capacity and current-price bid acceptance, then performs reversible same-time zero-manual reference and candidate PDN solves. "
+                "If the reference grid is already AC-infeasible, the candidate must be electrically non-worsening (or restore feasibility); otherwise absolute feasibility is required. "
+                "The candidate is also re-checked against its post-dispatch nodal ShadowPrice. The response may include recommended_dispatch_kW when post-dispatch price consistency requires a lower target."
             ),
             inputSchema={
                 "type": "object",
@@ -1017,8 +1018,10 @@ async def list_tools() -> List[types.Tool]:
             name="set_v2g_dispatch",
             description=(
                 "Set persistent manual V2G discharge targets by charging station for a v2g_manual simulation. "
-                "Values are instantaneous kW targets. If v2g_manual_fallback_to_v2g is enabled, infeasible manual commands "
-                "fall back to the original market/OPF V2G mechanism; otherwise a preflight-infeasible command is rejected."
+                "Values are instantaneous kW plan targets. During execution, ordinary availability or price-acceptance "
+                "shrinkage saturates each station to all currently dispatchable power while preserving the original plan "
+                "for possible recovery. Native fallback is reserved for PDN/grid-safety failures; preflight-infeasible "
+                "commands are still rejected/handled by the supervisory safety layer."
             ),
             inputSchema={
                 "type": "object",

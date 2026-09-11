@@ -5,7 +5,7 @@ from .base import *
 FILE_FCS = "fcs"
 FILE_SCS = "scs"
 FILE_GS = "gs"
-CS_ATTRIB = ["cnt", "c", "d", "v2g"]
+CS_ATTRIB = ["cnt", "c", "d", "v2g", "v2gpay", "v2guser"]
 GS_ATTRIB = ["cnt"]
 
 _L = LangLib(["en", "zh_CN"])
@@ -65,10 +65,16 @@ class StaSCS(StaBase):
         if self.pdn_core is not None and self.pdn_core.v2g_online(t):
             Pd = (cs._dload * 3600 for cs in IL)
             Pv2g = (cs._cur_v2g_cap * 3600 for cs in IL)
+            # Exact actual V2G settlement rates for the just-completed physical
+            # step. Units are $/h so integrating rate * dt/3600 gives dollars.
+            Ppay = (getattr(cs, "_v2g_actual_system_payment_rate_per_hour", 0.0) for cs in IL)
+            Puser = (getattr(cs, "_v2g_actual_user_revenue_rate_per_hour", 0.0) for cs in IL)
         else:
             Pd = repeat(0, L)
             Pv2g = repeat(0, L)
-        return chain(cnt, Pc, Pd, Pv2g)
+            Ppay = repeat(0, L)
+            Puser = repeat(0, L)
+        return chain(cnt, Pc, Pd, Pv2g, Ppay, Puser)
     
 
 class StaGS(StaBase):

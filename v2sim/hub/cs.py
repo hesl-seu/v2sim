@@ -238,6 +238,18 @@ class CS(BaseStation[EV], ABC):
         self._dload: float = 0.0
         self._cur_v2g_cap: float = 0.0
         self._integrated_v2g_mode: bool = False
+        # Exact per-step / cumulative V2G settlement metering.  System payment
+        # uses the accepted system-side bid price; user revenue uses the EV's
+        # pay-as-bid minimum revenue.  These counters measure ACTUAL grid-side
+        # energy after SOC/ks clipping, so runtime saturation is reflected exactly.
+        self._v2g_actual_energy_step_kWh: float = 0.0
+        self._v2g_actual_system_payment_step: float = 0.0
+        self._v2g_actual_user_revenue_step: float = 0.0
+        self._v2g_actual_system_payment_rate_per_hour: float = 0.0
+        self._v2g_actual_user_revenue_rate_per_hour: float = 0.0
+        self._v2g_actual_energy_total_kWh: float = 0.0
+        self._v2g_actual_system_payment_total: float = 0.0
+        self._v2g_actual_user_revenue_total: float = 0.0
         # EV name -> (grid-side power kWh/s, EV revenue $/kWh, system payment $/kWh)
         self._v2g_dispatch_plan: Dict[str, Tuple[float, float, float]] = {}
     
@@ -257,6 +269,14 @@ class CS(BaseStation[EV], ABC):
         self._cload = 0.0
         self._dload = 0.0
         self._cur_v2g_cap = 0.0
+        self._v2g_actual_energy_step_kWh = 0.0
+        self._v2g_actual_system_payment_step = 0.0
+        self._v2g_actual_user_revenue_step = 0.0
+        self._v2g_actual_system_payment_rate_per_hour = 0.0
+        self._v2g_actual_user_revenue_rate_per_hour = 0.0
+        self._v2g_actual_energy_total_kWh = 0.0
+        self._v2g_actual_system_payment_total = 0.0
+        self._v2g_actual_user_revenue_total = 0.0
         self._pc_actual = None
         self._pd_actual = []
         self._pc_is_constrained = False
@@ -857,6 +877,14 @@ class BiCS(CS):
         :param ps_e: The revenue for CS selling electricity to the grid, $/kWh
         :return: List of vehicles removed from CS
         """
+        # Per-step V2G meters must never carry stale values into a later logger
+        # sample.  Cumulative counters are intentionally preserved until reset().
+        self._v2g_actual_energy_step_kWh = 0.0
+        self._v2g_actual_system_payment_step = 0.0
+        self._v2g_actual_user_revenue_step = 0.0
+        self._v2g_actual_system_payment_rate_per_hour = 0.0
+        self._v2g_actual_user_revenue_rate_per_hour = 0.0
+
         # Do nothing when the charging station fails
         if self.is_offline(cur_time) or len(self._chi) == 0:
             self._cload = 0; self._dload = 0
@@ -955,14 +983,32 @@ class BiCS(CS):
         n = len(self._d_evs)
         if n > 0:
             if core_v2g:
-                # The dispatcher chooses blocks by each EV's minimum V2G bid,
-                # while actual V2G settlement uses the station's effective
-                # nodal price (ShadowPrice, or dprice fallback when unavailable).
+                # The dispatcher chooses exact heterogeneous blocks.  Settlement
+                # is metered from the ACTUAL grid-side energy returned by the EV
+                # after ks/SOC clipping.  The EV receives its pay-as-bid user
+                # price, while system procurement cost uses the accepted
+                # system-side offer price (user bid + service fee when configured).
                 for ev in self._d_evs:
                     grid_power, user_bid, system_bid = self._v2g_dispatch_plan[ev._name]
                     ev.set_temp_pd(grid_power / ev._ed if ev._ed > 1e-12 else 0.0)
-                    c_, m_ = ev.bidirectional_discharge(sec, ps_e)
-                    Wdischarge += c_; self._cost += m_; self._revenue += c_ * ps_e
+                    c_, m_ = ev.bidirectional_discharge(sec, user_bid)
+                    system_payment = c_ * system_bid
+                    Wdischarge += c_
+                    self._cost += m_
+                    self._revenue += c_ * ps_e
+                    self._v2g_actual_energy_step_kWh += c_
+                    self._v2g_actual_system_payment_step += system_payment
+                    self._v2g_actual_user_revenue_step += m_
+                    self._v2g_actual_energy_total_kWh += c_
+                    self._v2g_actual_system_payment_total += system_payment
+                    self._v2g_actual_user_revenue_total += m_
+                if sec > 0:
+                    self._v2g_actual_system_payment_rate_per_hour = (
+                        self._v2g_actual_system_payment_step * 3600.0 / sec
+                    )
+                    self._v2g_actual_user_revenue_rate_per_hour = (
+                        self._v2g_actual_user_revenue_step * 3600.0 / sec
+                    )
             else:
                 # Legacy station-wide dispatch allocation.
                 self._pd_alloc(AllocEnv(self, self._d_evs, cur_time), n, v2g_demand, self._cur_v2g_cap)
