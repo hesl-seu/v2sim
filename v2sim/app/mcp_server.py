@@ -831,6 +831,13 @@ async def check_v2g_dispatch(
     return _require_ready_handle(task_id).check_manual_v2g_dispatch(dispatch_kW, replace)
 
 
+async def solve_v2g_policy_opf(
+    task_id: str, station_policy: Optional[Dict[str, Dict[str, Any]]] = None
+) -> Dict[str, Any]:
+    """Run a reversible Native or hierarchical policy-shaped V2G OPF."""
+    return _require_ready_handle(task_id).solve_v2g_policy_opf(station_policy or {})
+
+
 async def set_v2g_dispatch(task_id: str, dispatch_kW: Dict[str, float], replace: bool = True) -> V2GStatus:
     """Set persistent station V2G targets for a v2g_manual simulation."""
     handle = _require_ready_handle(task_id)
@@ -986,6 +993,40 @@ async def list_tools() -> List[types.Tool]:
                     "task_id": {"type": "string", "description": "Task ID returned by start_simulation"},
                 },
                 "required": ["task_id"],
+            },
+        ),
+        types.Tool(
+            name="solve_v2g_policy_opf",
+            description=(
+                "Run a reversible one-shot V2G OPF at the current paused v2g_manual epoch without applying the result. "
+                "With an empty station_policy it returns the Native OPF reference. With policy entries it applies only "
+                "hierarchical supervisory utilization caps, energy-duration caps, and non-negative internal risk penalties, "
+                "then returns the network-optimized station dispatch in kW (dispatch_kW/total_dispatch_kW). It does not change the public bid curve, actual payment, "
+                "EV SOC, simulation time, or persistent manual target. Existing check_v2g_dispatch/set_v2g_dispatch remain unchanged."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "Task ID returned by start_simulation"},
+                    "station_policy": {
+                        "type": "object",
+                        "description": (
+                            "Optional mapping station -> policy. Omitted stations are neutral: utilization_cap=1, "
+                            "min_duration_s=0, risk_penalty_per_kWh=0, enabled=true."
+                        ),
+                        "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {"type": "boolean"},
+                                "utilization_cap": {"type": "number", "minimum": 0, "maximum": 1},
+                                "min_duration_s": {"type": "number", "minimum": 0},
+                                "risk_penalty_per_kWh": {"type": "number", "minimum": 0}
+                            },
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                "required": ["task_id"]
             },
         ),
         types.Tool(
@@ -1249,6 +1290,12 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextCont
         elif name == "get_grid_state":
             state = await get_grid_state(arguments["task_id"])
             return [types.TextContent(type="text", text=_json_dumps(state, indent=2))]
+
+        elif name == "solve_v2g_policy_opf":
+            result = await solve_v2g_policy_opf(
+                arguments["task_id"], arguments.get("station_policy", {})
+            )
+            return [types.TextContent(type="text", text=_json_dumps(result, indent=2))]
 
         elif name == "check_v2g_dispatch":
             check = await check_v2g_dispatch(

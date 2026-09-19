@@ -150,6 +150,10 @@ class AsyncSimHandle:
         """Preflight-check a manual V2G command without changing simulation state."""
         return self._inst.pdn.check_manual_v2g_dispatch(self._inst.ctime, dispatch_kW, replace)
 
+    def solve_v2g_policy_opf(self, station_policy=None):
+        """Run a reversible Native/policy-shaped OPF without applying its dispatch."""
+        return self._inst.pdn.solve_v2g_policy_opf(self._inst.ctime, station_policy or {})
+
     def set_manual_v2g_dispatch(self, dispatch_kW, replace: bool = True):
         """Set manual V2G station targets in kW for the next simulation step."""
         self._inst.pdn.set_manual_v2g_dispatch(dispatch_kW, replace, self._inst.ctime)

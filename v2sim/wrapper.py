@@ -195,11 +195,13 @@ def get_sim_params(args:Union[str, ArgChecker], check_illegal:bool = True) -> Di
     gasoline_price = args.pop_float("gasoline-price", 5.0)
     add_veh_to_scs = args.pop_bool("add-veh-to-scs")
     allow_scs_redirect = args.pop_bool("allow-scs-redirect")
+    traffic_step = args.pop_int("traffic-step", 1)
     vscfg = CommonConfig(
         routing_algorithm = ralgo,
         gasoline_price = ConstFunc(gasoline_price),
         add_veh_to_scs=add_veh_to_scs,
-        allow_scs_redirect=allow_scs_redirect
+        allow_scs_redirect=allow_scs_redirect,
+        internal_step_len=traffic_step
     )
 
     # SUMO or UXsim Config
@@ -207,14 +209,13 @@ def get_sim_params(args:Union[str, ArgChecker], check_illegal:bool = True) -> Di
     uxsim_show = args.pop_bool("uxsim-show-info")
     uxsim_rand = args.pop_bool("uxsim-randomize")
     uxsim_nopara = args.pop_bool("uxsim-no-parallel")
-    uxsim_step = args.pop_int("uxsim-step", -1)
     sumo_ignd = args.pop_bool("sumo-ignore-driving")
     sumo_raise = args.pop_bool("sumo-raise-routing-error")
     sumo_meso = args.pop_bool("sumo-mesosim")
 
-    if uxsim_show or uxsim_nopara or uxsim_rand or uxsim_step > 0:
+    if uxsim_show or uxsim_nopara or uxsim_rand:
         from .sim import UXsimConfig
-        config = UXsimConfig(uxsim_show, uxsim_rand, uxsim_nopara, uxsim_step if uxsim_step > 0 else None)
+        config = UXsimConfig(uxsim_show, uxsim_rand, uxsim_nopara)
     
     if sumo_ignd or sumo_raise or sumo_meso:
         assert config is None, "Cannot use both SUMO and UXsim configurations."

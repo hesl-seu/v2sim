@@ -457,6 +457,7 @@ class CommonConfig:
     gasoline_price: TimeFunc = ConstFunc(5.0)
     add_veh_to_scs: bool = False
     allow_scs_redirect: bool = False
+    internal_step_len: int = 1
 
 
 @dataclass
@@ -472,4 +473,3 @@ class UXsimConfig:
     show_uxsim_info: bool = False
     randomize_uxsim: bool = False
     no_parallel: bool = False
-    internal_step_len: Optional[int] = None

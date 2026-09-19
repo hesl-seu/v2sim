@@ -88,6 +88,7 @@ class TrafficSUMO(TrafficInst):
         gui: bool = False,
         sumocfg_file: str = "",
         mesosim: bool = False,
+        internal_step_len: int = 1,
         case_dir: str = "",
     ):
         super().__init__(start_time, step_len, end_time, roadnet, trip_logger, vehs, hubs, pdn, gasoline_price, seed, silent)
@@ -99,6 +100,7 @@ class TrafficSUMO(TrafficInst):
         assert self.__ralgo in ["CH", "dijkstra", "astar", "CHWrapper"], f"Invalid routing algorithm: {self.__ralgo}"
         self.__suppress_route_not_found = suppress_route_not_found
         self.__mesosim = mesosim
+        self.__internal_step_len = internal_step_len
         self.__allow_scs_redirect = allow_scs_redirect
 
         # Read road network
@@ -126,6 +128,7 @@ class TrafficSUMO(TrafficInst):
                 start_time=start_time,
                 end_time=end_time,
                 step_length=step_len,
+                internal_step_length=internal_step_len,
                 routing_algo=routing_algorithm,
                 seed=seed,
                 gui=gui,
@@ -140,6 +143,7 @@ class TrafficSUMO(TrafficInst):
                 start_time=start_time,
                 end_time=end_time,
                 step_length=step_len,
+                internal_step_length=internal_step_len,
                 routing_algo=routing_algorithm,
                 seed=seed,
                 gui=False,

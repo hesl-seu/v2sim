@@ -376,6 +376,7 @@ class SUMOSingleBackend(_RouteFinderMixin):
         start_time: int,
         end_time: int,
         step_length: int,
+        internal_step_length: int,
         routing_algo: str,
         seed: int,
         gui: bool,
@@ -387,6 +388,7 @@ class SUMOSingleBackend(_RouteFinderMixin):
         self._start_time = start_time
         self._end_time = end_time
         self._step_length = step_length
+        self._internal_step_length = internal_step_length
         self._routing_algo = routing_algo
         self._seed = seed
         self._gui = gui
@@ -408,7 +410,7 @@ class SUMOSingleBackend(_RouteFinderMixin):
             "-n", self._net_file,
             "-b", str(self._start_time),
             "-e", str(self._end_time),
-            "--step-length", str(self._step_length),
+            "--step-length", str(self._internal_step_length),
             "--no-warnings",
             "--routing-algorithm", self._routing_algo,
             "--keep-after-arrival", str(self._step_length),
@@ -782,6 +784,7 @@ class SUMOParallelBackend(_RouteFinderMixin):
         start_time: int,
         end_time: int,
         step_length: int,
+        internal_step_length: int,
         routing_algo: str,
         seed: int,
         gui: bool,
@@ -791,6 +794,7 @@ class SUMOParallelBackend(_RouteFinderMixin):
         self._start_time = start_time
         self._end_time = end_time
         self._step_length = step_length
+        self._internal_step_length = internal_step_length
         self._routing_algo = routing_algo
         self._seed = seed
         self._gui = gui
@@ -833,7 +837,7 @@ class SUMOParallelBackend(_RouteFinderMixin):
                 "-n", str(self._partition.net_files[pid]),
                 "-b", str(self._start_time),
                 "-e", str(self._end_time),
-                "--step-length", str(self._step_length),
+                "--step-length", str(self._internal_step_length),
                 "--no-warnings",
                 "--routing-algorithm", self._routing_algo,
                 "--keep-after-arrival", str(self._step_length),

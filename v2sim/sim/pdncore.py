@@ -15,7 +15,7 @@ from copy import deepcopy
 from collections import defaultdict
 from itertools import chain
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, TypedDict
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
 
 from feasytools import ComFunc, RangeList, TimeImplictFunc
 from fpowerkit import (
@@ -212,6 +212,11 @@ class IntegratedPDN:
         # It is valid only while the simulator remains paused at one dispatch epoch.
         self.__candidate_reference_t = -1
         self.__candidate_reference_trial: Optional[Dict[str, object]] = None
+        # One-shot hierarchical-OPF trials use temporary exact-price groups.
+        # These overrides are active only inside solve_v2g_policy_opf(); normal
+        # Native V2G and the existing manual Agent path never observe them.
+        self.__policy_opf_trial_active = False
+        self.__policy_opf_trial_groups: Optional[List[List[Tuple[float, float]]]] = None
         # cprice/dprice are retained only as a compatibility fallback for a
         # bus that has no usable OPF ShadowPrice yet (for example before the
         # first successful solve). Runtime charging/V2G economics otherwise use
@@ -435,6 +440,11 @@ class IntegratedPDN:
             grouped.append(sorted(by_price.items(), key=lambda x: x[0]))
         self.__v2g_opf_groups = grouped
 
+    def _active_v2g_opf_groups(self) -> List[List[Tuple[float, float]]]:
+        if self.__policy_opf_trial_active and self.__policy_opf_trial_groups is not None:
+            return self.__policy_opf_trial_groups
+        return self.__v2g_opf_groups
+
     def _sync_v2g_group_generators(self, t: int) -> bool:
         """Match Grid generators to the current exact price-group counts.
 
@@ -447,9 +457,10 @@ class IntegratedPDN:
         Returns True when Grid generator topology changed.
         """
         automatic = self._automatic_v2g_enabled(t)
+        groups = self._active_v2g_opf_groups()
         changed = False
         for i, cs in enumerate(self.__v2g_stations):
-            desired = len(self.__v2g_opf_groups[i]) if (automatic and cs.supports_V2G) else 0
+            desired = len(groups[i]) if (automatic and cs.supports_V2G) else 0
             names = self.__v2g_gen_names[i]
 
             while len(names) < desired:
@@ -470,7 +481,7 @@ class IntegratedPDN:
             # PDN solves.
             for j, name in enumerate(names):
                 g = self.__gr.Gen(name)
-                g.V2GBidPrice = float(self.__v2g_opf_groups[i][j][0])
+                g.V2GBidPrice = float(groups[i][j][0])
 
         if changed and hasattr(self.__sol.est, "UpdateGrid"):
             # Generator membership changed, so Island.Gens and the cached CVXPY
@@ -483,9 +494,10 @@ class IntegratedPDN:
         def func(t: int) -> float:
             if not self._automatic_v2g_enabled(t):
                 return 0.0
-            if i >= len(self.__v2g_opf_groups) or j >= len(self.__v2g_opf_groups[i]):
+            groups = self._active_v2g_opf_groups()
+            if i >= len(groups) or j >= len(groups[i]):
                 return 0.0
-            price, _ = self.__v2g_opf_groups[i][j]
+            price, _ = groups[i][j]
             # $/kWh -> coefficient for pu-h generation in FPowerKit.
             return price * self.__gr.Sb_kVA
         return func
@@ -494,9 +506,10 @@ class IntegratedPDN:
         def func(t: int) -> float:
             if not self._automatic_v2g_enabled(t):
                 return 0.0
-            if i >= len(self.__v2g_opf_groups) or j >= len(self.__v2g_opf_groups[i]):
+            groups = self._active_v2g_opf_groups()
+            if i >= len(groups) or j >= len(groups[i]):
                 return 0.0
-            _, quantity = self.__v2g_opf_groups[i][j]
+            _, quantity = groups[i][j]
             # kWh/s -> kW -> pu. This remains instantaneous V2G capacity;
             # grouping changes only the solver representation.
             return quantity * 3600.0 / self.__gr.Sb_kVA
@@ -505,6 +518,12 @@ class IntegratedPDN:
     def _automatic_v2g_enabled(self, t: int) -> bool:
         if not self.v2g_online(t):
             return False
+        # H-LLM-OPF one-shot trials intentionally reuse the Native market
+        # generator representation even when runtime Native fallback is disabled.
+        # The flag exists only inside the reversible trial and is false on every
+        # ordinary simulation path.
+        if self.__policy_opf_trial_active:
+            return True
         if self.__mode == "v2g":
             return True
         return self.is_manual_v2g_mode() and self.__manual_fallback_enabled and self.__manual_fallback_active
@@ -1371,7 +1390,7 @@ class IntegratedPDN:
         self.__manual_fallback_active = bool(snap["manual_fallback_active"])
         self.__manual_fallback_reason = snap["manual_fallback_reason"]  # type: ignore[assignment]
         self.last_ok = snap["last_ok"]  # type: ignore[assignment]
-        self.__last_solve_t = int(snap["last_solve_t"])  # type: ignore[assignment]
+        self.__last_solve_t = int(snap["last_solve_t"])
 
         for cs, plan, integrated in snap["station_plans"]:  # type: ignore[assignment]
             cs.set_V2G_dispatch_plan(plan)
@@ -1678,6 +1697,227 @@ class IntegratedPDN:
                 "grid_summary": {},
             }
         finally:
+            self._restore_candidate_trial_state(snap)
+
+    @staticmethod
+    def _normalize_policy_value(value: Any, *, default: float, minimum: float, maximum: Optional[float] = None) -> float:
+        try:
+            x = float(value)
+        except (TypeError, ValueError, OverflowError):
+            x = default
+        if not math.isfinite(x):
+            x = default
+        x = max(minimum, x)
+        if maximum is not None:
+            x = min(maximum, x)
+        return x
+
+    def _build_policy_opf_groups(
+        self, t: int, station_policy: Dict[str, Dict[str, object]]
+    ) -> Tuple[List[List[Tuple[float, float]]], Dict[str, Dict[str, object]]]:
+        """Build a temporary policy-shaped copy of the exact Native V2G merit curves.
+
+        Bid prices and the public per-EV bid curve are never modified. A station's
+        supervisory cap truncates the existing ascending exact-price groups, while
+        ``risk_penalty_per_kWh`` is added only to the temporary OPF objective cost.
+        Zero-cap trailing groups are retained so a policy trial does not change the
+        price-group topology when Native/fallback generators already exist.
+        """
+        known = {cs.name for cs in self.__v2g_stations}
+        unknown = sorted(set(station_policy).difference(known))
+        if unknown:
+            raise KeyError("Unknown charging stations in policy: " + ", ".join(unknown))
+
+        shaped: List[List[Tuple[float, float]]] = []
+        audit: Dict[str, Dict[str, object]] = {}
+        for i, cs in enumerate(self.__v2g_stations):
+            raw = station_policy.get(cs.name) or {}
+            enabled = bool(raw.get("enabled", True))
+            util = self._normalize_policy_value(
+                raw.get("utilization_cap", 1.0), default=1.0, minimum=0.0, maximum=1.0
+            )
+            duration_s = self._normalize_policy_value(
+                raw.get("min_duration_s", 0.0), default=0.0, minimum=0.0
+            )
+            risk = self._normalize_policy_value(
+                raw.get("risk_penalty_per_kWh", 0.0), default=0.0, minimum=0.0
+            )
+            if not enabled:
+                util = 0.0
+
+            base_groups = self.__v2g_opf_groups[i]
+            capacity_kW = sum(max(0.0, q) for _, q in base_groups) * 3600.0
+            _, grid_energy_kWh = cs.get_V2G_energy_headroom(t)
+            util_cap_kW = capacity_kW * util
+            duration_cap_kW = math.inf
+            if duration_s > 1e-12:
+                duration_cap_kW = max(0.0, float(grid_energy_kWh) * 3600.0 / duration_s)
+            final_cap_kW = min(capacity_kW, util_cap_kW, duration_cap_kW)
+            if not math.isfinite(final_cap_kW):
+                final_cap_kW = min(capacity_kW, util_cap_kW)
+
+            left = max(0.0, final_cap_kW) / 3600.0
+            station_groups: List[Tuple[float, float]] = []
+            for base_price, quantity in base_groups:
+                q = max(0.0, float(quantity))
+                take = min(q, left)
+                left -= take
+                station_groups.append((float(base_price) + risk, take))
+            shaped.append(station_groups)
+            audit[cs.name] = {
+                "enabled": enabled,
+                "utilization_cap": util,
+                "min_duration_s": duration_s,
+                "risk_penalty_per_kWh": risk,
+                "instantaneous_capacity_kW": capacity_kW,
+                "grid_deliverable_energy_kWh": float(grid_energy_kWh),
+                "utilization_cap_kW": util_cap_kW,
+                "duration_cap_kW": None if not math.isfinite(duration_cap_kW) else duration_cap_kW,
+                "policy_cap_kW": max(0.0, final_cap_kW),
+                "exact_price_group_count": len(base_groups),
+            }
+        return shaped, audit
+
+    def solve_v2g_policy_opf(
+        self, t: int, station_policy: Optional[Dict[str, Dict[str, object]]] = None
+    ) -> Dict[str, object]:
+        """Run a reversible Native or LLM-policy-shaped V2G OPF at the current time.
+
+        This is an additive H-LLM-OPF helper for ``v2g_manual`` experiments. It
+        never advances time, changes EV SOC, changes the persistent manual target,
+        or applies the returned dispatch. Existing ``check_v2g_dispatch`` and
+        ``set_v2g_dispatch`` semantics are untouched.
+
+        ``station_policy={}`` is the Native OPF reference. A non-empty policy may
+        only (1) cap a station by utilization and/or energy-duration and (2) add a
+        non-negative internal risk penalty to its OPF cost. Actual user/system bid
+        prices and subsequent physical payment metering remain unchanged.
+        """
+        policy = station_policy or {}
+        if not self.is_manual_v2g_mode():
+            raise RuntimeError("Policy OPF requires charging_mode='v2g_manual'")
+        if not self.v2g_online(t):
+            raise RuntimeError("Policy OPF is only available while V2G is online")
+
+        snap = self._snapshot_candidate_trial_state()
+        orig_bid_blocks = self.__v2g_bid_blocks
+        orig_cap = self.__v2g_cap
+        orig_groups = self.__v2g_opf_groups
+        orig_station_prices = dict(self.__station_price_snapshot)
+        trial_added_generators = False
+        try:
+            pb_e, ps_e = self._current_grid_prices(t)
+            # Temporarily enable the existing Native V2G market representation.
+            # In manual mode this is the same mechanism used by the safety fallback,
+            # but the state is fully restored before returning.
+            self.__manual_fallback_active = True
+            self.__manual_fallback_reason = "hierarchical_opf_trial"
+            requested_cs = self._collect_requests(t, pb_e or 0.0, ps_e or 0.0)
+            base_groups = [list(x) for x in self.__v2g_opf_groups]
+            if policy:
+                shaped_groups, policy_audit = self._build_policy_opf_groups(t, policy)
+                mode = "policy_shaped"
+            else:
+                shaped_groups = [list(x) for x in base_groups]
+                policy_audit = {
+                    cs.name: {
+                        "enabled": True,
+                        "utilization_cap": 1.0,
+                        "min_duration_s": 0.0,
+                        "risk_penalty_per_kWh": 0.0,
+                        "instantaneous_capacity_kW": sum(q for _, q in base_groups[i]) * 3600.0,
+                        "grid_deliverable_energy_kWh": float(cs.get_V2G_energy_headroom(t)[1]),
+                        "policy_cap_kW": sum(q for _, q in base_groups[i]) * 3600.0,
+                        "exact_price_group_count": len(base_groups[i]),
+                    }
+                    for i, cs in enumerate(self.__v2g_stations)
+                }
+                mode = "native_reference"
+
+            self.__policy_opf_trial_groups = shaped_groups
+            self.__policy_opf_trial_active = True
+            # Materialize the same dynamic exact-price generator slots used by the
+            # Native OPF. In the common manual-control state these are added only for
+            # the reversible trial and removed in finally.
+            self._sync_v2g_group_generators(t)
+            trial_added_generators = True
+            ok, objective = self.__sol.solve(t)
+            self.last_ok = ok
+            self.__last_solve_t = int(t)
+            grid = self.get_grid_state(t)
+
+            dispatch_kW: Dict[str, float] = {}
+            for i, cs in enumerate(self.__v2g_stations):
+                total = 0.0
+                for name in self.__v2g_gen_names[i]:
+                    try:
+                        pval = self.__gr.Gen(name).P
+                    except KeyError:
+                        continue
+                    pu = self._value_at(pval, t)
+                    if pu is not None:
+                        # FPowerKit generator P is per-unit on Sb_kVA, so pu * Sb_kVA
+                        # is already kW. Do NOT divide by 3600 here: /3600 is used only
+                        # when converting kW to V2Sim's internal kWh/s power representation.
+                        total += max(0.0, pu * self.__gr.Sb_kVA)
+                cap_kw = float(policy_audit[cs.name].get("policy_cap_kW", total) or 0.0)
+                total = min(total, max(0.0, cap_kw))
+                if total > 1e-9:
+                    dispatch_kW[cs.name] = total
+                policy_audit[cs.name]["opf_dispatch_kW"] = total
+                policy_audit[cs.name]["post_opf_shadow_price_per_kWh"] = self._bus_shadow_price_per_kWh(cs.bus)
+
+            solver_succeeded = bool(ok != GridSolveResult.Failed)
+            solver_feasible = bool(
+                solver_succeeded and not self._solve_result_has_grid_violation(ok)
+            )
+            return {
+                "mode": mode,
+                "time": int(t),
+                "solver_succeeded": solver_succeeded,
+                "solver_feasible": solver_feasible,
+                "solve_result": getattr(ok, "name", str(ok)),
+                "objective": float(objective) if isinstance(objective, (int, float)) and math.isfinite(float(objective)) else None,
+                "dispatch_kW": dispatch_kW,
+                "total_dispatch_kW": sum(dispatch_kW.values()),
+                "station_policy": policy,
+                "policy_audit": policy_audit,
+                "grid_summary": {
+                    "feasible": grid.get("feasible"),
+                    "min_voltage_pu": grid.get("min_voltage_pu"),
+                    "min_voltage_bus": grid.get("min_voltage_bus"),
+                    "max_voltage_pu": grid.get("max_voltage_pu"),
+                    "max_voltage_bus": grid.get("max_voltage_bus"),
+                    "max_line_loading_pu": grid.get("max_line_loading_pu"),
+                    "max_line_loading_line": grid.get("max_line_loading_line"),
+                    "voltage_violation_count": len(grid.get("voltage_violations") or []),
+                    "thermal_violation_count": len(grid.get("thermal_violations") or []),
+                    "shadow_price_min_per_kWh": grid.get("shadow_price_min_per_kWh"),
+                    "shadow_price_max_per_kWh": grid.get("shadow_price_max_per_kWh"),
+                },
+                "semantics": {
+                    "dispatch_unit": "kW",
+                    "instantaneous_capacity_unchanged": True,
+                    "duration_is_supervisory_cap_only": True,
+                    "risk_penalty_is_internal_opf_cost_only": True,
+                    "actual_bid_and_payment_unchanged": True,
+                    "applies_dispatch": False,
+                },
+            }
+        finally:
+            # Restore the original market groups and automatic/manual mode before
+            # restoring numerical state. This removes any generators added solely
+            # for the trial and returns the estimator topology to its prior shape.
+            self.__policy_opf_trial_active = False
+            self.__policy_opf_trial_groups = None
+            self.__v2g_bid_blocks = orig_bid_blocks
+            self.__v2g_cap = orig_cap
+            self.__v2g_opf_groups = orig_groups
+            self.__station_price_snapshot = orig_station_prices
+            self.__manual_fallback_active = bool(snap["manual_fallback_active"])
+            self.__manual_fallback_reason = snap["manual_fallback_reason"]  # type: ignore[assignment]
+            if trial_added_generators:
+                self._sync_v2g_group_generators(t)
             self._restore_candidate_trial_state(snap)
 
     def check_manual_v2g_dispatch(

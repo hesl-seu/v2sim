@@ -760,6 +760,10 @@ class BiCS(CS):
         self._c_evs: List[EV] = []
         self._d_evs: List[EV] = []
         self.__d_evs_upd_t: int = -1
+        # Project-level charging mode latched by get_requested_pc().
+        # A BiCS only means that the station is V2G-capable; it does NOT mean
+        # that the current project is running in v2g/v2g_manual mode.
+        self._configured_v2g_mode: bool = False
     
     def reset(self):
         """Reset the charging station to its initial state."""
@@ -767,6 +771,7 @@ class BiCS(CS):
         self._c_evs.clear()
         self._d_evs.clear()
         self.__d_evs_upd_t = -1
+        self._configured_v2g_mode = False
 
     def to_xml(self):
         return super().to_xml(v2g=True)
@@ -812,10 +817,17 @@ class BiCS(CS):
         For every non-smartcharge mode the request is intended to match the
         charging selection that ``update()`` will execute in the same step.
         """
+        # Keep the project-level mode for update().  update() previously only
+        # looked at _integrated_v2g_mode.  As a result, any V2G-capable BiCS
+        # (for example an SCS with psell configured) entered the legacy V2G
+        # selection branch even in smartcharge mode, and V2G-eligible EVs
+        # stopped charging at kv (typically 0.8).
+        configured_v2g_mode = bool(v2g_mode and self.supports_V2G)
+        self._configured_v2g_mode = configured_v2g_mode
+
         if self.is_offline(t):
             return 0.0
 
-        configured_v2g_mode = bool(v2g_mode and self.supports_V2G)
         core_v2g = bool(configured_v2g_mode and self._integrated_v2g_mode)
         ret = 0.0
 
@@ -893,7 +905,8 @@ class BiCS(CS):
         Wcharge = 0; Wdischarge = 0
          
         ret: List[EV] = []
-        core_v2g = self._integrated_v2g_mode
+        configured_v2g_mode = bool(self._configured_v2g_mode and self.supports_V2G)
+        core_v2g = bool(configured_v2g_mode and self._integrated_v2g_mode)
         if core_v2g:
             # Native OPF/manual dispatch selects exact discharge blocks, but
             # charging and discharging use V2G hysteresis: a new discharge may
@@ -916,9 +929,11 @@ class BiCS(CS):
                         self._c_evs.append(ev)
                 elif can_charge:
                     self._c_evs.append(ev)
-        else:
-            # Legacy non-integrated behaviour: use the current station/user
-            # selling price to decide willingness and the configured allocator.
+        elif configured_v2g_mode:
+            # Legacy non-integrated V2G behaviour is valid ONLY when the
+            # project itself is configured as v2g/v2g_manual.  Outside the
+            # integrated V2G window, eligible EVs below kv charge and eligible
+            # EVs at/above kv are kept available for V2G.
             v2g_enabled = v2g_demand > 0 and self._cur_v2g_cap > 0
             if self.__d_evs_upd_t != cur_time:
                 self._c_evs.clear(); self._d_evs.clear()
@@ -955,6 +970,20 @@ class BiCS(CS):
                     ]
                 if not v2g_enabled:
                     self._d_evs.clear()
+        else:
+            # Ordinary non-V2G mode (smartcharge/unordered).  A BiCS is merely
+            # V2G-capable here: do not apply v2g_eligible(), kv, or any V2G
+            # dispatch filtering.  Vehicles charge normally toward etar.
+            self._c_evs.clear(); self._d_evs.clear()
+            if self._cs_type == CSType.FCS:
+                self._c_evs.extend(self._chi)
+            else:
+                self._c_evs.extend(
+                    ev for ev in self._chi
+                    if ev.willing_to_slow_charge(
+                        cur_time, self.real_pbuy(cur_time, ev, pb_e)
+                    )
+                )
 
         m = len(self._c_evs)
         if m > 0:
