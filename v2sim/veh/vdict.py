@@ -70,9 +70,13 @@ def LoadVehicles(file_path: str, node_mode:bool = True):
                 if new_trip.depart_time <= trips[-1].depart_time:
                     raise ValueError(Lang.BAD_TRIP_DEPART_TIME.format(
                         new_trip.depart_time, trips[-1].depart_time, veh.attrib['id'], new_trip.id))
-                if new_trip.O != trips[-1].D:
-                    raise ValueError(Lang.BAD_TRIP_OD.format(
-                        new_trip.O, trips[-1].D, veh.attrib['id'], new_trip.id))
+                if node_mode:
+                    # UXsim: Check if the origin of the new trip matches the destination of the last trip
+                    # SUMO: Do not check due to reverse edges
+                    if new_trip.O != trips[-1].D:
+                        raise ValueError(Lang.BAD_TRIP_OD.format(
+                            new_trip.O, trips[-1].D, veh.attrib['id'], new_trip.id))
+                    
             trips.append(new_trip)
         
         attr = veh.attrib

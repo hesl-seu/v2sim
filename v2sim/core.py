@@ -1,5 +1,5 @@
 import dill as pickle
-import time, sys, gzip, os, threading
+import time, sys, gzip, os, threading, warnings
 from enum import Enum
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
@@ -16,6 +16,7 @@ from .sim.pdncore import IntegratedPDN
 
 
 PLUGINS_FILE = "plugins.gz"
+PDN_FILE = "pdn.gz"
 RESULTS_FOLDER = "results"
 TRIP_EVENT_LOG = "cproc.clog"
 SIM_INFO_LOG = "cproc.log"
@@ -158,7 +159,28 @@ def _create_plg_and_stats(plgfile:Optional[str], state_dir:Optional[str], pout:P
     else:
         plugin_state = None
 
-    pdn_core = IntegratedPDN(inst, v2sim_config, pout)
+    pdn_state = None
+    if state_dir is not None:
+        pdn_state_file = Path(state_dir) / PDN_FILE
+        if pdn_state_file.exists():
+            with gzip.open(pdn_state_file, "rb") as f:
+                d = pickle.load(f)
+            if not isinstance(d, dict) or not all(k in d for k in ("obj", "version", "pickler")):
+                raise ValueError(f"Invalid IntegratedPDN state file: {pdn_state_file}")
+            if not CheckPyVersion(d["version"]):
+                raise RuntimeError("Python version mismatch for IntegratedPDN state")
+            if d["pickler"] != pickle.__name__:
+                raise RuntimeError("Pickler mismatch for IntegratedPDN state")
+            pdn_state = d["obj"]
+            if pdn_state is None:
+                raise ValueError(f"Invalid IntegratedPDN state file: {pdn_state_file}")
+        else:
+            warnings.warn(
+                "Checkpoint has no IntegratedPDN state (pdn.gz); PDN dispatch and "
+                "solve clocks will be initialized from project configuration.",
+                RuntimeWarning,
+            )
+    pdn_core = IntegratedPDN(inst, v2sim_config, pout, state=pdn_state)
     inst._integrated_pdn = pdn_core
     plgman = PluginMan(plgfile, pout, inst, plg_pool, disabled_plugins, plugin_state)
 
@@ -533,6 +555,12 @@ class V2SimInstance:
         '''Save the current state of the simulation'''
         p = Path(folder) if isinstance(folder, str) else folder
         self.__inst.save(p)
+        with gzip.open(p / PDN_FILE, "wb") as f:
+            pickle.dump({
+                "obj": self.__pdn_core._save_state(),
+                "version": PyVersion(),
+                "pickler": pickle.__name__
+            }, f)
         with gzip.open(p / PLUGINS_FILE, "wb") as f:
             pickle.dump({
                 "obj": self.__plgman.SaveStates(),
@@ -702,6 +730,7 @@ __all__ = [
     "V2SimInstance",
     "MsgPack",
     "PLUGINS_FILE",
+    "PDN_FILE",
     "RESULTS_FOLDER",
     "TRIP_EVENT_LOG",
     "SIM_INFO_LOG",

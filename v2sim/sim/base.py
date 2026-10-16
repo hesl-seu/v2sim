@@ -30,6 +30,16 @@ class StageLike(Protocol):
 
 class TrafficInst(ABC):
     _integrated_pdn: 'IntegratedPDN'
+
+    def __getstate__(self):
+        # UXSim pickles the traffic instance. The core is persisted separately;
+        # do not reach its solver, hooks or log handles through grid closures.
+        state = self.__dict__.copy()
+        pdn = state.pop("_integrated_pdn", None)
+        if pdn is not None:
+            state["_pdn"] = pdn._grid_state()
+        return state
+
     def __init__(
         self, start_time: int, step_len: int, end_time: int, roadnet:RoadNet, 
         trip_logger: TripLogger, vehs: VDict, hubs: MixedHub, pdn: Grid,

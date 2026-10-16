@@ -11,13 +11,13 @@ Each station step follows one deterministic sequence:
 
 import math
 import os
-from copy import deepcopy
+from copy import copy, deepcopy
 from collections import defaultdict
 from itertools import chain
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
 
-from feasytools import ComFunc, RangeList, TimeImplictFunc
+from feasytools import ComFunc, ConstFunc, RangeList, TimeImplictFunc
 from fpowerkit import (
     Calculator,
     CombinedSolver,
@@ -179,7 +179,26 @@ class V2GDispatchCheck(TypedDict, total=False):
 class IntegratedPDN:
     """Core-owned PDN, smart-charging, and V2G dispatcher."""
 
-    def __init__(self, inst, config: V2SimConfig, res_dir: Path):
+    # Only simulation data belongs in a checkpoint. Solvers, hooks, trial
+    # caches and output handles are rebuilt for the new simulation instance.
+    _STATE_FIELDS = (
+        "badcnt", "last_solve_t", "last_periodic_solve_t", "last_apply_t",
+        "manual_fallback_active", "manual_fallback_reason", "manual_dispatch_dirty",
+        "last_manual_check", "manual_runtime_saturation_since_command",
+        "manual_runtime_last_saturation_time", "last_pb_e", "last_ps_e",
+        "station_price_snapshot", "bus_charge_pu", "bus_charge_qbase_pu",
+        "bus_v2g_qinj_pu", "bus_ratio", "max_reduce_prop_cs", "max_reduce_prop",
+        "v2g_cap", "v2g_dispatch", "v2g_gen_names", "v2g_opf_groups",
+        "manual_v2g_target",
+    )
+
+    def __init__(self, inst, config: V2SimConfig, res_dir: Path, state: Optional[dict] = None):
+        if state is not None:
+            self._validate_state(inst, config, state)
+            # Both backends must resume the saved grid, including ESS energy,
+            # switch positions and solved voltages/prices, rather than the
+            # freshly parsed project grid. Its loads have no core callbacks yet.
+            inst._pdn = deepcopy(state["grid"])
         self.__inst = inst
         self.__mode = config.charging_mode
         self.__gr: Grid = inst.pdn
@@ -286,7 +305,9 @@ class IntegratedPDN:
         self.__v2g_pf = 0.95
         self.__v2g_tan_phi = math.tan(math.acos(self.__v2g_pf))
 
+        self.__base_bus_loads = {}
         for b, css in self.__pds.items():
+            self.__base_bus_loads[b] = (self.__gr.Bus(b).Pd, self.__gr.Bus(b).Qd)
             load_p = TimeImplictFunc(self._create_bus_load_getter(b, False))
             load_qbase = TimeImplictFunc(self._create_bus_load_getter(b, True))
             v2g_qload = TimeImplictFunc(self._create_bus_v2g_qload_getter(b))
@@ -326,6 +347,112 @@ class IntegratedPDN:
 
         for cs in self.__v2g_stations:
             cs.set_integrated_v2g_mode(False)
+
+        if state is not None:
+            self._load_state(state)
+
+    @staticmethod
+    def _validate_state(inst, config: V2SimConfig, state: dict) -> None:
+        if not isinstance(state, dict) or state.get("format_version") != 1:
+            raise ValueError("Invalid or unsupported IntegratedPDN state")
+        if state["mode"] != config.charging_mode:
+            raise ValueError("IntegratedPDN charging mode differs from the saved state")
+        stations = [(cs.name, cs.bus) for cs in chain(inst.fcs, inst.scs)]
+        if state["stations"] != stations:
+            raise ValueError("IntegratedPDN stations differ from the saved state")
+        if state["time"] != inst.current_time:
+            raise ValueError("IntegratedPDN and traffic checkpoints have different times")
+
+    def _grid_state(self) -> Grid:
+        """Copy the physical grid without closures referring to this core.
+
+        Replacing objects in deepcopy's memo also preserves all grid adjacency
+        references. Nothing on the live grid or solver is temporarily modified.
+        """
+        memo: Dict[int, Any] = {}
+        for name, (pd, qd) in self.__base_bus_loads.items():
+            bus = self.__gr.Bus(name)
+            detached = copy(bus)
+            detached.Pd, detached.Qd = pd, qd
+            memo[id(bus)] = deepcopy(detached)
+        for names in self.__v2g_gen_names:
+            for name in names:
+                gen = self.__gr.Gen(name)
+                detached = copy(gen)
+                # Dynamic limits/costs are rebound to the restored core. Keep
+                # the solved outputs and bid price used by held-dispatch logs.
+                detached.CostB = ConstFunc(0.0)
+                detached.Pmax = ConstFunc(0.0)
+                memo[id(gen)] = deepcopy(detached)
+        return deepcopy(self.__gr, memo)
+
+    def _save_state(self) -> dict:
+        """Return a detached, serializable PDN checkpoint shared by both backends."""
+        if self.__policy_opf_trial_active:
+            raise RuntimeError("Cannot checkpoint IntegratedPDN during an OPF trial")
+        est = self.__sol.est
+        return {
+            "format_version": 1,
+            "time": self.__inst.current_time,
+            "mode": self.__mode,
+            "stations": [(cs.name, cs.bus) for cs in self.__v2g_stations],
+            "grid": self._grid_state(),
+            "last_ok": self.last_ok,
+            "runtime": deepcopy({
+                name: getattr(self, "_IntegratedPDN__" + name)
+                for name in self._STATE_FIELDS
+            }),
+            # Bid blocks contain live EV references: store IDs and rebind to
+            # the traffic checkpoint's EVs, never deserialize a second fleet.
+            "bid_blocks": [
+                [(b.ev.name, b.price, b.user_price, b.quantity) for b in blocks]
+                for blocks in self.__v2g_bid_blocks
+            ],
+            "station_modes": [cs._integrated_v2g_mode for cs in self.__v2g_stations],
+            "reductions": {
+                bus: lim.Reduction for bus, lim in est.DecBuses.items()
+            } if isinstance(est, LRSolverBase) else {},
+            "islands": {
+                tuple(sorted(il.Buses)): (il.result, il.result_value)
+                for il in est.Islands
+            },
+            "estimator": deepcopy({
+                attr: getattr(est, attr)
+                for attr in ("_DistFlowSolver__il_relax", "_ofbuses", "_oflines")
+                if hasattr(est, attr)
+            }),
+        }
+
+    def _load_state(self, state: dict) -> None:
+        """Restore data after constructing fresh solver and load callbacks."""
+        for name in self._STATE_FIELDS:
+            setattr(self, "_IntegratedPDN__" + name, deepcopy(state["runtime"][name]))
+        self.last_ok = state["last_ok"]
+        self.__v2g_bid_blocks = [
+            [V2GBidBlock(self.__inst.vehs[ev], price, user_price, quantity)
+             for ev, price, user_price, quantity in blocks]
+            for blocks in state["bid_blocks"]
+        ]
+        for cs, enabled in zip(self.__v2g_stations, state["station_modes"]):
+            cs.set_integrated_v2g_mode(enabled)
+        for i, names in enumerate(self.__v2g_gen_names):
+            for j, name in enumerate(names):
+                gen = self.__gr.Gen(name)
+                gen.CostB = ComFunc(self._v2g_bid_cost_getter(i, j))
+                gen.Pmax = ComFunc(self._v2g_bid_cap_getter(i, j))
+
+        est = self.__sol.est
+        if isinstance(est, LRSolverBase):
+            for bus, reduction in state["reductions"].items():
+                if bus in est.DecBuses:
+                    est.DecBuses[bus].Reduction = reduction
+        for il in est.Islands:
+            result = state["islands"].get(tuple(sorted(il.Buses)))
+            if result is not None:
+                il.result, il.result_value = result
+        for attr, value in state["estimator"].items():
+            if hasattr(est, attr):
+                setattr(est, attr, deepcopy(value))
 
     def _create_bus_load_getter(self, bus: str, reactive_base: bool):
         def _sumP():

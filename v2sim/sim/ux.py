@@ -582,28 +582,31 @@ class TrafficUX(TrafficInst):
         tmpTL = self._log
         del self._log
         del self.W
-        with gzip.open(f / TRAFFIC_INST_FILE_NAME, "wb") as f:
-            pickle.dump({
-                "obj": self,
-                "version": PyVersion(),
-                "pickler": pickle.__name__,
-            }, f)
-        self.W = tmpW
-        self._log = tmpTL
+        try:
+            with gzip.open(f / TRAFFIC_INST_FILE_NAME, "wb") as f:
+                pickle.dump({
+                    "obj": self,
+                    "version": PyVersion(),
+                    "pickler": pickle.__name__,
+                }, f)
+        finally:
+            self.W = tmpW
+            self._log = tmpTL
 
     def _save_obj(self):
         tmpW = self.W
         tmpTL = self._log
         del self._log
         del self.W
-        ret = pickle.dumps({
-            "obj": self,
-            "version": PyVersion(),
-            "pickler": pickle.__name__,
-        })
-        self.W = tmpW
-        self._log = tmpTL
-        return ret
+        try:
+            return pickle.dumps({
+                "obj": self,
+                "version": PyVersion(),
+                "pickler": pickle.__name__,
+            })
+        finally:
+            self.W = tmpW
+            self._log = tmpTL
     
     @staticmethod
     def _partial_load_unsafe(d:dict, tlogger:TripLogger) -> 'TrafficUX':
