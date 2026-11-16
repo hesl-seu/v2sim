@@ -34,6 +34,10 @@ from zipfile import ZipFile
 import base64
 import ssl
 import collections
+import time
+import http.client
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 from . import osmGet
 from . import osmBuild
@@ -189,10 +193,82 @@ class Builder(object):
                 osmArgs += ["-u", self.data["osmMirror"]]
             if 'roadTypes' in self.data:
                 osmArgs += ["-r", json.dumps(self.data["roadTypes"])]
-            osmGet.get(osmArgs)
+            
+            # Retry transient Overpass/network failures.
+            # osmGet.get() may print an HTTP 504 error and return
+            # without raising an exception.
+            retryable_network_errors = (
+                ssl.SSLEOFError,
+                ConnectionResetError,
+                ConnectionAbortedError,
+                TimeoutError,
+                http.client.RemoteDisconnected,
+            )
 
-        if not os.path.exists(self.files["osm"]):
-            raise RuntimeError("Download failed: %s not found." % self.files["osm"])
+            max_attempts = 3
+
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    # Remove incomplete output from previous attempts.
+                    if os.path.exists(self.files["osm"]):
+                        os.remove(self.files["osm"])
+
+                    osmGet.get(osmArgs)
+
+                    # osmGet may return normally even when Overpass
+                    # responded with HTTP 429/502/503/504.
+                    if (
+                        not os.path.isfile(self.files["osm"])
+                        or os.path.getsize(self.files["osm"]) == 0
+                    ):
+                        raise RuntimeError(
+                            "Overpass did not produce an OSM file "
+                            "(possible HTTP 429/502/503/504 "
+                            "or server timeout)."
+                        )
+
+                    # Download succeeded.
+                    break
+
+                except retryable_network_errors + (RuntimeError,) as exc:
+                    # Do not retry unrelated RuntimeErrors.
+                    if (
+                        isinstance(exc, RuntimeError)
+                        and not str(exc).startswith(
+                            "Overpass did not produce an OSM file"
+                        )
+                    ):
+                        raise
+
+                    if attempt == max_attempts:
+                        raise RuntimeError(
+                            "OSM download failed after %d attempts: %s "
+                            "Try a smaller map area, disable polygon data, "
+                            "or configure another available Overpass mirror."
+                            % (max_attempts, exc)
+                        ) from exc
+
+                    delay = 5 * (3 ** (attempt - 1))
+
+                    print(
+                        "OSM download attempt %d/%d failed: %s "
+                        "Retrying in %ds..."
+                        % (attempt, max_attempts, exc, delay)
+                    )
+
+                    # Do not call self.report() here because it
+                    # changes the frontend progress counter.
+                    time.sleep(delay)
+
+        if (
+            not os.path.isfile(self.files["osm"])
+            or os.path.getsize(self.files["osm"]) == 0
+        ):
+            raise RuntimeError(
+                "Download failed: %s not found or empty."
+                % self.files["osm"]
+            )
+
 
         options = ["-f", self.files["osm"], "-p", self.prefix, "-d", self.tmp, "-z"]
 
@@ -517,6 +593,17 @@ def get_options(args=None):
     return parser.parse_args(args)
 
 
+
+def start_wizard_http_server(web_root):
+    """Serve the wizard UI from localhost so OSM tiles receive a Referer."""
+    handler = partial(SimpleHTTPRequestHandler,directory=web_root)
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0),handler)
+    thread = threading.Thread(target=httpd.serve_forever,daemon=True)
+    thread.start()
+
+    return httpd
+
+
 def main(options):
     OSMImporterWebSocket.local = options.testOutputDir is not None or not options.remote
     OSMImporterWebSocket.outputDir = options.outputDir
@@ -546,22 +633,50 @@ def main(options):
         builder.build()
         builder.makeConfigFile()
         if not options.remote:
-            subprocess.call([sumolib.checkBinary("sumo"), "-c", builder.files["config"]])
+            subprocess.call([sumolib.checkBinary("sumo"), "-c", builder.files["config"]])   
     else:
-        if not options.remote:
-            path = os.path.dirname(os.path.realpath(__file__))
-            # on Linux Firefox refuses to open files in /usr/ #16086
-            if os.name != "nt" and not path.startswith(os.path.expanduser('~')):
-                new_path = os.path.expanduser('~/Sumo')
-                wizard_path = os.path.join(new_path, 'webWizard')
-                if not os.path.exists(wizard_path):
-                    os.makedirs(new_path, exist_ok=True)
-                    shutil.copytree(os.path.join(path, "webWizard"), wizard_path)
-                path = new_path
-            webbrowser.open("file://" + os.path.join(path, "webWizard", "index.html"))
+        # Keep the original WebSocket API.
+        # Bind local connections to IPv4 to match the HTTP page.
+        ws_address = options.address or (
+            "" if options.remote else "127.0.0.1"
+        )
 
-        server = SimpleWebSocketServer(options.address, options.port, OSMImporterWebSocket)
-        server.serveforever()
+        server = SimpleWebSocketServer(
+            ws_address,
+            options.port,
+            OSMImporterWebSocket
+        )
+
+        httpd = None
+
+        try:
+            if not options.remote:
+                web_root = os.path.join(
+                    THIS_DIR,
+                    "webWizard"
+                )
+
+                # Start local HTTP server on an available port.
+                httpd = start_wizard_http_server(web_root)
+
+                http_port = httpd.server_address[1]
+
+                url = (
+                    "http://127.0.0.1:%s/index.html"
+                    % http_port
+                )
+
+                print("OSM Web Wizard: %s" % url)
+
+                webbrowser.open(url)
+
+            # Preserve existing WebSocket communication.
+            server.serveforever()
+
+        finally:
+            if httpd is not None:
+                httpd.shutdown()
+                httpd.server_close()
 
 
 if __name__ == "__main__":
