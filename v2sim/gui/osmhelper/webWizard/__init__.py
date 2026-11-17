@@ -14,4 +14,4 @@
 # @author  Michael Behrisch
 # @date    2015-12-02
 
-from . import SimpleWebSocketServer  # noqa
+"""Static assets for V2Sim OSM Web Wizard (served by the HTTP API)."""

@@ -26,17 +26,17 @@ import traceback
 import webbrowser
 import datetime
 import json
+import math
 import threading
 import subprocess
 import tempfile
 import shutil
 from zipfile import ZipFile
-import base64
 import ssl
 import collections
 import time
-import http.client
-from functools import partial
+import uuid
+from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 from . import osmGet
@@ -44,7 +44,6 @@ from . import osmBuild
 from . import ptlines2flows
 from . import tileGet
 import sumolib
-from .webWizard.SimpleWebSocketServer import SimpleWebSocketServer, WebSocket
 
 SUMO_HOME = os.environ.get("SUMO_HOME", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -185,90 +184,29 @@ class Builder(object):
             # fixed input testing mode
             self.files["osm"] = self.data['osm']
         else:
-            self.report("Downloading map data")
-            osmArgs = ["-b=" + (",".join(map(str, self.data["coords"]))), "-p", self.prefix, "-d", self.tmp, "-z"]
-            if self.data["poly"]:
-                osmArgs.append("--shapes")
-            if 'osmMirror' in self.data:
-                osmArgs += ["-u", self.data["osmMirror"]]
-            if 'roadTypes' in self.data:
-                osmArgs += ["-r", json.dumps(self.data["roadTypes"])]
-            
-            # Retry transient Overpass/network failures.
-            # osmGet.get() may print an HTTP 504 error and return
-            # without raising an exception.
-            retryable_network_errors = (
-                ssl.SSLEOFError,
-                ConnectionResetError,
-                ConnectionAbortedError,
-                TimeoutError,
-                http.client.RemoteDisconnected,
-            )
+            source = self.data.get("osmSource", "overpass")
+            if source == "pbf":
+                self.report("Extracting selected region from local OSM PBF")
+                osmGet.extract_pbf(
+                    self.data["pbfPath"], self.data["coords"], self.files["osm"],
+                    progress=self.report,
+                    progress_event=getattr(self, "partition_progress", None),
+                )
+            else:
+                self.report("Downloading map data")
+                osmArgs = ["-b=" + (",".join(map(str, self.data["coords"]))), "-p", self.prefix, "-d", self.tmp, "-z"]
+                osmArgs += ["--tile-size-km", str(self.data.get("tileSizeKm", 5))]
+                if self.data["poly"]:
+                    osmArgs.append("--shapes")
+                if 'osmMirror' in self.data:
+                    osmArgs += ["-u", self.data["osmMirror"]]
+                if 'roadTypes' in self.data:
+                    osmArgs += ["-r", json.dumps(self.data["roadTypes"])]
+                osmGet.get(osmArgs, progress=self.report,
+                           progress_event=getattr(self, "partition_progress", None))
 
-            max_attempts = 3
-
-            for attempt in range(1, max_attempts + 1):
-                try:
-                    # Remove incomplete output from previous attempts.
-                    if os.path.exists(self.files["osm"]):
-                        os.remove(self.files["osm"])
-
-                    osmGet.get(osmArgs)
-
-                    # osmGet may return normally even when Overpass
-                    # responded with HTTP 429/502/503/504.
-                    if (
-                        not os.path.isfile(self.files["osm"])
-                        or os.path.getsize(self.files["osm"]) == 0
-                    ):
-                        raise RuntimeError(
-                            "Overpass did not produce an OSM file "
-                            "(possible HTTP 429/502/503/504 "
-                            "or server timeout)."
-                        )
-
-                    # Download succeeded.
-                    break
-
-                except retryable_network_errors + (RuntimeError,) as exc:
-                    # Do not retry unrelated RuntimeErrors.
-                    if (
-                        isinstance(exc, RuntimeError)
-                        and not str(exc).startswith(
-                            "Overpass did not produce an OSM file"
-                        )
-                    ):
-                        raise
-
-                    if attempt == max_attempts:
-                        raise RuntimeError(
-                            "OSM download failed after %d attempts: %s "
-                            "Try a smaller map area, disable polygon data, "
-                            "or configure another available Overpass mirror."
-                            % (max_attempts, exc)
-                        ) from exc
-
-                    delay = 5 * (3 ** (attempt - 1))
-
-                    print(
-                        "OSM download attempt %d/%d failed: %s "
-                        "Retrying in %ds..."
-                        % (attempt, max_attempts, exc, delay)
-                    )
-
-                    # Do not call self.report() here because it
-                    # changes the frontend progress counter.
-                    time.sleep(delay)
-
-        if (
-            not os.path.isfile(self.files["osm"])
-            or os.path.getsize(self.files["osm"]) == 0
-        ):
-            raise RuntimeError(
-                "Download failed: %s not found or empty."
-                % self.files["osm"]
-            )
-
+        if not os.path.isfile(self.files["osm"]) or os.path.getsize(self.files["osm"]) == 0:
+            raise RuntimeError("OSM download returned no data: %s" % self.files["osm"])
 
         options = ["-f", self.files["osm"], "-p", self.prefix, "-d", self.tmp, "-z"]
 
@@ -478,7 +416,7 @@ class Builder(object):
         subprocess.run([sys.executable, exec_dir, "-d", str(case_dir)])
 
     def createZip(self):
-        """Create a zip file with everything inside which SUMO GUI needs, returns it base64 encoded"""
+        """Create a ZIP archive and return its filesystem path."""
 
         self.report("Building zip file")
 
@@ -503,11 +441,7 @@ class Builder(object):
             for name in files:
                 zipfile.write(name)
 
-        # now open the zip file as raw
-        with open(self.files["zip"], "rb") as zipfile:
-            content = zipfile.read()
-
-        return base64.b64encode(content)
+        return self.files["zip"]
 
     def finalize(self):
         assert self.tmp is not None
@@ -517,58 +451,252 @@ class Builder(object):
             pass
 
 
-class OSMImporterWebSocket(WebSocket):
+class BuildJob:
+    """State for one scenario build, read by the HTTP polling endpoint."""
 
-    local = False
-    outputDir = None
+    def __init__(self):
+        self.id = uuid.uuid4().hex
+        self.state = "running"
+        self.messages = []
+        self.error = None
+        self.zip_path = None
+        self.builder = None
+        self.created = time.monotonic()
+        self.thread = None
+        self.lock = threading.Lock()
+        self.partition = None
+
+    def update_partition(self, event):
+        """Expose a consistent snapshot of adaptive partition download progress."""
+        with self.lock:
+            self.partition = dict(event)
 
     def report(self, message):
-        print(message)
-        self.sendMessage(u"report " + message)
-        # number of remaining steps
-        self.steps -= 1
+        print(message, flush=True)
+        with self.lock:
+            self.messages.append(str(message))
 
-    def handleMessage(self):
-        data = json.loads(self.data)
+    def snapshot(self):
+        with self.lock:
+            return {
+                "id": self.id,
+                "state": self.state,
+                "messages": list(self.messages),
+                "partition": dict(self.partition) if self.partition else None,
+                "error": self.error,
+                "download_url": "/api/jobs/%s/download" % self.id if self.zip_path else None,
+            }
 
-        thread = threading.Thread(target=self.build, args=(data,))
-        thread.start()
 
-    def build(self, data):
-        if self.outputDir is not None:
-            data['outputDir'] = self.outputDir
-        builder = Builder(data, self.local)
-        builder.report = self.report
+class BuildManager:
+    """Serialize builds because legacy SUMO helpers change process working directory."""
 
-        self.steps = len(data["vehicles"]) + 4
-        self.sendMessage(u"steps %s" % self.steps)
+    def __init__(self, local, output_dir):
+        self.local = local
+        self.output_dir = output_dir
+        self.current = None
+        self.lock = threading.Lock()
 
+    def start(self, data):
+        with self.lock:
+            if self.current and (self.current.state == "running" or
+                                 (self.current.thread is not None and self.current.thread.is_alive())):
+                return None
+            if self.current and self.current.zip_path:
+                self.current.builder.finalize()
+            job = BuildJob()
+            self.current = job
+            thread = threading.Thread(target=self._run, args=(job, data), daemon=True)
+            job.thread = thread
+            thread.start()
+            return job
+
+    def get(self, job_id):
+        with self.lock:
+            if self.current and self.current.id == job_id:
+                return self.current
+        return None
+
+    def _run(self, job, data):
+        builder = None
         try:
+            if self.output_dir is not None:
+                data["outputDir"] = self.output_dir
+                data["outputDirExistOk"] = True
+            builder = Builder(data, self.local)
+            job.builder = builder
+            builder.report = job.report
+            builder.partition_progress = job.update_partition
             builder.build()
             builder.makeConfigFile()
-
             if self.local:
                 builder.openV2Sim()
             else:
-                data = builder.createZip()
+                job.zip_path = builder.createZip()
+            job.report("Scenario completed")
+            with job.lock:
+                job.state = "completed"
+        except Exception as exc:
+            traceback.print_exc()
+            with job.lock:
+                job.state = "failed"
+                job.error = str(exc)
+            job.report("Error: %s" % exc)
+            if builder is not None and not self.local:
                 builder.finalize()
+        finally:
+            # Avoid restoring cwd while another job is running; manager serializes jobs.
+            if builder is not None:
+                os.chdir(builder.origDir)
 
-                self.sendMessage(b"zip " + data)
-        except ssl.CertificateError:
-            self.report("Error with SSL certificate, try 'pip install -U certifi'.")
-        except Exception as e:
-            print(traceback.format_exc())
-            # reset 'Generate Scenario' button
-            while self.steps > 0:
-                self.report(str(e) + " Recovering")
-            assert builder.tmp is not None
-            if os.path.isdir(builder.tmp) and not os.listdir(builder.tmp):
-                os.rmdir(builder.tmp)
-        os.chdir(builder.origDir)
+
+def validate_build_request(data):
+    """Validate browser input before creating files or network requests."""
+    if not isinstance(data, dict):
+        raise ValueError("Expected a JSON object")
+    coords = data.get("coords")
+    if not isinstance(coords, list) or len(coords) != 4:
+        raise ValueError("coords must be [west, south, east, north]")
+    try:
+        west, south, east, north = [float(v) for v in coords]
+    except (ValueError, TypeError) as exc:
+        raise ValueError("Invalid bounding box coordinates") from exc
+    if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
+        raise ValueError("Invalid bounding box coordinates")
+    data["coords"] = [west, south, east, north]
+    tile_size = data.get("tileSizeKm", 5)
+    if type(tile_size) not in (int, float) or not (0 <= tile_size <= 500) or not math.isfinite(tile_size):
+        raise ValueError("tileSizeKm must be between 0 and 500 km")
+    data["tileSizeKm"] = tile_size
+    source = data.get("osmSource", "overpass")
+    if source not in ("overpass", "pbf"):
+        raise ValueError("osmSource must be overpass or pbf")
+    data["osmSource"] = source
+    if source == "pbf":
+        pbf_path = data.get("pbfPath")
+        if not isinstance(pbf_path, str) or not pbf_path.strip():
+            raise ValueError("Select a local .osm.pbf path")
+        pbf_path = os.path.abspath(os.path.expanduser(pbf_path.strip()))
+        if not pbf_path.lower().endswith(".osm.pbf"):
+            raise ValueError("Local input must have .osm.pbf extension")
+        if not os.path.isfile(pbf_path):
+            raise ValueError("PBF file does not exist: %s" % pbf_path)
+        data["pbfPath"] = pbf_path
+    else:
+        data.pop("pbfPath", None)
+    if not isinstance(data.get("vehicles"), dict):
+        raise ValueError("vehicles must be an object")
+    if not isinstance(data.get("roadTypes", {}), dict):
+        raise ValueError("roadTypes must be an object")
+    for field in ("poly", "publicTransport", "leftHand", "decal", "carOnlyNetwork"):
+        if not isinstance(data.get(field), bool):
+            raise ValueError("%s must be boolean" % field)
+    duration = data.get("duration")
+    if type(duration) is not int or not (0 <= duration <= 31_536_000):
+        raise ValueError("duration must be between 0 and 31536000 seconds")
+    # The browser must not select an arbitrary filesystem output directory.
+    data.pop("outputDir", None)
+    data.pop("outputDirExistOk", None)
+    return data
+
+
+class WizardHTTPHandler(SimpleHTTPRequestHandler):
+    """Single-origin HTTP API and static frontend, no WebSocket dependency."""
+
+    server_version = "V2SimWizard/2.0"
+    protocol_version = "HTTP/1.1"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=os.path.join(THIS_DIR, "webWizard"), **kwargs)
+
+    def end_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header("Cache-Control", "no-store" if self.path.startswith("/api/") else "no-cache")
+        super().end_headers()
+
+    def _json(self, status, payload):
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _same_origin(self):
+        origin = self.headers.get("Origin")
+        if origin is None:
+            return False
+        expected = "http://" + self.headers.get("Host", "")
+        return origin == expected
+
+    def do_POST(self):
+        if self.path != "/api/build":
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "Unknown endpoint"})
+        if not self._same_origin():
+            return self._json(HTTPStatus.FORBIDDEN, {"error": "Same-origin request required"})
+        if self.headers.get("Content-Type", "").split(";", 1)[0].strip() != "application/json":
+            return self._json(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": "Expected application/json"})
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return self._json(HTTPStatus.BAD_REQUEST, {"error": "Invalid body size"})
+        if not 0 < length <= 65536:
+            return self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "Request must be 1-65536 bytes"})
+        try:
+            data = validate_build_request(json.loads(self.rfile.read(length)))
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            return self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+        if data.get("osmSource") == "pbf" and not self.server.build_manager.local:
+            return self._json(HTTPStatus.FORBIDDEN, {"error": "Local PBF is available only in local wizard mode"})
+        job = self.server.build_manager.start(data)
+        if job is None:
+            return self._json(HTTPStatus.CONFLICT, {"error": "A build is already running"})
+        return self._json(HTTPStatus.ACCEPTED, {"job_id": job.id, "status_url": "/api/jobs/" + job.id})
+
+    def do_GET(self):
+        if self.path == "/api/health":
+            return self._json(HTTPStatus.OK, {"status": "ok", "version": 2})
+        if self.path.startswith("/api/jobs/"):
+            parts = self.path.split("/")
+            if len(parts) not in (4, 5):
+                return self._json(HTTPStatus.NOT_FOUND, {"error": "Unknown endpoint"})
+            job = self.server.build_manager.get(parts[3])
+            if job is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"error": "Unknown job"})
+            if len(parts) == 4:
+                return self._json(HTTPStatus.OK, job.snapshot())
+            if parts[4] == "download" and len(parts) == 5:
+                return self._download(job)
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "Unknown endpoint"})
+        if self.path.startswith("/api/"):
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "Unknown endpoint"})
+        if self.path == "/":
+            self.path = "/index.html"
+        return super().do_GET()
+
+    def _download(self, job):
+        with job.lock:
+            if job.state != "completed" or not job.zip_path:
+                return self._json(HTTPStatus.NOT_FOUND, {"error": "Archive unavailable"})
+            path = job.zip_path
+        if not os.path.isfile(path):
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "Archive missing"})
+        size = os.path.getsize(path)
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/zip")
+        self.send_header("Content-Disposition", 'attachment; filename="osm.zip"')
+        self.send_header("Content-Length", str(size))
+        self.end_headers()
+        try:
+            with open(path, "rb") as src:
+                shutil.copyfileobj(src, self.wfile)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
 
 def get_options(args=None):
-    parser = sumolib.options.ArgumentParser(description="OSM Web Wizard for SUMO - Websocket Server")
+    parser = sumolib.options.ArgumentParser(description="V2Sim OSM Web Wizard HTTP API")
     parser.add_argument("--remote", action="store_true",
                         help="In remote mode, SUMO GUI will not be automatically opened instead a zip file " +
                         "will be generated.")
@@ -579,9 +707,9 @@ def get_options(args=None):
     parser.add_argument("--bbox", help="bounding box to retrieve in geo coordinates west,south,east,north.")
     parser.add_argument("-o", "--output", dest="outputDir",
                         help="Write output to the given folder rather than creating a name based on the timestamp")
-    parser.add_argument("--address", default="", help="Address for the Websocket.")
+    parser.add_argument("--address", default="", help="HTTP bind address (default 127.0.0.1).")
     parser.add_argument("--port", type=int, default=8010,
-                        help="Port for the Websocket. Please edit script.js when using an other port than 8010.")
+                        help="HTTP server port (default 8010, use 0 for an available port).")
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="tell me what you are doing")
     parser.add_argument("-b", "--begin", default=0, type=sumolib.miscutils.parseTime,
                         help="Defines the begin time for the scenario.")
@@ -593,20 +721,7 @@ def get_options(args=None):
     return parser.parse_args(args)
 
 
-
-def start_wizard_http_server(web_root):
-    """Serve the wizard UI from localhost so OSM tiles receive a Referer."""
-    handler = partial(SimpleHTTPRequestHandler,directory=web_root)
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0),handler)
-    thread = threading.Thread(target=httpd.serve_forever,daemon=True)
-    thread.start()
-
-    return httpd
-
-
 def main(options):
-    OSMImporterWebSocket.local = options.testOutputDir is not None or not options.remote
-    OSMImporterWebSocket.outputDir = options.outputDir
     if options.testOutputDir is not None:
         demand = collections.defaultdict(dict)
         for mode in options.demand.split(","):
@@ -633,50 +748,28 @@ def main(options):
         builder.build()
         builder.makeConfigFile()
         if not options.remote:
-            subprocess.call([sumolib.checkBinary("sumo"), "-c", builder.files["config"]])   
+            subprocess.call([sumolib.checkBinary("sumo"), "-c", builder.files["config"]])
     else:
-        # Keep the original WebSocket API.
-        # Bind local connections to IPv4 to match the HTTP page.
-        ws_address = options.address or (
-            "" if options.remote else "127.0.0.1"
-        )
-
-        server = SimpleWebSocketServer(
-            ws_address,
-            options.port,
-            OSMImporterWebSocket
-        )
-
-        httpd = None
-
+        address = options.address or "127.0.0.1"
+        if address not in ("127.0.0.1", "localhost", "::1"):
+            print("WARNING: HTTP API exposed beyond loopback; use a trusted network only.", file=sys.stderr)
+        manager = BuildManager(local=not options.remote, output_dir=options.outputDir)
+        httpd = ThreadingHTTPServer((address, options.port), WizardHTTPHandler)
+        httpd.daemon_threads = True
+        httpd.build_manager = manager
+        host = "127.0.0.1" if address in ("127.0.0.1", "localhost", "0.0.0.0") else address
+        if ":" in host and not host.startswith("["):
+            host = "[" + host + "]"
+        url = "http://%s:%s/" % (host, httpd.server_port)
+        print("OSM Web Wizard: %s" % url, flush=True)
+        if not options.remote:
+            webbrowser.open(url)
         try:
-            if not options.remote:
-                web_root = os.path.join(
-                    THIS_DIR,
-                    "webWizard"
-                )
-
-                # Start local HTTP server on an available port.
-                httpd = start_wizard_http_server(web_root)
-
-                http_port = httpd.server_address[1]
-
-                url = (
-                    "http://127.0.0.1:%s/index.html"
-                    % http_port
-                )
-
-                print("OSM Web Wizard: %s" % url)
-
-                webbrowser.open(url)
-
-            # Preserve existing WebSocket communication.
-            server.serveforever()
-
+            httpd.serve_forever(poll_interval=0.25)
+        except KeyboardInterrupt:
+            pass
         finally:
-            if httpd is not None:
-                httpd.shutdown()
-                httpd.server_close()
+            httpd.server_close()
 
 
 if __name__ == "__main__":

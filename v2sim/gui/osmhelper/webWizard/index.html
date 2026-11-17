@@ -1,13 +1,13 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
     <head>
         <title>OSM Web Wizard for V2Sim</title>
         <meta charset="utf-8" />
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
         <link rel="stylesheet" href="style.css" />
         <link rel="shortcut icon" type="image/x-icon" href="images/favicon.ico" />
-        <script type="text/javascript" src="lib.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/openlayers/2.13.1/OpenLayers.js"></script>
-        <script type="text/javascript" src="jquery-3.5.1.min.js"></script>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
         <script type="text/javascript" src="script.js"></script>
     </head>
     <body>
@@ -59,6 +59,24 @@
                     <div class="options open" id="general-options">
                         <label>Duration <input id="duration" type="number" value="172800" min="0" step="1" style="float: none;" /></label>
                         <label>Add Polygons <input id="polygons" type="checkbox" checked /></label>
+                        <label class="source-option">OSM data source
+                            <select id="osm-source" title="Choose online Overpass or offline local PBF">
+                                <option value="overpass" selected>Overpass API (online)</option>
+                                <option value="pbf">Local .osm.pbf (offline)</option>
+                            </select>
+                        </label>
+                        <label id="pbf-path-row" class="source-option" hidden>Local PBF file path
+                            <input type="text" id="pbf-path" placeholder="D:\OSM\region-latest.osm.pbf" spellcheck="false" autocomplete="off" />
+                            <small>The path must exist on the computer running V2Sim. Requires osmium-tool.</small>
+                        </label>
+                        <label id="partition-option">OSM partition size
+                            <select id="tile-size-km" title="Serial Overpass requests, 1 second apart">
+                                <option value="2">2 km (dense city)</option>
+                                <option value="5" selected>5 km (recommended)</option>
+                                <option value="10">10 km (fewer requests)</option>
+                                <option value="0">No partition (legacy)</option>
+                            </select>
+                        </label>
                         <!--label>Import Public Transport <input id="publicTransport" type="checkbox" /></label-->
                         <label>Car-only Network <input id="carOnlyNetwork" type="checkbox" checked /></label>
                         <label>Satellite background <input id="decal" type="checkbox" /></label>
@@ -128,9 +146,17 @@
 
             <div id="fixed">
                 <button id="export-button">Generate Scenario</button>
-                <div id="status">
-                    <span></span>
-                    <div></div>
+                <div id="status" role="status" aria-live="polite">
+                    <div class="status-heading">
+                        <span id="status-message">Preparing…</span>
+                        <strong id="partition-count" hidden>0 / 0</strong>
+                    </div>
+                    <div id="status-progress-track" class="progress-track" role="progressbar"
+                         aria-label="OSM partition download progress" aria-valuemin="0"
+                         aria-valuemax="100" aria-valuenow="0">
+                        <div id="status-progress-fill" class="progress-fill"></div>
+                    </div>
+                    <div id="status-detail" class="status-detail">Waiting for task</div>
                 </div>
             </div>
         </div>

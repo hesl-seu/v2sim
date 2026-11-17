@@ -1,51 +1,52 @@
-on("ready", function(){
-    var PORT = "8010";
+document.addEventListener("DOMContentLoaded", function () {
+    const elem = (selector, props) => {
+        if (selector.startsWith("<") && selector.endsWith(">")) {
+            const node = document.createElement(selector.slice(1, -1));
+            if (props) Object.assign(node, props);
+            return node;
+        }
+        return document.querySelector(selector);
+    };
+    const elems = selector => document.querySelectorAll(selector);
+    const lequal = (...values) => values.every((value, index) => index === 0 || values[index - 1] <= value);
 
-    function RoadTypes(){
-        this.init.apply(this, arguments);
-    }
 
-    RoadTypes.prototype = {
-        init: function (category, typeList, checked = false) {
+    class RoadTypes {
+        constructor(category, typeList, checked = false) {
             this.category = category;
             this.typeList = typeList;
 
-            var node = elem("<div>", {className: "container"});
-            var header = elem("<h4>", {textContent: category});
-            var checkbox = elem("<input>",{type: "checkbox", checked:checked, className: "checkAll", id: category.toLowerCase()});
-            node.append(header);
-            node.append(checkbox);
+            const node = elem("<div>", {className: "container"});
+            node.append(elem("<h4>", {textContent: category}));
+            node.append(elem("<input>", {
+                type: "checkbox", checked, className: "checkAll", id: category.toLowerCase()
+            }));
 
-            var types = elem("<div>", {className: "roadTypes " + category.toLowerCase()});
-            var label = elem("<label>");
-
-            for (var i = 0; i < typeList.length; i++) {
-                label = elem("<label>", {textContent: typeList[i]});
-                let roadTypeId = this.category + "_" + typeList[i]
-                this.roadTypeCheck = elem("<input>",{type: "checkbox", checked:checked, id: roadTypeId});
-
-                label.append(this.roadTypeCheck);
+            const types = elem("<div>", {className: "roadTypes " + category.toLowerCase()});
+            for (const roadType of typeList) {
+                const label = elem("<label>", {textContent: roadType});
+                label.append(elem("<input>", {
+                    type: "checkbox", checked, id: `${category}_${roadType}`
+                }));
                 types.append(label);
             }
-
             node.append(types);
             elem("#road-types").append(node);
-        },
+        }
 
-        getEnabledTypeList: function () {
-            var retEnabledTypeList = [];
-            for (var j = 0; j < this.typeList.length; j++) {
-                var roadTypeId = this.category + "_" + this.typeList[j];
-                if (document.getElementById(roadTypeId).checked) {
-                    retEnabledTypeList.push(this.typeList[j]);
-                    if (this.typeList[j].match(/^(motorway|trunk|primary|secondary|tertiary)$/)) {
-                        retEnabledTypeList.push(this.typeList[j] + "_link");
+        getEnabledTypeList() {
+            const enabled = [];
+            for (const roadType of this.typeList) {
+                if (document.getElementById(`${this.category}_${roadType}`).checked) {
+                    enabled.push(roadType);
+                    if (/^(motorway|trunk|primary|secondary|tertiary)$/.test(roadType)) {
+                        enabled.push(`${roadType}_link`);
                     }
                 }
             }
-            return retEnabledTypeList;
+            return enabled;
         }
-    };
+    }
 
     const categories = {};
     categories["Highway"] = ["motorway", "trunk", "primary","secondary", "tertiary", "unclassified", "residential",
@@ -99,7 +100,7 @@ on("ready", function(){
 
     elems(".tab").forEach(function(tab, index){
         tab.dataset.symbol = tab.textContent;
-        tab.on("click", function(){
+        tab.addEventListener("click", function(){
             openTab(index);
         });
     });
@@ -122,7 +123,7 @@ on("ready", function(){
     }
 
     setCanvasSize();
-    on("resize", setCanvasSize);
+    window.addEventListener("resize", setCanvasSize);
 
     /**
      * @function
@@ -149,10 +150,10 @@ on("ready", function(){
         area: null // if mouse button is down, and in which function; move or resize
     }
 
-    canvas.on("mousedown", function(evt){
+    canvas.addEventListener("mousedown", function(evt){
         mouse.area = changeMousePointer(evt.clientX, evt.clientY, true);
     });
-    canvas.on("mouseup", function(evt){
+    canvas.addEventListener("mouseup", function(evt){
         mouse.area = null;
         changeMousePointer(evt.clientX, evt.clientY);
     });
@@ -186,7 +187,7 @@ on("ready", function(){
         return cursor.match(/^([nsm])?([we])?/);
     }
 
-    canvas.on("mousemove", function(evt){
+    canvas.addEventListener("mousemove", function(evt){
         changeMousePointer(evt.clientX, evt.clientY);
         var dx = (evt.clientX - mouse.x) / canvas.width, dy = (evt.clientY - mouse.y) / canvas.height;
         mouse.x = evt.clientX;
@@ -257,7 +258,7 @@ on("ready", function(){
 
     var canvasToggle = elem("#canvas-toggle");
 
-    canvasToggle.on("click", toggleCanvas);
+    canvasToggle.addEventListener("click", toggleCanvas);
     toggleCanvas();
 
     // function to check or uncheck all checkboxes for a certain roadType
@@ -272,89 +273,57 @@ on("ready", function(){
         element.addEventListener("click", checkOrUncheckAll);
     });
 
-    // OSM map
-    // avoid cross domain resource sharing issues (#3991)
-    // (https://gis.stackexchange.com/questions/83953/openlayers-maps-issue-with-ssl)
-    var map = new OpenLayers.Map("map");
-    var maplayer = new OpenLayers.Layer.OSM("OpenStreetMap",
-    // Official OSM tileset as protocol-independent URLs
-    [
-        'https://tile.openstreetmap.org/${z}/${x}/${y}.png'
-    ], null);
-    map.addLayer(maplayer);
+    // Leaflet replaces the unsupported OpenLayers 2 API.
+    // OSM tile policy: HTTPS tiles, visible attribution, browser Referer and caching.
+    const map = L.map("map", {zoomControl: true, attributionControl: false})
+        .setView([39.904030, 116.407526], 16);
+    L.control.attribution({position: "bottomleft"}).addTo(map);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+    }).addTo(map);
 
     function setPosition(lon, lat){
-        if(!lon || !lat){
-            latLon = elem("#lat_lon").value.split(" ")
+        if (typeof lon !== "number" || typeof lat !== "number") {
+            const latLon = elem("#lat_lon").value.trim().split(/\s+/);
             lon = parseFloat(latLon[1]);
             lat = parseFloat(latLon[0]);
         } else {
             elem("#lat_lon").value = lat.toFixed(6) + " " + lon.toFixed(6);
         }
-
-        var leftHandBounds = [new OpenLayers.Bounds(-11,50,1,60), // British Isles
-                              new OpenLayers.Bounds(0.774536,50.986099,1.779785,53.146770), // British Isles (part2)
-                              new OpenLayers.Bounds(66, 3, 90, 30), // India, Pakistan
-                              new OpenLayers.Bounds(95, -45, 179, 2), // Australia, Indonesia
-                              new OpenLayers.Bounds(-20, -35, 40, -15), // Southern Africa
-                              new OpenLayers.Bounds(135, 30, 150, 42), // Japan
-                             ];
-        elem("#leftHand").checked = false;
-        for (var i = 0; i < leftHandBounds.length; i++) {
-            if (leftHandBounds[i].contains(lon, lat)) {
-                elem("#leftHand").checked = true;
-                break;
-            }
+        if (!Number.isFinite(lat) || !Number.isFinite(lon) ||
+            Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+            window.alert("Invalid coordinates. Use: latitude longitude");
+            return;
         }
 
-        var lonLat = new OpenLayers.LonLat(lon, lat);
-        lonLat.transform(
-            new OpenLayers.Projection("EPSG:4326"), // transform from WGS 1984
-            map.getProjectionObject() // to Spherical Mercator Projection
+        const leftHandBounds = [
+            [[50,-11],[60,1]], [[50.986099,0.774536],[53.146770,1.779785]],
+            [[3,66],[30,90]], [[-45,95],[2,179]],
+            [[-35,-20],[-15,40]], [[30,135],[42,150]]
+        ];
+        elem("#leftHand").checked = leftHandBounds.some(
+            bounds => L.latLngBounds(bounds).contains([lat, lon])
         );
+        map.setView([lat, lon], 16);
 
-        map.setCenter(lonLat, 16);
     }
 
-    function setPositionByString() {
-        query = elem("#address").value
-        $.ajax({
-        url: "https://nominatim.openstreetmap.org/search?q=" + query + "&format=json&polygon=0&addressdetails=0&limit=1&callback",
-        cache: false,
-        dataType: "json",
-            success: function(data) {
-                var result = data[0];
-                lon = parseFloat(result.lon);
-                lat = parseFloat(result.lat);
-                setPosition(lon, lat);
-            },
-            error: function (request, status, err) {
-                window.alert('Could not locate address: ' + err);
-            }
-        });
-    }
-
-    elem("#address").on("keyup", function(e){
-        if (e.keyCode == 13) {
-            setPositionByString();
+    async function setPositionByString() {
+        const query = elem("#address").value.trim();
+        if (!query) return;
+        try {
+            const url = new URL("https://nominatim.openstreetmap.org/search");
+            url.search = new URLSearchParams({q: query, format: "json", limit: "1"}).toString();
+            const response = await fetch(url, {headers: {"Accept": "application/json"}});
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const results = await response.json();
+            if (!results.length) throw new Error("No matching location");
+            setPosition(Number(results[0].lon), Number(results[0].lat));
+        } catch (error) {
+            window.alert("Could not locate address: " + error.message);
         }
-    });
-
-    var getJSON = function(url, callback) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.responseType = 'json';
-        xhr.onload = function() {
-          var status = xhr.status;
-          if (status == 200) {
-            callback(null, xhr.response);
-          } else {
-            callback(status);
-          }
-        };
-        xhr.send();
-    };
-
+    }
 
     // set default position to center Beijing
     setPosition(116.407526, 39.904030);
@@ -362,7 +331,7 @@ on("ready", function(){
      * @listener
      * set the coordinates of the map to current coordinates (got from browser)
      */
-    elem("#buttonCurrent").on("click", function(){
+    elem("#buttonCurrent").addEventListener("click", function(){
         if(!navigator.geolocation) return;
 
         navigator.geolocation.getCurrentPosition(function(position){
@@ -374,99 +343,155 @@ on("ready", function(){
      * @listener
      * whenever the input boxes changes, update the map coordinates
      */
-    elem("#buttonSearch").on("click", setPositionByString);
-    elem("#buttonLatLon").on("click", setPosition);
+    elem("#buttonSearch").addEventListener("click", setPositionByString);
+    elem("#buttonLatLon").addEventListener("click", setPosition);
 
     /**
      * @listener
      * whenever the map coordinates changes, update the input boxes
      */
-    map.events.register("move", map, function(){
-        var cor = map.getExtent();
-        cor.transform(
-            map.getProjectionObject(), // from Spherical Mercator Projection
-            new OpenLayers.Projection("EPSG:4326")
-        );
-        lat = (cor.top + (cor.bottom - cor.top) / 2);
-        lon = (cor.left + (cor.right - cor.left) / 2);
-
-        elem("#lat_lon").value = lat.toFixed(6) + " " + lon.toFixed(6);
+    map.on("moveend", function () {
+        const center = map.getCenter();
+        elem("#lat_lon").value = center.lat.toFixed(6) + " " + center.lng.toFixed(6);
     });
 
-    var socket;
-    var totalSteps;
-    var currentStep;
-    var presentedErrorLog = false;
+    const sourceChoice = elem("#osm-source");
+    const localPbfRow = elem("#pbf-path-row");
+    const partitionOption = elem("#partition-option");
+    function refreshSourceOptions() {
+        const isPbf = sourceChoice.value === "pbf";
+        localPbfRow.hidden = !isPbf;
+        partitionOption.hidden = isPbf;
+    }
+    sourceChoice.addEventListener("change", refreshSourceOptions);
+    refreshSourceOptions();
 
-    /**
-     * @function
-     * connects to the socket, when it fails it tries it again after five seconds
-     */
-    function connectSocket(){
-        var address = location.hostname;
-        // when accessing via file, location.hostname is an empty string, so guess that the server is on localhost
-        if(!address)
-            address = "localhost";
-        try {
-            socket = new WebSocket("ws://" + address + ":" + PORT);
-        } catch(e){
-            // connection failed, wait five seconds, then try again
-	    setTimeout(connectSocket, 5000);
-            return;
+    // Single-origin HTTP API. No WebSocket server, fixed port, or base64 ZIP.
+    let activeJob = null;
+    let pollController = null;
+    const exportButton = elem("#export-button");
+    const statusText = elem("#status-message");
+    const progressBar = elem("#status-progress-fill");
+    const progressTrack = elem("#status-progress-track");
+    const partitionCount = elem("#partition-count");
+    const progressDetail = elem("#status-detail");
+
+    function showProgress(job) {
+        const partition = job.partition;
+        const complete = job.state === "completed";
+        const failed = job.state === "failed";
+        const downloadInProgress = partition && partition.phase === "downloading";
+        const validTotal = partition && Number.isFinite(partition.total) && partition.total > 0;
+        const showPartition = Boolean(validTotal);
+        partitionCount.hidden = !showPartition;
+        progressTrack.classList.toggle("indeterminate", !complete && !failed && !downloadInProgress);
+        progressTrack.classList.toggle("failed", failed);
+        progressTrack.setAttribute("aria-label", downloadInProgress ? "OSM partition download progress" : "Scenario generation progress");
+        if (showPartition) {
+            const total = Math.max(1, partition.total);
+            const completed = Math.max(0, Math.min(total, partition.completed));
+            const current = Math.max(1, Math.min(total, partition.current));
+            partitionCount.textContent = `${downloadInProgress ? current : completed} / ${total}`;
+            const pct = Math.round(100 * completed / total);
+            progressBar.style.width = `${pct}%`;
+            progressTrack.setAttribute("aria-valuenow", String(pct));
+            progressDetail.textContent = downloadInProgress
+                ? `${completed} completed · ${total - completed} remaining${partition.detail ? " · " + partition.detail : ""}`
+                : (partition.phase === "merging" ? "Merging downloaded partitions…" :
+                   partition.phase === "finished" ? "OSM data ready · generating SUMO scenario…" :
+                   partition.detail || "Processing…");
+        } else {
+            partitionCount.textContent = "";
+            progressDetail.textContent = failed ? "Task failed" :
+                (partition && partition.detail ? partition.detail : "Preparing scenario…");
+            progressBar.style.width = complete ? "100%" : "0%";
+            progressTrack.setAttribute("aria-valuenow", complete ? "100" : "0");
         }
-
-	socket.onerror = function(error) {
-	    if (presentedErrorLog == false) {
-		window.alert("Socket connection failed. Please open the OSM WebWizard by using osmWebWizard.py or the link in your start menu.");
-		presentedErrorLog = true;
-	    }
-	};
-
-        // whenever the socket closes (e.g. restart) try to reconnect
-        socket.addEventListener("close", connectSocket);
-        socket.addEventListener("message", function(evt){
-            var message = evt.data;
-            // get the first space
-            var index = message.indexOf(" ");
-            // split the message type from the message
-            var type = message.substr(0, index);
-            message = message.substr(index + 1);
-
-            if(type === "zip"){
-                showZip(message);
-            } else if(type === "report"){
-                currentStep++;
-                elem("#status > span").textContent = message;
-                elem("#status > div").style.width = (100 * currentStep / totalSteps) + "%";
-
-                if(currentStep === totalSteps){
-                    setTimeout(function(){
-                        elem("#status").style.display = "none";
-                    elem("#export-button").style.display = "block";
-                    }, 2000);
-                }
-            } else if(type === "steps"){
-                totalSteps = parseInt(message);
-                currentStep = 0;
-            }
-        });
+        if (complete) {
+            progressTrack.classList.remove("indeterminate");
+            progressBar.style.width = "100%";
+            progressTrack.setAttribute("aria-valuenow", "100");
+            progressDetail.textContent = "Scenario completed";
+        } else if (failed) {
+            progressDetail.textContent = "Task failed · check error above";
+        }
     }
 
-    connectSocket();
+    async function apiJSON(url, options) {
+        const response = await fetch(url, {cache: "no-store", ...options});
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+        return body;
+    }
+
+    function setBuildState(running, message) {
+        exportButton.disabled = running;
+        exportButton.textContent = running ? "Generating…" : "Generate Scenario";
+        elem("#status").style.display = "block";
+        if (message) statusText.textContent = message;
+    }
+
+    async function watchJob(jobId) {
+        let seen = 0;
+        let failures = 0;
+        pollController = new AbortController();
+        const signal = pollController.signal;
+        while (!signal.aborted) {
+            try {
+                const job = await apiJSON(`/api/jobs/${encodeURIComponent(jobId)}`, {signal});
+                failures = 0;
+                const newMessages = job.messages.slice(seen);
+                seen = job.messages.length;
+                if (newMessages.length) statusText.textContent = newMessages[newMessages.length - 1];
+                if (job.partition && job.partition.phase === "downloading") {
+                    statusText.textContent = "Downloading OSM map";
+                } else if (job.partition && job.partition.phase === "merging") {
+                    statusText.textContent = "Merging OSM partitions";
+                }
+                showProgress(job);
+                if (job.state === "completed") {
+                    if (job.download_url) {
+                        const link = document.createElement("a");
+                        link.href = job.download_url;
+                        link.download = "osm.zip";
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                    }
+                    setBuildState(false, "Scenario completed");
+                    return;
+                }
+                if (job.state === "failed") {
+                    setBuildState(false, "Build failed: " + (job.error || "Unknown error"));
+                    return;
+                }
+            } catch (error) {
+                if (signal.aborted) return;
+                if (++failures >= 5) {
+                    setBuildState(false, "Cannot reach the server: " + error.message);
+                    return;
+                }
+            }
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+    }
 
     /**
      * @function
-     * generate and send the data to the websocket
+     * submit scenario data to the HTTP API
      */
-    function startBuild(){
-        var cor = map.getExtent();
-        cor.transform(
-            map.getProjectionObject(), // from Spherical Mercator Projection
-            new OpenLayers.Projection("EPSG:4326")
-        );
+    async function startBuild(){
+        const bounds = map.getBounds();
+        const cor = {
+            left: bounds.getWest(), right: bounds.getEast(),
+            top: bounds.getNorth(), bottom: bounds.getSouth()
+        };
 
         var data = {
             poly: elem("#polygons").checked,
+            tileSizeKm: Number(elem("#tile-size-km").value),
+            osmSource: sourceChoice.value,
+            ...(sourceChoice.value === "pbf" ? {pbfPath: elem("#pbf-path").value.trim()} : {}),
             duration: parseInt(elem("#duration").value),
             publicTransport: false, //elem("#publicTransport").checked,
             leftHand: elem("#leftHand").checked,
@@ -506,35 +531,34 @@ on("ready", function(){
             }
         });
 
-        try {
-            socket.send(JSON.stringify(data));
-        } catch(e){
+        if (activeJob) return;
+        if (data.osmSource === "pbf" && !data.pbfPath) {
+            setBuildState(false, "Please enter the local .osm.pbf path on the V2Sim computer.");
             return;
         }
-
-        elem("#status").style.display = "block";
-        elem("#export-button").style.display = "none";
+        setBuildState(true, "Submitting scenario…");
+        progressBar.style.width = "0%";
+        partitionCount.hidden = true;
+        partitionCount.textContent = "";
+        progressDetail.textContent = "Submitting scenario…";
+        progressTrack.classList.add("indeterminate");
+        progressTrack.classList.remove("failed");
+        try {
+            const result = await apiJSON("/api/build", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(data)
+            });
+            activeJob = result.job_id;
+            await watchJob(result.job_id);
+        } catch (error) {
+            setBuildState(false, "Build request failed: " + error.message);
+        } finally {
+            activeJob = null;
+        }
     }
 
-    elem("#export-button").on("click", startBuild);
+    elem("#export-button").addEventListener("click", startBuild);
 
-    /**
-     * @function
-     * @param uri: a base64-encoded string for a zip file
-     * shows a download dialog to save the zip file
-     */
-    function showZip(uri){
-        var url = "data:application/zip;base64," + uri;
-
-        // using a temporarily link to trigger the download dialog
-        var link = elem("<a>", {
-            download: "osm.zip",
-            href: url,
-            target: "_blank"
-        });
-
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
+    // ZIP downloads now use the authenticated same-origin HTTP endpoint.
 });
