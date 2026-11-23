@@ -189,12 +189,19 @@ class ScrollableTreeView(Frame):
         self.selected_item = self.tree.selection()[0]
         selected_row = self.tree.item(self.selected_item, "values")[0]
 
-        for i, col in enumerate(self.tree['columns']):
-            x, y, w, h = self.tree.bbox(self.selected_item, col)
-            assert isinstance(x, int) and isinstance(y, int) and isinstance(w, int) and isinstance(h, int)
+        # A Treeview may hide some columns using 'displaycolumns'. Resolve
+        # values by their original column ID, not their visible index.
+        columns = self.tree['columns']
+        visible = self.tree['displaycolumns']
+        if visible == '#all' or visible == ('#all',):
+            visible = columns
+        for col in visible:
+            bbox = self.tree.bbox(self.selected_item, col)
+            if not bbox: continue
+            x, y, w, h = bbox
             if x < e.x < x + w and y < e.y < y + h:
                 self.selected_column = col
-                text = self.tree.item(self.selected_item, 'values')[i]
+                text = self.tree.item(self.selected_item, 'values')[columns.index(col)]
                 break
         else:
             self.selected_column = None

@@ -153,6 +153,15 @@ class StationEditor(Frame):
 
         self.cslist:Sequence[BaseStation] = []
     
+    def setSimulator(self, is_sumo:bool):
+        """Adapt the visible columns without removing stored station data."""
+        self.tree.heading("Bind", text=_L["CSE_BIND_ROAD"] if is_sumo else _L["CSE_BIND_NODE"])
+        # Keep 'Pos' in the underlying values: the XML save format and the
+        # other columns' indices must remain unchanged in UXsim mode.
+        self.tree["displaycolumns"] = "#all" if is_sumo else tuple(
+            col for col in self.tree["columns"] if col != "Pos"
+        )
+
     @property
     def mode(self):
         return self.__mode

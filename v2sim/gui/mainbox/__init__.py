@@ -866,6 +866,14 @@ class MainBox(Tk):
         
         self.state = res = DetectFiles(self.folder)
 
+        # This load may only refresh downloaded station locations. Update the
+        # generation options of every editor, even when station XML is not reloaded.
+        for editor in (self.FCS_editor, self.SCS_editor):
+            editor.setCSCSV(bool(res.cscsv))
+        self.GS_editor.setCSCSV(bool(res.gscsv))
+        for editor in (self.FCS_editor, self.SCS_editor, self.GS_editor):
+            editor.setSimulator(is_sumo=bool(res.sumo))
+
         self.update()
 
         def setText(lb:Label, itm:str, must:bool = False):
@@ -1131,8 +1139,14 @@ class MainBox(Tk):
             self.lb_grid.config(text="None", foreground="red")
 
     def openFolder(self):
-        init_dir = Path("./cases")
-        if not init_dir.exists(): init_dir.mkdir(parents=True, exist_ok=True)
+        # Do not create project directories relative to the process working directory:
+        # it may be a protected location (e.g. Program Files on Windows).
+        init_dir = Path.home() / "v2sim_cases"
+        try:
+            init_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            showerr(f"Cannot access default project directory {init_dir}: {e}")
+            return
         folder = filedialog.askdirectory(initialdir=str(init_dir),mustexist=True,title="Select project folder")
         if folder:
             self.folder = str(Path(folder))

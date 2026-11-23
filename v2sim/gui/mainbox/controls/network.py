@@ -118,6 +118,7 @@ class NetworkPanel(Frame):
         self._pr = PropertyPanel(self, {}, ConfigItemDict())
         self._pr.tree.AfterFunc = self.__finish_edit
         self._pr.pack(side='right',anchor='e',fill=Y, expand=0)
+        self.__rnet_editable = False
         self.clear()
 
         if roadnet is not None:
@@ -128,7 +129,6 @@ class NetworkPanel(Frame):
         
         self.save_callback = save_callback
         self.__saved = True
-        self.__rnet_editable = False
     
     def check_pos(self, b: PositionBase):
         assert self._r is not None
@@ -239,10 +239,12 @@ class NetworkPanel(Frame):
                 If after is not None, this repaint operation will be done asynchronously.
         '''
         self._r = roadnet
+        # SUMO road geometry is read-only; UXsim geometry is editable.
+        # Set the policy before asynchronously rendering the new network.
+        self.__rnet_editable = not roadnet.is_from_sumo()
         self._world_colors = self._r.create_color_map()
-        if repaint: 
+        if repaint:
             self._draw_async(after=after, rebuild_road=True)
-        self.__rnet_editable = not self._r.is_from_sumo()
     
     @property
     def Enabled(self) -> bool:
@@ -270,6 +272,11 @@ class NetworkPanel(Frame):
     
     def _onLClick(self, event):
         if not self.__en: return
+        # Do not retain an editable object from the previous selection when a
+        # read-only SUMO road element (or empty canvas area) is selected.
+        self._item_editing = None
+        self._item_editing_id = -1
+        self._drag['item'] = None
         def _edit_id(typename:str, clicked_item:int) -> int:
             if typename.endswith("conn"): return clicked_item + 1
             elif typename.endswith("text"): return clicked_item + 2
@@ -520,8 +527,14 @@ class NetworkPanel(Frame):
         else: return s
     
     def __finish_edit(self):
-        ret = self._pr.getAllData()
         e = self._item_editing
+        # Property changes to a SUMO node/edge must never mutate the road net.
+        # This guard does not affect editing the electrical grid.
+        if isinstance(e, (Edge, Node)) and not self.__rnet_editable:
+            return
+        if e is None:
+            return
+        ret = self._pr.getAllData()
         i = self._item_editing_id
         road_geometry_changed = False
         
