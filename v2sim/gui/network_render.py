@@ -100,7 +100,11 @@ class RoadScene:
     @staticmethod
     def build(roadnet, world_colors: Optional[Mapping[int, str]] = None) -> "RoadScene":
         """Snapshot RoadNet geometry without invoking Tk from the worker thread."""
-        minx, miny, maxx, maxy = roadnet.getBoundary()
+        if roadnet.nodes:
+            minx, miny, maxx, maxy = roadnet.getBoundary()
+        else:
+            # An editor can remove the last UXsim node; an empty scene is valid.
+            minx = miny = maxx = maxy = 0.0
         # Scene Y is inverted once, matching Canvas coordinates before scaling.
         bounds = (float(minx), float(-maxy), float(maxx), float(-miny))
         diagonal = math.hypot(maxx - minx, maxy - miny)
@@ -128,6 +132,13 @@ class RoadScene:
             RoadNodeVisual(node.name, float(node.x), float(-node.y))
             for node in roadnet.nodes.values()
         ]
+        if nodes:
+            bounds = (
+                min(bounds[0], min(n.x for n in nodes)),
+                min(bounds[1], min(n.y for n in nodes)),
+                max(bounds[2], max(n.x for n in nodes)),
+                max(bounds[3], max(n.y for n in nodes)),
+            )
         if edges:
             bounds = (
                 min(bounds[0], min(edge.bbox[0] for edge in edges)),

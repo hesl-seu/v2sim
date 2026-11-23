@@ -279,10 +279,15 @@ class ScrollableTreeView(Frame):
         self.lb_save.config(text=_L["UNSAVED"],foreground="red")
 
     def tree_item_edit_done(self, e):
-        if self.delegate_widget and not isinstance(self.delegate_widget, Toplevel):
-            self.delegate_widget.place_forget()
+        # Only an actual open cell editor may commit a property change.
+        # Clearing/repopulating the table must not replay the previous edit.
+        if self.delegate_widget is None or not self.selected_item:
+            return
+        widget = self.delegate_widget
+        self.delegate_widget = None
+        if not isinstance(widget, Toplevel):
+            widget.place_forget()
         v = self.delegate_var.get()
-        if not self.selected_item: return
         try:
             line = self.tree.item(self.selected_item, 'values')
         except:
@@ -293,6 +298,7 @@ class ScrollableTreeView(Frame):
             self.tree.item(self.selected_item, text=v)
         else:
             self.tree.set(self.selected_item, self.selected_column, v)
+        self.selected_item = None
         if self.__onItemChanged: self.__onItemChanged()
     
     def __setitem__(self, key, val):

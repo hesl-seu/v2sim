@@ -50,7 +50,25 @@ class PropertyPanel(Frame):
         self.__desc_var = StringVar(self, _L["PROP_NODESC"])
         self.__desc = Label(self, textvariable=self.__desc_var, wraplength=300, justify="left")
         self.__desc.pack(fill="x", expand=False)
+        self._delete_handler = None
+        self.btn_delete = Button(self, text=_L["DELETE"], command=self._delete_selected)
+        self.btn_delete.configure(state='disabled')
         self.setData(data, edit_modes)
+
+    def set_delete_handler(self, handler):
+        self._delete_handler = handler
+        if handler is not None:
+            self.btn_delete.pack(side='bottom', anchor='e', padx=5, pady=5)
+        else:
+            self.btn_delete.pack_forget()
+        self.enable_delete(False)
+
+    def enable_delete(self, enabled):
+        self.btn_delete.configure(state='normal' if enabled and self._delete_handler else 'disabled')
+
+    def _delete_selected(self):
+        if self._delete_handler is not None:
+            self._delete_handler()
 
     def getAllData(self) -> Dict[str, str]:
         res:Dict[str, str] = {}

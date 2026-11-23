@@ -2,6 +2,8 @@ from v2sim.gui.common import *
 
 from dataclasses import dataclass
 from itertools import chain
+from copy import deepcopy
+from math import hypot
 from feasytools import SegFunc, ConstFunc, TimeFunc, RangeList
 from fpowerkit import Bus, Line, Generator, PVWind, ESS, ESSPolicy, Grid as fGrid, PositionBase
 from v2sim import RoadNet
@@ -14,6 +16,7 @@ GenLike = Union[Generator, PVWind, ESS]
 PointList = List[Tuple[float, float]]
 OESet = Optional[Set[str]]
 OAfter = Optional[Callable[[], None]]
+_L = LangLib.Load(__file__)
 
 def _removesuffix(s:str, suffix:str) -> str:
     if s.endswith(suffix):
@@ -104,20 +107,74 @@ class NetworkPanel(Frame):
         
         self._item_editing = None
         self._item_editing_id = -1
-        self._cv = Canvas(self, bg='white')
+        self._property_values = None
+        self._tool_mode = StringVar(self, value='select')
+        self._connect_start = None
+        self._preview_id = None
+        self._undo_stack = []
+        self._redo_stack = []
+        self._revision = self._next_revision = self._saved_revision = 0
+
+        self._toolbar = Frame(self)
+        self._toolbar.pack(side='top', fill=X)
+        # Two toolbar rows keep every action accessible on narrower windows.
+        self._primary_tools = Frame(self._toolbar)
+        self._primary_tools.pack(side='top', fill=X)
+        self._secondary_tools = Frame(self._toolbar)
+        self._secondary_tools.pack(side='top', fill=X)
+        self._btn_select = Radiobutton(self._primary_tools, text=_L['NET_SELECT'],
+            variable=self._tool_mode, value='select', style='Toolbutton',
+            command=self._on_tool_changed)
+        self._btn_grid_link = Radiobutton(self._primary_tools, text=_L['NET_GRID_LINE'],
+            variable=self._tool_mode, value='grid', style='Toolbutton',
+            command=self._on_tool_changed)
+        self._btn_road_link = Radiobutton(self._primary_tools, text=_L['NET_UX_ROAD'],
+            variable=self._tool_mode, value='road', style='Toolbutton',
+            command=self._on_tool_changed)
+        # A PV and a wind turbine are PVWind with different type tags.
+        self._device_buttons = {}
+        for mode, title in (
+            ('gen', 'NET_ADD_GEN'), ('pv', 'NET_ADD_PV'),
+            ('wind', 'NET_ADD_WIND'), ('ess', 'NET_ADD_ESS'),
+        ):
+            self._device_buttons[mode] = Radiobutton(
+                self._secondary_tools, text=_L[title], variable=self._tool_mode,
+                value=mode, style='Toolbutton', command=self._on_tool_changed)
+        for btn in (self._btn_select, self._btn_grid_link, self._btn_road_link):
+            btn.pack(side='left', padx=(4, 0), pady=3)
+        for btn in self._device_buttons.values():
+            btn.pack(side='left', padx=(4, 0), pady=3)
+        self._btn_undo = Button(self._secondary_tools, text=_L['NET_UNDO'], command=self.undo)
+        self._btn_redo = Button(self._secondary_tools, text=_L['NET_REDO'], command=self.redo)
+        self._btn_undo.pack(side='left', padx=(14, 2))
+        self._btn_redo.pack(side='left', padx=2)
+        # Keep the hint on its own row so adding equipment doesn't hide tools.
+        self._hint = Label(self, text=_L['NET_SELECT_HINT'])
+        self._hint.pack(side='top', fill=X, padx=8, pady=(0, 2))
+
+        self._cv = Canvas(self, bg='white', takefocus=True)
         self._cv.pack(side='left',anchor='center',fill=BOTH, expand=1)
         self._cv.bind("<MouseWheel>", self._onMouseWheel)
         self._cv.bind("<Button-1>", self._onLClick)
         self._cv.bind("<Button-3>", self._onRClick)
         self._cv.bind("<B1-Motion>", self._onMotion)
         self._cv.bind("<B3-Motion>", self._onMotion)
+        self._cv.bind("<Motion>", self._onPreviewMotion)
+        self._cv.bind("<Escape>", self._cancel_connection)
         self._cv.bind("<ButtonRelease-1>", self._onRelease)
         self._cv.bind("<ButtonRelease-3>", self._onRelease)
         self._cv.bind("<Configure>", self._onCanvasConfigure)
 
         self._pr = PropertyPanel(self, {}, ConfigItemDict())
         self._pr.tree.AfterFunc = self.__finish_edit
+        self._pr.set_delete_handler(self.delete_selected)
         self._pr.pack(side='right',anchor='e',fill=Y, expand=0)
+        # Only keys originating inside this panel are intercepted. Entry and
+        # combobox text editing retains its own native undo shortcuts.
+        self.bind_all('<Control-z>', self._on_undo_key, add='+')
+        self.bind_all('<Control-y>', self._on_redo_key, add='+')
+        self.bind_all('<Control-Z>', self._on_undo_key, add='+')
+        self.bind_all('<Control-Y>', self._on_redo_key, add='+')
         self.__rnet_editable = False
         self.clear()
 
@@ -204,6 +261,19 @@ class NetworkPanel(Frame):
             return (x, y)
     
     def clear(self):
+        self._cancel_connection()
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._revision = self._next_revision = self._saved_revision = 0
+        self._item_editing = None
+        self._item_editing_id = -1
+        self._property_values = None
+        self._pr.setDataEmpty()
+        self._pr.enable_delete(False)
+        self._update_history_buttons()
+        self._tool_mode.set('select')
+        self._on_tool_changed()
+        self.__saved = True
         pending = getattr(self, '_viewport_after_id', None)
         if pending is not None:
             try: self.after_cancel(pending)
@@ -217,6 +287,7 @@ class NetworkPanel(Frame):
         self._scale = {'k':1.0, 'x':0, 'y':0}
         self._r:Optional[RoadNet] = None
         self._g = None
+        self._update_tool_permissions()
         self.__en = False
         self._world_colors = None
         self._road_scene:Optional[RoadScene] = None
@@ -238,10 +309,13 @@ class NetworkPanel(Frame):
                 If after is None, this repaint operation will block the main thread!
                 If after is not None, this repaint operation will be done asynchronously.
         '''
+        if self._r is not roadnet:
+            self._reset_history()
         self._r = roadnet
         # SUMO road geometry is read-only; UXsim geometry is editable.
         # Set the policy before asynchronously rendering the new network.
         self.__rnet_editable = not roadnet.is_from_sumo()
+        self._update_tool_permissions()
         self._world_colors = self._r.create_color_map()
         if repaint:
             self._draw_async(after=after, rebuild_road=True)
@@ -266,17 +340,455 @@ class NetworkPanel(Frame):
                 This repaint operation will block the main thread!
         '''
         assert isinstance(grid, fGrid)
+        if self._g is not grid:
+            self._reset_history()
         self._g = grid
+        self._update_tool_permissions()
         if repaint: 
             self._draw_async(rebuild_road=self._road_scene is None)
     
+    # --- Editing tools and per-operation history (GUI only) ---
+    def _reset_history(self):
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._revision = self._next_revision = self._saved_revision = 0
+        self._update_history_buttons()
+
+    def _update_history_buttons(self):
+        self._btn_undo.configure(state='normal' if self._undo_stack else 'disabled')
+        self._btn_redo.configure(state='normal' if self._redo_stack else 'disabled')
+
+    def _update_tool_permissions(self):
+        grid_ok = self._g is not None
+        road_ok = self._r is not None and self.__rnet_editable
+        self._btn_grid_link.configure(state='normal' if grid_ok else 'disabled')
+        self._btn_road_link.configure(state='normal' if road_ok else 'disabled')
+        for btn in self._device_buttons.values():
+            btn.configure(state='normal' if grid_ok else 'disabled')
+        if ((self._tool_mode.get() == 'road' and not road_ok) or
+                (self._tool_mode.get() in ('grid', 'gen', 'pv', 'wind', 'ess')
+                 and not grid_ok)):
+            self._tool_mode.set('select')
+        self._on_tool_changed()
+        self._pr.enable_delete(self._item_editing is not None and
+            (not isinstance(self._item_editing, (Node, Edge)) or road_ok))
+
+    def _on_tool_changed(self):
+        self._cancel_connection()
+        mode = self._tool_mode.get()
+        self._hint.configure(text={
+            'select': _L['NET_SELECT_HINT'],
+            'grid': _L['NET_GRID_HINT'],
+            'road': _L['NET_ROAD_HINT'],
+            'gen': _L['NET_ADD_GEN_HINT'],
+            'pv': _L['NET_ADD_PV_HINT'],
+            'wind': _L['NET_ADD_WIND_HINT'],
+            'ess': _L['NET_ADD_ESS_HINT'],
+        }[mode])
+        self._cv.configure(cursor='crosshair' if mode != 'select' else '')
+
+    def _cancel_connection(self, event=None):
+        self._connect_start = None
+        if getattr(self, '_preview_id', None) is not None:
+            self._cv.delete(self._preview_id)
+            self._preview_id = None
+        if event is not None:
+            return 'break'
+
+    def _onPreviewMotion(self, event):
+        if not self.__en or self._connect_start is None:
+            return
+        _, (x0, y0) = self._connect_start
+        px, py = self.convRealXY2PlotXY(x0, y0)
+        if self._preview_id is None:
+            self._preview_id = self._cv.create_line(px, py, event.x, event.y,
+                fill='darkorange', width=2, dash=(5, 4), tags=('preview',))
+        else:
+            self._cv.coords(self._preview_id, px, py, event.x, event.y)
+
+    @staticmethod
+    def _unique_name(existing, prefix):
+        i = 1
+        used = set(existing)
+        while f'{prefix}{i}' in used:
+            i += 1
+        return f'{prefix}{i}'
+
+    def _hit_endpoint(self, x, y, kind):
+        """Canvas hit test for the *correct* layer, never a nearby road/line."""
+        wanted = ('bus', 'bustext') if kind == 'grid' else ('node',)
+        candidates = self._cv.find_overlapping(x-7, y-7, x+7, y+7)
+        for cid in reversed(candidates):
+            if cid not in self._items._mp:
+                continue
+            itm = self._items[cid]
+            if itm.type in wanted:
+                if itm.type == 'bustext':
+                    return _removesuffix(itm.desc, '.text')
+                return itm.desc
+        return None
+
+    def _connection_click(self, event):
+        kind = self._tool_mode.get()
+        if kind in ('gen', 'pv', 'wind', 'ess'):
+            self._create_grid_equipment_click(event, kind)
+            return
+        if kind not in ('grid', 'road'):
+            return
+        if kind == 'grid' and self._g is None:
+            return
+        if kind == 'road' and (self._r is None or not self.__rnet_editable):
+            return
+        xy = self.convPlotXY2RealXY(event.x, event.y)
+        endpoint = (self._hit_endpoint(event.x, event.y, kind), xy)
+        if self._connect_start is None:
+            self._connect_start = endpoint
+            return
+        start = self._connect_start
+        self._cancel_connection()
+        if start[0] is not None and start[0] == endpoint[0]:
+            return
+        if start[0] is None and endpoint[0] is None and hypot(
+                start[1][0]-endpoint[1][0], start[1][1]-endpoint[1][1]) < 1e-9:
+            return
+        before = self._snapshot(kind)
+        try:
+            if kind == 'grid':
+                self._create_grid_link(start, endpoint)
+            else:
+                self._create_road_link(start, endpoint)
+        except Exception as exc:
+            self._restore_snapshot(kind, before)
+            MB.showerror(_L['ERROR'], str(exc))
+            return
+        self._record_change(kind, before)
+        self._clear_selection()
+        self._redraw_after_change(kind)
+
+    def _create_grid_equipment_click(self, event, kind):
+        """Place a grid device with one undo entry (including an auto bus)."""
+        if self._g is None or self._r is None:
+            return
+        # Commit an unfinished property edit before capturing this transaction.
+        self._pr.tree.tree_item_edit_done(None)
+        before = self._snapshot('grid')
+        try:
+            bus_id = self._hit_endpoint(event.x, event.y, 'grid')
+            x, y = self.convPlotXY2RealXY(event.x, event.y)
+            gap = 42.0 / max(self._scale['k'], 1e-6)
+            if bus_id is None:
+                # The clicked point represents the device; put the new bus
+                # left of it so both symbols and their wire remain visible.
+                bus_id = self._unique_name(self._g.BusNames, 'B')
+                self._g.AddBus(Bus(bus_id, 0.0, 0.0, x - gap, y,
+                    min_v_pu=0.8, max_v_pu=1.2))
+                # FPowerKit 0.5.1 AddBus omits ESS adjacency initialization.
+                if hasattr(self._g, '_eatb'):
+                    self._g._eatb.setdefault(bus_id, [])
+            else:
+                # The bus is the attachment target. Offset equipment from it
+                # and cycle placement so repeated additions don't overlap.
+                bus = self._g.Bus(bus_id)
+                count = sum(item.BusID == bus_id for item in
+                            chain(self._g.Gens, self._g.PVWinds, self._g.ESSs))
+                direction = ((1, 0), (0, 1), (-1, 0), (0, -1),
+                             (1, 1), (-1, 1), (-1, -1), (1, -1))[count % 8]
+                ring = 1 + count // 8
+                x = bus.x + direction[0] * gap * ring
+                y = bus.y + direction[1] * gap * ring
+
+            if kind == 'gen':
+                name = self._unique_name((g.ID for g in self._g.Gens), 'G')
+                device = Generator(name, bus_id, 0.0, 0.0, 0.0, x, y,
+                    pmin_pu=0.0, pmax_pu=1.0,
+                    qmin_pu=-1.0, qmax_pu=1.0)
+                self._g.AddGen(device)
+            elif kind in ('pv', 'wind'):
+                tag, prefix = ('PV', 'PV') if kind == 'pv' else ('Wind', 'W')
+                name = self._unique_name((g.ID for g in self._g.PVWinds), prefix)
+                device = PVWind(name, bus_id, 0.0, 1.0, 0.0, tag, x, y)
+                self._g.AddPVWind(device)
+            elif kind == 'ess':
+                name = self._unique_name((g.ID for g in self._g.ESSs), 'ESS')
+                capacity = 1.0 / self._g.Sb_MVA   # 1 MWh
+                max_power = 100.0 / self._g.Sb_kVA  # 100 kW
+                device = ESS(name, bus_id, capacity, 0.95, 0.95,
+                    max_power, max_power, 1.0, ESSPolicy.Manual, x, y,
+                    init_elec_puh=capacity * 0.5)
+                self._g.AddESS(device)
+            else:
+                raise ValueError(kind)
+        except Exception as exc:
+            self._restore_snapshot('grid', before)
+            MB.showerror(_L['ERROR'], str(exc))
+            return
+        self._record_change('grid', before)
+        self._clear_selection()
+        self._redraw_after_change('grid')
+        # Return to selection so the newly-created device can be edited or
+        # dragged immediately; a new click on its tool permits another add.
+        self._tool_mode.set('select')
+        self._on_tool_changed()
+        px, py = self.convRealXY2PlotXY(x, y)
+        self._onLClick(type('Click', (), {'x': round(px), 'y': round(py)})())
+
+    def _create_grid_link(self, start, end):
+        assert self._g is not None
+        ids = []
+        for bus_id, (x, y) in (start, end):
+            if bus_id is None:
+                bus_id = self._unique_name(self._g.BusNames, 'B')
+                self._g.AddBus(Bus(bus_id, 0.0, 0.0, x, y,
+                    min_v_pu=0.8, max_v_pu=1.2))
+                # Some FPowerKit releases omit ESS adjacency initialization
+                # from AddBus; support ESS on newly created buses as well.
+                if hasattr(self._g, '_eatb'):
+                    self._g._eatb.setdefault(bus_id, [])
+            ids.append(bus_id)
+        pos1 = self._g.Bus(ids[0]).pos
+        pos2 = self._g.Bus(ids[1]).pos
+        length_km = hypot(pos1[0]-pos2[0], pos1[1]-pos2[1])/1000.0
+        line_id = self._unique_name((line.ID for line in self._g.Lines), 'L')
+        # Editable initial impedance; no calculation or solver is invoked here.
+        self._g.AddLine(Line(line_id, ids[0], ids[1], 0.001, 0.001,
+            length_km=length_km))
+
+    def _create_road_link(self, start, end):
+        assert self._r is not None and self.__rnet_editable
+        ids = []
+        for node_id, (x, y) in (start, end):
+            if node_id is None:
+                node_id = self._unique_name(self._r.node_ids, 'N')
+                self._r.add_node(node_id, x, y)
+            ids.append(node_id)
+        n1, n2 = self._r.nodes[ids[0]], self._r.nodes[ids[1]]
+        length_m = max(hypot(n1.x-n2.x, n1.y-n2.y), 1.0)
+        edge_id = self._unique_name(self._r.edge_ids, 'E')
+        self._r.add_edge(edge_id, ids[0], ids[1], length_m, 1, 13.89)
+
+    @staticmethod
+    def _road_snapshot(roadnet):
+        """Lightweight records avoid copying optional scipy/SUMO caches."""
+        return (
+            [(n.name, n.x, n.y, deepcopy(n.attrs)) for n in roadnet.nodes.values()],
+            [(e.name, e.from_node.name, e.to_node.name, e.length, e.lanes,
+              e.speed_limit, e.world_id, e.nickname, deepcopy(e.attrs))
+             for e in roadnet.edges.values()],
+            tuple(roadnet.convBoundary),
+        )
+
+    def _snapshot(self, kind):
+        if kind == 'grid':
+            return deepcopy(self._g)
+        if kind == 'road':
+            if self._r is None or not self.__rnet_editable:
+                raise RuntimeError('SUMO road geometry is read-only.')
+            return self._road_snapshot(self._r)
+        raise ValueError(kind)
+
+    def _restore_snapshot(self, kind, state):
+        self._clear_selection()
+        if kind == 'grid':
+            self._g = deepcopy(state)
+        elif kind == 'road':
+            assert self._r is not None and self.__rnet_editable
+            old = self._r
+            restored = RoadNet()
+            # Keep map metadata and projector; reconstruct only UXsim geometry.
+            for attr in ('netOffset', 'convBoundary', 'origBoundary',
+                         'projParameter', '_proj'):
+                setattr(restored, attr, getattr(old, attr))
+            nodes, edges, boundary = state
+            restored.convBoundary = boundary
+            for name, x, y, attrs in nodes:
+                restored.add_node(name, x, y, deepcopy(attrs))
+            for (name, src, dst, length, lanes, speed, world_id,
+                 nickname, attrs) in edges:
+                edge = restored.add_edge(name, src, dst, length, lanes,
+                    speed, world_id, nickname)
+                edge.attrs = deepcopy(attrs)
+            self._r = restored
+            self._world_colors = self._r.create_color_map()
+        else:
+            raise ValueError(kind)
+        self._update_tool_permissions()
+        self._redraw_after_change(kind)
+
+    def _refresh_ux_boundary(self):
+        if self._r is None or not self.__rnet_editable:
+            return
+        nodes = tuple(self._r.nodes.values())
+        if not nodes:
+            self._r.convBoundary = (0., 0., 0., 0.)
+        else:
+            self._r.convBoundary = (
+                min(n.x for n in nodes), min(n.y for n in nodes),
+                max(n.x for n in nodes), max(n.y for n in nodes),
+            )
+        # Moving nodes invalidates any nearest-node index already constructed.
+        if hasattr(self._r, '_RoadNet__kdt'):
+            self._r._RoadNet__kdt = None
+
+    def _record_change(self, kind, before):
+        if kind == 'road':
+            self._refresh_ux_boundary()
+        self._undo_stack.append((kind, before, self._revision))
+        if len(self._undo_stack) > 50:
+            self._undo_stack.pop(0)
+        self._redo_stack.clear()
+        self._next_revision += 1
+        self._revision = self._next_revision
+        self.saved = self._revision == self._saved_revision
+        self._update_history_buttons()
+
+    def undo(self):
+        if not self.__en or not self._undo_stack:
+            return
+        self._cancel_connection()
+        self._pr.tree.tree_item_edit_done(None)
+        if not self._undo_stack:
+            return
+        kind, before, rev = self._undo_stack.pop()
+        current = self._snapshot(kind)
+        self._redo_stack.append((kind, current, self._revision))
+        self._revision = rev
+        self._restore_snapshot(kind, before)
+        self.saved = self._revision == self._saved_revision
+        self._update_history_buttons()
+
+    def redo(self):
+        if not self.__en or not self._redo_stack:
+            return
+        self._cancel_connection()
+        self._pr.tree.tree_item_edit_done(None)
+        if not self._redo_stack:
+            return
+        kind, after, rev = self._redo_stack.pop()
+        current = self._snapshot(kind)
+        self._undo_stack.append((kind, current, self._revision))
+        self._revision = rev
+        self._restore_snapshot(kind, after)
+        self.saved = self._revision == self._saved_revision
+        self._update_history_buttons()
+
+    def _key_targets_network(self, widget):
+        # Never consume shortcuts in a property entry/combobox or other tab.
+        if isinstance(widget, (Entry, Text, Spinbox, Combobox)):
+            return False
+        while widget is not None:
+            if widget is self:
+                return True
+            widget = getattr(widget, 'master', None)
+        return False
+
+    def _on_undo_key(self, event):
+        if self._key_targets_network(event.widget):
+            self.undo()
+            return 'break'
+
+    def _on_redo_key(self, event):
+        if self._key_targets_network(event.widget):
+            self.redo()
+            return 'break'
+
+    def _clear_selection(self):
+        self._item_editing = None
+        self._item_editing_id = -1
+        self._property_values = None
+        self._drag['item'] = None
+        self._pr.setDataEmpty()
+        self._pr.enable_delete(False)
+        self.UnlocateAllEdges()
+
+    def _redraw_after_change(self, kind):
+        self._draw_async(center=False, rebuild_road=(kind == 'road'))
+
+    def delete_selected(self):
+        e = self._item_editing
+        if e is None:
+            return
+        if isinstance(e, (Node, Edge)) and not self.__rnet_editable:
+            return
+        kind = 'road' if isinstance(e, (Node, Edge)) else 'grid'
+        name = getattr(e, 'name', getattr(e, 'ID', ''))
+        detail = ''
+        if isinstance(e, Bus):
+            detail = '\n' + _L['NET_DELETE_BUS_WARNING']
+        elif isinstance(e, Node):
+            detail = '\n' + _L['NET_DELETE_NODE_WARNING']
+        if not MB.askyesno(_L['DELETE'], _L['NET_DELETE_CONFIRM'].format(name) + detail):
+            return
+        before = self._snapshot(kind)
+        try:
+            if isinstance(e, Bus):
+                # Explicitly remove connected elements first, since DelBus in
+                # FPowerKit doesn't clear all opposite adjacency collections.
+                for line in list(self._g.Lines):
+                    if e.ID in (line.fBus, line.tBus):
+                        self._g.DelLine(line.ID)
+                for gen in list(self._g.Gens):
+                    if gen.BusID == e.ID: self._g.DelGen(gen.ID)
+                for pvw in list(self._g.PVWinds):
+                    if pvw.BusID == e.ID: self._g.DelPVWind(pvw.ID)
+                for ess in list(self._g.ESSs):
+                    if ess.BusID == e.ID: self._delete_grid_ess(ess)
+                self._g.DelBus(e.ID)
+                if hasattr(self._g, '_eatb'):
+                    self._g._eatb.pop(e.ID, None)
+            elif isinstance(e, Line): self._g.DelLine(e.ID)
+            elif isinstance(e, Generator): self._g.DelGen(e.ID)
+            elif isinstance(e, PVWind): self._g.DelPVWind(e.ID)
+            elif isinstance(e, ESS): self._delete_grid_ess(e)
+            elif isinstance(e, Edge): self._remove_ux_edge(e)
+            elif isinstance(e, Node):
+                for edge in list(self._r.edges.values()):
+                    if e.name in (edge.from_node.name, edge.to_node.name):
+                        self._remove_ux_edge(edge)
+                self._r.remove_node(e.name)
+            else: return
+        except Exception as exc:
+            self._restore_snapshot(kind, before)
+            MB.showerror(_L['ERROR'], str(exc))
+            return
+        self._record_change(kind, before)
+        self._clear_selection()
+        self._redraw_after_change(kind)
+
+    def _delete_grid_ess(self, ess):
+        """Compatibility with FPowerKit releases lacking a DelESS method."""
+        if hasattr(self._g, 'DelESS'):
+            self._g.DelESS(ess.ID)
+        else:
+            self._g._esss.pop(ess.ID)
+            attached = self._g._eatb.get(ess.BusID, [])
+            if ess in attached:
+                attached.remove(ess)
+
+    def _remove_ux_edge(self, edge):
+        # RoadNet.remove_edge removes the lookup entry but doesn't unlink the
+        # Node adjacency lists; keep both sides consistent in the editor.
+        if edge in edge.from_node.outgoing_edges:
+            edge.from_node.outgoing_edges.remove(edge)
+        if edge in edge.to_node.incoming_edges:
+            edge.to_node.incoming_edges.remove(edge)
+        self._r.remove_edge(edge.name)
+
     def _onLClick(self, event):
         if not self.__en: return
+        self._cv.focus_set()
+        if self._tool_mode.get() != 'select':
+            self._connection_click(event)
+            return
+        # Commit any active property cell before changing selected object.
+        self._pr.tree.tree_item_edit_done(None)
         # Do not retain an editable object from the previous selection when a
         # read-only SUMO road element (or empty canvas area) is selected.
         self._item_editing = None
         self._item_editing_id = -1
+        self._property_values = None
+        self._pr.enable_delete(False)
         self._drag['item'] = None
+        self._drag['moved'] = False
         def _edit_id(typename:str, clicked_item:int) -> int:
             if typename.endswith("conn"): return clicked_item + 1
             elif typename.endswith("text"): return clicked_item + 2
@@ -431,6 +943,9 @@ class NetworkPanel(Frame):
             else:
                 self._pr.setDataEmpty()
             self._pr.tree.show_title(f"Type: {itm.type} (ID = {clicked_item})")
+            if self._item_editing is not None:
+                self._property_values = self._pr.getAllData()
+                self._pr.enable_delete(True)
             if itm.type in ('bus', 'gen', 'pvw', 'ess') or (itm.type == 'node' and self.__rnet_editable):
                 self._drag['item'] = clicked_item
                 self._drag["x"] = event.x
@@ -527,13 +1042,36 @@ class NetworkPanel(Frame):
         else: return s
     
     def __finish_edit(self):
+        """One completed property change is one undoable transaction."""
+        e = self._item_editing
+        if e is None or (isinstance(e, (Edge, Node)) and not self.__rnet_editable):
+            return
+        values = self._pr.getAllData()
+        if values == self._property_values:
+            return
+        kind = 'road' if isinstance(e, (Edge, Node)) else 'grid'
+        before = self._snapshot(kind)
+        try:
+            ok = self._apply_property_edit()
+        except Exception as exc:
+            self._restore_snapshot(kind, before)
+            MB.showerror(_L['ERROR'], str(exc))
+            return
+        if not ok:
+            # Validation must not leave a partially edited model behind.
+            self._restore_snapshot(kind, before)
+            return
+        self._record_change(kind, before)
+        self._property_values = values
+
+    def _apply_property_edit(self):
         e = self._item_editing
         # Property changes to a SUMO node/edge must never mutate the road net.
         # This guard does not affect editing the electrical grid.
         if isinstance(e, (Edge, Node)) and not self.__rnet_editable:
-            return
+            return False
         if e is None:
-            return
+            return False
         ret = self._pr.getAllData()
         i = self._item_editing_id
         road_geometry_changed = False
@@ -542,14 +1080,15 @@ class NetworkPanel(Frame):
             assert self._r is not None
             if ret['Name'] != e.name and ret['Name'] in self._r.edge_ids:
                 MB.showerror("Error", f"New name duplicated: {ret['Name']}")
-                return
+                return False
             e.length = float(ret['Length'])
             e.lanes = int(ret['Lanes'])
             e.speed_limit = float(ret['Speed limit'])
             if e.name != ret['Name']:
-                self.UnlocateEdge(e.name)
-                self._Redges.pop(e.name)
-                self._r.rename_edge(e.name, ret['Name'])
+                old_name = e.name
+                self.UnlocateEdge(old_name)
+                self._Redges.pop(old_name, None)
+                self._r.rename_edge(old_name, ret['Name'])
                 self._items.set_desc(i, ret['Name'])
                 self._Redges[e.name] = i
                 self.LocateEdge(e.name, 'purple')
@@ -558,10 +1097,10 @@ class NetworkPanel(Frame):
                 node_ids = set(self._r.node_ids)
                 if ret["From"] not in node_ids:
                     MB.showerror("Error", f"Node {ret['From']} does not exist.")
-                    return
+                    return False
                 if ret["To"] not in node_ids:
                     MB.showerror("Error", f"Node {ret['To']} does not exist.")
-                    return
+                    return False
                 self._r.update_edge(e.name, ret["From"], ret["To"])
                 self.__move_edge(i, e)
                 road_geometry_changed = True
@@ -569,7 +1108,7 @@ class NetworkPanel(Frame):
             assert self._r is not None
             if ret['Name'] != e.name and ret['Name'] in self._r.node_ids:
                 MB.showerror("Error", f"New name duplicated: {ret['Name']}")
-                return
+                return False
             if self._r.hasGeoProj():
                 nLon = float(ret['Longitude'])
                 nLat = float(ret['Latitude'])
@@ -586,7 +1125,7 @@ class NetworkPanel(Frame):
             assert self._g is not None and self._r is not None
             if ret['Name'] != e.ID and ret['Name'] in self._g.BusNames:
                 MB.showerror("Error", f"New name duplicated: {ret['Name']}")
-                return
+                return False
             e.Pd = self._float2func(ret['Pd/pu'])
             e.Qd = self._float2func(ret['Qd/pu'])
             v = self.__chk(ret['V/pu'])
@@ -604,13 +1143,23 @@ class NetworkPanel(Frame):
                 x = float(ret['X'])
                 y = float(ret['Y'])
                 self.__move_bus(i, e, newPlotXY=(x, y))
-            self._g.ChangeBusID(e.ID, ret['Name'])
+            old_bus_id = e.ID
+            self._g.ChangeBusID(old_bus_id, ret['Name'])
+            if old_bus_id != ret['Name']:
+                # In FPowerKit versions where ChangeBusID updates only lines
+                # and conventional generators, keep the other GUI-managed
+                # equipment references consistent as well.
+                for relation in ('_patb', '_eatb'):
+                    mapping = getattr(self._g, relation, None)
+                    if mapping is not None and old_bus_id in mapping:
+                        mapping[ret['Name']] = mapping.pop(old_bus_id)
+                for equipment in chain(self._g.PVWinds, self._g.ESSs):
+                    if equipment.BusID == old_bus_id:
+                        equipment._bus = ret['Name']
             self._items.set_desc(i, ret['Name'])
             self._cv.itemconfig(i-1, text = e.ID)
         elif isinstance(e, Generator):
             assert self._g is not None and self._r is not None
-            nLon = float(ret['Longitude'])
-            nLat = float(ret["Latitude"])
             e.CostA = self._float2func(ret['CostA'])
             e.CostB = self._float2func(ret['CostB'])
             e.CostC = self._float2func(ret['CostC'])
@@ -653,6 +1202,14 @@ class NetworkPanel(Frame):
                 self.__move_gen(i, e, newPlotXY=(x, y))
             p = self.__chk(ret['P/pu'])
             e.P = self._float2func(p) if p is not None else 0
+            pf = float(ret['Power Factor'])
+            if not 0.0 < pf <= 1.0:
+                raise ValueError('Power Factor must be in (0, 1].')
+            e.PF = pf
+            if ret['Tag'] not in ('PV', 'Wind'):
+                raise ValueError('Tag must be PV or Wind.')
+            e.Tag = ret['Tag']
+            e.CC = float(ret['Curtail Cost'])
             self._g.ChangePVWindID(e.ID, ret['Name'])
             self._items.set_desc(i, ret['Name'])
             # e._id = ret['Name']
@@ -685,8 +1242,11 @@ class NetworkPanel(Frame):
             e.MaxPc = float(ret['Max Pc/kW']) / self._g.Sb_kVA
             e.MaxPd = float(ret['Max Pd/kW']) / self._g.Sb_kVA
             e._policy = ESSPolicy(ret['Policy'])
-            e._ctime = RangeList(eval(ret["CTime"]))
-            e._dtime = RangeList(eval(ret["DTime"]))
+            # Newly placed manual ESS has no time ranges (None). Preserve
+            # that valid optional value when editing any other ESS property.
+            ctime, dtime = self.__chk(ret['CTime']), self.__chk(ret['DTime'])
+            e._ctime = RangeList(eval(ctime)) if ctime is not None else None
+            e._dtime = RangeList(eval(dtime)) if dtime is not None else None
             cp = ret["CPrice/$/kWh"]
             if cp.lower() == "none": e._cprice = None
             else: e._cprice = float(cp) * self._g.Sb_kVA
@@ -697,9 +1257,9 @@ class NetworkPanel(Frame):
             self._g.ChangeESSBus(e.ID, ret['Bus'])
             self._g.ChangeESSID(e.ID, ret['Name'])
             self._items.set_desc(i, ret['Name'])
-        self.saved = False
         if road_geometry_changed:
             self._draw_async(center=False, rebuild_road=True)
+        return True
 
     def _onRClick(self, event):
         if not self.__en: return
@@ -716,14 +1276,16 @@ class NetworkPanel(Frame):
             self.move(dx, dy, self._drag["item"])
             self._drag["x"] = x
             self._drag["y"] = y
-        if isinstance(self._drag["item"],int):
-            self.saved = False
+            if isinstance(self._drag["item"], int) and (dx or dy):
+                self._drag['moved'] = True
     
     def _onRelease(self, event):
         if not self.__en: return
         i = self._drag["item"]
-        if isinstance(i,int):
-            self.saved = False
+        if isinstance(i,int) and self._drag.get('moved'):
+            item_type = self._items[i].type
+            kind = 'road' if item_type == 'node' else 'grid'
+            before = self._snapshot(kind)
             co = self._cv.coords(i)
             if len(co) == 4: 
                 x1,y1,x2,y2 = co
@@ -757,10 +1319,16 @@ class NetworkPanel(Frame):
                 e = self._r.nodes[self._items[i].desc]
                 self.__move_node(i, e, cx, cy, False)
                 self._draw_async(center=False, rebuild_road=True)
-            self._onLClick(event)
+            self._record_change(kind, before)
+            if kind == 'grid':
+                # Click selection refreshes the property panel at the new position.
+                self._onLClick(event)
+            else:
+                self._clear_selection()
         elif i == 'all':
             self._schedule_viewport_render(0)
         self._drag["item"] = None
+        self._drag['moved'] = False
         
     def _onMouseWheel(self, event):
         if not self.__en: return
@@ -991,6 +1559,7 @@ class NetworkPanel(Frame):
         if self._road_scene is None:
             return
         self._cv.delete('all')
+        self._preview_id = None
         self._items = BIDC(["bus", "bustext", "gen", "gentext", "genconn", "line", "edge", "node"])
         self._Redges = {}
         road_edges, road_nodes = self._road_scene.select(
@@ -1044,6 +1613,7 @@ class NetworkPanel(Frame):
             self._g.saveFileXML(grid_path)
         if self._r and not self._r.is_from_sumo():
             self._r.save(net_path)
+        self._saved_revision = self._revision
         self.saved = True
 
 __all__ = ["NetworkPanel", "itemdesc", "BIDC", "GenLike", "PointList", "OAfter", "OESet"]
