@@ -60,50 +60,217 @@ def _time_from_straight_line(distance: float, speed_upper_bound: float) -> float
         return 0.0
     return distance / speed_upper_bound
 
-def dijMC(gl: Graph, ctime: int, from_node: str, omega: float, to_nodes: Iterable[str],
-          node_scores: Dict[str, float], max_length: float = float('inf')) -> Stage:
+@dataclass
+class _MCLabel:
+    """One reachable state in a resource-constrained station search."""
+    node: str
+    time_s: float
+    length_m: float
+    parent: Optional[int]
+    via_edge: Optional[str]
+    active: bool = True
+
+
+def _mc_dominates(a: _MCLabel, time_s: float, length_m: float,
+                  max_length: float, omega: float) -> bool:
+    """Whether an existing prefix makes a proposed prefix unnecessary.
+
+    At finite range, both time and distance are resources. Without a range
+    limit only time matters (for omega > 0). When omega == 0, travel time is
+    irrelevant to the objective, so shortest distance is sufficient.
     """
-    Find the BEST route based on score = omega * (time + waiting) + charging_cost.
-    Uses time as primary key, length as secondary key.
+    if math.isinf(max_length):
+        if omega == 0:
+            return a.length_m <= length_m
+        return (a.time_s < time_s or
+                (a.time_s == time_s and a.length_m <= length_m))
+    if omega == 0:
+        return a.length_m <= length_m
+    return a.time_s <= time_s and a.length_m <= length_m
+
+
+def _mc_new_dominates(time_s: float, length_m: float, a: _MCLabel,
+                      max_length: float, omega: float) -> bool:
+    if math.isinf(max_length):
+        if omega == 0:
+            return length_m < a.length_m
+        return (time_s < a.time_s or
+                (time_s == a.time_s and length_m < a.length_m))
+    if omega == 0:
+        return length_m < a.length_m
+    return time_s <= a.time_s and length_m <= a.length_m
+
+
+def _mc_admissible_heuristic(
+    gl: Graph, node_coords: CoordsDict, ctime: int,
+    targets: set, omega: float, speed_upper_bound: Optional[float]
+) -> Callable[[str], float]:
+    """Certified lower bound on weighted remaining travel time.
+
+    A geometric lower bound is safe only when every traversable graph edge
+    has known endpoint coordinates and the speed bound is at least its
+    straight-line distance divided by its snapshot travel time. Verify that
+    property rather than assuming a link's free-flow speed is sufficient.
+    If it cannot be verified, return a zero (Dijkstra) heuristic.
+
+    Note: the certification scans graph edges once per station query. For a
+    very large network, using dijMC() can avoid this preprocessing cost.
     """
-    # (time, length, node, path, path_edges)
-    
-    heap = [(0., 0., from_node, [from_node], [])]
-    visited = set()
-    min_time = {from_node: 0.}
-    best_score = float('inf')
-    best_stage = Stage([], [], float('inf'), float('inf'))
+    def zero(_node: str) -> float:
+        return 0.0
+
+    if omega == 0 or not targets or not all(t in node_coords for t in targets):
+        return zero
+
+    v = 0.0
+    for source, outgoing in gl.items():
+        if source not in node_coords:
+            return zero
+        x1, y1 = node_coords[source]
+        for dest, edge in outgoing:
+            if dest not in node_coords:
+                return zero
+            x2, y2 = node_coords[dest]
+            direct = math.hypot(x2 - x1, y2 - y1)
+            dt = float(edge.instant_travel_time(ctime))
+            if math.isnan(dt) or dt < 0:
+                raise ValueError('Negative or NaN road travel time')
+            if math.isinf(dt):
+                continue  # this edge is not traversable in this snapshot
+            if dt == 0:
+                if direct > 0:
+                    return zero
+                continue
+            v = max(v, direct / dt)
+
+    if speed_upper_bound is not None:
+        bound = float(speed_upper_bound)
+        if math.isfinite(bound) and bound > 0:
+            v = max(v, bound)
+    if v <= 0 or not math.isfinite(v):
+        return zero
+
+    kdtree = KDTree([node_coords[t] for t in targets])
+    def heuristic(node: str) -> float:
+        if node not in node_coords:
+            return 0.0
+        nearest_m = float(kdtree.query(node_coords[node], k=1)[0])
+        return omega * nearest_m / (60.0 * v)
+    return heuristic
+
+
+def _mc_search(
+    gl: Graph, ctime: int, from_node: str, omega: float,
+    to_nodes: Iterable[str], node_scores: Mapping[str, float],
+    max_length: float = float('inf'),
+    heuristic: Optional[Callable[[str], float]] = None,
+) -> Stage:
+    """Exact minimum-score, distance-constrained multi-target routing.
+
+    Objective, in minutes and station-cost units:
+        omega * (route_time_seconds / 60) + node_scores[target]
+    Constraint:
+        sum(link.length) <= max_length
+
+    Road times and lengths are nonnegative snapshot costs. Destination
+    station costs are paid ONLY on termination, not on intermediate nodes.
+    Maintains Pareto (time, distance) labels when the distance bound is
+    active; a single best-time label is not generally sufficient.
+    """
+    targets = set(to_nodes)
+    empty = Stage([], [], float('inf'), float('inf'))
+    if not targets:
+        return empty
+    if not math.isfinite(omega) or omega < 0:
+        raise ValueError('omega must be finite and nonnegative')
+    if math.isnan(max_length) or max_length < 0:
+        raise ValueError('max_length must be nonnegative')
+    if heuristic is None:
+        heuristic = lambda _: 0.0
+
+    terminal_costs = {s: float(node_scores.get(s, 0.0)) for s in targets}
+    if any(not math.isfinite(value) for value in terminal_costs.values()):
+        raise ValueError('Station terminal costs must be finite')
+    min_terminal = min(terminal_costs.values())
+
+    labels = [_MCLabel(from_node, 0.0, 0.0, None, None)]
+    frontier: Dict[str, List[int]] = {from_node: [0]}
+    # (admissible_bound, weighted_drive_cost, length_m, monotonically
+    #  increasing label ID): never compare path lists or Link objects.
+    heap = [(heuristic(from_node), 0.0, 0.0, 0)]
+    best_cost = float('inf')
+    best_index: Optional[int] = None
 
     while heap:
-        cur_time, cur_len, cur_node, path, path_edges = heapq.heappop(heap)
-        
-        if cur_node in visited:
+        lower_bound, _, _, index = heapq.heappop(heap)
+        current = labels[index]
+        if not current.active:
             continue
-        visited.add(cur_node)
-        
-        # 检查是否到达目标节点且满足长度约束
-        if cur_node in to_nodes:
-            score = omega * cur_time / 60 + node_scores[cur_node]
-            if score < best_score:
-                best_score = score
-                best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
-        
-        # 探索邻居节点
-        for neighbor, link in gl.get(cur_node, []):
-            if neighbor in visited:
+        if lower_bound + min_terminal > best_cost:
+            break
+
+        drive_cost = omega * current.time_s / 60.0
+        if current.node in targets:
+            total_cost = drive_cost + terminal_costs[current.node]
+            if total_cost < best_cost:
+                best_cost, best_index = total_cost, index
+
+        for neighbor, link in gl.get(current.node, ()):
+            dt = float(link.instant_travel_time(ctime))
+            edge_length = float(link.length)
+            if math.isnan(dt) or dt < 0 or not math.isfinite(edge_length) or edge_length < 0:
+                raise ValueError('Road link must have nonnegative finite length and nonnegative time')
+            if not math.isfinite(dt):
                 continue
-                
-            next_time = cur_time + link.instant_travel_time(ctime)
-            next_len = cur_len + link.length
-            
-            if next_len > max_length:
+            new_length = current.length_m + edge_length
+            if new_length > max_length:
                 continue
-                
-            if neighbor not in min_time or next_time < min_time[neighbor]:
-                min_time[neighbor] = next_time
-                heapq.heappush(heap, (next_time, next_len, neighbor, path + [neighbor], path_edges + [link.name]))
-    
-    return best_stage
+            new_time = current.time_s + dt
+
+            predecessors = frontier.get(neighbor, [])
+            if any(_mc_dominates(labels[j], new_time, new_length, max_length, omega)
+                   for j in predecessors if labels[j].active):
+                continue
+
+            survivors = []
+            for j in predecessors:
+                existing = labels[j]
+                if not existing.active:
+                    continue
+                if _mc_new_dominates(new_time, new_length, existing, max_length, omega):
+                    existing.active = False
+                else:
+                    survivors.append(j)
+
+            new_id = len(labels)
+            labels.append(_MCLabel(neighbor, new_time, new_length, index, link.name))
+            survivors.append(new_id)
+            frontier[neighbor] = survivors
+            next_drive_cost = omega * new_time / 60.0
+            estimate = next_drive_cost + heuristic(neighbor)
+            if estimate + min_terminal <= best_cost:
+                heapq.heappush(heap, (estimate, next_drive_cost, new_length, new_id))
+
+    if best_index is None:
+        return empty
+    best = labels[best_index]
+    nodes, edges = [], []
+    index = best_index
+    while index is not None:
+        label = labels[index]
+        nodes.append(label.node)
+        if label.via_edge is not None:
+            edges.append(label.via_edge)
+        index = label.parent
+    nodes.reverse()
+    edges.reverse()
+    return Stage(nodes, edges, best.time_s, best.length_m)
+
+
+def dijMC(gl: Graph, ctime: int, from_node: str, omega: float, to_nodes: Iterable[str],
+          node_scores: Dict[str, float], max_length: float = float('inf')) -> Stage:
+    """Exact Dijkstra-based charging-station choice (with distance constraint)."""
+    return _mc_search(gl, ctime, from_node, omega, to_nodes, node_scores, max_length)
 
 def dijMF(gl: Graph, ctime: int, from_node: str, to_nodes: Iterable[str]) -> Stage:
     """
@@ -440,73 +607,20 @@ def astarMS(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, to_n
     return best_stage
 
 def astarMC(gl: Graph, node_coords: CoordsDict, ctime: int, from_node: str, omega: float,
-            to_nodes:Iterable[str], node_scores: Dict[str, float],
+            to_nodes: Iterable[str], node_scores: Dict[str, float],
             max_length: float = float('inf'), speed_upper_bound: Optional[float] = None) -> Stage:
-    """
-    A* version of dijMC - Find the BEST route using kDTree heuristic.
+    """Exact A*-ordered best-station route, with admissible geometric heuristic.
+
+    Shares the same objective, distance restriction, and Pareto-label logic
+    as dijMC(). A geometric speed lower bound is certified at each call;
+    missing/inconsistent coordinates fall back to Dijkstra ordering.
     """
     targets = set(to_nodes)
     if not targets:
         return Stage([], [], float('inf'), float('inf'))
-
-    # 构建kDTree
-    kdtree, index_to_node = build_target_kdtree(node_coords, targets)
-
-    if speed_upper_bound is None:
-        speed_upper_bound = get_network_speed_upper_bound(gl)
-    
-    # 创建启发式函数（使用距离启发式）
-    distance_heuristic = create_heuristic_with_kdtree(node_coords, kdtree)
-    
-    # 将距离启发式转换为score启发式（近似）
-    def score_heuristic(node):
-        dist = distance_heuristic(node)
-        # Convert metres to an admissible lower bound of travel time first.
-        return omega * (_time_from_straight_line(dist, speed_upper_bound) / 60.0)
-    
-    # (estimated_total_score, actual_score, time, length, node, path, path_edges)
-    initial_h = score_heuristic(from_node)
-    initial_score = omega * 0 / 60.0 + node_scores.get(from_node, 0)
-    heap = [(initial_h + initial_score, initial_score, 0., 0., from_node, [from_node], [])]
-    
-    visited = set()
-    best_score = {from_node: initial_score}
-    best_stage = Stage([], [], float('inf'), float('inf'))
-    min_actual_score = float('inf')
-    
-    while heap:
-        est_total_score, cur_score, cur_time, cur_len, cur_node, path, path_edges = heapq.heappop(heap)
-
-        if cur_score > min_actual_score:
-            continue
-            
-        if cur_node in visited:
-            continue
-        visited.add(cur_node)
-        
-        if cur_node in targets and cur_len <= max_length:
-            if cur_score < min_actual_score:
-                min_actual_score = cur_score
-                best_stage = Stage(path.copy(), path_edges.copy(), cur_time, cur_len)
-
-        for neighbor, link in gl.get(cur_node, []):
-            if neighbor in visited:
-                continue
-                
-            next_time = cur_time + link.instant_travel_time(ctime)
-            next_len = cur_len + link.length
-            
-            if next_len > max_length:
-                continue
-            
-            neighbor_score = omega * next_time / 60.0 + node_scores.get(neighbor, 0)
-            
-            if neighbor not in best_score or neighbor_score < best_score[neighbor]:
-                best_score[neighbor] = neighbor_score
-                h_score = score_heuristic(neighbor)
-                est_total = neighbor_score + h_score
-                
-                heapq.heappush(heap, (est_total, neighbor_score, next_time, next_len, 
-                                    neighbor, path + [neighbor], path_edges + [link.name]))
-
-    return best_stage
+    if not math.isfinite(omega) or omega < 0:
+        raise ValueError('omega must be finite and nonnegative')
+    h = _mc_admissible_heuristic(gl, node_coords, ctime, targets, omega,
+                                 speed_upper_bound)
+    return _mc_search(gl, ctime, from_node, omega, targets, node_scores,
+                      max_length, heuristic=h)

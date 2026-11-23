@@ -49,7 +49,7 @@ def dijMC(
         visited.add(cur_edge)
 
         if cur_edge in to_edges:
-            score = omega * cur_time + node_scores.get(cur_edge, 0)
+            score = omega * cur_time / 60.0 + node_scores.get(cur_edge, 0)
             if score < best_score:
                 best_score = score
                 best_stage = Stage(edges=path_edges + [cur_edge], travelTime=cur_time, length=cur_len)
