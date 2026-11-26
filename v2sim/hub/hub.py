@@ -71,8 +71,12 @@ def _parse_station_params(cs_node: Element) -> Dict:
             "price_sell_is_service_fee": cs_node.attrib.get("psell_is_service_fee", "False").lower() == "true",
             "max_pc": float(cs_node.attrib.get("max_pc", "inf")) / 3600,
             "max_pd": float(cs_node.attrib.get("max_pd", "inf")) / 3600,
-            "pc_alloc": cs_node.attrib.get("pcalloc", "Average"),
-            "pd_alloc": cs_node.attrib.get("pdalloc", "Average"),
+            "pc_alloc": cs_node.attrib.get(
+                "pc_alloc", cs_node.attrib.get("pcalloc", "Average")
+            ),
+            "pd_alloc": cs_node.attrib.get(
+                "pd_alloc", cs_node.attrib.get("pdalloc", "Average")
+            ),
             "allow_queuing": cs_node.attrib.get("allow_queuing", "True").lower() == "true",
         })
     return args
