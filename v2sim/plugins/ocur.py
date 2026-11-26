@@ -38,13 +38,13 @@ class PluginOvercurrent(PluginBase[None]):
         self.__file = open(str(res_dir / "current_protect.log"), "w")
         self.SetPostSimulation(self.__file.close)
         assert len(plg_deps) == 0, _locale["ERROR_NO_PDN"]
-        self.__pdn = getattr(inst, "_integrated_pdn", None)
+        self.__pdn = inst._integrated_pdn
         if self.__pdn is None:
             raise RuntimeError(_locale["ERROR_NO_PDN"])
         if self.__pdn.is_smartcharge_mode():
             raise RuntimeError(_locale["ERROR_SMART_CHARGE"])
-        if self.__pdn.Solver.est != Estimator.DistFlow:
-            raise RuntimeError("Over-current protection only works with DistFlowSolver")
+        if not isinstance(self.__pdn.Solver.est, DistFlowSolver):
+            raise RuntimeError("Over-current protection only works with DistFlowSolver, currently using " + type(self.__pdn.Solver.est).__name__)
         self.__last_core_exec = -1
         self.__pdn.register_post_solve_hook(self._core_hook)
         self.__csatb:Dict[str, List[CS]] = defaultdict(list)

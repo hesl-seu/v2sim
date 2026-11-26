@@ -1,0 +1,60 @@
+<?xml version='1.0' encoding='utf-8'?>
+<grid Sb="1.0MVA" Ub="12.66kV">
+  <bus ID="b0" y="-163.719013" x="80.556175" V="1.0">
+    <Pd const="0.0MW" />
+    <Qd const="0.0Mvar" />
+  </bus>
+  <bus ID="b1" y="-44.028832" x="81.116731" MinV="0.8" MaxV="1.2">
+    <Pd const="6.4MW" />
+    <Qd const="2.5Mvar" />
+  </bus>
+  <bus ID="bL" x="-22" y="103" MinV="0.8" MaxV="1.2">
+    <Pd>
+      <item time="0" value="3.8MW" />
+      <item time="28800" value="24MW" />
+    </Pd>
+    <Qd>
+      <item time="0" value="0.7Mvar" />
+      <item time="28800" value="4.4Mvar" />
+    </Qd>
+  </bus>
+  <bus ID="bR" x="183" y="103" MinV="0.8" MaxV="1.2">
+    <Pd const="3.8MW" />
+    <Qd const="0.7Mvar" />
+  </bus>
+  <line ID="l0" From="b0" To="b1" R=".008ohm" X=".020ohm" MaxIkA="inf" Length_km="-1.0" />
+  <line ID="lL" From="b1" To="bL" R=".006ohm" X=".012ohm" MaxIkA="1.20" Length_km="-1.0" />
+  <line ID="lR" From="b1" To="bR" R=".006ohm" X=".012ohm" MaxIkA="0.25" Length_km="-1.0" />
+  <gen ID="g0" Bus="b0" y="-164.398865" x="102.569546">
+    <Pmin const="0.0MW" />
+    <Pmax const="100.0MW" />
+    <Qmin const="-100.0Mvar" />
+    <Qmax const="100.0Mvar" />
+    <CostA const="2000.0$/MWh2" />
+    <CostB const="300.0$/MWh" />
+    <CostC const="5.0$" />
+  </gen>
+  <gen ID="g1" Bus="b1" y="-43.414710" x="102.569546">
+    <Pmin const="0.0MW" />
+    <Pmax const="100.0MW" />
+    <Qmin const="-100.0Mvar" />
+    <Qmax const="100.0Mvar" />
+    <CostA const="2500.0$/MWh2" />
+    <CostB const="400.0$/MWh" />
+    <CostC const="15.0$" />
+  </gen>
+  <cprice repeat="8" period="86400">
+    <item time="0" value="0.35$/kWh" />
+    <item time="28800" value="1.10$/kWh" />
+    <item time="39600" value="0.70$/kWh" />
+    <item time="64800" value="1.10$/kWh" />
+    <item time="82800" value="0.70$/kWh" />
+  </cprice>
+  <dprice repeat="8" period="86400">
+    <item time="0" value="0.35$/kWh" />
+    <item time="28800" value="1.10$/kWh" />
+    <item time="39600" value="0.70$/kWh" />
+    <item time="64800" value="1.10$/kWh" />
+    <item time="82800" value="0.70$/kWh" />
+  </dprice>
+</grid>

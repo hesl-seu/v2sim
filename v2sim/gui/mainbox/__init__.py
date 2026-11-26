@@ -643,7 +643,7 @@ class MainBox(Tk):
             pdn_max_workers=try_int(self.entry_pdn_max_workers.get(), "PDN max workers"),
             v2g_manual_fallback_to_v2g=self.sim_v2g_manual_fallback.get(),
         )
-        vcfg.save(self.folder + "/preference.v2simcfg")
+        vcfg.save(self.folder + "/preferences.v2simcfg")
 
     def save(self):
         if not self.sim_plglist.saved: self.sim_plglist.save()

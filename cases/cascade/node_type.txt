@@ -1,0 +1,4 @@
+Home:T1,T4,T8
+Work:T2,T6,T9
+Relax:T3,T10,T12
+Other:T5,T7,T11

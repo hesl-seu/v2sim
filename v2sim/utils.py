@@ -190,7 +190,7 @@ def DetectFiles(dir: PathLike) -> FileDetectResult:
             add("cscsv", filename)
         elif filenamel.endswith("gs.csv"):
             add("gscsv", filename)
-        elif filenamel.endswith(".v2simcfg"):
+        elif filenamel == "preferences.v2simcfg":
             add("pref", filename)
         elif filenamel == "vtypes.xml":
             add("vtypes", filename)
